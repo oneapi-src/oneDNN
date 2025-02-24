@@ -177,6 +177,51 @@ void two_prompt_two_page_problem() {
     show(output);
 }
 
+void mask_check() {
+    printf("doing mask check\n");
+    /* need to check a few conditions:
+       - tile_m < page_size
+       - page_size < tile_m
+     */
+    const int seq_len = 384, page_size = 96, head_size = 4;
+
+    assert(seq_len % page_size == 0);
+    const int pages_num = seq_len / page_size;
+    const int heads_num = 1;
+
+    tensor query = zeros({1, 1, seq_len, head_size * heads_num});
+    tensor key_cache = zeros({pages_num, heads_num, head_size, page_size});
+    tensor value_cache = zeros({pages_num, heads_num, page_size, head_size});
+    tensor output = zeros({1, 1, seq_len, head_size});
+
+    tensor prompt_lens = cast(tensor({(float)seq_len}, {1, 1, 1, 1}), dt::s32);
+    tensor subsequence_begins
+            = cast(tensor({0, (float)seq_len}, {1, 1, 1, 2}), dt::s32);
+    tensor block_indices = cast(rand(pages_num), dt::s32);
+    tensor block_indices_begins
+            = cast(tensor({0, (float)pages_num}, {1, 1, 1, 2}), dt::s32);
+
+    dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
+            global_engine, seq_len, query.md_, key_cache.md_, value_cache.md_,
+            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
+            block_indices.md_, block_indices_begins.md_);
+    auto sdpa_prim = sdpa_micro(sdpa_pd);
+
+    std::unordered_map<int, memory> sdpa_args;
+    sdpa_args.insert({DNNL_ARG_QUERIES, query.mem_});
+    sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
+    sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
+    sdpa_args.insert({DNNL_ARG_DST, output.mem_});
+    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
+    sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
+    sdpa_args.insert(
+            {DNNL_ARG_BLOCK_INDICES_BEGINS, block_indices_begins.mem_});
+
+    sdpa_prim.execute(global_engine_stream, sdpa_args);
+    global_engine_stream.wait();
+}
+
 void prefill(int seq_len, int head_size, int page_size) {
     assert(seq_len % page_size == 0);
     const int pages_num = seq_len / page_size;
@@ -218,8 +263,8 @@ void prefill(int seq_len, int head_size, int page_size) {
     sdpa_prim.execute(global_engine_stream, sdpa_args);
     global_engine_stream.wait();
     float seconds = toc();
-    printf("prefill, seq_len %d, head_size %d, page_size %d, %f\n", seq_len,
-            head_size, page_size, seconds);
+    printf("prefill, seq_len %d, head_size %d, page_size %d, milliseconds %f\n",
+            seq_len, head_size, page_size, seconds * 1e3);
 }
 
 void generate(int seq_len, int head_size, int page_size) {
@@ -262,8 +307,53 @@ void generate(int seq_len, int head_size, int page_size) {
     sdpa_prim.execute(global_engine_stream, sdpa_args);
     global_engine_stream.wait();
     float seconds = toc();
-    printf("generate seq_len %d, head_size %d, page_size %d, timing %f\n",
-            seq_len, head_size, page_size, seconds);
+    printf("generate seq_len %d, head_size %d, page_size %d, milliseconds %f\n",
+            seq_len, head_size, page_size, seconds * 1e3);
+}
+
+void generate_non_paged(int seq_len, int head_size, int page_size) {
+    const int pages_num = seq_len / page_size;
+    const int heads_num = 1;
+
+    tensor query = zeros({1, 1, 1, head_size * heads_num});
+    tensor key_cache = zeros({pages_num, heads_num, head_size, seq_len});
+    tensor value_cache = zeros({pages_num, heads_num, seq_len, head_size});
+    tensor output = zeros({1, 1, 1, head_size});
+
+    tensor prompt_lens = cast(tensor({(float)1}, {1, 1, 1, 1}), dt::s32);
+    tensor subsequence_begins
+            = cast(tensor({0, (float)1}, {1, 1, 1, 2}), dt::s32);
+    tensor block_indices = cast(rand(pages_num), dt::s32);
+    tensor block_indices_begins
+            = cast(tensor({0, (float)pages_num}, {1, 1, 1, 2}), dt::s32);
+
+    dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
+            global_engine, seq_len, query.md_, key_cache.md_, value_cache.md_,
+            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
+            block_indices.md_, block_indices_begins.md_);
+    auto sdpa_prim = sdpa_micro(sdpa_pd);
+
+    std::unordered_map<int, memory> sdpa_args;
+    sdpa_args.insert({DNNL_ARG_QUERIES, query.mem_});
+    sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
+    sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
+    sdpa_args.insert({DNNL_ARG_DST, output.mem_});
+    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
+    sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
+    sdpa_args.insert(
+            {DNNL_ARG_BLOCK_INDICES_BEGINS, block_indices_begins.mem_});
+
+    sdpa_prim.execute(global_engine_stream, sdpa_args);
+    global_engine_stream.wait();
+
+    tic();
+    sdpa_prim.execute(global_engine_stream, sdpa_args);
+    global_engine_stream.wait();
+    float seconds = toc();
+    printf("generate_non_paged seq_len %d, head_size %d, page_size %d, "
+           "milliseconds %f\n",
+            seq_len, head_size, page_size, seconds * 1e3);
 }
 
 void combined(int context_len, int head_size, int page_size) {
@@ -308,34 +398,96 @@ void combined(int context_len, int head_size, int page_size) {
     sdpa_prim.execute(global_engine_stream, sdpa_args);
     global_engine_stream.wait();
     float seconds = toc();
-    printf("combined context_len %d, head_size %d, page_size %d, timing %f\n",
-            context_len, head_size, page_size, seconds);
+    printf("combined context_len %d, head_size %d, page_size %d, milliseconds "
+           "%f\n",
+            context_len, head_size, page_size, seconds * 1e3);
+}
+
+void prefill_non_paged(int seq_len, int head_size, int page_size) {
+    // assert(seq_len % page_size == 0);
+    const int pages_num = seq_len / page_size;
+    const int heads_num = 1;
+
+    tensor query = zeros({1, 1, seq_len, head_size * heads_num});
+    tensor key_cache = zeros({1, heads_num, head_size, seq_len});
+    tensor value_cache = zeros({1, heads_num, seq_len, head_size});
+    tensor output = zeros({1, 1, seq_len, head_size});
+
+    tensor prompt_lens = cast(tensor({(float)seq_len}, {1, 1, 1, 1}), dt::s32);
+    tensor subsequence_begins
+            = cast(tensor({0, (float)seq_len}, {1, 1, 1, 2}), dt::s32);
+    tensor block_indices = cast(rand(pages_num), dt::s32);
+    tensor block_indices_begins
+            = cast(tensor({0, (float)pages_num}, {1, 1, 1, 2}), dt::s32);
+
+    dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
+            global_engine, seq_len, query.md_, key_cache.md_, value_cache.md_,
+            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
+            block_indices.md_, block_indices_begins.md_);
+    auto sdpa_prim = sdpa_micro(sdpa_pd);
+
+    std::unordered_map<int, memory> sdpa_args;
+    sdpa_args.insert({DNNL_ARG_QUERIES, query.mem_});
+    sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
+    sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
+    sdpa_args.insert({DNNL_ARG_DST, output.mem_});
+    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
+    sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
+    sdpa_args.insert(
+            {DNNL_ARG_BLOCK_INDICES_BEGINS, block_indices_begins.mem_});
+
+    sdpa_prim.execute(global_engine_stream, sdpa_args);
+    global_engine_stream.wait();
+
+    tic();
+    sdpa_prim.execute(global_engine_stream, sdpa_args);
+    global_engine_stream.wait();
+    float seconds = toc();
+    printf("prefill_non_paged, seq_len %d, head_size %d, milliseconds %f\n",
+            seq_len, head_size, seconds * 1e3);
 }
 
 int main(int argc, char **argv) {
     global_engine = dnnl::engine(dnnl::engine::kind::gpu, 0);
     global_engine_stream = dnnl::stream(global_engine);
 
-    // prefill
-    for (int head_size : {128}) {
-        for (int seq_len : {384, 512, 1024, 2048, 4096}) {
-            prefill(seq_len, head_size, 64);
-        }
+    // two_prompt_two_page_problem();
+
+    // mask_check();
+    // return 0;
+
+    // prefill_non_paged(2048, 128, 64);
+    // prefill_non_paged(2064, 128, 64);
+    // prefill_non_paged(2080, 128, 64);
+
+    for (int i = 2043; i < 2090; i++) {
+      for (int j = 0; j < 1; j++) {
+        prefill_non_paged(i, 128, 64);
+      }
     }
 
-    // generate
-    for (int head_size : {128}) {
-        for (int seq_len : {385, 513, 1025, 2049, 4097}) {
-            generate(seq_len, head_size, 64);
-        }
-    }
+    // // prefill
+    // for (int head_size : {128}) {
+    //     for (int seq_len : {384, 512, 1024, 2048, 4096}) {
+    //     // for (int seq_len : {385, 513, 1025, 2049, 4097}) {
+    //         prefill_non_paged(seq_len, head_size, 64);
+    //     }
+    // }
 
-    // combined
-    for (int head_size : {128}) {
-        for (int context_len : {384, 1024, 2048, 4096}) {
-            combined(context_len, head_size, 64); // query len 129
-        }
-    }
+    // // generate
+    // for (int head_size : {128}) {
+    //     for (int seq_len : {385, 513, 1025, 2049, 4097}) {
+    //         generate_non_paged(seq_len, head_size, 64);
+    //     }
+    // }
+
+    // // combined
+    // for (int head_size : {128}) {
+    //     for (int context_len : {384, 1024, 2048, 4096}) {
+    //         combined(context_len, head_size, 64); // query len 129
+    //     }
+    // }
 
     return 0;
 }
