@@ -872,6 +872,8 @@ protected:
 #ifdef NGEN_SAFE
         if (!src0.isIndirect()) throw invalid_address_mode_exception();
 #endif
+        if(dst.getHS() != 1)
+            printf("HERE1\n");
         if (hardware >= HW::Gen10)
             movi<DT>(mod, dst, src0, null.ud(0)(1,1,0));
         else
@@ -883,6 +885,8 @@ protected:
         if (hardware < HW::Gen10) throw unsupported_instruction();
         if (!src0.isIndirect()) throw invalid_address_mode_exception();
 #endif
+        if(dst.getHS() != 1)
+            printf("HERE1\n");
         opX(isGen12 ? Opcode::movi_gen12 : Opcode::movi, getDataType<DT>(), mod, dst, src0, src1, loc);
     }
     template <typename DT = void>
@@ -890,6 +894,8 @@ protected:
 #ifdef NGEN_SAFE
         if (hardware < HW::Gen10) throw unsupported_instruction();
 #endif
+        if(dst.getHS() != 1)
+            printf("HERE1\n");
         opX(isGen12 ? Opcode::movi_gen12 : Opcode::movi, getDataType<DT>(), mod, dst, src0, src1, loc);
     }
     template <typename DT = void>
@@ -1990,7 +1996,7 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType()});
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.isNull() ? src0.getType()  : src1.getType()});
     dst.fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 2);
     src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 2);
     src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 2);
@@ -2675,6 +2681,9 @@ template <HW hw_>
 typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type
 BinaryCodeGenerator<hw>::opJmpi(Opcode op, const InstructionModifier &mod, const RegData &dst, RegData src0, uint32_t jip, SourceLocation loc)
 {
+#ifdef NGEN_SAFE
+        if (mod.getExecSize() != 1) throw invalid_modifiers_exception();
+#endif
     debugLine.add(rootStream.length(), loc);
 
     Instruction8 i{};
@@ -2706,8 +2715,9 @@ BinaryCodeGenerator<hw>::opJmpi(Opcode op, const InstructionModifier &mod, const
 template <HW hw>
 void BinaryCodeGenerator<hw>::opJmpi(Opcode op, const InstructionModifier &mod, const RegData &dst, const RegData &src0, Label &jip, SourceLocation loc)
 {
-    if (hw >= HW::Gen12LP)
+    if (hw >= HW::Gen12LP){
         addFixup(LabelFixup(jip.getID(labelManager), LabelFixup::JIPOffset));
+    }
     opJmpi(op, mod, dst, src0, 0, loc);
     if (hw < HW::Gen12LP)
         addFixup(LabelFixup(jip.getID(labelManager), LabelFixup::JIPOffsetJMPI));

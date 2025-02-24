@@ -38,7 +38,7 @@ struct CopyOperand
     uint8_t inVS = 0, inW = 0;                          // Incoming region parameters.
     ngen::DataType type = ngen::DataType::invalid;
     ngen::DataType range = ngen::DataType::invalid;
-    enum : uint8_t {GRF, Immediate, Flag, Null} kind = Null;
+    enum : uint8_t {GRF, Immediate, Flag, Address, Null} kind = Null;
     bool temp = false;                                  // Operand is a temporary?
     bool overwrite = false;                             // Operand can be trashed?
     bool overwriteStride = false;                       // Padding area between strides can be trashed?
@@ -58,12 +58,19 @@ struct CopyOperand
 
     ngen::RegData ngen() const;
     ngen::Immediate ngenImmediate() const;
+    ngen::AddressRegister ngenAddress() const;
     ngen::FlagRegister ngenFlag() const;
 
     CopyOperand() {}
     CopyOperand(ngen::RegData rd);
     CopyOperand(ngen::Immediate imm) : type(imm.getType()), kind(Immediate), value(imm) {}
     CopyOperand(int imm) : CopyOperand(ngen::Immediate(imm)) {}
+    static CopyOperand tmpAbsOffset(CopyOperand tmp){
+        auto tmpImm = CopyOperand(tmp);
+        tmpImm.temp = true;
+        tmpImm.kind = Immediate;
+        return tmpImm;
+    }
 #if defined(DNNL_DEV_MODE)
     void dump() const;
 #endif
@@ -82,7 +89,8 @@ struct CopyInstruction
     uint16_t phase = 0, spread = 0;
     CopyOperand dst, src0, src1, src2, flag;
     ngen::ConditionModifier cmod = ngen::ConditionModifier::none;
-    bool atomic = false, sat = false;
+    bool atomic = false, sat = false, wrEn = false;
+    bool label = false;          
     int16_t cnumSub = 0;
 
     void invalidate()       { simd = 0; }
@@ -99,6 +107,7 @@ struct CopyInstruction
 #if defined(DNNL_DEV_MODE)
     void dump(const CopyPlan &plan) const;
 #endif
+    ngen::Label *label_;
 
 };
 
@@ -134,7 +143,10 @@ public:
     using FlagAllocator = std::function<void(int bytes, ngen::FlagRegister &flag)>;
 
     CopyPlan(ngen::HW hw_, bool systolicAvailable_) : hw(hw_), systolicAvailable(systolicAvailable_) {}
-
+    ~CopyPlan(){
+        for( auto i : tempLabels)
+            delete i;
+    }
     CopyInstruction &append(CopyInstruction &&i);
     CopyInstruction &append(ngen::Opcode op, int simd, const CopyOperand &dst, const CopyOperand &src0, const CopyOperand &src1 = CopyOperand(), const CopyOperand &src2 = CopyOperand());
     CopyInstruction &append(ngen::Opcode op, int simd, ngen::InstructionModifier mod, const CopyOperand &dst, const CopyOperand &src0, const CopyOperand &src1 = CopyOperand(), const CopyOperand &src2 = CopyOperand());
@@ -150,6 +162,7 @@ public:
     inline void execute(Generator &g);
 #if defined(DNNL_DEV_MODE)
     void dump() const;
+    void dumpNew() const;
     int cycleCount() const;
 #endif
     int tempFlagBytes() const;
@@ -159,6 +172,7 @@ protected:
     bool systolicAvailable;
     std::vector<CopyInstruction> insns, newInsns;
     std::vector<CopyTemporary> temps;
+    std::vector<ngen::Label*> tempLabels;
 
     enum class SortType {
         PhaseOnly, Register, SourceOrder
@@ -166,6 +180,8 @@ protected:
 
     CopyOperand newTemp(ngen::DataType type, int elems, int stride, int align = 0, int offset = 0);
     CopyOperand newFlag(int bits = 16);
+    CopyOperand newAddr();
+    ngen::Label *newLabel();
 
     CopyInstruction &split(CopyInstruction &i, bool sequenced = true);
     template <int n>
@@ -191,6 +207,7 @@ protected:
     void planSmallUWToHF(CopyInstruction &i);
     void planBToHF(CopyInstruction &i);
     void planS4ToHF(CopyInstruction &i);
+    void planEmulatedHFToE3M0(CopyInstruction &i);
     void planEmulatedE3M0ToHF(CopyInstruction &i);
     void planEmulatedF4E2M1ToHF(CopyInstruction &i);
     void planEmulatedHFToF4E2M1(CopyInstruction &i);
@@ -226,24 +243,49 @@ void CopyInstruction::execute(Generator &g)
 {
 #define UNARY_OP_CASE(o)                                                            \
     case ngen::Opcode::o:                                                           \
-        if (src0.kind == CopyOperand::Immediate)                                    \
+        if (dst.kind == CopyOperand::Address && src0.kind == CopyOperand::Immediate)                                  \
+            g.o(ngenModifiers(), dst.ngenAddress(), src0.ngenImmediate());                   \
+        else if (src0.kind == CopyOperand::Immediate)                                    \
             g.o(ngenModifiers(), dst.ngen(), src0.ngenImmediate());                 \
+        else if (dst.kind == CopyOperand::Address)                                  \
+            g.o(ngenModifiers(), dst.ngenAddress(), src0.ngen());                   \
         else                                                                        \
             g.o(ngenModifiers(), dst.ngen(), src0.ngen());                          \
         break;
+#define LABEL_OP_CASE(o)                                                            \
+    case ngen::Opcode::o:                                                           \
+            g.mark(*label_);                                                         \
+        break;
+#define JMP_OP_CASE(o)                                                              \
+    case ngen::Opcode::o:                                                           \
+            g.jmpi(ngenModifiers(), *label_);                                        \
+        break;
+#define UNARY_TEMPL_OP_CASE(o)                                                      \
+    case ngen::Opcode::o:                                                           \
+            g.o(ngenModifiers(), dst.ngen(), g.indirect[g.a0].uw(0)(0,1,0));        \
+        break;
 #define BINARY_OP_CASE(o)                                                           \
     case ngen::Opcode::o:                                                           \
-        if (src1.kind == CopyOperand::Immediate)                                    \
+        if (src1.kind == CopyOperand::Immediate){                                   \
+            if (dst.kind == CopyOperand::Address) {                                  \
+            if (src0.kind == CopyOperand::Address)                                   \
+            g.o(ngenModifiers(), dst.ngenAddress(), src0.ngenAddress(), src1.ngenImmediate());    \
+            else \
+            g.o(ngenModifiers(), dst.ngenAddress(), src0.ngen(), src1.ngenImmediate());    \
+            }else                                                                    \
             g.o(ngenModifiers(), dst.ngen(), src0.ngen(), src1.ngenImmediate());    \
-        else                                                                        \
+        }else                                                                       \
             g.o(ngenModifiers(), dst.ngen(), src0.ngen(), src1.ngen());             \
         break;
 #define TERNARY_OP_CASE(o)                                                          \
     case ngen::Opcode::o:                                                           \
         if (src0.kind == CopyOperand::Immediate) {                                  \
-            if (src2.kind == CopyOperand::Immediate)                                \
+            if (src2.kind == CopyOperand::Immediate){                                \
+            if (dst.kind == CopyOperand::Address)                                \
+                g.o(ngenModifiers(), dst.ngenAddress(), src0.ngenImmediate(), src1.ngen(), src2.ngenImmediate()); \
+            else                               \
                 g.o(ngenModifiers(), dst.ngen(), src0.ngenImmediate(), src1.ngen(), src2.ngenImmediate()); \
-            else                                                                    \
+            }else                                                                    \
                 g.o(ngenModifiers(), dst.ngen(), src0.ngenImmediate(), src1.ngen(), src2.ngen()); \
         } else {                                                                    \
             if (src2.kind == CopyOperand::Immediate)                                \
@@ -269,6 +311,9 @@ void CopyInstruction::execute(Generator &g)
 
     switch (op) {
         UNARY_OP_CASE(mov)
+        LABEL_OP_CASE(nop)
+        JMP_OP_CASE(jmpi)
+        UNARY_TEMPL_OP_CASE(movi)
         BINARY_OP_CASE(add)
         BINARY_OP_CASE(mul)
         BINARY_OP_CASE(cmp)

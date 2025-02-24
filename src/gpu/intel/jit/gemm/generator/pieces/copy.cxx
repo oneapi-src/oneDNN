@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -98,8 +98,12 @@ void BLASKernelGenerator<hw>::copyRegisters(Type Ts, Type Td, const vector<Regis
 
     // Accumulate copy pseudo-instructions.
     CopyPlan plan(hw, strategy.systolicAvailable);
+    //bool ftof4 = (Ts == Type::f32 && Td == Type::f4_e3m0);
+    //if(ftof4)
+        //printf("HERE\n");
 
     for (auto &sblock : layoutSrc) {
+        //auto &sblock = layoutSrc[0];
     for (int eoffY = 0; eoffY < sblock.*ny; eoffY++) {
     for (int eoffX = 0; eoffX < sblock.*nx;) {
         auto eoffR = sblock.colMajor ? eoffX : eoffY;
@@ -114,6 +118,7 @@ void BLASKernelGenerator<hw>::copyRegisters(Type Ts, Type Td, const vector<Regis
         CopyOperand sOp = findBlockRegion(Ts, sblock,    eoffR,                          eoffC,                          src, ns,         cxComp, 0, true);
         CopyOperand dOp = findBlockRegion(Td, layoutDst, sblock.offsetR + eoffR + dOffR, sblock.offsetC + eoffC + dOffC, dst, nd, dblock, cxComp, 0, true);
         int n = std::min(ns, nd);
+        //if(Td == Type::f4_e3m0) n = std::min(n, 8);
 
         if (!preserveSrc) {
             sOp.overwrite = true;
@@ -139,10 +144,12 @@ void BLASKernelGenerator<hw>::copyRegisters(Type Ts, Type Td, const vector<Regis
             stub("Unsupported scaling factor");
 
         // Issue pseudo-instructions.
+        //if (!ftof4 || !(eoffY || eoffX)){
         if (alpha.fixed())
             plan.append(Opcode::mov, n, mod, dOp, sOp);
         else
             plan.append(Opcode::mul, n, mod, dOp, sOp, alpha_real.getRegAvoiding(hw, sOp.ngen()));
+        //}
 
         eoffX += n;
     } /* eoffX loop */
