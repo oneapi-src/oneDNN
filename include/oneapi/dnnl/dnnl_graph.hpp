@@ -365,7 +365,7 @@ public:
             layout_type ltype, property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
         // if dimension size equals to 0, it's a scalar
-        if (adims.size() == 0)
+        if (adims.empty())
             error::wrap_c_api(dnnl_graph_logical_tensor_init(&val, tid,
                                       convert_to_c(dtype), 0,
                                       convert_to_c(ltype), convert_to_c(ptype)),
@@ -420,7 +420,7 @@ public:
             property_type ptype = property_type::undef) {
         dnnl_graph_logical_tensor_t val;
 
-        if (adims.size() == 0) {
+        if (adims.empty()) {
             error::wrap_c_api(dnnl_graph_logical_tensor_init(&val, tid,
                                       convert_to_c(dtype), 0,
                                       convert_to_c(layout_type::opaque),
