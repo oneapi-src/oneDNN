@@ -34,7 +34,7 @@ void *ocl_allocator_t::malloc(
 void ocl_allocator_t::free(
         void *ptr, cl_device_id dev, cl_context ctx, cl_event event) {
     if (nullptr == ptr) return;
-    if (event) { OCL_CHECK_V(clWaitForEvents(1, &event)); }
+    if (event) { OCL_CHECK_V(call_clWaitForEvents(1, &event)); }
     ocl::free(ptr, dev, ctx);
 }
 #endif

@@ -99,9 +99,9 @@ bool try_building_with_microkernels(cl_context context, cl_device_id device) {
     cl_int err;
     /// Not using existing build infrastructure to avoid error messages in the CI logs
     xpu::ocl::wrapper_t<cl_program> program(
-            clCreateProgramWithSource(context, 1, &kernel_code, nullptr, &err));
+            call_clCreateProgramWithSource(context, 1, &kernel_code, nullptr, &err));
     if (err != CL_SUCCESS) return false;
-    err = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
+    err = call_clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
     return err == CL_SUCCESS;
 }
 
@@ -120,7 +120,7 @@ int get_sycl_ocl_device_and_context(
         ocl_device = xpu::ocl::make_wrapper(ocl_dev, true);
 
         ocl_context = xpu::ocl::make_wrapper(
-                clCreateContext(nullptr, 1, &ocl_dev, nullptr, nullptr, &err),
+                call_clCreateContext(nullptr, 1, &ocl_dev, nullptr, nullptr, &err),
                 true);
         if (err) return -1;
     } else if (be == xpu::sycl::backend_t::level0) {
@@ -178,7 +178,7 @@ bool mayiuse_microkernels(const impl::engine_t *engine) {
 status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
         cl_kernel ocl_kernel, cl_uint idx, bool allow_undef) {
     char s_type[16];
-    auto cl_status = clGetKernelArgInfo(ocl_kernel, idx,
+    auto cl_status = call_clGetKernelArgInfo(ocl_kernel, idx,
             CL_KERNEL_ARG_TYPE_NAME, sizeof(s_type), s_type, nullptr);
     if (cl_status == CL_SUCCESS) {
 #define CASE(x) \
@@ -210,7 +210,7 @@ status_t get_ocl_kernel_arg_type(compute::scalar_type_t *type,
 }
 
 static status_t get_number_devices(cl_program program, size_t *n_devices) {
-    cl_int err = clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES,
+    cl_int err = call_clGetProgramInfo(program, CL_PROGRAM_NUM_DEVICES,
             sizeof(size_t), n_devices, nullptr);
     OCL_CHECK(err);
     return status::success;
@@ -219,7 +219,7 @@ static status_t get_number_devices(cl_program program, size_t *n_devices) {
 status_t get_ocl_program_binary_size(
         cl_kernel kernel, cl_device_id device, size_t *size) {
     cl_program program;
-    cl_int err = clGetKernelInfo(
+    cl_int err = call_clGetKernelInfo(
             kernel, CL_KERNEL_PROGRAM, sizeof(program), &program, nullptr);
     OCL_CHECK(err);
 
@@ -227,7 +227,7 @@ status_t get_ocl_program_binary_size(
     CHECK(get_number_devices(program, &n_devices));
 
     std::vector<size_t> binary_sizes(n_devices);
-    err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
+    err = call_clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
             sizeof(size_t) * n_devices, binary_sizes.data(), nullptr);
     OCL_CHECK(err);
 
@@ -235,7 +235,7 @@ status_t get_ocl_program_binary_size(
     // compiled for. Using global indexing through `get_device_index` may
     // fail due to presence of two or more physical devices in the system.
     std::vector<cl_device_id> devices(n_devices);
-    err = clGetProgramInfo(program, CL_PROGRAM_DEVICES,
+    err = call_clGetProgramInfo(program, CL_PROGRAM_DEVICES,
             sizeof(cl_device_id) * n_devices, devices.data(), nullptr);
     OCL_CHECK(err);
 
@@ -253,12 +253,12 @@ status_t get_ocl_program_binary(
     CHECK(get_number_devices(program, &n_devices));
 
     std::vector<size_t> binarySize(n_devices);
-    cl_int err = clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
+    cl_int err = call_clGetProgramInfo(program, CL_PROGRAM_BINARY_SIZES,
             sizeof(size_t) * n_devices, binarySize.data(), nullptr);
     OCL_CHECK(err);
 
     std::vector<cl_device_id> devices(n_devices);
-    err = clGetProgramInfo(program, CL_PROGRAM_DEVICES,
+    err = call_clGetProgramInfo(program, CL_PROGRAM_DEVICES,
             sizeof(cl_device_id) * n_devices, devices.data(), nullptr);
     OCL_CHECK(err);
 
@@ -271,7 +271,7 @@ status_t get_ocl_program_binary(
         binary_pointers[i] = binaries[i].data();
     }
 
-    err = clGetProgramInfo(program, CL_PROGRAM_BINARIES,
+    err = call_clGetProgramInfo(program, CL_PROGRAM_BINARIES,
             sizeof(uint8_t *) * n_devices, binary_pointers.data(), nullptr);
     OCL_CHECK(err);
     binary = binaries[device_idx];
@@ -283,7 +283,7 @@ status_t get_ocl_program_binary(
     cl_int err;
 
     cl_program program;
-    err = clGetKernelInfo(
+    err = call_clGetKernelInfo(
             kernel, CL_KERNEL_PROGRAM, sizeof(program), &program, nullptr);
     OCL_CHECK(err);
 
@@ -293,10 +293,10 @@ status_t get_ocl_program_binary(
 status_t get_ocl_kernel_binary(cl_kernel ocl_kernel, xpu::binary_t &binary) {
     binary.clear();
     size_t binary_size;
-    OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL, 0,
+    OCL_CHECK(call_clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL, 0,
             nullptr, &binary_size));
     binary.resize(binary_size);
-    OCL_CHECK(clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL,
+    OCL_CHECK(call_clGetKernelInfo(ocl_kernel, CL_KERNEL_BINARY_PROGRAM_INTEL,
             binary.size(), binary.data(), nullptr));
     return status::success;
 }
@@ -367,7 +367,7 @@ void debugdump_processed_source(const std::string &source,
 status_t get_kernel_arg_types(cl_kernel ocl_kernel,
         std::vector<gpu::intel::compute::scalar_type_t> *arg_types) {
     cl_uint nargs;
-    OCL_CHECK(clGetKernelInfo(
+    OCL_CHECK(call_clGetKernelInfo(
             ocl_kernel, CL_KERNEL_NUM_ARGS, sizeof(nargs), &nargs, nullptr));
 
     *arg_types = std::vector<gpu::intel::compute::scalar_type_t>(nargs);
@@ -385,7 +385,7 @@ status_t get_kernel_arg_types(cl_kernel ocl_kernel,
 status_t get_ocl_device_enabled_systolic_intel(
         cl_device_id device, bool &enabled_systolic) {
     cl_bitfield res;
-    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_FEATURE_CAPABILITIES_INTEL,
+    OCL_CHECK(call_clGetDeviceInfo(device, CL_DEVICE_FEATURE_CAPABILITIES_INTEL,
             sizeof(cl_bitfield), &res, nullptr));
     enabled_systolic = res & CL_DEVICE_FEATURE_FLAG_DPAS_INTEL;
     return status::success;
@@ -396,7 +396,7 @@ status_t get_ocl_device_enabled_native_float_atomics(
     cl_bitfield res;
 
     cl_int err
-            = clGetDeviceInfo(device, CL_DEVICE_HALF_FP_ATOMIC_CAPABILITIES_EXT,
+            = call_clGetDeviceInfo(device, CL_DEVICE_HALF_FP_ATOMIC_CAPABILITIES_EXT,
                     sizeof(cl_bitfield), &res, nullptr);
     if (err == status::success) {
         if (res & CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT
@@ -413,7 +413,7 @@ status_t get_ocl_device_enabled_native_float_atomics(
                     gpu::intel::compute::native_ext_t::fp16_atomic_min_max;
     }
 
-    err = clGetDeviceInfo(device, CL_DEVICE_SINGLE_FP_ATOMIC_CAPABILITIES_EXT,
+    err = call_clGetDeviceInfo(device, CL_DEVICE_SINGLE_FP_ATOMIC_CAPABILITIES_EXT,
             sizeof(cl_bitfield), &res, nullptr);
     if (err == status::success) {
         if (res & CL_DEVICE_GLOBAL_FP_ATOMIC_LOAD_STORE_EXT
@@ -432,7 +432,7 @@ status_t get_ocl_device_enabled_native_float_atomics(
 
     // XeLPG lacks native support for f64 atomics.
     if (!is_xelpg) {
-        err = clGetDeviceInfo(device,
+        err = call_clGetDeviceInfo(device,
                 CL_DEVICE_DOUBLE_FP_ATOMIC_CAPABILITIES_EXT,
                 sizeof(cl_bitfield), &res, nullptr);
         if (err == status::success) {
@@ -458,7 +458,7 @@ status_t get_ocl_device_eu_count(cl_device_id device,
         gpu::intel::compute::gpu_arch_t arch, int32_t *eu_count) {
     // Start with standard OpenCL query.
     cl_uint max_compute_units = 0;
-    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS,
+    OCL_CHECK(call_clGetDeviceInfo(device, CL_DEVICE_MAX_COMPUTE_UNITS,
             sizeof(max_compute_units), &max_compute_units, nullptr));
 
     // Try to use Intel-specific slice/sub-slice queries to correct EU count
@@ -473,7 +473,7 @@ status_t get_ocl_device_eu_count(cl_device_id device,
     auto do_query = [&](cl_uint query) -> cl_uint {
         cl_uint val = 0;
         ok = ok
-                && (clGetDeviceInfo(device, query, sizeof(val), &val, nullptr)
+                && (call_clGetDeviceInfo(device, query, sizeof(val), &val, nullptr)
                         == CL_SUCCESS);
         return val;
     };

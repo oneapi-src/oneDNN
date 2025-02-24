@@ -157,31 +157,30 @@ const char *convert_cl_int_to_str(cl_int cl_status) {
     }
 }
 
-template <typename T, typename F>
-static std::string get_ocl_name(T obj, F get_func, cl_uint name_query) {
-    size_t name_size;
-    cl_int err = get_func(obj, name_query, 0, nullptr, &name_size);
-    // Ignore error.
-    UNUSED_OCL_RESULT(err);
-
-    // Include null terminator explicitly - to safely overwrite it in
-    // clGetKernelInfo
-    std::string name(name_size, 0);
-    err = get_func(obj, name_query, name_size, &name[0], nullptr);
-    // Ignore error.
-    UNUSED_OCL_RESULT(err);
-
-    // Remove the null terminator as std::string already includes it
-    name.resize(name_size - 1);
-    return name;
-}
+#define get_ocl_name(obj, get_func, name_query) do {        \
+        size_t name_size; \
+        cl_int err = get_func(obj, name_query, 0, nullptr, &name_size); \
+        /* Ignore error. */ \
+        UNUSED_OCL_RESULT(err); \
+\
+        /* Include null terminator explicitly - to safely overwrite it in */ \
+        /* clGetKernelInfo */ \
+        std::string name(name_size, 0); \
+        err = get_func(obj, name_query, name_size, &name[0], nullptr); \
+        /* Ignore error. */ \
+        UNUSED_OCL_RESULT(err); \
+\
+        /* Remove the null terminator as std::string already includes it */ \
+        name.resize(name_size - 1); \
+        return name; \
+    } while(0)
 
 std::string get_kernel_name(cl_kernel kernel) {
-    return get_ocl_name(kernel, clGetKernelInfo, CL_KERNEL_FUNCTION_NAME);
+    get_ocl_name(kernel, call_clGetKernelInfo, CL_KERNEL_FUNCTION_NAME);
 }
 
 static std::string get_platform_name(cl_platform_id platform) {
-    return get_ocl_name(platform, clGetPlatformInfo, CL_PLATFORM_NAME);
+    get_ocl_name(platform, call_clGetPlatformInfo, CL_PLATFORM_NAME);
 }
 
 static bool is_intel_platform(cl_platform_id platform) {
@@ -193,20 +192,20 @@ status_t get_devices(std::vector<cl_device_id> *devices,
         cl_device_type device_type, cl_uint vendor_id /* = 0x8086 */) {
     cl_uint num_platforms = 0;
 
-    cl_int err = clGetPlatformIDs(0, nullptr, &num_platforms);
+    cl_int err = call_clGetPlatformIDs(0, nullptr, &num_platforms);
     // No platforms - a valid scenario
     if (err == CL_PLATFORM_NOT_FOUND_KHR) return status::success;
 
     OCL_CHECK(err);
 
     std::vector<cl_platform_id> platforms(num_platforms);
-    OCL_CHECK(clGetPlatformIDs(num_platforms, &platforms[0], nullptr));
+    OCL_CHECK(call_clGetPlatformIDs(num_platforms, &platforms[0], nullptr));
 
     for (size_t i = 0; i < platforms.size(); ++i) {
         if (!is_intel_platform(platforms[i])) continue;
 
         cl_uint num_devices = 0;
-        cl_int err = clGetDeviceIDs(
+        cl_int err = call_clGetDeviceIDs(
                 platforms[i], device_type, 0, nullptr, &num_devices);
 
         if (!utils::one_of(err, CL_SUCCESS, CL_DEVICE_NOT_FOUND)) {
@@ -216,14 +215,14 @@ status_t get_devices(std::vector<cl_device_id> *devices,
         if (num_devices != 0) {
             std::vector<cl_device_id> plat_devices;
             plat_devices.resize(num_devices);
-            OCL_CHECK(clGetDeviceIDs(platforms[i], device_type, num_devices,
-                    &plat_devices[0], nullptr));
+            OCL_CHECK(call_clGetDeviceIDs(platforms[i], device_type,
+                    num_devices, &plat_devices[0], nullptr));
 
             // Use the devices for the requested vendor only.
             for (size_t j = 0; j < plat_devices.size(); ++j) {
                 cl_uint v_id;
-                OCL_CHECK(clGetDeviceInfo(plat_devices[j], CL_DEVICE_VENDOR_ID,
-                        sizeof(cl_uint), &v_id, nullptr));
+                OCL_CHECK(call_clGetDeviceInfo(plat_devices[j],
+                        CL_DEVICE_VENDOR_ID, sizeof(cl_uint), &v_id, nullptr));
                 if (v_id == vendor_id) { devices->push_back(plat_devices[j]); }
             }
         }
@@ -245,12 +244,12 @@ status_t get_devices(std::vector<cl_device_id> *devices,
         cl_device_partition_property properties[3]
                 = {CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
                         CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE, 0};
-        cl_int err = clCreateSubDevices(
+        cl_int err = call_clCreateSubDevices(
                 d, properties, 0, nullptr, &max_sub_devices);
         if (err == CL_DEVICE_PARTITION_FAILED) continue;
         OCL_CHECK(err);
         std::vector<cl_device_id> sds(max_sub_devices);
-        OCL_CHECK(clCreateSubDevices(
+        OCL_CHECK(call_clCreateSubDevices(
                 d, properties, max_sub_devices, sds.data(), nullptr));
         for (cl_device_id sd : sds)
             sub_devices_tmp.emplace_back(sd);
@@ -263,7 +262,7 @@ status_t get_devices(std::vector<cl_device_id> *devices,
 status_t get_device_index(size_t *index, cl_device_id device) {
     std::vector<cl_device_id> ocl_devices;
     cl_device_type device_type;
-    OCL_CHECK(clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(device_type),
+    OCL_CHECK(call_clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(device_type),
             &device_type, nullptr));
     CHECK(get_devices(&ocl_devices, device_type));
 
@@ -272,8 +271,9 @@ status_t get_device_index(size_t *index, cl_device_id device) {
     auto top_level_device = device;
     while (parent_device) {
         top_level_device = parent_device;
-        OCL_CHECK(clGetDeviceInfo(top_level_device, CL_DEVICE_PARENT_DEVICE,
-                sizeof(cl_device_id), &parent_device, nullptr));
+        OCL_CHECK(
+                call_clGetDeviceInfo(top_level_device, CL_DEVICE_PARENT_DEVICE,
+                        sizeof(cl_device_id), &parent_device, nullptr));
     }
 
     // Find the top level device in the list
@@ -290,7 +290,7 @@ status_t get_device_index(size_t *index, cl_device_id device) {
 
 cl_platform_id get_platform(cl_device_id device) {
     cl_platform_id platform;
-    cl_int err = clGetDeviceInfo(
+    cl_int err = call_clGetDeviceInfo(
             device, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr);
     if (err != CL_SUCCESS) return nullptr;
     return platform;
@@ -308,10 +308,10 @@ status_t create_program(ocl::wrapper_t<cl_program> &ocl_program,
     size_t binary_size = binary.size();
     assert(binary_size > 0);
 
-    ocl_program = clCreateProgramWithBinary(
+    ocl_program = call_clCreateProgramWithBinary(
             ctx, 1, &dev, &binary_size, &binary_buffer, nullptr, &err);
     OCL_CHECK(err);
-    err = clBuildProgram(ocl_program, 1, &dev, nullptr, nullptr, nullptr);
+    err = call_clBuildProgram(ocl_program, 1, &dev, nullptr, nullptr, nullptr);
     OCL_CHECK(err);
 
     return status::success;
@@ -325,8 +325,8 @@ status_t get_device_uuid(xpu::device_uuid_t &uuid, cl_device_id ocl_dev) {
             CL_UUID_SIZE_KHR == 16, "CL_UUID_SIZE_KHR is expected to be 16");
 
     cl_uchar ocl_dev_uuid[CL_UUID_SIZE_KHR] = {};
-    OCL_CHECK(clGetDeviceInfo(ocl_dev, CL_DEVICE_UUID_KHR, CL_UUID_SIZE_KHR,
-            ocl_dev_uuid, nullptr));
+    OCL_CHECK(call_clGetDeviceInfo(ocl_dev, CL_DEVICE_UUID_KHR,
+            CL_UUID_SIZE_KHR, ocl_dev_uuid, nullptr));
 
     uint64_t uuid_packed[CL_UUID_SIZE_KHR / sizeof(uint64_t)] = {};
     for (size_t i = 0; i < CL_UUID_SIZE_KHR; ++i) {
@@ -346,11 +346,11 @@ status_t check_device(
 
     // Check device and context consistency.
     size_t dev_bytes;
-    OCL_CHECK(
-            clGetContextInfo(ctx, CL_CONTEXT_DEVICES, 0, nullptr, &dev_bytes));
+    OCL_CHECK(call_clGetContextInfo(
+            ctx, CL_CONTEXT_DEVICES, 0, nullptr, &dev_bytes));
 
     std::vector<cl_device_id> ctx_devices(dev_bytes / sizeof(cl_device_id));
-    OCL_CHECK(clGetContextInfo(
+    OCL_CHECK(call_clGetContextInfo(
             ctx, CL_CONTEXT_DEVICES, dev_bytes, &ctx_devices[0], nullptr));
 
     bool found = false;
@@ -365,7 +365,7 @@ status_t check_device(
 
     // Check engine kind and device consistency.
     cl_device_type dev_type;
-    OCL_CHECK(clGetDeviceInfo(
+    OCL_CHECK(call_clGetDeviceInfo(
             dev, CL_DEVICE_TYPE, sizeof(dev_type), &dev_type, nullptr));
     VERROR_ENGINE(!((eng_kind == engine_kind::cpu)
                           && (dev_type & CL_DEVICE_TYPE_CPU) == 0),
@@ -377,7 +377,7 @@ status_t check_device(
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
     // Check that the platform is an Intel platform.
     cl_platform_id platform;
-    OCL_CHECK(clGetDeviceInfo(
+    OCL_CHECK(call_clGetDeviceInfo(
             dev, CL_DEVICE_PLATFORM, sizeof(platform), &platform, nullptr));
 
     VERROR_ENGINE(is_intel_platform(platform), status::invalid_arguments,
@@ -390,18 +390,18 @@ status_t check_device(
 status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel) {
     cl_int err;
 #if defined(CL_VERSION_2_1)
-    *cloned_kernel = clCloneKernel(kernel, &err);
+    *cloned_kernel = call_clCloneKernel(kernel, &err);
     OCL_CHECK(err);
 #else
     // clCloneKernel is not available - recreate from the program.
     auto name = get_kernel_name(kernel);
 
     cl_program program;
-    err = clGetKernelInfo(
+    err = call_clGetKernelInfo(
             kernel, CL_KERNEL_PROGRAM, sizeof(program), &program, nullptr);
     OCL_CHECK(err);
 
-    *cloned_kernel = clCreateKernel(program, name.c_str(), &err);
+    *cloned_kernel = call_clCreateKernel(program, name.c_str(), &err);
     OCL_CHECK(err);
 #endif
 
@@ -410,7 +410,7 @@ status_t clone_kernel(cl_kernel kernel, cl_kernel *cloned_kernel) {
 
 cl_mem clCreateBuffer_wrapper(cl_context context, cl_mem_flags flags,
         size_t size, void *host_ptr, cl_int *errcode_ret) {
-    return clCreateBuffer(context, flags, size, host_ptr, errcode_ret);
+    return call_clCreateBuffer(context, flags, size, host_ptr, errcode_ret);
 }
 
 } // namespace ocl

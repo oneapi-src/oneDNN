@@ -115,7 +115,7 @@ public:
         std::vector<uint8_t> report(report_size);
 
         cl_int err;
-        err = clGetEventProfilingInfo(event,
+        err = call_clGetEventProfilingInfo(event,
                 CL_PROFILING_COMMAND_PERFCOUNTERS_INTEL, report_size,
                 report.data(), &out_size);
         if (err != CL_SUCCESS) return 0;
