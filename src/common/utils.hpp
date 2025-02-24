@@ -45,6 +45,7 @@
 
 #include "c_types_map.hpp"
 #include "nstl.hpp"
+#include "verbose.hpp"
 #include "z_magic.hpp"
 
 namespace dnnl {
@@ -74,13 +75,21 @@ static_assert(sizeof(void *) == 8, "oneDNN supports 64-bit architectures only");
 #define CHECK(f) \
     do { \
         dnnl::impl::status_t _status_ = f; \
-        if (_status_ != dnnl::impl::status::success) return _status_; \
+        if (_status_ != dnnl::impl::status::success) { \
+            VDEBUGINFO(debug, common, utils, "status::%s==" #f, \
+                    dnnl_status2str(_status_)); \
+            return _status_; \
+        } \
     } while (0)
 
 #define CHECK_BOOL(f) \
     do { \
         dnnl::impl::status_t _status_ = f; \
-        if (_status_ != dnnl::impl::status::success) return false; \
+        if (_status_ != dnnl::impl::status::success) { \
+            VDEBUGINFO(debug, common, utils, "status::%s==" #f, \
+                    dnnl_status2str(_status_)); \
+            return false; \
+        } \
     } while (0)
 
 #define UNUSED_STATUS(f) \
@@ -698,15 +707,6 @@ constexpr int msan_enabled = MSAN_ENABLED;
 inline void msan_unpoison(void *ptr, size_t size) {
 #if MSAN_ENABLED
     __msan_unpoison(ptr, size);
-#endif
-}
-
-// Helper to avoid #ifdefs for DNNL_DEV_MODE related code
-static constexpr bool is_dev_mode() {
-#ifdef DNNL_DEV_MODE
-    return true;
-#else
-    return false;
 #endif
 }
 

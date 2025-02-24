@@ -170,7 +170,7 @@ const kcatalog::Entry *select(const kcatalog::Catalog &catalog, int npatterns, c
     bool bestIsFallback = false;
     int bestAlignA = 0, bestAlignB = 0;
 
-    bool verbose = (get_verbose(verbose_t::debuginfo) >= 5);
+    bool verbose = get_debug_verbose(verbose_t::debug_level::debug);
 
     // TODO: omit evaluation if only one match, if aux output not needed.
     for (int ipattern = 0; ipattern < npatterns; ipattern++) {

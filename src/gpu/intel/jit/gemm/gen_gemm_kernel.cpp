@@ -967,8 +967,11 @@ xpu::binary_t gen_gemm_kernel_t::get_binary(
 }
 
 void gen_gemm_kernel_t::maybe_print_verbose() {
-    int level = get_verbose(verbose_t::debuginfo);
-    if (level < 2) return;
+    if (get_debug_verbose(verbose_t::debug_level::debug))
+        verbose_printf("info,gpu,gemm,catalog entry:%s\n",
+                desc()->entry().str().c_str());
+
+    if (!get_debug_verbose(verbose_t::debug_level::info)) return;
 
     const auto &problem = desc()->problem_;
     const auto &strategy = desc()->strategy_;
@@ -978,10 +981,6 @@ void gen_gemm_kernel_t::maybe_print_verbose() {
     auto sstr = unparseStrategy(desc()->hw_, problem, strategy);
 
     if (!astr.empty()) astr += ' ';
-
-    if (level >= 10)
-        verbose_printf("info,gpu,gemm,catalog entry:%s\n",
-                desc()->entry().str().c_str());
 
     verbose_printf("info,gpu,gemm,kernel:%s %d %d %s%s\n", pstr.c_str(),
             strategy.unroll[LoopM], strategy.unroll[LoopN], astr.c_str(),
