@@ -38,7 +38,7 @@ public:
 template <typename prb_t>
 class prb_wrapper_t : public prb_wrapper_base_t {
 public:
-    prb_wrapper_t(const std::shared_ptr<prb_t> prb) { prb_ = prb; }
+    prb_wrapper_t(const std::shared_ptr<prb_t> prb) : prb_(prb) {}
     // get raw pointer of prb object
     const prb_t *get() const { return prb_.get(); }
 
