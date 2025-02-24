@@ -1820,17 +1820,17 @@ void paged_cache_load_executable_t ::execute(const stream &stream,
     const auto head_size = output_dims_[3];
     const auto block_size_ = cache_dims_[2];
 
-    std::cout << "seq_num: " << seq_num << " head_num: " << head_num
-              << " max_seq_len: " << max_seq_len << " head_size: " << head_size
-              << " block_size: " << block_size_ << std::endl;
-    std::cout << " output strides: " << output_strides_[3] << " "
-              << output_strides_[2] << " " << output_strides_[1] << " "
-              << output_strides_[0] << std::endl;
-    std::cout << " cache strides: " << cache_strides_[3] << " "
-              << cache_strides_[2] << " " << cache_strides_[1] << " "
-              << cache_strides_[0] << std::endl;
-    std::cout << " block_table strides: " << block_table_strides_[1] << " "
-              << block_table_strides_[0] << std::endl;
+    //     std::cout << "seq_num: " << seq_num << " head_num: " << head_num
+    //               << " max_seq_len: " << max_seq_len << " head_size: " << head_size
+    //               << " block_size: " << block_size_ << std::endl;
+    //     std::cout << " output strides: " << output_strides_[3] << " "
+    //               << output_strides_[2] << " " << output_strides_[1] << " "
+    //               << output_strides_[0] << std::endl;
+    //     std::cout << " cache strides: " << cache_strides_[3] << " "
+    //               << cache_strides_[2] << " " << cache_strides_[1] << " "
+    //               << cache_strides_[0] << std::endl;
+    //     std::cout << " block_table strides: " << block_table_strides_[1] << " "
+    //               << block_table_strides_[0] << std::endl;
 
     // kv[seq_num, head_num, max_seq_len, head_size] = cache[block_table[seq_num, seq_len/block_size], head_num, k%block_size, head_size]
     // #pragma omp parallel for collapse(4)
@@ -1853,14 +1853,14 @@ void paged_cache_load_executable_t ::execute(const stream &stream,
                                 + k % block_size_ * cache_strides_[2]
                                 + l * cache_strides_[3];
                         output_ptr[output_offset] = cache_ptr[input_offset];
-                        std::cout << "seq_num: " << i << " head_num: " << j
-                                  << " max_seq_len: " << k
-                                  << " head_size: " << l
-                                  << " block_num: " << block_num
-                                  << " input_offset: " << input_offset
-                                  << " output_offset: " << output_offset
-                                  << " value: " << output_ptr[output_offset]
-                                  << std::endl;
+                        // std::cout << "seq_num: " << i << " head_num: " << j
+                        //           << " max_seq_len: " << k
+                        //           << " head_size: " << l
+                        //           << " block_num: " << block_num
+                        //           << " input_offset: " << input_offset
+                        //           << " output_offset: " << output_offset
+                        //           << " value: " << output_ptr[output_offset]
+                        //           << std::endl;
                     }
                 }
             }

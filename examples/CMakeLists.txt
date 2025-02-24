@@ -91,6 +91,7 @@ if(NOT ONEDNN_BUILD_GRAPH)
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/sycl_single_op_partition.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gpu_opencl_getting_started.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/sdpa.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/pa_sdpa.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/mqa.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/sdpa_stacked_qkv.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gqa.cpp

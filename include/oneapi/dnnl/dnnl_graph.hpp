@@ -922,6 +922,8 @@ public:
         /// size, which indicates the number of elements that will share the
         /// same scaling factor.
         group_shape = dnnl_graph_op_attr_group_shape,
+        /// Specifies the sequence lengths of an op.
+        seq_lens = dnnl_graph_op_attr_seq_lens,
 
         // bool attributes. The value of these attributes can be any single bool
         // value.
