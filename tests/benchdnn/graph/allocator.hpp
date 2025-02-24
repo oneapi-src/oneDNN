@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public:
 
 private:
     graph_mem_manager_t() : need_mem_check_(false) {}
-    ~graph_mem_manager_t() {};
+    ~graph_mem_manager_t() = default;
 
 #ifdef DNNL_WITH_SYCL
     void *default_sycl_malloc(
