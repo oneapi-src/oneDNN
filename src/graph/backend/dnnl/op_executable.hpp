@@ -51,6 +51,7 @@
 
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/compute_stream.hpp"
+#include "gpu/intel/ocl/graph/genindex.hpp"
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "gpu/intel/ocl/ocl_stream.hpp"
 #endif
@@ -2483,7 +2484,6 @@ private:
 
 #if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE
 using namespace dnnl::impl::gpu::intel;
-#define MAX_NDIMS 6
 #endif
 struct genindex_executable_t : public op_executable_t {
     DECLARE_ARG_INDICES_GETTER;
@@ -2505,21 +2505,11 @@ struct genindex_executable_t : public op_executable_t {
 #if DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE \
         && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
         if (p_engine.get_kind() == engine::kind::gpu) {
-            compute::kernel_ctx_t kernel_ctx;
-            kernel_ctx.define_int("NDIMS", ndims_);
-            for (int d = 0; d < MAX_NDIMS; ++d) {
-                dim_t dim = (d < ndims_) ? output_dims_[d] : 1;
-                dim_t stride = (d < ndims_) ? output_strides_[d] : 0;
-                kernel_ctx.define_int(dnnl::impl::utils::format("D%d", d), dim);
-                kernel_ctx.define_int(
-                        dnnl::impl::utils::format("S%d", d), stride);
-            }
             auto *compute_engine
                     = dnnl::impl::utils::downcast<compute::compute_engine_t *>(
                             p_engine.get());
-            std::vector<compute::kernel_t> kernels(1);
-            compute_engine->create_kernels(&kernels, {"gen_index"}, kernel_ctx);
-            kernel_ = kernels[0];
+            create_genindex_kernel(compute_engine, kernel_, ndims_,
+                    output_dims_, output_strides_);
         }
 #endif
     }
@@ -2533,23 +2523,16 @@ struct genindex_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
+        auto *sycl_stream
+                = dnnl::impl::utils::downcast<sycl::stream_t *>(stream.get());
+        sycl_stream->before_exec_hook();
+        if (!deps.empty()) sycl_stream->sycl_ctx().set_deps(deps);
         auto compute_stream
                 = dnnl::impl::utils::downcast<compute::compute_stream_t *>(
                         stream.get());
-        compute::range_t gws = {static_cast<size_t>(nelems_)};
-        auto nd_range = compute::nd_range_t(gws);
-        compute::kernel_arg_list_t arg_list;
         const auto &dst = *(args.at(DNNL_ARG_DST).get()->memory_storage());
-        arg_list.set(0, dst);
-        arg_list.set(1, axis_);
-        auto *sycl_stream
-                = dnnl::impl::utils::downcast<sycl::stream_t *>(compute_stream);
-        sycl_stream->before_exec_hook();
-        if (!deps.empty()) sycl_stream->sycl_ctx().set_deps(deps);
 
-        kernel_.parallel_for(*compute_stream, nd_range, arg_list,
-                sycl_stream->sycl_ctx().get_deps(),
-                sycl_stream->sycl_ctx().get_deps());
+        execute_genindex_kernel(compute_stream, kernel_, dst, nelems_, axis_);
         auto return_event = sycl_stream->get_output_event();
 
         sycl_stream->after_exec_hook();
@@ -2565,13 +2548,7 @@ struct genindex_executable_t : public op_executable_t {
                 = dnnl::impl::utils::downcast<compute::compute_stream_t *>(
                         stream.get());
 
-        compute::range_t gws = {static_cast<size_t>(nelems_)};
-
-        auto nd_range = compute::nd_range_t(gws);
-        compute::kernel_arg_list_t arg_list;
         const auto &dst = *(args.at(DNNL_ARG_DST).get()->memory_storage());
-        arg_list.set(0, dst);
-        arg_list.set(1, axis_);
         auto *ocl_stream
                 = dnnl::impl::utils::downcast<gpu::intel::ocl::ocl_stream_t *>(
                         compute_stream);
@@ -2584,10 +2561,7 @@ struct genindex_executable_t : public op_executable_t {
                 events[i] = xpu::ocl::wrapper_t<cl_event>(deps[i], true);
             ocl_stream->ocl_ctx().set_deps(events);
         }
-
-        kernel_.parallel_for(*compute_stream, nd_range, arg_list,
-                compute_stream->ctx().get_deps(),
-                compute_stream->ctx().get_deps());
+        execute_genindex_kernel(ocl_stream, kernel_, dst, nelems_, axis_);
 
         cl_event return_event = nullptr;
         if ((ocl_stream->flags() & stream_flags::in_order) == 0) {
