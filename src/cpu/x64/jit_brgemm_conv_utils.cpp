@@ -129,7 +129,7 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     void get_from_jcp(const jit_brgemm_conv_conf_t &jcp) { *this = jcp; }
     void save_to_jcp(jit_brgemm_conv_conf_t &jcp) const { jcp = *this; }
 
-    status_t estimate_brgemm_ur();
+    status_t estimate_brgemm_ur(const primitive_attr_t *attr);
     status_t get_brgemm_ur(
             const primitive_attr_t *attr, const memory_desc_t &dst_md);
 
@@ -144,13 +144,14 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     void update_blocks();
     bool fast_check_oc_block() const;
     float est_eff();
-    void iterate_ker_block(brg_blocking_t &best_brgb, int kd_block,
-            int kh_block, bool maybe_use_buffer, int max_ow_block_thr);
-    status_t calc_blocks();
+    void iterate_ker_block(brg_blocking_t &best_brgb,
+            const primitive_attr_t *attr, int kd_block, int kh_block,
+            bool maybe_use_buffer, int max_ow_block_thr);
+    status_t calc_blocks(const primitive_attr_t *attr);
 
     bool fast_check_oc_block_1x1() const;
     float est_eff_1x1();
-    void calc_blocks_1x1();
+    void calc_blocks_1x1(const primitive_attr_t *attr);
 
     // utils
     static int get_inp_size(
@@ -525,7 +526,7 @@ void brg_blocking_t::select_ic_block() {
     nb_ic = utils::div_up(ic, ic_block);
 }
 
-status_t brg_blocking_t::estimate_brgemm_ur() {
+status_t brg_blocking_t::estimate_brgemm_ur(const primitive_attr_t *attr) {
     // Simple simulation of brgemm_desc init
     if (sp_block <= 0) return status::invalid_arguments;
     const auto kh_koef = is_relo_whi() ? kh : 1;
@@ -618,6 +619,9 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
             brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK, nullptr,
             is_bf32);
+    brg.zp_type_a = src_zero_point
+            ? brgemm_broadcast_t::per_tensor
+            : brgemm_broadcast_t::none; //get_zp_type(attr, DNNL_ARG_SRC);
     brgemm_attr_t brgattr;
     brgattr.max_bs = max_batch;
     max_vpad = exec_type == exec_vpad ? nstl::max(l_pad, r_pad) : 0;
@@ -628,14 +632,16 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     CHECK(brgemm_utils::brgemm_blocking(&brg));
     ur = brg.bd_block * (is_amx(isa) ? brg.bd_block2 : 1);
     ur_block = brg.bd_block;
-    if (1 /*is_1x1 && is_amx(isa) && M > 0 && M_tail > 0*/) {
+    if ((is_1x1 && is_amx(isa) || max_vpad > 0) && M > 0 && M_tail > 0) {
         brgemm_desc_t brg_sp_tail;
         brgemm_utils::init_brgemm_conf(&brg_sp_tail, isa, brgemm_addr, src_dt,
                 wei_dt, brgemm_row_major, alpha, beta, LDA, LDB, LDC, M_tail,
                 vN, vK, nullptr, is_bf32);
+        brg_sp_tail.zp_type_a = src_zero_point ? brgemm_broadcast_t::per_tensor
+                                               : brgemm_broadcast_t::none;
         CHECK(brgemm_desc_set_attr(&brg_sp_tail, brgattr));
         CHECK(brgemm_utils::brgemm_blocking(&brg_sp_tail));
-        ur_block_tail = 0; //brg_sp_tail.bd_block;
+        ur_block_tail = brg_sp_tail.bd_block;
     } else {
         ur_block_tail = 0;
     }
@@ -647,7 +653,7 @@ status_t brg_blocking_t::get_brgemm_ur(
     // Detailed simulation of brgemm convolution init
     if (sp_block <= 0 || ic_block <= 0 || oc_block <= 0)
         return status::invalid_arguments;
-    CHECK(estimate_brgemm_ur());
+    CHECK(estimate_brgemm_ur(attr));
 
     LDD = oc_without_padding;
 
@@ -1008,8 +1014,9 @@ float brg_blocking_t::est_eff() {
     return res_eff;
 }
 
-void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
-        int kh_block_, bool maybe_use_buffer, int max_ow_block_thr) {
+void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb,
+        const primitive_attr_t *attr, int kd_block_, int kh_block_,
+        bool maybe_use_buffer, int max_ow_block_thr) {
 
     unsigned est_k_amount = ic * oc_block * wei_dsz;
 
@@ -1125,7 +1132,7 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         const auto spb = div_up(sp, ns);
         if (spb == prev_spb || spb > start_sp_block) continue;
         if (is_os_blocking && spb != ow) continue;
-        //if (spb < 5900) continue;
+        //if (spb != 4075) continue;
         prev_spb = spb;
         ow_block = spb;
         sp_block = ow_block;
@@ -1140,20 +1147,20 @@ void brg_blocking_t::iterate_ker_block(brg_blocking_t &best_brgb, int kd_block_,
         if (exec_type == exec_base)
             use_buffer = use_buffer || (maybe_use_buffer && iwp != iw);
 
-        const status_t st = estimate_brgemm_ur();
+        const status_t st = estimate_brgemm_ur(attr);
         if (st != status::success) continue;
         //printf("ow block: %d");
         os_block = sp_block = ow_block;
         update_blocks();
 
         eff = est_eff();
-        printf("ow block: %d, best ow: %d, eff: %f, best eff: %f\n", ow_block,
-                best_brgb.ow_block, eff, best_brgb.eff);
+        //        printf("ow block: %d, best ow: %d, eff: %f, best eff: %f\n", ow_block,
+        //                best_brgb.ow_block, eff, best_brgb.eff);
         if (eff > best_brgb.eff || best_brgb.eff == 0) best_brgb = *this;
     }
 }
 
-status_t brg_blocking_t::calc_blocks() {
+status_t brg_blocking_t::calc_blocks(const primitive_attr_t *attr) {
     sp = ow;
 
     nb_ic_blocking = 1;
@@ -1183,8 +1190,8 @@ status_t brg_blocking_t::calc_blocks() {
     brg_blocking_t best_brgb = *this;
     for (const auto &kd_block : kd_blocks) {
         for (const auto &kh_block : kh_blocks) {
-            iterate_ker_block(best_brgb, kd_block, kh_block, maybe_use_buffer,
-                    max_ow_block_thr);
+            iterate_ker_block(best_brgb, attr, kd_block, kh_block,
+                    maybe_use_buffer, max_ow_block_thr);
         }
     }
     *this = best_brgb;
@@ -1503,7 +1510,7 @@ float brg_blocking_t::est_eff_1x1() {
     return res_eff;
 }
 
-void brg_blocking_t::calc_blocks_1x1() {
+void brg_blocking_t::calc_blocks_1x1(const primitive_attr_t *attr) {
     const bool is_os_blocking_ok
             = utils::everyone_is(1, stride_d, stride_h) && iw % stride_w == 0;
     const bool is_ic_zero_padded = ic != ic_without_padding;
@@ -1604,7 +1611,7 @@ void brg_blocking_t::calc_blocks_1x1() {
         prev_spb = spb;
         os_block = ow_block = sp_block = spb;
         select_ic_block();
-        const status_t st = estimate_brgemm_ur();
+        const status_t st = estimate_brgemm_ur(attr);
         if (st != status::success) continue;
         update_blocks();
 
@@ -2038,12 +2045,12 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             cur_brgb.nb_oc = utils::div_up(jcp.oc, cur_brgb.oc_block);
             if (!cur_brgb.fast_check_oc_block()) continue;
 
-            const status_t blocking_ok = cur_brgb.calc_blocks();
+            const status_t blocking_ok = cur_brgb.calc_blocks(&attr);
             if (blocking_ok != status::success) continue;
-            printf("calc blocks res - ow block: %d\n", cur_brgb.ow_block);
+            //            printf("calc blocks res - ow block: %d\n", cur_brgb.ow_block);
             const status_t st = cur_brgb.get_brgemm_ur(&attr, dst_md);
             if (st != status::success) continue;
-            printf("success in get brgemm ur\n");
+            //            printf("success in get brgemm ur\n");
             cur_brgb.eff = cur_brgb.est_eff();
             if (cur_brgb.eff > best_brgb.eff) best_brgb = cur_brgb;
         }
@@ -2507,7 +2514,7 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
         if (!cur_brgb.fast_check_oc_block_1x1()) continue;
 
-        cur_brgb.calc_blocks_1x1();
+        cur_brgb.calc_blocks_1x1(&attr);
         const status_t st = cur_brgb.get_brgemm_ur(&attr, dst_md);
         if (st != status::success) continue;
         cur_brgb.eff = cur_brgb.est_eff_1x1();

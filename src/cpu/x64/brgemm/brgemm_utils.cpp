@@ -274,7 +274,7 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
     // ------------ final calculation ------------
     const auto max_bcast_block
             = nstl::min(microkernel_max_bcast_block, store_max_bcast_block);
-
+    //printf("miscro regs: %d, postops reg: %d, micro_max: %d, store max: %d\n", microkernel_regs, postops_regs, microkernel_max_bcast_block, store_max_bcast_block);
     return max_bcast_block;
 }
 
@@ -321,10 +321,10 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
             max_bcast_block = calculate_max_bcast_block(brg, adj_ld_block2);
             const auto bdb_tail = brg->bcast_dim % max_bcast_block;
             min_bcast_block = bdb_tail > 0 ? bdb_tail : max_bcast_block;
-            if (min_bcast_block >= max_vpad) break;
+            if (min_bcast_block >= max_vpad) continue; //break;
         }
-        printf("bcast dim: %d, min_bcast_block: %d, max_vpad: %d\n",
-                brg->bcast_dim, min_bcast_block, max_vpad);
+        //        printf("1 load: %d, bcast dim: %d, adj ldb2: %d, bcast_block: %d, %d, max_vpad: %d\n",
+        //                brg->n_bcast_1_load, brg->bcast_dim, adj_ld_block2, max_bcast_block, min_bcast_block, max_vpad);
         // bcast block in brgemm kernel should be greater than virtual
         // padding to avoid possible functional issues
         if (min_bcast_block < max_vpad) return status::unimplemented;
