@@ -132,7 +132,7 @@ struct deserialized_graph_t {
     std::string get_string() const;
 
     // Return the fpmath mode attribute
-    const std::pair<std::string, std::string> get_fpmath_mode() const {
+    std::pair<std::string, std::string> get_fpmath_mode() const {
         return std::make_pair(fpmath_mode_, fpmath_mode_apply_to_int_);
     }
 
