@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ public:
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
             auto sh_ptr = std::shared_ptr<void> {
                     ocl_malloc_device(size, alignment, dev, ctx),
-                    ocl_deletor {dev, ctx}};
+                    ocl_deletor_t {dev, ctx}};
 #endif
             ptr = sh_ptr.get();
             // record the map of mm size and its ptr for reuse
@@ -171,9 +171,9 @@ private:
         ::sycl::context ctx_;
     };
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-    struct ocl_deletor {
-        ocl_deletor() = delete;
-        ocl_deletor(const cl_device_id dev, const cl_context ctx)
+    struct ocl_deletor_t {
+        ocl_deletor_t() = delete;
+        ocl_deletor_t(const cl_device_id dev, const cl_context ctx)
             : dev_(dev), ctx_(ctx) {}
         void operator()(void *ptr) {
             if (ptr) ocl_free(ptr, dev_, ctx_, {});

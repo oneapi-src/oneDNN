@@ -31,7 +31,7 @@ namespace graph {
 using namespace dnnl::graph;
 using namespace dnnl::impl::graph;
 
-struct deserialized_attr {
+struct deserialized_attr_t {
     std::string type_;
     std::string str_value_;
     bool bool_value_;
@@ -63,14 +63,14 @@ struct deserialized_lt {
 };
 std::ostream &operator<<(std::ostream &s, const deserialized_lt &dlt);
 
-struct deserialized_op {
+struct deserialized_op_t {
     size_t id_;
     std::string name_;
     std::string kind_;
     std::string fpmath_mode_;
     std::string fpmath_mode_apply_to_int_;
 
-    std::unordered_map<std::string, deserialized_attr> attrs_;
+    std::unordered_map<std::string, deserialized_attr_t> attrs_;
     std::vector<deserialized_lt> in_lts_;
     std::vector<deserialized_lt> out_lts_;
 
@@ -98,21 +98,21 @@ struct deserialized_op {
 
     logical_tensor::dims get_NCX_shape(size_t idx, bool input) const;
 
-    // Returns `true` if `deserialized_op` wasn't created.
+    // Returns `true` if `deserialized_op_t` wasn't created.
     bool empty() const { return kind_.empty(); }
 };
-std::ostream &operator<<(std::ostream &s, const deserialized_op &dop);
+std::ostream &operator<<(std::ostream &s, const deserialized_op_t &dop);
 
-using op_ref_t = std::reference_wrapper<const deserialized_op>;
+using op_ref_t = std::reference_wrapper<const deserialized_op_t>;
 using op_ref_list_t = std::list<op_ref_t>;
 
-struct deserialized_graph {
+struct deserialized_graph_t {
     void load(const std::string &pass_config_json);
 
     dnnl::graph::graph to_graph(const graph_fpmath_mode_t &fpmath_mode) const;
     const std::vector<size_t> &get_input_ports() const { return input_ports_; };
 
-    std::vector<deserialized_op> ops_;
+    std::vector<deserialized_op_t> ops_;
     // record all tensors id and its dims
     std::map<size_t, logical_tensor::dims> graph_tensors_;
     // reorder logical tensor id to memory tag.
@@ -122,11 +122,11 @@ struct deserialized_graph {
     std::vector<size_t> graph_inputs_with_mb_;
 
     // Returns an op based on its ID.
-    const deserialized_op &get_op(size_t id) const;
+    const deserialized_op_t &get_op(size_t id) const;
     // Returns an op based on its output logical tensor ID.
-    const deserialized_op &get_op_by_out_lt(size_t out_lt_id) const;
+    const deserialized_op_t &get_op_by_out_lt(size_t out_lt_id) const;
     // Returns an op based on its input logical tensor ID.
-    const deserialized_op &get_op_by_in_lt(size_t in_lt_id) const;
+    const deserialized_op_t &get_op_by_in_lt(size_t in_lt_id) const;
 
     // Outputs the information about graph from operator<< into a string.
     std::string get_string() const;
@@ -149,8 +149,8 @@ private:
     std::vector<size_t> input_ports_;
     std::vector<size_t> output_ports_;
 
-    std::map<size_t, std::vector<deserialized_op>> in_lt_2_ops_;
-    std::map<size_t, deserialized_op> out_lt_2_op_;
+    std::map<size_t, std::vector<deserialized_op_t>> in_lt_2_ops_;
+    std::map<size_t, deserialized_op_t> out_lt_2_op_;
     std::vector<std::string> binary_ops_ {"Add", "BiasAdd", "Divide", "Maximum",
             "Minimum", "Multiply", "Substract"};
     // need change dst_shape or weight_shape attribute value
@@ -172,7 +172,7 @@ private:
     bool check_tensor_with_mb(size_t tensor_id,
             std::unordered_map<size_t, bool> &mb_rewrite_ret) const;
 };
-std::ostream &operator<<(std::ostream &s, const deserialized_graph &dg);
+std::ostream &operator<<(std::ostream &s, const deserialized_graph_t &dg);
 
 } // namespace graph
 
