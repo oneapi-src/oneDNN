@@ -104,10 +104,9 @@ enum { CRIT = 0x001, WARN = 0x002, NEED_CLEANUP = 0x004 };
         } \
     } while (0)
 
-typedef std::function<void(dnnl::stream &,
+using perf_function_t = std::function<void(dnnl::stream &,
         const std::vector<dnnl::graph::tensor> &inputs,
-        const std::vector<dnnl::graph::tensor> &outputs)>
-        perf_function_t;
+        const std::vector<dnnl::graph::tensor> &outputs)>;
 
 void compiled_partition_executor(dnnl::graph::compiled_partition &cp,
         dnnl::stream &stream, const std::vector<dnnl::graph::tensor> &inputs,
