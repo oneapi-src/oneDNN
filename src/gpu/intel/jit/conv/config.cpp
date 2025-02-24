@@ -1035,7 +1035,8 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
 bool should_use_mad(const conv_problem_t &prb) {
     if (prb.is_dw) return true;
     if (prb.is_bwd_w) return false;
-    bool small_ic_oc = prb.oc <= 3 && prb.ic <= 3 && prb.kw <= 3;
+    bool small_ic_oc = (prb.oc <= 3 && prb.ic <= 3 && prb.kw <= 3)
+            || (prb.oc <= 2 && prb.ic <= 2);
     bool small_mb_ic_oc = prb.mb < 8 && small_ic_oc;
     bool grouped_small_ic_oc = prb.g > 1 && small_ic_oc;
     return small_mb_ic_oc || grouped_small_ic_oc;

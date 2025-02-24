@@ -306,13 +306,15 @@ bool conv_problem_t::with_sum_post_op() const {
 }
 
 void conv_problem_t::init_transpose(const hw_t &hw) {
+    bool is_dw = (g > 1) && (oc == 1) && (ic == 1);
     bool wei_any
             = (conv_pd->invariant_wei_md()->format_kind == format_kind::any);
     bool has_zp = !attr->zero_points_.has_default_values();
-    bool allow_fwd = (mb <= 8 && oc <= 3 && ic <= 3 && kw <= 3);
+    bool allow_fwd = (mb <= 8 && oc <= 3 && ic <= 3 && kw <= 3)
+            || (oc <= 2 && ic <= 2);
     bool allow_bwd_d = (mb <= 8 && oc <= 3 && ic <= 3);
     bool allow_bwd_w = (mb <= 8 && oc <= 3 && ic >= 16);
-    ab_swap_transpose = wei_any && !has_zp;
+    ab_swap_transpose = wei_any && !is_dw && !has_zp;
     if (is_fwd) ab_swap_transpose &= allow_fwd;
     if (is_bwd_d) ab_swap_transpose &= allow_bwd_d;
     if (is_bwd_w) ab_swap_transpose &= allow_bwd_w;
