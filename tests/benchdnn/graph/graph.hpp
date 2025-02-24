@@ -42,7 +42,8 @@ struct settings_t : public base_settings_t {
 
     // ctor to save certain fields from resetting
     settings_t(const char *perf_template) : settings_t() {
-        this->perf_template = perf_template;
+        this->perf_template
+                = perf_template; // NOLINT(cppcoreguidelines-prefer-member-initializer)
     }
     std::string json_file;
     std::vector<std::map<size_t, std::string>> in_shapes_vec {{{0, "default"}}};
