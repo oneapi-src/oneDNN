@@ -1721,7 +1721,9 @@ int sparse_options_t::from_str(const std::string &s) {
     int options_count = 0;
     size_t start_pos = 0;
     while (start_pos != std::string::npos) {
-        auto subs = parser::get_substr(s, start_pos, ':');
+        // Note: `csr+0.99::` is a valid input, dangling `:` is legit.
+        auto subs = parser::get_substr(
+                s, start_pos, ':', /* allow_dangling = */ true);
 
         if (subs.empty()) {
             add(get_arg(options_count), sparse_options_t::def_encoding,
