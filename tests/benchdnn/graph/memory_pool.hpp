@@ -63,7 +63,7 @@ static void *ocl_malloc_device(
 }
 
 static void ocl_free(
-        void *ptr, cl_device_id dev, const cl_context ctx, cl_event event) {
+        void *ptr, cl_device_id dev, cl_context ctx, cl_event event) {
     if (nullptr == ptr) return;
     using F = cl_int (*)(cl_context, void *);
     if (event) { OCL_CHECK(clWaitForEvents(1, &event)); }
@@ -173,7 +173,7 @@ private:
 #elif DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     struct ocl_deletor_t {
         ocl_deletor_t() = delete;
-        ocl_deletor_t(const cl_device_id dev, const cl_context ctx)
+        ocl_deletor_t(cl_device_id dev, cl_context ctx)
             : dev_(dev), ctx_(ctx) {}
         void operator()(void *ptr) {
             if (ptr) ocl_free(ptr, dev_, ctx_, {});
