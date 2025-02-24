@@ -22,7 +22,7 @@ on:
 
 #* Stop stale workflows
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-performance
   cancel-in-progress: true
 
 # Declare default permissions as read only.
