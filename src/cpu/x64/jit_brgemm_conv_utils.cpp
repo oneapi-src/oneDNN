@@ -2409,8 +2409,7 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     const auto shape_for_brgemm_kernel
             = (output_sz <= 8192 && jcp.oc < 512) || jcp.ow > 128;
     const auto is_relo = jcp.is_relo() && jcp.relo_conv_weights;
-    jcp.req_brg_comp_pad = 0 && compensation_w_padding
-            && jcp.exec_type != exec_trans
+    jcp.req_brg_comp_pad = compensation_w_padding && jcp.exec_type != exec_trans
             && IMPLICATION(!is_relo, shape_for_brgemm_kernel)
             && IMPLICATION(
                     jcp.exec_type == exec_vpad, jcp.comp_a_buffer_size > 1024);
