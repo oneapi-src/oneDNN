@@ -310,7 +310,7 @@ void conv_problem_t::init_transpose(const hw_t &hw) {
     bool wei_any
             = (conv_pd->invariant_wei_md()->format_kind == format_kind::any);
     bool has_zp = !attr->zero_points_.has_default_values();
-    bool allow_fwd = (mb <= 8 && oc <= 3 && ic <= 3 && kw <= 3)
+    bool allow_fwd = (mb <= 8 && oc <= 3 && ic <= 3 && kw <= 2)
             || (oc <= 2 && ic <= 2);
     bool allow_bwd_d = (mb <= 8 && oc <= 3 && ic <= 3);
     bool allow_bwd_w = (mb <= 8 && oc <= 3 && ic >= 16);

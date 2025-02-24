@@ -51,13 +51,31 @@ bool is_reduction_dim(const pvar_t &d, const conv_problem_t &prb) {
     return to_gemm(d, prb) == pvars::k;
 }
 
-bool is_vectorized_dim(const pvar_t &d, const conv_problem_t &prb) {
-    if (prb.is_dw) return d == pvars::g;
-    if (to_gemm(d, prb) != pvars::n) return false;
+pvar_t vectorized_dim(const conv_problem_t &prb, const pvar_tile_t &tile) {
+    pvar_t vec_dim;
+    if (prb.is_dw) {
+        vec_dim = pvars::g;
+    } else {
+        for (auto &d : tile) {
+            if (to_gemm(d, prb) != pvars::n) continue;
+            gpu_assert(vec_dim.is_undef()) << "Found 2+ N dimensions: " << tile;
+            vec_dim = d;
+        }
+    }
+    gpu_assert(!vec_dim.is_undef())
+            << "Cannot find vectorized dimension: " << tile;
+    return vec_dim;
+#if 0
     bool is_mb = (d == pvars::mb);
     bool is_spatial = is_input_spatial(d) || is_output_spatial(d);
     if (prb.is_fwd) return !is_mb;
     return !is_spatial;
+#endif
+}
+
+bool is_vectorized_dim(
+        const pvar_t &d, const conv_problem_t &prb, const pvar_tile_t &tile) {
+    return d == vectorized_dim(prb, tile);
 }
 
 int tensor_conv_dim_index(const pvar_t &d, tensor_kind_t t) {
@@ -277,7 +295,7 @@ private:
         for (auto &d : iter_) {
             auto &info = tile_info(d);
             int unit = 1;
-            if (is_vectorized_dim(d, prb)) unit = cfg.vec_size();
+            if (is_vectorized_dim(d, prb, iter_)) unit = cfg.vec_size();
             if (is_reduction_dim(d, prb)) {
                 // This is to ensure that reduction-related address shifts are
                 // constant. For example with a_blk = 8 and Ax16a layout there are two
@@ -683,7 +701,7 @@ private:
 
         int vec_ndims = 0;
         for (auto &d : ctx.blk.iter()) {
-            if (is_vectorized_dim(d, cfg_.prb())) vec_ndims++;
+            if (is_vectorized_dim(d, cfg_.prb(), ctx.blk.iter())) vec_ndims++;
         }
         return vec_ndims == 1;
     }
