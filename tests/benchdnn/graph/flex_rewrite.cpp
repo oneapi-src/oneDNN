@@ -26,7 +26,8 @@
 
 namespace graph {
 
-void flex_rewrite::rewrite_linked_shape_and_attr(deserialized_graph &dgraph) {
+void flex_rewrite_t::rewrite_linked_shape_and_attr(
+        deserialized_graph_t &dgraph) {
     for (auto &aop : dgraph.ops_) {
         if (aop.kind_ == "DynamicDequantize") {
             auto &attr = aop.attrs_;
@@ -189,7 +190,7 @@ void flex_rewrite::rewrite_linked_shape_and_attr(deserialized_graph &dgraph) {
     }
 }
 
-void flex_rewrite::rewrite(deserialized_graph &dgraph) {
+void flex_rewrite_t::rewrite(deserialized_graph_t &dgraph) {
     bool change_stride = false;
     inports_shape_rewrite(dgraph, change_stride);
     if (!(op_attrs_.size() == 1 && op_attrs_.count(0)
@@ -204,7 +205,7 @@ void flex_rewrite::rewrite(deserialized_graph &dgraph) {
     dt_map_rewrite(dgraph);
 }
 
-void flex_rewrite::split_ncx(const std::string &data_format, dims_t &in,
+void flex_rewrite_t::split_ncx(const std::string &data_format, dims_t &in,
         int64_t &n, int64_t &c, dims_t &x) const {
     x.clear();
     n = in[0];
@@ -221,7 +222,7 @@ void flex_rewrite::split_ncx(const std::string &data_format, dims_t &in,
     }
 }
 
-void flex_rewrite::merge_ncx(const std::string &data_format, dims_t &out,
+void flex_rewrite_t::merge_ncx(const std::string &data_format, dims_t &out,
         int64_t n, int64_t c, const dims_t &x) const {
     out.clear();
     out.push_back(n);
@@ -238,7 +239,7 @@ void flex_rewrite::merge_ncx(const std::string &data_format, dims_t &out,
     }
 }
 
-void flex_rewrite::split_oix(const std::string &data_format, dims_t &in,
+void flex_rewrite_t::split_oix(const std::string &data_format, dims_t &in,
         dims_t &oi, dims_t &x) const {
     x.clear();
     if (data_format == "OIX" || data_format == "IOX") {
@@ -277,7 +278,7 @@ std::string stdvec2string(const std::vector<T> &v) {
     return s;
 }
 
-void flex_rewrite::broadcast(const dims_t &x, const dims_t &y, dims_t &z,
+void flex_rewrite_t::broadcast(const dims_t &x, const dims_t &y, dims_t &z,
         const std::string &x_str, const std::string &y_str) const {
     const size_t x_rank = x.size();
     const size_t y_rank = y.size();
@@ -308,8 +309,8 @@ void flex_rewrite::broadcast(const dims_t &x, const dims_t &y, dims_t &z,
     }
 }
 
-void flex_rewrite::cal_pads(dims_t &pads_begin, dims_t &pads_end,
-        const deserialized_op &aop, const dims_t &spatial_dims,
+void flex_rewrite_t::cal_pads(dims_t &pads_begin, dims_t &pads_end,
+        const deserialized_op_t &aop, const dims_t &spatial_dims,
         const dims_t &strides, const dims_t &kernel, bool deconv) const {
     pads_begin.clear();
     pads_end.clear();
@@ -347,8 +348,8 @@ void flex_rewrite::cal_pads(dims_t &pads_begin, dims_t &pads_end,
     }
 }
 
-void flex_rewrite::infer_output_shape(
-        deserialized_graph &dgraph, bool change_stride) {
+void flex_rewrite_t::infer_output_shape(
+        deserialized_graph_t &dgraph, bool change_stride) {
     auto &gi = dgraph.graph_tensors_;
     for (auto &aop : dgraph.ops_) {
         auto kind = opstr2kind(aop.kind_);
@@ -916,7 +917,7 @@ void flex_rewrite::infer_output_shape(
 /// @param msg Error message info when function returns `false` value.
 /// @return `true` if an inport info is valid and `false` otherwise. A message `msg`
 /// describes an error occurred.
-bool flex_rewrite::get_inport_shape_stride(const std::string &in_shape,
+bool flex_rewrite_t::get_inport_shape_stride(const std::string &in_shape,
         std::string &shape, std::string &stride, std::string &msg) {
     assert(shape.empty() && stride.empty());
     if (in_shape == "0" || in_shape == "-") {
@@ -973,12 +974,12 @@ bool flex_rewrite::get_inport_shape_stride(const std::string &in_shape,
     }
 }
 
-void flex_rewrite::inports_shape_rewrite(
-        deserialized_graph &dgraph, bool &change_stride) {
+void flex_rewrite_t::inports_shape_rewrite(
+        deserialized_graph_t &dgraph, bool &change_stride) {
     // reminder mb rewrite status
     if (mb_ != 0 && dgraph.graph_inputs_with_mb_.empty()) {
         BENCHDNN_PRINT(0,
-                "Error: flex_rewrite: can't rewrite mb value with \'%ld\'.\n",
+                "Error: flex_rewrite_t: can't rewrite mb value with \'%ld\'.\n",
                 (long)mb_);
     }
 
@@ -1124,7 +1125,7 @@ void flex_rewrite::inports_shape_rewrite(
     }
 }
 
-void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {
+void flex_rewrite_t::op_attrs_rewrite(deserialized_graph_t &dgraph) {
     std::vector<size_t> op_ids_;
     op_ids_.reserve(dgraph.ops_.size());
     for (const auto &aop : dgraph.ops_) {
@@ -1170,7 +1171,7 @@ void flex_rewrite::op_attrs_rewrite(deserialized_graph &dgraph) {
     }
 }
 
-inline bool is_int8_quantization(const deserialized_op &aop) {
+inline bool is_int8_quantization(const deserialized_op_t &aop) {
     if (aop.kind_ == "Dequantize") {
         const auto dt = aop.in_lts_.front().get_data_type();
         return (dt == logical_tensor::data_type::u8
@@ -1185,7 +1186,7 @@ inline bool is_int8_quantization(const deserialized_op &aop) {
     }
 }
 
-void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
+void flex_rewrite_t::quantized_graph_rewrite(deserialized_graph_t &dgraph) {
     for (auto &aop : dgraph.ops_) {
         if (aop.kind_ != "Dequantize" && aop.kind_ != "Quantize") continue;
 
@@ -1227,7 +1228,7 @@ void flex_rewrite::quantized_graph_rewrite(deserialized_graph &dgraph) {
 }
 
 // Select: only rewrite src_1/src_2/dst as `cond` is always `bool`.
-void dt_rewrite_select(deserialized_op &select, const std::string &dt) {
+void dt_rewrite_select(deserialized_op_t &select, const std::string &dt) {
     select.in_lts_[1].data_type_ = dt;
     select.in_lts_[2].data_type_ = dt;
     select.out_lts_[0].data_type_ = dt;
@@ -1237,7 +1238,7 @@ void dt_rewrite_select(deserialized_op &select, const std::string &dt) {
 // normalization still requires f32 for gamma/beta/etc. This is good for most of
 // the cases. But there is a potential issue if gamma/beta/etc is connected to
 // another op which will rewrite the data type at other places.
-void dt_rewrite_norm(deserialized_op &norm, const std::string &dt) {
+void dt_rewrite_norm(deserialized_op_t &norm, const std::string &dt) {
     if (norm.kind_ == "BatchNormTrainingBackward"
             || norm.kind_ == "LayerNormBackward") {
         // rewrite for src/diff_dst/diff_src.
@@ -1251,7 +1252,7 @@ void dt_rewrite_norm(deserialized_op &norm, const std::string &dt) {
     }
 }
 
-void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
+void flex_rewrite_t::dt_rewrite(deserialized_graph_t &dgraph) {
     if (dt_ == dnnl_data_type_undef) return;
 
     // We can only do data type rewriting for pure floating-point graph.
@@ -1328,7 +1329,7 @@ void flex_rewrite::dt_rewrite(deserialized_graph &dgraph) {
     }
 }
 
-void flex_rewrite::dt_map_rewrite(deserialized_graph &dgraph) {
+void flex_rewrite_t::dt_map_rewrite(deserialized_graph_t &dgraph) {
     // check the IDs and data types in dt_map.
     for (const auto &v : dt_map_) {
         if (v.second == dnnl_data_type_undef) return;
@@ -1367,7 +1368,7 @@ void flex_rewrite::dt_map_rewrite(deserialized_graph &dgraph) {
     }
 }
 
-void flex_rewrite::graph_attrs_rewrite(deserialized_graph &dgraph) {
+void flex_rewrite_t::graph_attrs_rewrite(deserialized_graph_t &dgraph) {
 
     // if the fpmath mode is specified by users through cml, replace the fpmath
     // mode from JSON file with the value from cml.
@@ -1386,8 +1387,8 @@ void flex_rewrite::graph_attrs_rewrite(deserialized_graph &dgraph) {
 /// @param dgraph A deserialized graph
 /// @param change_stride A boolean value indicating whether the graph input strides
 /// have been changed.
-void flex_rewrite::update_output_info(
-        deserialized_op &aop, deserialized_graph &dgraph, bool change_stride) {
+void flex_rewrite_t::update_output_info(deserialized_op_t &aop,
+        deserialized_graph_t &dgraph, bool change_stride) {
     auto kind = opstr2kind(aop.kind_);
     auto &gi = dgraph.graph_tensors_;
     // if a input stride is not changed, the output stride should not be changed as well
