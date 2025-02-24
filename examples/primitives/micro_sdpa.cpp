@@ -457,15 +457,9 @@ int main(int argc, char **argv) {
     // mask_check();
     // return 0;
 
-    // prefill_non_paged(2048, 128, 64);
-    // prefill_non_paged(2064, 128, 64);
-    // prefill_non_paged(2080, 128, 64);
-
-    for (int i = 2043; i < 2090; i++) {
-      for (int j = 0; j < 1; j++) {
-        prefill_non_paged(i, 128, 64);
-      }
-    }
+    prefill_non_paged(2048, 128, 64);
+    generate_non_paged(2049, 128, 64);
+    generate_non_paged(2048, 128, 64);
 
     // // prefill
     // for (int head_size : {128}) {
