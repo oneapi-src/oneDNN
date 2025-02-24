@@ -23,7 +23,7 @@
 namespace graph {
 
 partition_data_displacer_t::partition_data_displacer_t(
-        const deserialized_graph &dg, const dnnl::graph::partition &par)
+        const deserialized_graph_t &dg, const dnnl::graph::partition &par)
     : dg_(&dg) {
     const auto &op_ids = par.get_ops();
     op_ids_set_ = std::unordered_set<size_t>(op_ids.begin(), op_ids.end());
@@ -39,7 +39,7 @@ partition_data_displacer_t::partition_data_displacer_t(
     static const std::unordered_set<std::string> f8_main_op_kind {
             "MatMul", "Convolution"};
 
-    // The logic below relies on the assumption that deserialized_graph is
+    // The logic below relies on the assumption that deserialized_graph_t is
     // sorted in the chronological order.
     for (const auto &aop : dg_->ops_) {
         // Skip the check if op is not in the partition.
@@ -333,7 +333,7 @@ int partition_data_displacer_t::displace_input_data(
             && op_ids_set_.find(parent_op->id_) != op_ids_set_.end()) {
         backward_path_launched = true;
         // generate the reverse op based on OP kind
-        // make a copy of deserialized_op to avoid impact on graph execution
+        // make a copy of deserialized_op_t to avoid impact on graph execution
         // Currently, we support the following OPs' reverse execution:
         // All of the execution need to swap the input lt and output lt first
 
@@ -440,10 +440,10 @@ int partition_data_displacer_t::displace_input_data(
 }
 
 int partition_data_displacer_t::gen_quantize_filling(
-        const ::graph::deserialized_op &main_op, int arg, dnn_mem_t &mem,
+        const ::graph::deserialized_op_t &main_op, int arg, dnn_mem_t &mem,
         const ::std::string &dt, res_t *res) {
     // clone a deserialized op object and modify to specified data type
-    ::graph::deserialized_op op = main_op;
+    ::graph::deserialized_op_t op = main_op;
     auto driver = opkind2driver(opstr2kind(op.kind_));
     bool is_f8_quantization = (dt == "f8_e5m2" || dt == "f8_e4m3");
 
