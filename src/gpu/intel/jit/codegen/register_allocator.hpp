@@ -36,6 +36,7 @@ public:
 
     reg_allocator_t(ngen::HW hw, const std::string &kernel_name_) : ra(hw) {
 #ifdef DNNL_DEV_MODE
+        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
         kernel_name = kernel_name_;
 #endif
         MAYBE_UNUSED(kernel_name_);
