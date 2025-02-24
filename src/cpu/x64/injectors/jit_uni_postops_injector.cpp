@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,6 +22,9 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 namespace injector {
+
+#define VCHECK_PO_INJ_BOOL(cond, msg) \
+    VCONDCHECK(primitive, create, check, postops_injector, cond, false, msg);
 
 size_t aux_vec_count(const post_ops_t &post_ops, cpu_isa_t isa, bool is_fwd) {
     size_t res = 0;
@@ -345,9 +348,8 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     const auto &enabled_bcast_strategy
             = post_ops_ok_args.enabled_bcast_strategy;
 
-    VCONDCHECK(primitive, create, check, injector,
-            dst_d != nullptr && dst_d->md_->format_kind != dnnl_format_kind_any,
-            false, VERBOSE_UNSUPPORTED_FORMAT_KIND);
+    VCHECK_PO_INJ_BOOL(dst_d && dst_d->md_->format_kind != dnnl_format_kind_any,
+            VERBOSE_UNSUPPORTED_FORMAT_KIND);
 
     // Save scale and zero point of first sum postop in order to check that any
     // subsequent sum postops have the same values. This check is necessary
@@ -362,39 +364,41 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
     const auto is_accepted_postop = [&](const int idx) {
         for (const auto &post_op : accepted_post_op_types) {
             const auto &entry = post_ops.entry_[idx];
+            // Note: check for post-op kinds is needed as `post_op` value
+            // represents all supported but not only passed kinds.
             switch (post_op) {
                 case sum:
-                    if (entry.is_sum(false, false)) {
-                        if (sum_requires_same_params
-                                && entry.sum.scale != sum_scale)
-                            return false;
-                        if (sum_requires_same_params
-                                && entry.sum.zero_point != sum_zero_point)
-                            return false;
-                        if (sum_requires_scale_one && entry.sum.scale != 1)
-                            return false;
-                        if (sum_requires_zp_zero && entry.sum.zero_point != 0)
-                            return false;
-                        return IMPLICATION(sum_at_pos_0_only, idx == 0);
+                    if (!entry.is_sum(false, false)) continue;
+                    if (sum_requires_same_params) {
+                        VCHECK_PO_INJ_BOOL(entry.sum.scale == sum_scale,
+                                "Unsupported sum scale value");
+                        VCHECK_PO_INJ_BOOL(
+                                entry.sum.zero_point == sum_zero_point,
+                                "Unsupported sum zero-point value");
                     }
-                    break;
+                    if (sum_requires_scale_one) {
+                        VCHECK_PO_INJ_BOOL(entry.sum.scale == 1.f,
+                                "Unsupported sum scale value");
+                    }
+                    if (sum_requires_zp_zero) {
+                        VCHECK_PO_INJ_BOOL(entry.sum.zero_point == 0,
+                                "Unsupported sum zero-point value");
+                    }
+                    VCHECK_PO_INJ_BOOL(IMPLICATION(sum_at_pos_0_only, idx == 0),
+                            "Unsupported sum position in post-ops");
+                    return true;
                 case eltwise:
-                    if (entry.is_eltwise()) {
-                        const auto alg = entry.eltwise.alg;
-                        return eltwise_injector::is_supported(
-                                isa, alg, data_type::f32);
-                    }
-                    break;
+                    if (!entry.is_eltwise()) continue;
+                    return eltwise_injector::is_supported(
+                            isa, entry.eltwise.alg, data_type::f32);
                 case binary:
                 case prelu:
-                    if (entry.is_like_binary()) {
-                        assert(dst_d != nullptr && "dst_d is null");
-                        return binary_injector::is_supported(isa,
-                                binary_injector::get_src1_desc(entry, *dst_d),
-                                *dst_d, enabled_bcast_strategy);
-                    }
-                    break;
-                default: assert(false && "Unhandled post_op type");
+                    if (!entry.is_like_binary()) continue;
+                    assert(dst_d && "dst_d is null");
+                    return binary_injector::is_supported(isa,
+                            binary_injector::get_src1_desc(entry, *dst_d),
+                            *dst_d, enabled_bcast_strategy);
+                default: assert(!"Unhandled post_op type");
             }
         }
         return false;
@@ -425,6 +429,8 @@ template class jit_uni_postops_injector_t<sse41, Xbyak::Xmm>;
 template class jit_uni_postops_injector_base_t<Xbyak::Zmm>;
 template class jit_uni_postops_injector_base_t<Xbyak::Ymm>;
 template class jit_uni_postops_injector_base_t<Xbyak::Xmm>;
+
+#undef VCHECK_PO_INJ_BOOL
 
 } // namespace injector
 } // namespace x64
