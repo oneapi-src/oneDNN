@@ -286,14 +286,14 @@ struct matmul_kernel_fwd_t {
             }
         }
 
-        void dropout(xpu::sycl::out_memory_arg_t dropout_mask, int threshold,
-                int seed, int inv_q, int offset, int row_stride) {
+        void dropout(xpu::sycl::out_memory_arg_t dropout_mask, uint threshold,
+                uint seed, float inv_q, int offset, int row_stride) {
             for (int row = 0; row < Rows; row++) {
                 for (int col = 0; col < Cols / vec_len; col++) {
                     for (int vec_el = 0; vec_el < vec_len; vec_el++) {
                         int dst_off = offset + row * row_stride + col * vec_len
                                 + vec_el;
-                        int random
+                        uint random
                                 = ::dnnl::impl::math::philox4x32(dst_off, seed);
                         char dropout = random > threshold;
                         data[row][col][vec_el]
