@@ -148,16 +148,16 @@ struct acl_reorder_fwd_t : public primitive_t {
                 case 2: {
                     if (src_tag == format_tag::ab
                             && dst_md->data_type == data_type::bf16
-                            && utils::one_of(dst_tag, format_tag::BA8b4a, format_tag::BA4b4a)
-                        ) { // bf16
+                            && utils::one_of(dst_tag, format_tag::BA8b4a,
+                                    format_tag::BA4b4a)) { // bf16
                         acl_tensor_shape_in = arm_compute::TensorShape(
                                 src_md->dims[0], src_md->dims[1]);
                         acl_tensor_shape_out = arm_compute::TensorShape(
                                 dst_md->padded_dims[0], dst_md->padded_dims[1]);
                     } else if (src_tag == format_tag::ba
                             && dst_md->data_type == data_type::f32
-                            && !utils::one_of(dst_tag, format_tag::BA8b4a, format_tag::BA4b4a)
-                        ) { // f32
+                            && !utils::one_of(dst_tag, format_tag::BA8b4a,
+                                    format_tag::BA4b4a)) { // f32
                         acl_tensor_shape_in = arm_compute::TensorShape(
                                 src_md->dims[1], src_md->dims[0]);
                         acl_tensor_shape_out = arm_compute::TensorShape(
