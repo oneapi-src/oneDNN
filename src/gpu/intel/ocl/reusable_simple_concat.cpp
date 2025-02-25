@@ -172,11 +172,11 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
             rt_conf.gws_d, dim_idx::invalid, device_info->gpu_arch());
 
     conf.use_large_index = (max_bytes > std::numeric_limits<int>::max());
-    //conf.use_large_index = (total_bytes > std::numeric_limits<int>::max()); //old?
 
     // attempt to enable internal padding kernel
     if (normalize.is_internal_padding_concat()) {
-        size_t concat2_inner_axis = dst_md.dims[axis::inner];
+        //size_t concat2_inner_axis = dst_md.dims[axis::inner];
+        size_t concat2_inner_axis = inner_axis;
         size_t concat2_dtsize = dnnl_data_type_size(dst_md.data_type);
 
         int dtscale = conf.data_type_size / concat2_dtsize;
@@ -203,10 +203,11 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
         }
 
         // TODO: generalize "src_bank" calculation for smaller block sizes
-        bool supported_block_size = (conf.n_blocks > 0);
-        //bool supported_block_size = (conf.n_blocks > 0)
-                //&& ((conf.blocks[0] == 8) || (conf.blocks[0] == 16)
-                        //|| (conf.blocks[0] == 32));
+        // bool supported_block_size = (conf.n_blocks > 0);
+        bool supported_block_size = (conf.n_blocks > 0)
+                && ((conf.blocks[0] == 8) || (conf.blocks[0] == 16)
+                        || (conf.blocks[0] == 32))
+                && (conf.strides[0] == 1);
 
         printf("%d %d %d %d TTTT? dtsize%d\n", (conf.n == 2),
                 can_subgroup_read_dt, src0_size_sufficient,
@@ -239,8 +240,8 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
             dst_md.padded_dims[axis::outer], dst_md.padded_dims[axis::concat], dst_md.padded_dims[axis::inner],
             rt_conf.gws_d[0], rt_conf.gws_d[1], rt_conf.gws_d[2],
             conf.simd, conf.data_type_size);
-            for(int i=0; i<conf.n_blocks; ++i){
-            printf("b%d: %d, ", i, conf.blocks[i]);
+            for(int i=0; i<conf.n_blocks; ++i) {
+                printf("[b%d]: %d, ", i, conf.blocks[i]);
             }
         }
     }
@@ -250,8 +251,10 @@ static status_t init_conf_common(impl::engine_t *engine, const concat_pd_t *pd,
 
 compute::kernel_ctx_t reusable_simple_concat_params_t::get_kernel_ctx() const {
     compute::kernel_ctx_t kernel_ctx;
+
     kernel_ctx.define_int("WRITE_BLOCK", write_block);
     kernel_ctx.define_int("READ_BLOCK", read_block);
+
     kernel_ctx.define_int("N_INPUTS", n);
     kernel_ctx.define_int("BLOCK_DEPTH", n_blocks);
     for (int i = 0; i < n_blocks; ++i) {
