@@ -481,6 +481,7 @@ public:
                 && (rhs_ == other.rhs_);
     }
     bool fits(const pvar_map_t<dim_t> &values) const {
+        printf("req: %s \n ", str().c_str());
         if (kind_ == req_kind_t::_or_eq) {
             int64_t lhs0 = values.at(lhs_[0]);
             int64_t lhs1 = values.at(lhs_[1]);
@@ -498,6 +499,7 @@ public:
             case req_kind_t::mod_eq_0: ret = (lhs_val % rhs_val) == 0; break;
             default: gpu_error_not_expected();
         }
+
         gpu_check(ret) << "Requirement is not satisfied: " << str()
                        << ". LHS evaluates to " << lhs_val
                        << ", RHS evaluates to " << rhs_val;
@@ -682,6 +684,7 @@ private:
 
 void prb_reqs_t::add_stride_reqs(
         const pvar_t stride, std::vector<pvar_t> vars) {
+    if (vars.size() == 0) return;
     std::vector<req_impl_t> new_reqs;
     for (auto &r : reqs_) {
         auto lhs = r.impl().lhs();
@@ -693,6 +696,8 @@ void prb_reqs_t::add_stride_reqs(
             else if (!lhs.has(v) && !mod_eq_0)
                 can_replace = false;
         }
+        //	if (!mod_eq_0 && lhs.pvars().size() != vars.size())
+        //		can_replace=false;
         if (can_replace) {
             std::vector<pvar_t> new_lhs;
             std::vector<pvar_t> v_copy(vars);
@@ -715,8 +720,13 @@ void prb_reqs_t::add_stride_reqs(
         }
     }
 
+    printf(" stride: %s ", stride.str().c_str());
+    for (auto &v : vars)
+        printf(" %s ", v.str().c_str());
+    printf("\n");
     for (auto &r : new_reqs) {
-        //printf("addded: %s \n ", r.str().c_str());
+
+        printf("addded: %s \n ", r.str().c_str());
         reqs_.push_back(req_t(r));
     }
     //printf("full reqs: %s \n", str().c_str());
