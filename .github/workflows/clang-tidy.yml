@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout oneDNN
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - name: Install clang
         run: |
@@ -44,7 +46,11 @@ jobs:
           sudo apt-get install -y clang libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
 
       - name: Configure oneDNN
-        run: .github/automation/x64/build_linters.sh "${{ github.event.pull_request.base.sha }}"
+        run: |
+          .github/automation/x64/build_linters.sh
+          git log -n 10 --oneline
+          git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp'
+          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp'); do clang-tidy -p build --header-filter='' $file; done
         env:
           ONEDNN_ACTION: configure
 
