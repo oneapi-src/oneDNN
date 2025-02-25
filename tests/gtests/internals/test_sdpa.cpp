@@ -1599,15 +1599,23 @@ GPU_TEST_P(sdpa_test_t, compare) {
         case mask_type::twoD: mask_ptr = &mask; break;
     }
 
-    auto sdpa_quantized_pd
-            = sdpa::primitive_desc(eng, t.m_query_test.get_desc(),
-                    p.with_key_transposed ? t.m_key_t_quantized.get_desc()
-                                          : t.m_key_quantized.get_desc(),
-                    t.m_value_quantized.get_desc(), mask_ptr, scale_dt,
-                    t.m_output_quantized.get_desc(), invert_scale, p.head_num,
-                    p.mask == mask_type::causal, t.sdpa_attr_quantized,
-                    t.sdpa_kq_attr_quantized, t.sdpa_vs_attr_quantized);
-    auto sdpa_quantized_p = sdpa(sdpa_quantized_pd);
+    sdpa::primitive_desc sdpa_quantized_pd;
+    sdpa sdpa_quantized_p;
+    try {
+        sdpa_quantized_pd = sdpa::primitive_desc(eng, t.m_query_test.get_desc(),
+                p.with_key_transposed ? t.m_key_t_quantized.get_desc()
+                                      : t.m_key_quantized.get_desc(),
+                t.m_value_quantized.get_desc(), mask_ptr, scale_dt,
+                t.m_output_quantized.get_desc(), invert_scale, p.head_num,
+                p.mask == mask_type::causal, t.sdpa_attr_quantized,
+                t.sdpa_kq_attr_quantized, t.sdpa_vs_attr_quantized);
+        sdpa_quantized_p = sdpa(sdpa_quantized_pd);
+    } catch (const dnnl::error &e) {
+        if (e.status == dnnl_unimplemented)
+            GTEST_SKIP() << "Unimplemented: " << e.what();
+        else
+            throw;
+    }
 
     std::unordered_map<int, memory> s8_args = {{{DNNL_ARG_QUERIES, t.m_query},
             {DNNL_ARG_VALUES, t.m_value_quantized},
@@ -1703,20 +1711,29 @@ GPU_TEST_P(sdpa_test_t, perf) {
         case mask_type::twoD: mask_ptr = &mask; break;
     }
 
+    sdpa::primitive_desc sdpa_quantized_pd;
+    sdpa sdpa_quantized_p;
+    try {
+        sdpa_quantized_pd = sdpa::primitive_desc(eng, t.m_query.get_desc(),
+                p.with_key_transposed ? t.m_key_t_quantized.get_desc()
+                                      : t.m_key_quantized.get_desc(),
+                t.m_value_quantized.get_desc(), mask_ptr, scale_dt,
+                t.m_output_quantized.get_desc(), invert_scale, p.head_num,
+                p.mask == mask_type::causal, t.sdpa_attr_quantized,
+                t.sdpa_kq_attr_quantized, t.sdpa_vs_attr_quantized);
+        sdpa_quantized_p = sdpa(sdpa_quantized_pd);
+    } catch (const dnnl::error &e) {
+        if (e.status == dnnl_unimplemented)
+            GTEST_SKIP() << "Unimplemented: " << e.what();
+        else
+            throw;
+    }
+
     auto sdpaf16_pd = sdpa::primitive_desc(eng, t.m_query.get_desc(),
             p.with_key_transposed ? t.m_key_t.get_desc() : t.m_key.get_desc(),
             t.m_value.get_desc(), mask_ptr, scale_dt, t.m_output.get_desc(),
             invert_scale, p.head_num, p.mask == mask_type::causal, t.sdpa_attr);
     auto sdpaf16_p = sdpa(sdpaf16_pd);
-
-    auto sdpa_quantized_pd = sdpa::primitive_desc(eng, t.m_query.get_desc(),
-            p.with_key_transposed ? t.m_key_t_quantized.get_desc()
-                                  : t.m_key_quantized.get_desc(),
-            t.m_value_quantized.get_desc(), mask_ptr, scale_dt,
-            t.m_output_quantized.get_desc(), invert_scale, p.head_num,
-            p.mask == mask_type::causal, t.sdpa_attr_quantized,
-            t.sdpa_kq_attr_quantized, t.sdpa_vs_attr_quantized);
-    auto sdpa_quantized_p = sdpa(sdpa_quantized_pd);
 
     std::unordered_map<int, memory> s8_args = {{{DNNL_ARG_QUERIES, t.m_query},
             {DNNL_ARG_VALUES, t.m_value_quantized},
