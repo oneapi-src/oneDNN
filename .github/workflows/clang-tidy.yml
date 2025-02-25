@@ -44,7 +44,7 @@ jobs:
           sudo apt-get install -y clang libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
 
       - name: Configure oneDNN
-        run: .github/automation/x64/build_linters.sh
+        run: .github/automation/x64/build_linters.sh "${{ github.event.pull_request.base.sha }}"
         env:
           ONEDNN_ACTION: configure
 

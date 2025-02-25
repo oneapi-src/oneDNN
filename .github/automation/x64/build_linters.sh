@@ -21,7 +21,9 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
           -DDNNL_CPU_RUNTIME=OMP \
           -DDNNL_GPU_RUNTIME=OCL \
           -DDNNL_WERROR=ON \
-          -DDNNL_BUILD_FOR_CI=ON
+          -DDNNL_BUILD_FOR_CI=ON \
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      for file in `git diff --name-only "$1" | grep '\.cpp$'`; do clang-tidy --header-filter='' ../$file; done
       set +x
     elif [[ "$GITHUB_JOB" == "pr-format-tags" ]]; then
       set -x
