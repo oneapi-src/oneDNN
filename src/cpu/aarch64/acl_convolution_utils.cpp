@@ -292,14 +292,18 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
     // Under these conditions, fallback to faster GEMM-based convolution
     // unless the user explicitly specifies Winograd algorithm
     // clang-format off
-    if (one_of(true, src_md.dims[2] > 112, // ih
-                src_md.dims[3] > 112, // iw
-                src_md.dims[1] < 64, // ic
-                dst_md.dims[1] < 64, // oc
-                dnnl_get_max_threads() > 28)
-            && cd.alg_kind == alg_kind::convolution_auto) {
-        return status::unimplemented;
+
+    // Heuristic only for servers
+    if (dnnl_get_max_threads() > 28 && cd.alg_kind == alg_kind::convolution_auto) {
+            return status::unimplemented;
     }
+    // Heuristic for other devices
+    if (one_of(true, src_md.dims[1] < 64, // ic
+                     dst_md.dims[1] < 64) // oc
+                  && cd.alg_kind == alg_kind::convolution_auto) {
+            return status::unimplemented;
+    }
+
     // clang-format on
 
     // General Compute Library checks, memory tags are also set there
