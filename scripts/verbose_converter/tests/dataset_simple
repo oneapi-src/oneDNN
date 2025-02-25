@@ -1,5 +1,5 @@
 ################################################################################
-# Copyright 2021-2023 Intel Corporation
+# Copyright 2021-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ ip,shapes_ci
 lnorm,shapes_ci
 lrn,shapes_ci
 matmul,shapes_2d_ci
-pooling,shapes_basic
+pool,shapes_basic
 prelu,shapes_ci
 reduction,shapes_ci
 resampling,shapes_ci
