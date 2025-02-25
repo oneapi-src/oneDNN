@@ -75,11 +75,11 @@ inline pvar_tile_t to_shape(const convolution_pd_t *pd) {
         shape[pvars::src_id_stride] = pd->ndims() >= 5
                 ? pd->invariant_src_md()
                           ->format_desc.blocking.strides[pd->ndims() - 3]
-                : 1;
+                : 0;
         shape[pvars::src_ih_stride] = pd->ndims() >= 4
                 ? pd->invariant_src_md()
                           ->format_desc.blocking.strides[pd->ndims() - 2]
-                : 1;
+                : 0;
         shape[pvars::src_iw_stride]
                 = pd->invariant_src_md()
                           ->format_desc.blocking.strides[pd->ndims() - 1];
@@ -88,7 +88,7 @@ inline pvar_tile_t to_shape(const convolution_pd_t *pd) {
 
         shape[pvars::wei_g_stride] = pd->with_groups()
                 ? pd->invariant_wei_md()->format_desc.blocking.strides[0]
-                : 1;
+                : 0;
         shape[pvars::wei_oc_stride]
                 = pd->invariant_wei_md()->format_desc.blocking.strides[1];
         shape[pvars::wei_ic_stride]
@@ -96,11 +96,11 @@ inline pvar_tile_t to_shape(const convolution_pd_t *pd) {
         shape[pvars::wei_kd_stride] = pd->ndims() >= 5
                 ? pd->invariant_wei_md()
                           ->format_desc.blocking.strides[pd->ndims() - 3]
-                : 1;
+                : 0;
         shape[pvars::wei_kh_stride] = pd->ndims() >= 4
                 ? pd->invariant_wei_md()
                           ->format_desc.blocking.strides[pd->ndims() - 2]
-                : 1;
+                : 0;
         shape[pvars::wei_kw_stride]
                 = pd->invariant_wei_md()
                           ->format_desc.blocking.strides[pd->ndims() - 1];
@@ -115,11 +115,11 @@ inline pvar_tile_t to_shape(const convolution_pd_t *pd) {
         shape[pvars::dst_od_stride] = pd->ndims() >= 5
                 ? pd->invariant_dst_md()
                           ->format_desc.blocking.strides[pd->ndims() - 3]
-                : 1;
+                : 0;
         shape[pvars::dst_oh_stride] = pd->ndims() >= 4
                 ? pd->invariant_dst_md()
                           ->format_desc.blocking.strides[pd->ndims() - 2]
-                : 1;
+                : 0;
         shape[pvars::dst_ow_stride]
                 = pd->invariant_dst_md()
                           ->format_desc.blocking.strides[pd->ndims() - 1];

@@ -300,7 +300,8 @@ public:
     prb_reqs_t reqs() const;
     void set(const std::string &s);
     void set_defaults();
-    void set_stride_reqs(tensor_kind_t kind, const layout_tag_t &tag);
+    void set_stride_reqs(tensor_kind_t kind, const layout_tag_t &tag,
+            prb_reqs_t &reqs) const;
     bool can_fit(const problem_t &prb) const;
     void fit_to(const problem_t &prb);
     status_t set_post_ops(const post_ops_t &post_ops,

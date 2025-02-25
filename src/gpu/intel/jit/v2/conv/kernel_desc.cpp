@@ -246,7 +246,11 @@ bool is_grf_usage_ok(const kernel_desc_t &desc) {
 }
 
 prb_reqs_t kernel_desc_t::reqs() const {
-    return generate_2d_reqs(*this);
+    auto reqs = generate_2d_reqs(*this);
+    set_stride_reqs(tensor_kind_t::src, src_tag, reqs);
+    set_stride_reqs(tensor_kind_t::wei, wei_tag, reqs);
+    set_stride_reqs(tensor_kind_t::dst, dst_tag, reqs);
+    return reqs;
 }
 
 bool kernel_desc_t::is_supported(const hw_t &hw, const problem_t *prb) const {
@@ -327,8 +331,8 @@ void kernel_desc_t::set_defaults() {
     }
 }
 
-void kernel_desc_t::set_stride_reqs(
-        tensor_kind_t kind, const layout_tag_t &desc_tag) {
+void kernel_desc_t::set_stride_reqs(tensor_kind_t kind,
+        const layout_tag_t &desc_tag, prb_reqs_t &reqs) const {
     if (desc_tag.is_strided()) {
         int stride2 = 1;
         expr_t stride = expr_t(1);
@@ -448,9 +452,6 @@ void fit_to_impl(kernel_desc_t &desc, const problem_t &prb) {
     fit_tag_to(tensor_kind_t::a, desc, prb);
     fit_tag_to(tensor_kind_t::b, desc, prb);
     fit_tag_to(tensor_kind_t::c, desc, prb);
-    desc.set_stride_reqs(tensor_kind_t::src, desc.src_tag);
-    desc.set_stride_reqs(tensor_kind_t::wei, desc.wei_tag);
-    desc.set_stride_reqs(tensor_kind_t::dst, desc.dst_tag);
     if (!prb.bias_type().is_undef()) {
         if (desc.use_stream_k) {
             auto acc_type = accumulator_type(desc.a_type(), desc.b_type());
@@ -992,7 +993,9 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
         auto user_layout = jit::layout_t(md, /*do_normalize=*/false);
         bool is_out_stream_k = use_stream_k && t.is_output;
         bool zero_out = is_out_stream_k;
-        if (compute_layout != user_layout) {
+        if (compute_layout != user_layout
+                && !compute_layout.is_strictly_equal(
+                        user_layout, true, false)) {
             user_name += "_user";
             scratchpad_key++;
             pd->scratchpad_registry().registrar().book(
