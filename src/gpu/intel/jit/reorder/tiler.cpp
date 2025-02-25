@@ -30,13 +30,9 @@ enum class message_kind_t {
     scattered,
 };
 
-dim_t max_strided_bytes(const hw_t &hw) {
-    // Allow up to 48 registers. Empirically determined.
+dim_t max_bytes(const hw_t &hw) {
+    // Allow up to 32 registers. Empirically determined.
     // TODO: This should be adjusted when post-ops are present.
-    return 48 * hw.grf_size();
-}
-
-dim_t max_packed_bytes(const hw_t &hw) {
     return 32 * hw.grf_size();
 }
 
@@ -240,8 +236,8 @@ std::vector<tensor_t> tiles(const hw_t &hw, layout_t a, layout_t b) {
     auto tiles = merge(a_tiles, b_tiles, take_smaller) | transform(merge_tiles);
 
     const int elem_size = std::max(a.type().size(), b.type().size());
-    const dim_t max_elems = max_packed_bytes(hw) / elem_size;
-    const dim_t max_layout_size = max_strided_bytes(hw);
+    const dim_t max_layout_size = max_bytes(hw);
+    const dim_t max_elems = max_layout_size / elem_size;
 
     auto get_grf_layout_size = [&](const tensor_t &tile) {
         auto elems = tile.elems();
