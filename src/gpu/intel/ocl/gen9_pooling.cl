@@ -165,12 +165,12 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
 #endif // ALG_AVG_P
 
 #if ALG_AVG_NP
-    const off_t id_start = max(od * SD - PD, 0);
-    const off_t ih_start = max(oh * SH - PH, 0);
-    const off_t iw_start = max(ow * SW - PW, 0);
-    const off_t id_end = min(od * SD - PD + KD, ID);
-    const off_t ih_end = min(oh * SH - PH + KH, IH);
-    const off_t iw_end = min(ow * SW - PW + KW, IW);
+    const off_t id_start = max(od * SD - PD, (off_t)0);
+    const off_t ih_start = max(oh * SH - PH, (off_t)0);
+    const off_t iw_start = max(ow * SW - PW, (off_t)0);
+    const off_t id_end = min(od * SD - PD + KD, (off_t)ID);
+    const off_t ih_end = min(oh * SH - PH + KH, (off_t)IH);
+    const off_t iw_end = min(ow * SW - PW + KW, (off_t)IW);
     const int num_summands = (int)(ih_end - ih_start) * (int)(iw_end - iw_start)
             * (int)(id_end - id_start);
     D0 = D0 / num_summands;
@@ -220,26 +220,34 @@ __kernel void gen9_pooling_fwd(__global DATA_T *src, __global int *ws,
         int c_sub_block_id = idx % CHUNKS_PER_C_BLOCK;
         int mb_sub_block_id = idx / CHUNKS_PER_C_BLOCK;
         const off_t po_oc = c + c_sub_block_id * SUB_GROUP_SIZE + local_id;
-        off_t po_mb = (mb0 + mb_sub_block_id) % MB;
+        off_t po_mb = (mb0 + mb_sub_block_id);
 #else // USE_MB_C_BLOCK
         const off_t po_oc = c + idx * SUB_GROUP_SIZE + local_id;
         off_t po_mb = mb0;
 #endif // USE_MB_C_BLOCK
 
-        if (po_mb >= MB || po_oc >= C_WO_PADDING) continue;
-
         float d0_i = USE_FLOATS ? D0[idx] : CONVERT_FLOAT_T(D0[idx]);
         POST_OP_DATA_T sum0_i = DATA_TO_REF(sum0[idx]);
-        APPLY_POST_OPS_SERIAL_BINARY_2D(
-                d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-        D0[idx] = USE_FLOATS ? d0_i : CONVERT_DATA_T(d0_i);
+        if (po_mb >= MB || po_oc >= C_WO_PADDING) {
+            D0[idx] = 0;
+            WS0[idx] = 0;
+        } else {
+            APPLY_POST_OPS_SERIAL_BINARY_2D(
+                    d0_i, float, sum0_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+            D0[idx] = USE_FLOATS ? d0_i : CONVERT_DATA_T(d0_i);
+        }
 
         float d1_i = USE_FLOATS ? D1[idx] : CONVERT_FLOAT_T(D1[idx]);
         POST_OP_DATA_T sum1_i = DATA_TO_REF(sum1[idx]);
         po_mb += VECT_DT_N;
-        APPLY_POST_OPS_SERIAL_BINARY_2D(
-                d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
-        D1[idx] = USE_FLOATS ? d1_i : CONVERT_DATA_T(d1_i);
+        if (po_mb >= MB || po_oc >= C_WO_PADDING) {
+            D1[idx] = 0;
+            WS1[idx] = 0;
+        } else {
+            APPLY_POST_OPS_SERIAL_BINARY_2D(
+                    d1_i, float, sum1_i, POST_OP_DATA_T, po_mb, 1, po_oc, 1);
+            D1[idx] = USE_FLOATS ? d1_i : CONVERT_DATA_T(d1_i);
+        }
     }
 #endif // #if VECT_DT_N == 1
 #if USE_FLOATS
@@ -394,12 +402,12 @@ __kernel void gen9_pooling_bwd(__global DATA_T *diff_src, __global int *ws,
 #endif
 #endif
 #if ALG_AVG_NP
-                const off_t id_start = max(id - kd, 0);
-                const off_t ih_start = max(ih - kh, 0);
-                const off_t iw_start = max(iw - kw, 0);
-                const off_t id_end = min(id - kd + KD, ID);
-                const off_t ih_end = min(ih - kh + KH, IH);
-                const off_t iw_end = min(iw - kw + KW, IW);
+                const off_t id_start = max(id - kd, (off_t)0);
+                const off_t ih_start = max(ih - kh, (off_t)0);
+                const off_t iw_start = max(iw - kw, (off_t)0);
+                const off_t id_end = min(id - kd + KD, (off_t)ID);
+                const off_t ih_end = min(ih - kh + KH, (off_t)IH);
+                const off_t iw_end = min(iw - kw + KW, (off_t)IW);
                 const int num_summands = (int)(ih_end - ih_start)
                         * (int)(iw_end - iw_start) * (int)(id_end - id_start);
                 D0 /= num_summands;

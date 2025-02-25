@@ -548,12 +548,11 @@ void def_eltwise_alg_kinds(compute::kernel_ctx_t &kernel_ctx) {
 }
 
 bool post_ops_with_binary_ok(const primitive_attr_t *attr,
-        const data_type_t dst_dt, const int max_ndims_supported,
-        const int prelu_mask_supported) {
+        const data_type_t dst_dt, const int max_ndims_supported) {
     const auto &p = attr->post_ops_;
 
     auto is_eltwise = [&](int idx) { return p.entry_[idx].is_eltwise(false); };
-    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false); };
+    auto is_sum = [&](int idx) { return p.entry_[idx].is_sum(false, false); };
     auto is_binary = [&](int idx) { return p.entry_[idx].is_binary(); };
     auto is_prelu = [&](int idx) { return p.entry_[idx].is_prelu(); };
 
@@ -572,12 +571,7 @@ bool post_ops_with_binary_ok(const primitive_attr_t *attr,
                 }
             }
         }
-        if (is_prelu(po_idx)) {
-            if (p.entry_[po_idx].prelu.mask > prelu_mask_supported)
-                is_po_ok = false;
-        }
         if (is_sum(po_idx)) {
-            if (p.entry_[po_idx].sum.zero_point != 0) return false;
             if (p.entry_[po_idx].sum.dt != dnnl_data_type_undef
                     && types::data_type_size(p.entry_[po_idx].sum.dt)
                             != types::data_type_size(dst_dt))
@@ -681,7 +675,7 @@ status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             kernel_ctx.define_float(
                     ("PO_" + std::to_string(idx) + "_ELTWISE_SCALE").c_str(),
                     e.eltwise.scale);
-        } else if (e.is_sum(false)) {
+        } else if (e.is_sum(false, false)) {
             kernel_ctx.add_option(
                     "-DAPPLY_PO_" + std::to_string(idx) + "=APPLY_PO_SUM");
             kernel_ctx.define_int(
@@ -689,6 +683,10 @@ status_t def_post_ops_cfg(compute::kernel_ctx_t &kernel_ctx,
             kernel_ctx.define_float(
                     ("PO_" + std::to_string(idx) + "_SUM_SCALE").c_str(),
                     e.sum.scale);
+            kernel_ctx.define_int(
+                    ("PO_" + std::to_string(idx) + "_SUM_ZP").c_str(),
+                    e.sum.zero_point);
+
         } else {
             return status::runtime_error;
         }
