@@ -262,7 +262,17 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {}
 
 void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         const args_t &ref_args) {
-    cmp.set_threshold(0.f);
+    // The nvidia implementation has different precision guarantees in some cases
+    // for large problems with post-op sum
+    if (is_nvidia_gpu()
+            && prb->attr.post_ops.find(attr_t::post_ops_t::kind_t::SUM) != -1
+            && prb->dst_dt() == dnnl_f16 && (prb->dir & FLAG_FWD)
+            && prb->attr.acc_mode == dnnl_accumulation_mode_relaxed) {
+        const float trh = epsilon_dt(prb->dt[2]);
+        cmp.set_threshold(trh);
+    } else {
+        cmp.set_threshold(0.f);
+    }
 }
 
 std::vector<int> supported_exec_args(dir_t dir) {

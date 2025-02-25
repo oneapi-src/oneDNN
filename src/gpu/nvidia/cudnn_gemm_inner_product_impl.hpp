@@ -77,8 +77,8 @@ struct cudnn_gemm_inner_product_fwd_impl_t
     bool need_reorder_;
 
     virtual status_t init(impl::engine_t *, inner_product_pd_t *pd,
-            bool with_relu, bool with_eltwise, bool with_sum,
-            bool need_reorder) override {
+            bool with_relu, bool with_eltwise, bool with_sum, bool need_reorder,
+            bool use_f32_sum) override {
         need_reorder_ = need_reorder;
         // GEMM is column major, here the data is row major.
         // By switching the weight and source we convert the row major to
@@ -121,8 +121,10 @@ struct cudnn_gemm_inner_product_fwd_impl_t
         use_acc_dst_ = ((pd->dst_md()->data_type == data_type::s8)
                 || (with_bias_
                         && pd->weights_md(1)->data_type
-                                != pd->dst_md()->data_type));
+                                != pd->dst_md()->data_type)
+                || use_f32_sum);
         with_sum_ = with_sum;
+        with_f32_sum_ = use_f32_sum;
         // scaling factor to add the previous destination value to the current
         // computation. This is equivalent of
         sum_scale_ = sum_scale(pd);
@@ -154,12 +156,23 @@ struct cudnn_gemm_inner_product_fwd_impl_t
 
         if (with_bias_) {
             CHECK(convert_data_type(pd->weights_md(1), &data_types_[io::bia]));
+
             // format is always nchw
             set_bias_dims(CUDNN_TENSOR_NCHW, ndims_, pd->OC());
 
             CHECK(create_and_set_tensor_descriptor(&tensor_descs_[io::bia],
                     data_types_[io::bia], ndims_, dims_[io::bia],
                     strides_[io::bia]));
+
+            if (with_f32_sum_) {
+                pd->scratchpad_registry().registrar().book(
+                        memory_tracking::names::key_iprod_bias_bf16_convert_wsp,
+                        memory_desc_wrapper(pd->weights_md(1)).nelems(),
+                        types::data_type_size(data_type::f32));
+                CHECK(create_and_set_tensor_descriptor(&bias_f32_desc_,
+                        CUDNN_DATA_FLOAT, ndims_, dims_[io::bia],
+                        strides_[io::bia]));
+            }
         }
         if (use_acc_dst_) {
             pd->scratchpad_registry().registrar().book(
@@ -178,10 +191,10 @@ struct cudnn_gemm_inner_product_fwd_impl_t
 
     void execute(cudnnHandle_t cudnn_handle, cublasHandle_t cublas_handle,
             const std::vector<void *> &args) const override {
-        assert(args.size() == 9);
+        assert(args.size() == 10);
         auto x = args[0], w = args[1], b = args[2], y = args[3],
              workspace = args[4], src_scale = args[6], wei_scale = args[7],
-             dst_scale = args[8];
+             dst_scale = args[8], bias_f32 = args[9];
         auto w_arg = w;
         if (need_reorder_) {
             void *transformed_w = args[5];
@@ -222,8 +235,18 @@ struct cudnn_gemm_inner_product_fwd_impl_t
 
         if (with_bias_) {
             float alpha = 1.0f;
-            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &alpha,
-                    tensor_descs_[io::bia], b, &alpha, y_acc_desc_, y_dst);
+            float beta = 0.f;
+            auto bias = b;
+            auto bias_desc = tensor_descs_[io::bia];
+            if (with_f32_sum_) {
+                cudnnTransformTensor(cudnn_handle, &alpha,
+                        tensor_descs_[io::bia], b, &beta, bias_f32_desc_,
+                        bias_f32);
+                bias = bias_f32;
+                bias_desc = bias_f32_desc_;
+            }
+            CUDNN_EXECUTE_FUNC(cudnnAddTensor, cudnn_handle, &alpha, bias_desc,
+                    bias, &alpha, y_acc_desc_, y_dst);
         }
         if (with_eltwise_) {
             CUDNN_EXECUTE_FUNC(cudnnActivationForward, cudnn_handle, act_desc_,
@@ -281,7 +304,7 @@ struct cudnn_gemm_inner_product_bwd_data_impl_t
 
     virtual status_t init(impl::engine_t *, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
-            bool need_reorder) override {
+            bool need_reorder, bool /* use_f32_sum */) override {
         need_reorder_ = need_reorder;
 
         // GEMM is column major, here the data is row major.
@@ -365,7 +388,7 @@ struct cudnn_gemm_inner_product_bwd_weights_impl_t
     }
     virtual status_t init(impl::engine_t *engine, inner_product_pd_t *pd,
             bool /*with_relu*/, bool /*with_eltwise*/, bool /*with_sum */,
-            bool need_reorder) override {
+            bool need_reorder, bool /* use_f32_sum */) override {
         need_reorder_ = need_reorder;
         with_bias_ = pd->with_bias();
 
