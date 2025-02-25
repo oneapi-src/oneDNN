@@ -23,12 +23,29 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 for i in {1..5}
 do
+    echo "Testing loop ${i} / 5..."
+    echo "Starting matmul tests..."
+    SECONDS=0
     $1 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul_nightly >> $3
     $2 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul_nightly >> $4
+    duration=$SECONDS
+    echo "Matmul performance tests completed in $((duration / 60)):$((duration % 60))"
+    echo "Starting conv tests..."
+    SECONDS=0
     $1 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv_nightly >> $3
     $2 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv_nightly >> $4
+    duration=$SECONDS
+    echo "Convolution performance tests completed in $((duration / 60)):$((duration % 60))"
+    echo "Starting eltwise tests..."
+    SECONDS=0
     $1 --eltwise --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/eltwise_nightly >> $3
     $2 --eltwise --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/eltwise_nightly >> $4
+    duration=$SECONDS
+    echo "Eltwise performance tests completed in $((duration / 60)):$((duration % 60))"
+    echo "Starting reorder tests..."
+    SECONDS=0
     $1 --reorder --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/reorder_nightly >> $3
     $2 --reorder --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/reorder_nightly >> $4
+    duration=$SECONDS
+    echo "Reorder performance tests completed in $((duration / 60)):$((duration % 60))"
 done

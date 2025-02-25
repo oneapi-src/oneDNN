@@ -21,7 +21,6 @@
 --bia-dt=f32,undef
 --bia_mask=2
 --batch=shapes_2d_ci
---batch=shapes_2d
 --bia_mask=4
 --batch=shapes_3d
 
@@ -30,6 +29,5 @@
 --bia-dt=undef
 --bia_mask=2
 --batch=shapes_2d_ci
---batch=shapes_2d
 --bia_mask=4
 --batch=shapes_3d
