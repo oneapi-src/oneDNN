@@ -255,6 +255,21 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
     if (!config) return status::unimplemented;
 
+    VDISPATCH_SDPA(config->unroll_n_kq * config->wg_n_kq
+                            == config->unroll_n_vs * config->wg_n_vs
+                    && config->unroll_n_kq % config->unroll_n_vs == 0,
+            "[CONFIG] The config KQ work_group tile N(%d) axis must equal "
+            "VS work_group tile N(%d) axis and KQ subgroup tile N(%d) axis "
+            "must be divisible by VS subgroup tile N(%d) axis",
+            config->unroll_n_kq * config->wg_n_kq,
+            config->unroll_n_vs * config->wg_n_vs, config->unroll_n_kq,
+            config->unroll_n_vs);
+
+    VDISPATCH_SDPA(config->unroll_m_vs * config->wg_m_vs >= d->head_size(),
+            "[CONFIG] The config work_group tile M(%d) axis must be "
+            "greater than or equal to head size(%ld)",
+            config->unroll_m_vs * config->wg_m_vs, d->head_size());
+
     /* Get device information */
     HWInformation hw_info;
     hw_info.euCount = dev_info->eu_count();
