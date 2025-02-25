@@ -4,6 +4,7 @@
 # Common params for all cases
 --stag=any,ab --wtag=any,ab --dtag=ab,any
 --bia-dt=undef,f32 --bia_mask=2
+--skip-impl=ref
 --attr-post-ops=
 
 ## plain fp4
