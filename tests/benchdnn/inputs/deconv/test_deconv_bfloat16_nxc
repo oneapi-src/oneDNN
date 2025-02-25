@@ -13,8 +13,8 @@
 --attr-post-ops=
 --batch=set_all
 
---dt=bf16:bf16:f32 --dir=FWD_B --batch=set_all
---dt=f32:bf16:bf16 --dir=BWD_D --batch=set_all
+--dt=bf16:bf16:f32,f32:bf16:f32 --dir=FWD_B --batch=set_all
+--dt=f32:bf16:bf16,f32:bf16:f32 --dir=BWD_D --batch=set_all
 --dt=bf16:f32:bf16 --dir=BWD_WB --batch=set_all
 
 # Test Deconv w/bias through GeMM

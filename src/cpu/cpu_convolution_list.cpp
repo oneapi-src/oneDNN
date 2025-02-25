@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 * Copyright 2020-2025 Arm Ltd. and affiliates
 * Copyright 2020-2024 FUJITSU LIMITED
 *
@@ -159,6 +159,24 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE(ref_fused_convolution_fwd_t)
             nullptr,
         }},
+        {{forward, f32, f16, f32}, {
+            CPU_INSTANCE_AVX512(brdgmm_dw_convolution_fwd_t)
+            CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx512_core>)
+            CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx512_core>)
+            CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx2>)
+            CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx2>)
+            CPU_INSTANCE(ref_convolution_fwd_t)
+            nullptr,
+        }},
+        {{forward, f32, bf16, f32}, {
+            CPU_INSTANCE_AVX512(brdgmm_dw_convolution_fwd_t)
+            CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx512_core>)
+            CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx512_core>)
+            CPU_INSTANCE_AVX2(brgemm_1x1_convolution_fwd_t<avx2>)
+            CPU_INSTANCE_AVX2(brgemm_convolution_fwd_t<avx2>)
+            CPU_INSTANCE(ref_convolution_fwd_t)
+            nullptr,
+        }},
         {{forward, bf16, bf16, f32}, {
             CPU_INSTANCE_AVX512(brdgmm_dw_convolution_fwd_t)
             CPU_INSTANCE_X64(ip_convolution_fwd_t)
@@ -267,6 +285,22 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             CPU_INSTANCE_AARCH64(jit_sve_convolution_bwd_data_t<f32,f32,f32,sve_256>)
             CPU_INSTANCE_X64(jit_uni_ncsp_convolution_bwd_data_t)
             CPU_INSTANCE(gemm_convolution_bwd_data_t)
+            CPU_INSTANCE(ref_convolution_bwd_data_t)
+            nullptr,
+        })},
+        {{backward_data, f32, bf16, f32}, REG_BWD_D_PK({
+            CPU_INSTANCE_AVX512(brgemm_convolution_bwd_t<avx512_core>)
+            CPU_INSTANCE_AVX512(brgemm_convolution_bwd_strided_t<avx512_core>)
+            CPU_INSTANCE_AVX2(brgemm_convolution_bwd_t<avx2>)
+            CPU_INSTANCE_AVX512(brgemm_convolution_bwd_strided_t<avx2>)
+            CPU_INSTANCE(ref_convolution_bwd_data_t)
+            nullptr,
+        })},
+        {{backward_data, f32, f16, f32}, REG_BWD_D_PK({
+            CPU_INSTANCE_AVX512(brgemm_convolution_bwd_t<avx512_core>)
+            CPU_INSTANCE_AVX512(brgemm_convolution_bwd_strided_t<avx512_core>)
+            CPU_INSTANCE_AVX2(brgemm_convolution_bwd_t<avx2>)
+            CPU_INSTANCE_AVX512(brgemm_convolution_bwd_strided_t<avx2>)
             CPU_INSTANCE(ref_convolution_bwd_data_t)
             nullptr,
         })},

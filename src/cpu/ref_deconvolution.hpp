@@ -372,7 +372,9 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
                     VERBOSE_BAD_PROPKIND);
             VDISPATCH_DECONVOLUTION(utils::one_of(wei_type, f32, bf16, f16),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_DECONVOLUTION(ddst_type == wei_type,
+            VDISPATCH_DECONVOLUTION(IMPLICATION(ddst_type != wei_type,
+                                            utils::one_of(wei_type, bf16, f16)
+                                                    && ddst_type == f32),
                     VERBOSE_INCONSISTENT_DT, "diff_dst", "weights");
             VDISPATCH_DECONVOLUTION(utils::one_of(dsrc_type, wei_type, f32),
                     VERBOSE_UNSUPPORTED_DT);
