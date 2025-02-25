@@ -20,7 +20,6 @@
 #include <array>
 
 #include "gpu/intel/jit/ir/ir.hpp"
-#include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
 
 namespace dnnl {
@@ -33,21 +32,12 @@ class ir_builder_t {
 public:
     const stmt_t &stmt() const { return stmt_; }
 
-    static const std::array<expr_t, 3> &local_ids() {
-        static thread_local std::array<expr_t, 3> vars
-                = {var_t::make(type_t::u16(), "local_id0"),
-                        var_t::make(type_t::u16(), "local_id1"),
-                        var_t::make(type_t::u16(), "local_id2")};
-        return vars;
-    }
-
-    static const std::array<expr_t, 3> &tg_idxs() {
-        static thread_local std::array<expr_t, 3> vars
-                = {var_t::make(type_t::s32(), "tg_idx0"),
-                        var_t::make(type_t::s32(), "tg_idx1"),
-                        var_t::make(type_t::s32(), "tg_idx2")};
-        return vars;
-    }
+#define GENNAME(prefix) \
+    static std::string prefix(int idx) { return #prefix + std::to_string(idx); }
+    GENNAME(tg_idx)
+    GENNAME(thr_idx)
+    GENNAME(local_id)
+#undef GENNAME
 
 protected:
     void init_kernel_grid(const grid_info_t &kernel_grid,
