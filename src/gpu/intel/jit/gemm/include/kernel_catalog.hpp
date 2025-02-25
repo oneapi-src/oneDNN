@@ -19,7 +19,8 @@
 
 #include <string>
 #include <tuple>
-#include <vector>
+#include <array>
+#include <utility>
 
 #include "config.hpp"
 #include "driver_info.hpp"
@@ -203,31 +204,38 @@ struct Entry {
 };
 
 struct Catalog {
+    template <std::size_t N>
+    Catalog(const std::array<Entry, N> &a): entryCount(N), entries(a.data()) {}
     int entryCount          DEFAULT(0);
 
     const Entry *entries;
 };
 
-template <size_t n>
-struct FlatCatalog {
-    FlatCatalog(Entry (&&a)[n]) {
-        for(size_t i = 0; i < n; i++) {
-            entries[i] = std::move(a[i]);
-        }
-    }
-
-    Entry entries[n];
-
-    /* implicit */ operator Catalog() const {
-        Catalog catalog = {n, &entries[0]};
-        return catalog;
-    }
-};
-
-template <std::size_t n>
-constexpr FlatCatalog<n> toFlatCatalog(Entry (&&a)[n]) {
-    return FlatCatalog<n>(std::move(a));
+#if __cplusplus >= 202002L && __cpp_lib_to_array >= 201907L
+template <std::size_t N>
+constexpr std::array<Entry, N> toArray(Entry (&&a)[N]) {
+    return std::to_array(std::move(a));
 }
+#elif __cplusplus >= 201402L && __cpp_lib_integer_sequence >= 201304L
+template <std::size_t N, std::size_t... I>
+constexpr std::array<Entry, N>
+toArrayImpl(Entry (&&a)[N], std::index_sequence<I...>) {
+    return {{std::move(a[I])...}};
+}
+template <std::size_t N>
+constexpr std::array<Entry, N> toArray(Entry (&&a)[N]) {
+    return toArrayImpl(std::move(a), std::make_index_sequence<N>{});
+}
+#else
+template <std::size_t N>
+std::array<Entry, N> toArray(Entry (&&a)[N]) {
+    std::array<Entry, N> ret;
+    for(size_t i = 0; i < N; i++) {
+        ret[i] = std::move(a[i]);
+    }
+    return ret;
+}
+#endif
 
 } /* namespace kcatalog */
 
