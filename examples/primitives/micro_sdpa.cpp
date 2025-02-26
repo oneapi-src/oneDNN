@@ -452,36 +452,26 @@ int main(int argc, char **argv) {
     global_engine = dnnl::engine(dnnl::engine::kind::gpu, 0);
     global_engine_stream = dnnl::stream(global_engine);
 
-    // two_prompt_two_page_problem();
+    // prefill
+    for (int head_size : {128}) {
+        for (int seq_len : {384, 512, 1024, 2048, 4096}) {
+            prefill(seq_len, head_size, 64);
+        }
+    }
 
-    // mask_check();
-    // return 0;
+    // generate
+    for (int head_size : {128}) {
+        for (int seq_len : {385, 513, 1025, 2049, 4097}) {
+            generate(seq_len, head_size, 64);
+        }
+    }
 
-    prefill_non_paged(2048, 128, 64);
-    generate_non_paged(2049, 128, 64);
-    generate_non_paged(2048, 128, 64);
-
-    // // prefill
-    // for (int head_size : {128}) {
-    //     for (int seq_len : {384, 512, 1024, 2048, 4096}) {
-    //     // for (int seq_len : {385, 513, 1025, 2049, 4097}) {
-    //         prefill_non_paged(seq_len, head_size, 64);
-    //     }
-    // }
-
-    // // generate
-    // for (int head_size : {128}) {
-    //     for (int seq_len : {385, 513, 1025, 2049, 4097}) {
-    //         generate_non_paged(seq_len, head_size, 64);
-    //     }
-    // }
-
-    // // combined
-    // for (int head_size : {128}) {
-    //     for (int context_len : {384, 1024, 2048, 4096}) {
-    //         combined(context_len, head_size, 64); // query len 129
-    //     }
-    // }
+    // combined
+    for (int head_size : {128}) {
+        for (int context_len : {384, 1024, 2048, 4096}) {
+            combined(context_len, head_size, 64); // query len 129
+        }
+    }
 
     return 0;
 }
