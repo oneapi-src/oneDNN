@@ -19,7 +19,7 @@ where *binary-knobs* are:
             Refer to [tags](knobs_tag.md) for details.
  - `--alg={ADD [default], DIV, EQ, GE, GT, LE, LT, MAX, MIN, MUL, NE, SELECT, SUB}`
             -- algorithm for binary operations.
-            Refer to [binary primitive](https://oneapi-src.github.io/oneDNN/dev_guide_binary.html)
+            Refer to [binary primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_binary.html)
             for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.

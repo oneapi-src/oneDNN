@@ -93,7 +93,7 @@ platforms follow the general description in @ref dev_guide_data_types.
 ## Example
 
 oneDNN provides a [GQA
-example](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph/gqa.cpp)
+example](https://github.com/uxlfoundation/oneDNN/tree/main/examples/graph/gqa.cpp)
 demonstrating how to construct a floating-point GQA pattern with oneDNN Graph
 API on CPU and GPU with different runtimes.
 

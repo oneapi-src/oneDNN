@@ -27,7 +27,7 @@ OS=${OS:-"Linux"}
 SKIPPED_GRAPH_TEST_FAILURES="test_graph_unit_dnnl_sdp_decomp_cpu"
 SKIPPED_GRAPH_TEST_FAILURES+="|test_graph_unit_dnnl_mqa_decomp_cpu"
 
-# described in issue: https://github.com/oneapi-src/oneDNN/issues/2175
+# described in issue: https://github.com/uxlfoundation/oneDNN/issues/2175
 SKIPPED_TEST_FAILURES="test_benchdnn_modeC_matmul_multidims_cpu"
 
 #  We currently have some OS and config specific test failures.

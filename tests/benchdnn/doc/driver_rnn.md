@@ -47,7 +47,7 @@ where *rnn-knobs* are:
  - `--flags=[|O]` -- RNN flags, default `undef` (no flags); where multiple
             simultaneous flags are supported.
             `O` is dnnl_rnn_flags_diff_weights_overwrite;
-            Refer to [RNN primitive](https://oneapi-src.github.io/oneDNN/dev_guide_rnn.html) for details.
+            Refer to [RNN primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_rnn.html) for details.
  - Any attributes options. Refer to [attributes](knobs_attr.md) for details.
 
 and *rnn-desc* is a problem descriptor. The canonical form is:

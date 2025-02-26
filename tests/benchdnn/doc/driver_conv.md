@@ -60,8 +60,8 @@ errors.
 
 The table below shows supported name configurations for this driver:
 
-For data type support, refer to [data types](https://oneapi-src.github.io/oneDNN/dev_guide_data_types.html)
-and [convolution primitive](https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html#data-types)
+For data type support, refer to [data types](https://uxlfoundation.github.io/oneDNN/dev_guide_data_types.html)
+and [convolution primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_convolution.html#data-types)
 documentation.
 
 | src  | wei  | dst  | acc  | cfg             |

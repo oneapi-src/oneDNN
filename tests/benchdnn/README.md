@@ -2,7 +2,7 @@
 
 **benchdnn** is an extended and robust correctness verification and performance
 benchmarking tool for the primitives provided by
-[oneDNN](https://github.com/oneapi-src/oneDNN). The purpose of the benchmark is
+[oneDNN](https://github.com/uxlfoundation/oneDNN). The purpose of the benchmark is
 an extended and robust correctness verification of the primitives provided by
 oneDNN. **benchdnn** itself is a harness for different primitive-specific
 drivers.

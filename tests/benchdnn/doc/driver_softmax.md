@@ -20,7 +20,7 @@ where *softmax-knobs* are:
  - `--alg={SOFTMAX [default], LOGSOFTMAX}` -- softmax algorithm.
             `SOFTMAX` or `softmax_accurate` is `dnnl_softmax_accurate`;
             `LOGSOFTMAX` or `softmax_log` is `dnnl_softmax_log`;
-            Refer to [softmax primitive](https://oneapi-src.github.io/oneDNN/dev_guide_softmax.html)
+            Refer to [softmax primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_softmax.html)
             for details.
  - `--axis=INT` -- dimension on which operation will be performed.
             Default is `1`, corresponds to channels in logical memory layout.

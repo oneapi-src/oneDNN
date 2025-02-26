@@ -14,7 +14,7 @@ where *eltwise-knobs* are:
  - `--tag={nchw [default], ...}` -- physical src and dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--alg={RELU [default], ...}` -- dnnl_eltwise algorithm. Refer to
-            [eltwise primitive](https://oneapi-src.github.io/oneDNN/dev_guide_eltwise.html)
+            [eltwise primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_eltwise.html)
             for details.
  - `--alpha=FLOAT` -- float value corresponding to algorithm operation.
             Refer to ``Floating point arguments`` below.

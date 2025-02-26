@@ -7,8 +7,8 @@ requests! To get started, see the GitHub
 You can:
 
 - Submit your changes directly with a
-  [pull request](https://github.com/oneapi-src/oneDNN/pulls)
-- Log a bug or feedback with an [issue](https://github.com/oneapi-src/oneDNN/issues)
+  [pull request](https://github.com/uxlfoundation/oneDNN/pulls)
+- Log a bug or feedback with an [issue](https://github.com/uxlfoundation/oneDNN/issues)
 
 **See also:** [Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct.
 
@@ -54,7 +54,7 @@ For Comments (RFC) process, which consists of opening, discussing, and
 accepting (promoting) RFC pull requests.
 
 More information about the process can be found in the dedicated
-[`rfcs`](https://github.com/oneapi-src/oneDNN/tree/rfcs) branch.
+[`rfcs`](https://github.com/uxlfoundation/oneDNN/tree/rfcs) branch.
 
 ## Code contribution guidelines
 
@@ -146,7 +146,7 @@ Use the following command to run tests selected by a build configuration:
 ```
 
 To modify the coverage, use the
-[`ONEDNN_TEST_SET`](https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html#onednn-test-set)
+[`ONEDNN_TEST_SET`](https://uxlfoundation.github.io/oneDNN/dev_guide_build_options.html#onednn-test-set)
 build option.
 
 More details on how to run benchdnn can be found in
