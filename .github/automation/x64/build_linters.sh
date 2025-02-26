@@ -33,20 +33,9 @@ if [[ "$ONEDNN_ACTION" == "configure" ]]; then
       exit 1
     fi
 elif [[ "$ONEDNN_ACTION" == "build" ]]; then
-    if [[ "$GITHUB_JOB" == "pr-clang-tidy" ]]; then
-      set -x
-      echo "Check source files:"
-      git diff --name-only "$1" | grep -E '\.cpp'
-      for file in $(git diff --name-only "$1" | grep -E '\.cpp'); do clang-tidy -p build --header-filter='' $file; done
-      echo "Check header files:"
-      git diff --name-only "$1" | grep -E '\.h|\.hpp'
-      for file in $(git diff --name-only "$1" | grep -E '\.h|\.hpp'); do clang-tidy -p build --header-filter='' $file; done
-      set +x
-    else
-      set -x
-      cmake --build build -j`nproc`
-      set +x
-    fi
+    set -x
+    cmake --build build -j`nproc`
+    set +x
 else
     echo "Unknown action: $ONEDNN_ACTION"
     exit 1
