@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ public:
     ref_partition_t() = default;
     // to get a Topo ordered partition OPs reference and save the map
     // of input/output logical tensors ids to partition OPs reference
-    ref_partition_t(const deserialized_graph &dg,
+    ref_partition_t(const deserialized_graph_t &dg,
             const dnnl::graph::partition &par,
             const std::vector<dnnl::graph::logical_tensor> &ins,
             const std::vector<dnnl::graph::logical_tensor> &outs);
@@ -50,7 +50,7 @@ public:
             partition_mem_map_t &partition_mem_map, res_t *res);
 
     // check the partition memory footprint of graph path
-    int check_partition_total_size(const deserialized_op &op, res_t *res);
+    int check_partition_total_size(const deserialized_op_t &op, res_t *res);
 
     // check the partition memory footprint of reference path
     int check_partition_total_size(
@@ -67,31 +67,32 @@ private:
     // its logical tensors.
     // When `check_all_in_lts` is set to true, returns `true` if only the op has
     // a parent for each of its logical tensors.
-    bool has_parent_op(const deserialized_op &op, bool check_all_in_lts) const;
+    bool has_parent_op(
+            const deserialized_op_t &op, bool check_all_in_lts) const;
 
     // Returns `true` if an `op` has a child op in the partition.
     // If `child_op_ptr` is not empty, updates the pointer with a child op.
     //
     // Note: double pointer is needed to initialize a pointer. A pointer is
     // needed to avoid a copy of an `child_op` object.
-    bool has_child_op(const deserialized_op &op,
-            const deserialized_op **child_op_ptr) const;
+    bool has_child_op(const deserialized_op_t &op,
+            const deserialized_op_t **child_op_ptr) const;
 
     // Returns a pointer to parent op for a given input lt id. If the parent is
     // not found, an empty pointer is returned.
-    const deserialized_op *get_parent_op(size_t in_lt_id) const;
+    const deserialized_op_t *get_parent_op(size_t in_lt_id) const;
 
     // Returns `true` if unfusable transcendental op should have cropped output.
     // `dt` is a target data type for following transform. Updated only when the
     // function returns `true`.
     bool need_unfusable_output_crop(
-            const deserialized_op &op, dnnl_data_type_t &dt) const;
+            const deserialized_op_t &op, dnnl_data_type_t &dt) const;
 
-    bool is_input_op(const deserialized_op &op) const;
-    bool is_output_op(const deserialized_op &op) const;
-    std::vector<size_t> get_in_out_lt_ids(const deserialized_op &op) const;
+    bool is_input_op(const deserialized_op_t &op) const;
+    bool is_output_op(const deserialized_op_t &op) const;
+    std::vector<size_t> get_in_out_lt_ids(const deserialized_op_t &op) const;
 
-    const deserialized_graph *dg_;
+    const deserialized_graph_t *dg_;
     // Objects below are constructed.
     // OPs in the partition, which is Topo ordered
     op_ref_list_t partition_ops_ref_;

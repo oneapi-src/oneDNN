@@ -244,7 +244,7 @@ std::map<std::string, std::string> parse_attrs(const std::string &attrs_str) {
         val_end = attrs_str.find('*', val_pos);
         std::string key_str = attrs_str.substr(key_pos, key_end - key_pos);
         std::string val_str = attrs_str.substr(val_pos, val_end - val_pos);
-        // Validation of input happens at `deserialized_op::create()`.
+        // Validation of input happens at `deserialized_op_t::create()`.
         if (attrs_map.count(key_str)) {
             attrs_map[key_str] = val_str;
             BENCHDNN_PRINT(0, "Repeat attr: %s, will use last value for it.\n",
