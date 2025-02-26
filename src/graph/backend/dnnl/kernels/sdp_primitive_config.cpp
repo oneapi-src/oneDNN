@@ -58,7 +58,8 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr, add = nullptr,
            final_op = nullptr;
     const std::unordered_set<op_kind_t> mm1_post_op_kind
-            = {op_kind::dnnl_binary, op_kind::dnnl_softmax, op_kind::dnnl_mask};
+            = {op_kind::dnnl_binary, op_kind::dnnl_softmax, op_kind::dnnl_mask,
+                    op_kind::dnnl_reorder};
     for (const auto &cur_op : sg->get_ops()) {
         if (in_tensor_list(cur_op->get_output_value(0).get(), outputs))
             final_op = cur_op;
@@ -70,6 +71,9 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
             VCHECK_SDP_PRIMITIVE(mm1 == nullptr, status::unimplemented,
                     "Multiple mm1 found");
             mm1 = cur_op;
+            if (post_op->get_kind() == op_kind::dnnl_reorder) {
+                post_op = get_post_op(post_op);
+            }
             // At least one of scale and mask exists
             if (post_op->get_kind() == op_kind::dnnl_binary) {
                 auto binary_alg = static_cast<alg_kind_t>(
@@ -177,8 +181,8 @@ status_t sdp_primitive_config_t::initial_check(
     // kernel, so here we only check specific variants based on support matrix.
     const std::unordered_set<graph::op_kind_t> mm1_post_op_kind
             = {graph::op_kind::Divide, graph::op_kind::Multiply,
-                    graph::op_kind::Add, graph::op_kind::Select,
-                    graph::op_kind::SoftMax};
+                    graph::op_kind::TypeCast, graph::op_kind::Add,
+                    graph::op_kind::Select, graph::op_kind::SoftMax};
     op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr;
     for (const auto &cur_op : sg->get_ops()) {
         const auto &op_kind = cur_op->get_kind();
@@ -229,6 +233,9 @@ status_t sdp_primitive_config_t::initial_check(
             VCHECK_SDP_PRIMITIVE(post_op->get_kind() != graph::op_kind::Select,
                     status::unimplemented,
                     "Not support select between mm1 and scale(optional)");
+            if (op_kind == graph::op_kind::TypeCast) {
+                post_op = get_post_op(post_op);
+            }
             // scale
             if (post_op->get_kind() == graph::op_kind::Divide
                     || post_op->get_kind() == graph::op_kind::Multiply) {
