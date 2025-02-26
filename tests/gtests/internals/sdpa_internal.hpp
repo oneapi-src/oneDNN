@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef COMMON_SDPA_INTERNAL_HPP
-#define COMMON_SDPA_INTERNAL_HPP
+#ifndef DNNL_TEST_INTERNAL_SDPA_INTERNAL_HPP
+#define DNNL_TEST_INTERNAL_SDPA_INTERNAL_HPP
 
 #include "dnnl.hpp"
 
