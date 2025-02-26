@@ -1,8 +1,8 @@
 # small shapes
 
-l8t12mb12_sic16_n"uniform"
+l8t3mb12_sic16_n"uniform"
 l4t3mb20_sic36_n"uniform:unroll_tail"
-l1t4mb6_sic16_slc32_n"non-uniform:slc_neq_sic"
+l1t2mb6_sic16_slc32_n"non-uniform:slc_neq_sic"
 l1t1mb7_sic17_dhc34_n"non-uniform:slc_neq_dhc_tail"
 l1t1mb3_sic16_slc32_dhc64_n"non-uniform:slc_neq_sic_neq_dhc"
 l1t1mb4_sic17_slc34_dhc68_n"non-uniform:slc_neq_sic_neq_dhc_tail"
