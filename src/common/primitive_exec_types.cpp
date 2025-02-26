@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -49,8 +49,7 @@ status_t cvt_primitive_args(const primitive_desc_t *pd, int nargs,
             case primitive_desc_t::arg_usage_t::input:
                 args[arg] = {mem, true};
                 n_inputs++;
-                extra_inputs += (arg == DNNL_ARG_ATTR_OUTPUT_SCALES)
-                        || (arg & DNNL_ARG_ATTR_ZERO_POINTS)
+                extra_inputs += (arg & DNNL_ARG_ATTR_ZERO_POINTS)
                         || (arg & DNNL_ARG_ATTR_SCALES)
                         // 1x1 + dw conv fusion
                         || (arg
