@@ -198,16 +198,19 @@ struct sycl_shuffle_conf_t {
 struct sycl_reorder_conf_t {
     xpu::sycl::md_t src_md;
     xpu::sycl::md_t dst_md;
-    xpu::sycl::md_t scales;
 
     bool do_scale_src;
     int scale_src_mask;
     bool do_scale_dst;
     int scale_dst_mask;
+    bool apply_src_zp;
+    int src_zp_mask;
+    bool apply_dst_zp;
+    int dst_zp_mask;
 
     int ndims;
 
-    int wk_size;
+    std::size_t num_elements;
 
     sycl_post_ops_t post_ops;
 };

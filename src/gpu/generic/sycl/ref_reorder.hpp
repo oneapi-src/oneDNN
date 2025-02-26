@@ -54,11 +54,11 @@ struct ref_reorder_t : public gpu::generic::sycl::primitive_t {
             VDISPATCH_REORDER(!dst_d.has_runtime_dims_or_strides(),
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
             VDISPATCH_REORDER(
-                    check_data_types(src_d, dst_d), VERBOSE_UNSUPPORTED_DT_CFG);
-            VDISPATCH_REORDER(
                     check_formats(src_d, dst_d), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_REORDER(
-                    attr()->has_default_values(sm::scales | sm::post_ops),
+                    check_data_types(src_d, dst_d), VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_REORDER(attr()->has_default_values(sm::post_ops
+                                      | sm::scales | sm::zero_points),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_REORDER(IMPLICATION(!attr()->scales_.has_default_values(),
                                       scales_ok()),
@@ -98,14 +98,23 @@ struct ref_reorder_t : public gpu::generic::sycl::primitive_t {
         }
 
         bool scales_ok() const {
-            const std::vector<int> supported_args
-                    = {DNNL_ARG_SRC, DNNL_ARG_DST};
-
-            const auto &scales = attr()->scales_;
-            for (auto arg : supported_args) {
-                const auto dt = scales.get_data_type(arg);
-                if (!is_supported_type(dt)) { return false; }
+            if (!attr()->scales_.has_default_values(
+                        DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM)) {
+                // Check if scales are applied and then check the data type
+                // otherwise either data type can come up as data_type::undef
+                // returning false unecessarily
+                const auto src_scale_dt = attr()->scales_.get_data_type(
+                        DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM);
+                if (!is_supported_type(src_scale_dt)) { return false; }
             }
+
+            if (!attr()->scales_.has_default_values(
+                        DNNL_ARG_ATTR_SCALES | DNNL_ARG_TO)) {
+                const auto dst_scale_dt = attr()->scales_.get_data_type(
+                        DNNL_ARG_ATTR_SCALES | DNNL_ARG_TO);
+                if (!is_supported_type(dst_scale_dt)) { return false; }
+            }
+
             return true;
         }
     };
