@@ -93,7 +93,7 @@ DECLARE_2D_TILE_BLOCK_OPS(s_tile_type_half, half, SUBGROUP_SIZE,
 DECLARE_2D_TILE_COPY_REBLOCK(s_tile_type, SUBGROUP_SIZE, ugemm_wgu_c_type_block0,
         ugemm_wgu_c_type_block1, ugemm_wgu_c_type_nblock0,
         ugemm_wgu_c_type_nblock1, s_tile_type_half, SUBGROUP_SIZE,
-        ugemm_wgu_sg_tile_m, 1, 1, ugemm_wgu_sg_tile_n)
+        ugemm_wgu_sg_tile_m, 1, 1, ugemm_wgu_sg_tile_n, CONVERT_DATA_T)
 
 
 // attempt @ basicb mlp
