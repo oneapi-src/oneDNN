@@ -43,7 +43,7 @@ public:
                 return;
             }
         }
-        entries_.emplace_back(entry_t {var, bound});
+        entries_.emplace_back(var, bound);
     }
 
     int bound(const expr_t &var) const {

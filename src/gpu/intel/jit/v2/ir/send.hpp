@@ -545,7 +545,7 @@ struct send_2d_desc_t {
             stride_grf,
         };
         int cur_stride = 1;
-        auto add_block = [&](pvar_t dim, int size,
+        auto add_block = [&](const pvar_t &dim, int size,
                                  pad_kind_t pad = pad_kind_t::none) {
             ret.add_block(dim, size, cur_stride);
             int stride = cur_stride * size;
