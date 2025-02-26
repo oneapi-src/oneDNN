@@ -25,7 +25,7 @@ oneDNN uses [clang-tidy](https://clang.llvm.org/extra/clang-tidy/) in order to
 diagnose and fix common style violations and easy-to-fix issues in the code
 base. For instructions on how to use `clang-tidy`, please refer to the
 [clang-tidy
-RFC](https://github.com/oneapi-src/oneDNN/blob/rfcs/rfcs/20200813-clang-tidy/README.md).
+RFC](https://github.com/uxlfoundation/oneDNN/blob/rfcs/rfcs/20200813-clang-tidy/README.md).
 The list of clang-tidy checks the oneDNN code base follows is available in the
 `.clang-tidy` file found in the oneDNN top-level directory.
 
