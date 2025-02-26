@@ -38,7 +38,7 @@ elif [[ "$ONEDNN_ACTION" == "build" ]]; then
       echo "Check source files:"
       for file in $(git diff --name-only "$1" | grep -E '\.cpp'); do clang-tidy -p build --header-filter='' $file; done
       echo "Check header files:"
-      for file in $(git diff --name-only "$1" | grep -E '\.h|\.hpp'); do clang-tidy -x c++-header $file; done
+      for file in $(git diff --name-only "$1" | grep -E '\.h|\.hpp'); do clang-tidy -p build --header-filter='' $file; done
       set +x
     else
       set -x
