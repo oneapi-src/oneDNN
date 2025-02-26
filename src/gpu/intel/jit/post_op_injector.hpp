@@ -83,7 +83,7 @@ struct post_op_injector_t {
     int preferred_scratch_regs();
     void set_scratch(const ngen::GRFRange &scratch);
 
-    void compute(const ngen::GRF &reg) { compute(reg - reg); }
+    void compute(const ngen::GRF &reg) { compute(ngen::GRFRange(reg, 1)); }
     void compute(const ngen::GRFRange &regs);
 
 private:
