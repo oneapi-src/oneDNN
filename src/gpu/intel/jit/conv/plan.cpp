@@ -1379,6 +1379,10 @@ struct fma_context_t {
             auto fma_layout = bmnk_layout.make_with_block(
                     layout_t(ret.type(), 0, (int)bmnks.size(), blocks));
             auto abc_layout = mapper.map_from_bmnk(abc, bmnks, fma_layout, ret);
+            if (layout.type().is_x8()) {
+                gpu_assert(abc_layout.type().is_s16());
+                abc_layout = abc_layout.make_strided(2);
+            }
             return abc_layout;
         }
 
