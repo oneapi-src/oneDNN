@@ -78,6 +78,9 @@ double problem_t::ops() const {
 
 void problem_t::normalize() {
 #define GET(name) shape_[pvars::name]
+    if (src_tag().is_strided() || wei_tag().is_strided()
+            || dst_tag().is_strided())
+        return;
     normalize_conv_shape(GET(od), GET(id), GET(kd), GET(sd), GET(dd), GET(pd),
             GET(oh), GET(ih), GET(kh), GET(sh), GET(dh), GET(ph), GET(ow),
             GET(iw), GET(kw), GET(sw), GET(dw), GET(pw),
