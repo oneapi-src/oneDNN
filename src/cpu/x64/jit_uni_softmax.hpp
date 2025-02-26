@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,9 +130,8 @@ struct jit_uni_softmax_fwd_t : public primitive_t {
                                     || is_superset(isa_, avx2_vnni_2));
             VDISPATCH_SOFTMAX(f16_isa_ok, VERBOSE_ISA_DT_MISMATCH);
 
-            VDISPATCH_SOFTMAX(
-                    attr()->has_default_values(skip_mask_t::scales_runtime
-                            | skip_mask_t::post_ops),
+            VDISPATCH_SOFTMAX(attr()->has_default_values(skip_mask_t::scales
+                                      | skip_mask_t::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SOFTMAX(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
 

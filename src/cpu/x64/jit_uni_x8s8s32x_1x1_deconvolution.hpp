@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -97,9 +97,8 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
             VDISPATCH_DECONVOLUTION(
                     desc()->accum_data_type == s32, VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_DECONVOLUTION(
-                    attr()->has_default_values(skip_mask_t::scales_runtime
-                            | skip_mask_t::post_ops
-                            | skip_mask_t::zero_points_runtime),
+                    attr()->has_default_values(skip_mask_t::scales
+                            | skip_mask_t::post_ops | skip_mask_t::zero_points),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_DECONVOLUTION(
                     zero_points_valid(attr(), true /*per_oc_bcast_accepted*/),

@@ -66,9 +66,9 @@ status_t gemm_bf16_matmul_t<dst_type>::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(x64::mayiuse(x64::avx512_core), VERBOSE_UNSUPPORTED_ISA);
 #endif
 
-    VDISPATCH_MATMUL(attr()->has_default_values(
-                             primitive_attr_t::skip_mask_t::scales_runtime
-                             | primitive_attr_t::skip_mask_t::post_ops),
+    VDISPATCH_MATMUL(
+            attr()->has_default_values(primitive_attr_t::skip_mask_t::scales
+                    | primitive_attr_t::skip_mask_t::post_ops),
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_MATMUL(attr()->post_ops_.check_sum_consistency(dst_type,
                              /* is_int8 */ false),

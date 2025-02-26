@@ -286,8 +286,8 @@ struct jit_sve_512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
                                     weights_md(1)->data_type, f32, s32, s8, u8))
                     && utils::one_of(dst_md(0)->data_type, f32, s32, s8, u8)
                     && desc()->accum_data_type == s32
-                    && attr()->has_default_values(skip_mask_t::post_ops
-                            | skip_mask_t::zero_points_runtime);
+                    && attr()->has_default_values(
+                            skip_mask_t::post_ops | skip_mask_t::zero_points);
             if (!ok) return status::unimplemented;
 
             CHECK(_jit_sve_512_core_x8s8s32x_deconv_fwd_kernel::init_conf(jcp_,

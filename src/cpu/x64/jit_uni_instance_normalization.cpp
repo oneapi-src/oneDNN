@@ -676,8 +676,8 @@ status_t jit_uni_instance_normalization_fwd_t::pd_t::init(engine_t *engine) {
                                         dst_md()->data_type),
                             mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
-    VDISPATCH_GNORM(attr()->has_default_values(skip_mask_t::scales_runtime
-                            | skip_mask_t::post_ops),
+    VDISPATCH_GNORM(attr()->has_default_values(
+                            skip_mask_t::scales | skip_mask_t::post_ops),
             VERBOSE_UNSUPPORTED_ATTR);
     VDISPATCH_GNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
     VDISPATCH_GNORM(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);

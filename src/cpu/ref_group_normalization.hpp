@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -50,9 +50,8 @@ struct ref_group_normalization_fwd_t : public primitive_t {
                             && platform::has_data_type_support(
                                     dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_GNORM(
-                    attr()->has_default_values(skip_mask_t::scales_runtime
-                            | skip_mask_t::post_ops),
+            VDISPATCH_GNORM(attr()->has_default_values(skip_mask_t::scales
+                                    | skip_mask_t::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GNORM(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_GNORM(post_ops_ok(), VERBOSE_UNSUPPORTED_POSTOP);

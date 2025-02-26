@@ -119,8 +119,7 @@ struct reusable_vectorized_layer_normalization_fwd_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT);
 
             using skip_mask_t = primitive_attr_t::skip_mask_t;
-            VDISPATCH_LNORM(
-                    attr()->has_default_values(skip_mask_t::scales_runtime),
+            VDISPATCH_LNORM(attr()->has_default_values(skip_mask_t::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_LNORM(
                     set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
