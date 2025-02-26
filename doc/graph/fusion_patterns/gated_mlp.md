@@ -70,7 +70,7 @@ optional.
    [GELU](@ref dev_guide_op_gelu), [Sigmoid](@ref dev_guide_op_sigmoid), and so on.
    For Swish activation, the node can be constructed with the [Sigmoid](@ref dev_guide_op_sigmoid)
    and [Multiply](@ref dev_guide_op_multiply) as below. You can also refer the
-   [Gated-MLP example](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph/gated_mlp.cpp)
+   [Gated-MLP example](https://github.com/uxlfoundation/oneDNN/tree/main/examples/graph/gated_mlp.cpp)
    for Swish definition.
 
    ![Swish Activation](images/gated-mlp-swish.png)
@@ -104,13 +104,13 @@ platforms follow the general description in @ref dev_guide_data_types.
 ## Examples
 
 oneDNN provides a [Gated-MLP
-example](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph/gated_mlp.cpp)
+example](https://github.com/uxlfoundation/oneDNN/tree/main/examples/graph/gated_mlp.cpp)
 demonstrating how to construct a typical floating-point Gated-MLP pattern with
 oneDNN Graph API on CPU and GPU with different runtimes.
 
 For applications where the weights of FC up and FC gate are combined as a single
 tensor, oneDNN also provides an
-[example](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph/gated_mlp_wei_combined.cpp)
+[example](https://github.com/uxlfoundation/oneDNN/tree/main/examples/graph/gated_mlp_wei_combined.cpp)
 demonstrating how to create the weight tensors for the pattern with the offsets
 and strides from the combined weight tensor.
 
@@ -120,4 +120,4 @@ and strides from the combined weight tensor.
 2. GLU Variants Improve Transformer, https://arxiv.org/abs/2002.05202
 3. LLaMA: Open and Efficient Foundation Language Models, https://arxiv.org/abs/2302.13971
 4. Qwen Technical Report, https://arxiv.org/abs/2309.16609
-5. oneDNN Graph API documentation, https://oneapi-src.github.io/oneDNN/graph_extension.html
+5. oneDNN Graph API documentation, https://uxlfoundation.github.io/oneDNN/graph_extension.html

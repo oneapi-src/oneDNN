@@ -4,7 +4,7 @@ oneAPI Deep Neural Network Library (oneDNN)
 ===========================================
 
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8762/badge)](https://www.bestpractices.dev/projects/8762)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/oneapi-src/oneDNN/badge)](https://securityscorecards.dev/viewer/?uri=github.com/oneapi-src/oneDNN)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/uxlfoundation/oneDNN/badge)](https://securityscorecards.dev/viewer/?uri=github.com/uxlfoundation/oneDNN)
 
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
@@ -63,10 +63,9 @@ optimizations are available with [Intel® Extension for TensorFlow*].
   optimizations, and improvements implemented in each version of
   oneDNN.
 
-[oneDNN Developer Guide and Reference]: https://oneapi-src.github.io/oneDNN
-[API Reference]: https://oneapi-src.github.io/oneDNN/group_dnnl_api.html
-[Release Notes]: https://github.com/oneapi-src/oneDNN/releases
-
+[oneDNN Developer Guide and Reference]: https://uxlfoundation.github.io/oneDNN
+[API Reference]: https://uxlfoundation.github.io/oneDNN/group_dnnl_api.html
+[Release Notes]: https://github.com/uxlfoundation/oneDNN/releases
 
 # System Requirements
 
@@ -121,8 +120,8 @@ The library is optimized for the following GPUs:
  (formerly Meteor Lake, Arrow Lake and Lunar Lake)
 * future Intel Arc graphics (code name Battlemage)
 
-[CPU dispatcher control]: https://oneapi-src.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html
-[Linking Guide]: https://oneapi-src.github.io/oneDNN/dev_guide_link.html
+[CPU dispatcher control]: https://uxlfoundation.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html
+[Linking Guide]: https://uxlfoundation.github.io/oneDNN/dev_guide_link.html
 
 ## Requirements for Building from Source
 
@@ -313,8 +312,8 @@ You can download and install the oneDNN library using one of the following optio
 
 [conda-forge]: https://anaconda.org/conda-forge/onednn
 [System Requirements]: #system-requirements
-[Build Options]: https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html
-[Build from Source]: https://oneapi-src.github.io/oneDNN/dev_guide_build.html
+[Build Options]: https://uxlfoundation.github.io/oneDNN/dev_guide_build_options.html
+[Build from Source]: https://uxlfoundation.github.io/oneDNN/dev_guide_build.html
 
 # Validated Configurations
 
@@ -366,7 +365,7 @@ Submit questions, feature requests, and bug reports on the
 You can also contact oneDNN developers via [UXL Foundation Slack] using
 [#onednn] channel.
 
-[Github issues]: https://github.com/oneapi-src/oneDNN/issues
+[Github issues]: https://github.com/uxlfoundation/oneDNN/issues
 [UXL Foundation Slack]: https://slack-invite.uxlfoundation.org/
 [#onednn]: https://uxlfoundation.slack.com/channels/onednn
 
@@ -401,12 +400,12 @@ This project is intended to be a safe, welcoming space for
 collaboration, and contributors are expected to adhere to the
 [Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct.
 
-[RFC pull request]: https://github.com/oneapi-src/oneDNN/tree/rfcs
+[RFC pull request]: https://github.com/uxlfoundation/oneDNN/tree/rfcs
 [code contribution guidelines]: CONTRIBUTING.md#code-contribution-guidelines
 [coding standards]: CONTRIBUTING.md#coding-standards
-[pull request]: https://github.com/oneapi-src/oneDNN/pulls
-[Milestones]: https://github.com/oneapi-src/oneDNN/milestones
-[help wanted]: https://github.com/oneapi-src/oneDNN/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22
+[pull request]: https://github.com/uxlfoundation/oneDNN/pulls
+[Milestones]: https://github.com/uxlfoundation/oneDNN/milestones
+[help wanted]: https://github.com/uxlfoundation/oneDNN/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22
 
 
 # License

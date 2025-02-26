@@ -3,16 +3,16 @@ Build from Source {#dev_guide_build}
 
 ## Download the Source Code
 
-Download [oneDNN source code](https://github.com/oneapi-src/oneDNN/archive/master.zip)
-or clone [the repository](https://github.com/oneapi-src/oneDNN.git).
+Download [oneDNN source code](https://github.com/uxlfoundation/oneDNN/archive/master.zip)
+or clone [the repository](https://github.com/uxlfoundation/oneDNN.git).
 
 ~~~sh
-git clone https://github.com/oneapi-src/oneDNN.git
+git clone https://github.com/uxlfoundation/oneDNN.git
 ~~~
 
 ## Build the Library
 
-Ensure that all [software dependencies](https://github.com/oneapi-src/oneDNN#requirements-for-building-from-source)
+Ensure that all [software dependencies](https://github.com/uxlfoundation/oneDNN#requirements-for-building-from-source)
 are in place and have at least the minimal supported version.
 
 The oneDNN build system is based on CMake. Use

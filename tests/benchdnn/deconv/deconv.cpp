@@ -104,7 +104,7 @@ int check_reorder_presence(
     /* Note for x64:
     Both data types of src and weight are s8, oneDNN addds 128 to one of the s8
     input to make it of type u8 instead, as explained in
-    https://oneapi-src.github.io/oneDNN/dev_guide_int8_computations.html or
+    https://uxlfoundation.github.io/oneDNN/dev_guide_int8_computations.html or
     doc/advanced/int8_computations.md
     It is because `VPDPBUSD` instruction uses the combination of s8 and u8 as
     input.
