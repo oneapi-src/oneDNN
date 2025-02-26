@@ -68,7 +68,7 @@ struct eltwise_injector_f32_t {
     void set_scratch(const ngen::GRFRange &scratch) { scratch_ = scratch; }
 
     void prepare();
-    void compute(const ngen::GRF &reg) { compute(reg - reg); }
+    void compute(const ngen::GRF &reg) { compute(ngen::GRFRange(reg, 1)); }
     void compute(const ngen::GRFRange &regs, int seed = -1, int seed_off = -1,
             ngen::DataType = ngen::DataType::invalid);
     void compute(const int *grfs, int ngrf, int seed = -1, int seed_off = -1,
