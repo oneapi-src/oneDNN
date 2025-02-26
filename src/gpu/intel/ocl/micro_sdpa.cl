@@ -420,12 +420,6 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     const int num_multiplies = num_blocks * tiles_per_page;
     const int partial_num_rows
             = PAGE_SIZE - (PAGE_SIZE / ugemm_kq_wg_tile_m) * ugemm_kq_wg_tile_m;
-    // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
-    //   printf("!! context len %d\n", context_len);
-    // }
-    // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
-    //   printf("!! PAGE_SIZE %d, ugemm_kq_wg_tile_m %d, tiles_per_page %d, num_multiplies %d, partial_num_rows %d\n", PAGE_SIZE, ugemm_kq_wg_tile_m, tiles_per_page, num_multiplies, partial_num_rows);
-    // }
 
     /* Main loop over k blocks */
     int k0 = 0;
@@ -770,9 +764,6 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         } else {
             k0 += ugemm_kq_wg_tile_m;
         }
-        // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
-        //     printf("!! k0 is %d\n", k0);
-        // }
     }
 
     /* Wait for column sums to be ready */
