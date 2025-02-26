@@ -64,9 +64,9 @@ struct ref_sum_t : public gpu::generic::sycl::primitive_t {
                                 && src_d.ndims() <= xpu::sycl::md_t::max_dims,
                         VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "src");
 
-                VDISPATCH_SUM(attr()->scales_.has_default_values()
-                                || is_supported_type(
-                                        scales.get_data_type(DNNL_ARG_SRC + i)),
+                VDISPATCH_SUM(IMPLICATION(!attr()->scales_.has_default_values(),
+                                      is_supported_type(scales.get_data_type(
+                                              DNNL_ARG_SRC + i))),
                         VERBOSE_UNSUPPORTED_ATTR);
             }
 
