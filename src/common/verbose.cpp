@@ -85,7 +85,12 @@ static constexpr char verbose_version[] = "v1";
 
 static setting_t<uint32_t> verbose {0};
 
-void print_header(const filter_status_t &filter_status) noexcept {
+// Component filters help manage verbose output by parsing and printing for
+// matching components. The filter status is tracked from verbose initializaton,
+// allowing queries for the component type during verbose printing.
+static filter_status_t filter_status;
+
+void print_header() noexcept {
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (!version_printed.test_and_set()) {
         verbose_printf("info,oneDNN v%d.%d.%d (commit %s)\n",
@@ -171,8 +176,6 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
 #endif
     // we print all verbose by default
     static int flags = component_t::all;
-    // record filter parsing result to instruct verbose printing
-    static filter_status_t filter_status;
 
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
@@ -287,7 +290,6 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
     int result = verbose.get() & verbosity_kind;
     if (verbosity_kind == verbose_t::debuginfo)
         result = verbose_t::get_debuginfo(verbose.get());
-    if (result) print_header(filter_status);
     bool filter_result = flags & filter_kind;
     return filter_result ? result : 0;
 }
@@ -1654,6 +1656,8 @@ void verbose_printf_impl(const char *raw_fmt_str, verbose_t::flag_kind kind) {
 #if defined(DISABLE_VERBOSE)
     return;
 #endif
+
+    if (get_verbose(kind)) print_header();
 
     const auto &fmt_str = prepend_identifier_and_version(raw_fmt_str);
 
