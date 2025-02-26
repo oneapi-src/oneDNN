@@ -108,7 +108,7 @@ opening a PR against MAINTAINERS.md file.
 
 ## Core (API, Architecture, Tests)
 
-Team: @oneapi-src/onednn-arch
+Team: @uxlfoundation/onednn-arch
 
 | Name               | Github ID             | Affiliation       | Role       |
 | -----------------  | --------------------- | ----------------- | ---------- |
@@ -121,7 +121,7 @@ Team: @oneapi-src/onednn-arch
 
 ## Graph API
 
-Team: @oneapi-src/onednn-graph
+Team: @uxlfoundation/onednn-graph
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -138,7 +138,7 @@ Team: @oneapi-src/onednn-graph
 
 ### x64
 
-Team: @oneapi-src/onednn-cpu-x64
+Team: @uxlfoundation/onednn-cpu-x64
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -152,7 +152,7 @@ Team: @oneapi-src/onednn-cpu-x64
 
 ### AArch64
 
-Team: @oneapi-src/onednn-cpu-aarch64
+Team: @uxlfoundation/onednn-cpu-aarch64
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
