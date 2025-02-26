@@ -64,7 +64,6 @@ private:
         entry_t(const expr_t &var, int bound) : var(var), bound(bound) {}
     };
 
-private:
     std::vector<entry_t> entries_;
 };
 
