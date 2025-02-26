@@ -1247,10 +1247,6 @@ type_t get_accumulation_type(
         fma_kind_t fma_kind, const type_t &a, const type_t &b) {
     if (a.is_int()) return type_t::s32();
     if (a.is_f64()) return type_t::f64();
-    if (fma_kind == fma_kind_t::mad && a.is_f16() && b.is_f16()) {
-        // XXX: f16 must use f32 accumulator according to documentation.
-        return type_t::f16();
-    }
     return type_t::f32();
 }
 
