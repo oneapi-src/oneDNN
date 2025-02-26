@@ -40,6 +40,7 @@ std::string bench_data_t::str() const {
 std::vector<int> bench_data_set_t::find_best_ids(int nbest) const {
     auto idxs = find_best_idxs(nbest);
     std::vector<int> ret;
+    ret.reserve(idxs.size());
     for (int idx : idxs)
         ret.push_back(vec_[idx].id);
     return ret;
@@ -48,6 +49,7 @@ std::vector<int> bench_data_set_t::find_best_ids(int nbest) const {
 std::vector<bench_data_t> bench_data_set_t::find_best(int nbest) const {
     auto idxs = find_best_idxs(nbest);
     std::vector<bench_data_t> ret;
+    ret.reserve(idxs.size());
     for (int idx : idxs)
         ret.push_back(vec_[idx]);
     return ret;

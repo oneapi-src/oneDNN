@@ -999,6 +999,7 @@ public:
         }
         dim_t stride = lhs_.vstride(simd_vidx);
         std::vector<expr_t> off;
+        off.reserve(simd);
         for (int i = 0; i < simd; i++) {
             off.push_back(-stride * i);
         }
