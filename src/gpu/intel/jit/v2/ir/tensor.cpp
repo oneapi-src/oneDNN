@@ -656,7 +656,7 @@ layout_t layout_t::split_block(
 }
 
 template <typename T>
-struct try_div_mod {
+struct try_div_mod_t {
     static bool call(const T &a, int b, const var_range_info_t &range_info,
             T &div, T &mod) {
         if (a % b != 0) return false;
@@ -667,7 +667,7 @@ struct try_div_mod {
 };
 
 template <>
-struct try_div_mod<expr_t> {
+struct try_div_mod_t<expr_t> {
     static bool call(const expr_t &a, int b, const var_range_info_t &range_info,
             expr_t &div, expr_t &mod) {
         dim_t factor = linear_max_pow2_divisor(a);
@@ -749,7 +749,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
                 gpu_assert(!idx_final.has(dim));
                 T div = T();
                 T mod = T();
-                if (try_div_mod<T>::call(idxs[dim], b.int_size(),
+                if (try_div_mod_t<T>::call(idxs[dim], b.int_size(),
                             var_range_info, div, mod)) {
                     idxs[dim] = div;
                     off = mod;
