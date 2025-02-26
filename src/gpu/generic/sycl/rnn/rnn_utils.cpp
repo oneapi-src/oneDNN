@@ -38,6 +38,22 @@ void rnn_utils::init_rnn_conf(
     rnn.is_training = utils::one_of(rnn_pd->desc()->prop_kind,
             prop_kind::forward_training, prop_kind::backward);
 
+    switch (rnn_pd->desc()->direction) {
+        case dnnl_unidirectional_left2right:
+            rnn.exec_dir = execution_direction_t::l2r;
+            break;
+        case dnnl_unidirectional_right2left:
+            rnn.exec_dir = execution_direction_t::r2l;
+            break;
+        case dnnl_bidirectional_concat:
+            rnn.exec_dir = execution_direction_t::bi_concat;
+            break;
+        case dnnl_bidirectional_sum:
+            rnn.exec_dir = execution_direction_t::bi_sum;
+            break;
+        default: break;
+    }
+
     rnn.aux_data_type
             = acc_data_t == data_type::f16 ? data_type::f16 : data_type::f32;
 

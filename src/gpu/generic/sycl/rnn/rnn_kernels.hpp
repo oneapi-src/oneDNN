@@ -49,8 +49,11 @@ struct ref_rnn_copy_t {
         : src_ {src}, dst_ {dst}, conf_ {conf} {}
 
     void operator()(::sycl::nd_item<3> item) const {
-        const dim_t tl = item.get_global_id(0) / conf_.n_dir; // timestep/layer
-        const dim_t dir = item.get_global_id(0) % conf_.n_dir; // direction
+        const dim_t tl = item.get_global_id(0) // timestep/layer
+                / (conf_.layer ? 1 : conf_.n_dir);
+        dim_t dir = conf_.layer
+                ? 0
+                : item.get_global_id(0) % conf_.n_dir; // direction
         const dim_t n = item.get_global_id(1); // batch
         const dim_t c = item.get_global_id(2); // channel
 
@@ -58,26 +61,71 @@ struct ref_rnn_copy_t {
 
         dim_t src_offset = 0;
         dim_t dst_offset = 0;
+
         if (conf_.layer) { // layer
             if (tl >= conf_.n_iter) return;
             if (conf_.to_state) { // init
-                src_offset = conf_.src_md.off(tl, n, c);
-                dst_offset = conf_.dst_md.off(0, dir, tl, n, c);
+                if (conf_.l2r) { // l2r
+                    src_offset = conf_.src_md.off(tl, n, c);
+                    dst_offset = conf_.dst_md.off(0, dir, tl, n, c);
+                    do_copy(src_offset, dst_offset, src_ptr(), dst_ptr());
+                    dir = 1;
+                }
+                if (conf_.r2l) { // r2l
+                    src_offset = conf_.src_md.off(tl, n, c);
+                    dst_offset = conf_.dst_md.off(
+                            0, conf_.n_dir - 1, conf_.n_iter - tl - 1, n, c);
+                    do_copy(src_offset, dst_offset, src_ptr(), dst_ptr());
+                }
             } else { // res
-                src_offset = conf_.src_md.off(conf_.n_layer, dir, tl, n, c);
-                dst_offset = conf_.dst_md.off(tl, n, dir * conf_.range + c);
+                if (conf_.l2r) {
+                    dst_offset = conf_.dst_md.off(tl, n, dir * conf_.range + c);
+                    src_offset = conf_.src_md.off(conf_.n_layer, dir, tl, n, c);
+                    do_copy(src_offset, dst_offset, src_ptr(), dst_ptr());
+                    dir = 1;
+                }
+                if (conf_.r2l) {
+                    dst_offset = conf_.dst_md.off(tl, n, dir * conf_.range + c);
+                    src_offset = conf_.src_md.off(
+                            conf_.n_layer, dir, conf_.n_iter - tl - 1, n, c);
+                    if (conf_.sum) {
+                        dst_offset = conf_.dst_md.off(tl, n, c);
+                        auto src = load_float_value(
+                                src_md().data_type(), src_ptr(), src_offset);
+                        auto dst = load_float_value(conf_.dst_md.data_type(),
+                                dst_ptr(), dst_offset);
+                        store_float_value(src_md().data_type(), src + dst,
+                                dst_ptr(), dst_offset);
+                    } else {
+                        do_copy(src_offset, dst_offset, src_ptr(), dst_ptr());
+                    }
+                }
             }
         } else { // iter
             if (tl >= conf_.n_layer) return;
             if (conf_.to_state) { // init
                 src_offset = conf_.src_md.off(tl, dir, n, c);
                 dst_offset = conf_.dst_md.off(tl, dir, conf_.n_iter, n, c);
+                do_copy(src_offset, dst_offset, src_ptr(), dst_ptr());
             } else { // res
                 src_offset
                         = conf_.src_md.off(tl + 1, dir, conf_.n_iter - 1, n, c);
                 dst_offset = conf_.dst_md.off(tl, dir, n, c);
+                do_copy(src_offset, dst_offset, src_ptr(), dst_ptr());
             }
         }
+    }
+
+    xpu::sycl::in_memory_arg_t src_;
+    xpu::sycl::out_memory_arg_t dst_;
+    sycl_rnn_copy_conf_t conf_;
+
+    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
+    void *src_ptr() const { return src_.get_pointer(); }
+    void *dst_ptr() const { return dst_.get_pointer(); }
+
+    void do_copy(
+            dim_t src_offset, dim_t dst_offset, void *from, void *to) const {
         if (src_ptr()) {
             auto src = load_float_value(
                     src_md().data_type(), src_ptr(), src_offset);
@@ -92,14 +140,6 @@ struct ref_rnn_copy_t {
             }
         }
     }
-
-    xpu::sycl::in_memory_arg_t src_;
-    xpu::sycl::out_memory_arg_t dst_;
-    sycl_rnn_copy_conf_t conf_;
-
-    const xpu::sycl::md_t &src_md() const { return conf_.src_md; }
-    void *src_ptr() const { return src_.get_pointer(); }
-    void *dst_ptr() const { return dst_.get_pointer(); }
 };
 
 struct ref_rnn_bias {
