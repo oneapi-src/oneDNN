@@ -226,7 +226,7 @@ private:
         }
         loops_.pop_back();
         // The top-level dummy loop shouldn't be removed.
-        gpu_assert(loops_.size() >= 1);
+        gpu_assert(!loops_.empty());
         return std::move(s);
     }
 
