@@ -1060,7 +1060,7 @@ public:
     }
 
     void print_info(const std::vector<const char *> &feature_names,
-            const std::string prefix = "") const {
+            const std::string &prefix = "") const {
         std::cout << prefix << "Gradient boost regressor" << std::endl;
         std::cout << prefix << "  Features:   " << feature_count() << std::endl;
         std::cout << prefix << "  Trees:      " << tree_count() << std::endl;

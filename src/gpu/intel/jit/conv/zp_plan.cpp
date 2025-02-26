@@ -814,7 +814,7 @@ struct texpr_t {
     }
 
     expr_t to_expr(const std::vector<expr_t> &vstart,
-            const std::vector<dim_t> vstart_inc,
+            const std::vector<dim_t> &vstart_inc,
             const std::vector<expr_t> &vvars, int simd_vidx) const {
         int ndims = (int)vstart.size();
         gpu_assert((int)vstart_inc.size() == ndims);

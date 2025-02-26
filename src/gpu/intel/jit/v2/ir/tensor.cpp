@@ -855,7 +855,8 @@ std::string layout_t::blocks_str() const {
         if (b.has_const_stride() && b.int_stride() != to_int(stride)) {
             b_str.append(1, '*');
         }
-        ret = b_str + ret;
+        b_str += ret;
+        std::swap(b_str, ret);
         if (b.has_const_size() && b.has_const_stride())
             stride = b.stride * b.size;
         seen[b.dim] = true;

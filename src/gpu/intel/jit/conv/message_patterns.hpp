@@ -79,7 +79,7 @@ struct conv_stride_layout_t : public stride_layout_t<pvar_t> {
         auto write_strides
                 = [&](std::array<base_layout_t::stride_dim_t,
                               stride_layout_t::max_ndims>::iterator s,
-                          pvar_t conv_dim, dim_t desc_dim, dim_t size,
+                          const pvar_t &conv_dim, dim_t desc_dim, dim_t size,
                           dim_t access_stride = 1, bool can_overflow = false) {
                       // Size 1 dimensions are effectively non-existent
                       if (size == 1) return s;

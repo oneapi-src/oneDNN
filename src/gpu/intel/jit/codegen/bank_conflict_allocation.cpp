@@ -683,7 +683,7 @@ bank_conflict_allocation_t bank_conflict_allocation_t::create(
 
     auto create_reg = [&](const expr_t &e, int src_idx, int off_bytes) {
         if (is_zero(e)) return reg_t();
-        auto base = get_base(e);
+        const auto &base = get_base(e);
         int off = 0;
         if (!is_var(e)) off = to_cpp<int>(e.as<ptr_t>().off);
         off += off_bytes;
