@@ -120,7 +120,7 @@ public:
         bool fully_hoisted = false;
         expr_t new_value;
         bool is_const_let = is_const(obj.value) || is_shuffle_const(obj.value);
-        if (is_const_let && loops_.size() > 0 && can_hoist(obj.var)) {
+        if (is_const_let && !loops_.empty() && can_hoist(obj.var)) {
             fully_hoisted = true;
             register_let(obj.var, obj.value);
             add_hoist_let(loops_[0], obj.var, obj.value);

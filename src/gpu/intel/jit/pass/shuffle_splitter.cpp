@@ -175,7 +175,7 @@ public:
         for (auto &a : args)
             vec_off.emplace_back(make_add(difference(a, base_args)));
 
-        bool is_bcast_empty = base_args.size() == 0;
+        bool is_bcast_empty = base_args.empty();
         bool is_consts_empty = is_empty_or_fill(vec_const);
         bool is_consts_bcast = is_bcast(vec_const);
         bool is_off_empty = is_empty_or_fill(vec_off);
