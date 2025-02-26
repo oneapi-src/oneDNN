@@ -125,7 +125,7 @@ status_t xe_hp_systolic_gemm_t::pd_t::init(impl::engine_t *engine) {
                            memory_desc_wrapper(src_md(1)).size(),
                            memory_desc_wrapper(src_md(2)).size(),
                            memory_desc_wrapper(dst_md()).size()})
-                    <= std::numeric_limits<int32_t>::max(),
+                    <= (size_t)std::numeric_limits<int32_t>::max(),
             VERBOSE_SHAPE_RESTRICTION);
 
     VDISPATCH_GEMM_SC(init_post_ops(), VERBOSE_UNSUPPORTED_POSTOP);
