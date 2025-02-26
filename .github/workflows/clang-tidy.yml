@@ -37,6 +37,9 @@ jobs:
     steps:
       - name: Checkout oneDNN
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
 
       - name: Install clang
         run: |
@@ -47,6 +50,20 @@ jobs:
         run: .github/automation/x64/build_linters.sh
         env:
           ONEDNN_ACTION: configure
+
+      - name: Check source files
+        continue-on-error: true
+        run: |
+          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp'); do clang-tidy -p build --header-filter='' $file; done 2>&1 | tee source-check.log
+          grep -i "warning:" source-check.log | sort -u
+          grep -q -i "warning:" source-check.log && exit 1 || true
+
+      - name: Check header files
+        continue-on-error: true
+        run: |
+          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.h|\.hpp'); do clang-tidy -p build --header-filter='' $file; done | tee headers-check.log
+          grep -i "warning:" headers-check.log | sort -u
+          grep -q -i "warning:" headers-check.log && exit 1 || true
 
       - name: Build oneDNN
         run: |
