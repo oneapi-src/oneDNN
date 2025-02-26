@@ -4,7 +4,7 @@ oneAPI Deep Neural Network Library (oneDNN)
 ===========================================
 
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/8762/badge)](https://www.bestpractices.dev/projects/8762)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/oneapi-src/oneDNN/badge)](https://securityscorecards.dev/viewer/?uri=github.com/oneapi-src/oneDNN)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/uxlfoundation/oneDNN/badge)](https://securityscorecards.dev/viewer/?uri=github.com/uxlfoundation/oneDNN)
 
 oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
 performance library of basic building blocks for deep learning applications.
@@ -119,8 +119,8 @@ The library is optimized for the following GPUs:
  (formerly Meteor Lake, Arrow Lake and Lunar Lake)
 * future Intel Arc graphics (code name Battlemage)
 
-[CPU dispatcher control]: https://oneapi-src.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html
-[Linking Guide]: https://oneapi-src.github.io/oneDNN/dev_guide_link.html
+[CPU dispatcher control]: https://uxlfoundation.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html
+[Linking Guide]: https://uxlfoundation.github.io/oneDNN/dev_guide_link.html
 
 ## Requirements for Building from Source
 
@@ -404,7 +404,7 @@ This project is intended to be a safe, welcoming space for collaboration, and
 contributors are expected to adhere to the
 [Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct.
 
-[RFC pull request]: https://github.com/oneapi-src/oneDNN/tree/rfcs
+[RFC pull request]: https://github.com/uxlfoundation/oneDNN/tree/rfcs
 [code contribution guidelines]: CONTRIBUTING.md#code-contribution-guidelines
 [coding standards]: CONTRIBUTING.md#coding-standards
 [pull request]: https://github.com/uxlfoundation/oneDNN/pulls
