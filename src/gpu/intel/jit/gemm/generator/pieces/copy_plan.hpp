@@ -134,7 +134,6 @@ public:
     using FlagAllocator = std::function<void(int bytes, ngen::FlagRegister &flag)>;
 
     CopyPlan(ngen::HW hw_, bool systolicAvailable_) : hw(hw_), systolicAvailable(systolicAvailable_) {}
-
     CopyInstruction &append(CopyInstruction &&i);
     CopyInstruction &append(ngen::Opcode op, int simd, const CopyOperand &dst, const CopyOperand &src0, const CopyOperand &src1 = CopyOperand(), const CopyOperand &src2 = CopyOperand());
     CopyInstruction &append(ngen::Opcode op, int simd, ngen::InstructionModifier mod, const CopyOperand &dst, const CopyOperand &src0, const CopyOperand &src1 = CopyOperand(), const CopyOperand &src2 = CopyOperand());
@@ -192,6 +191,7 @@ protected:
     void planBToHF(CopyInstruction &i);
     void planS4ToHF(CopyInstruction &i);
     void planEmulatedE3M0ToHF(CopyInstruction &i);
+    void planEmulatedHFToE3M0(CopyInstruction &i);
     void planEmulatedF4E2M1ToHF(CopyInstruction &i);
     void planEmulatedHFToF4E2M1(CopyInstruction &i);
     void planInt4Upconversion(CopyInstruction &i);
