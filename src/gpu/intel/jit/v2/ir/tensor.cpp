@@ -237,6 +237,7 @@ std::string layout_raw_tag_t::str() const {
     std::string x;
     for (dim_idx_t i = ndims() - 1; i >= 2; i--) {
         if (is_blocked(dim_idx::as_tag(i))) break;
+        // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
         x = dim_idx::as_tag(i) + x;
     }
     while (!x.empty()) {

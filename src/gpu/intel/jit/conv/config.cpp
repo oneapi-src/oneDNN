@@ -322,6 +322,7 @@ std::string build_tag(const std::vector<int> &inner_blocks,
             char c = letters[i];
             if (c == ' ') continue;
             if (seen[i]) c = static_cast<char>(std::toupper(c));
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             tag = c + tag;
         }
     }
