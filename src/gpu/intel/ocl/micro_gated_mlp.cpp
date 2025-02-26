@@ -84,14 +84,14 @@ gated_mlp_config_t *choose_config_xehpc(int B, int IC, int OC) {
 
 /// Returns true if a common scales value is used for each slice of the
 /// tensor operation
-bool with_quantize_common(const runtime_scales_t &scales) {
-    return !scales.has_default_values() && (scales.mask_ == 0);
+bool with_quantize_common(const quant_entry_t &scales) {
+    return !scales.has_default_values() && (scales.get_mask() == 0);
 }
 
 /// Returns true if a common zero points value is used for each slice of the
 /// tensor operation
 bool with_quantize_common(const zero_points_t &zp) {
-    int mask = zp.get(DNNL_ARG_WEIGHTS);
+    int mask = zp.get_mask(DNNL_ARG_WEIGHTS);
     return !zp.has_default_values() && (mask == 0);
 }
 
@@ -155,7 +155,7 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
     const memory_desc_wrapper W_gate_mdw(W_gate_md());
     auto ldgu = static_cast<int>(
-            gemm_desc_t::get_ld(*W_gate_md()) * W_gate_mdw.data_type_size()); //todo: /elems_per_byte??
+            gemm_desc_t::get_ld(*W_gate_md()) * W_gate_mdw.data_type_size()); // todo: / elems_per_byte??
     problem_wgu.A.setAlignment(alignmentForLD(ldgu));
     problem_wgu.B.setAlignment(64);
     problem_wgu.B.crosspack = 2;
@@ -215,7 +215,7 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
     opts_wgu.scaleA = with_wts_gate_scales() && !wgu_common_scales;
     opts_wgu.offsetA = with_wts_gate_zp();
 
-    //opts_wgu.addToC = true; //addToC broken w/wg tile 32?
+    // opts_wgu.addToC = true; //addToC broken w/wg tile 32?
 
     //std::cout << "problemStr: " << problem.toString() << std::endl;
     /* Ask microkernel provider for microkernel */

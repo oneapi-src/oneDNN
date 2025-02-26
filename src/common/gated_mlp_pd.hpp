@@ -142,13 +142,13 @@ struct gated_mlp_pd_t : public primitive_desc_t {
 
     /// Scales data types for each tensor
     /// Returns the data type of the scales tensor for the wts_gate matmul
-    data_type_t wts_gate_scales_dt() const { return desc()->wts_gate_scales.data_type_; }
+    data_type_t wts_gate_scales_dt() const { return desc()->wts_gate_scales.get_data_type(); }
 
     /// Returns the data type of the scales tensor for the wts_up matmul
-    data_type_t wts_up_scales_dt() const { return desc()->wts_up_scales.data_type_; }
+    data_type_t wts_up_scales_dt() const { return desc()->wts_up_scales.get_data_type(); }
 
     /// Returns the data type of the scales tensor for the wts_down matmul
-    data_type_t wts_down_scales_dt() const { return desc()->wts_down_scales.data_type_; }
+    data_type_t wts_down_scales_dt() const { return desc()->wts_down_scales.get_data_type(); }
 
 
     /// Zero points data types for each tensor
@@ -225,15 +225,15 @@ protected:
 
 private:
     static int scale_group_size(
-            const runtime_scales_t &scales, const memory_desc_t &desc) {
+            const quant_entry_t &scales, const memory_desc_t &desc) {
         dim_t out = utils::array_product(desc.dims, desc.ndims);
         if (scales.has_default_groups()) {
-            for (int idx : mask_iterator(scales.mask_)) {
+            for (int idx : mask_iterator(scales.get_mask())) {
                 out /= desc.dims[idx];
             }
         } else {
-            for (int idx : mask_iterator(scales.mask_)) {
-                out /= (desc.dims[idx] / scales.group_dims_[idx]);
+            for (int idx : mask_iterator(scales.get_mask())) {
+                out /= (desc.dims[idx] / scales.get_group(idx));
             }
         }
         return static_cast<int>(out);
@@ -242,14 +242,13 @@ private:
     static int zp_group_size(
             const zero_points_t &zp, const memory_desc_t &desc) {
         dim_t out = utils::array_product(desc.dims, desc.ndims);
-        if (zp.has_default_groups(DNNL_ARG_WEIGHTS)) {
-            for (int idx : mask_iterator(zp.get(DNNL_ARG_WEIGHTS))) {
+        if (zp.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
+            for (int idx : mask_iterator(zp.get_mask(DNNL_ARG_WEIGHTS))) {
                 out /= desc.dims[idx];
             }
         } else {
-            auto groups = zp.get_groups(DNNL_ARG_WEIGHTS);
-            for (int idx : mask_iterator(zp.get(DNNL_ARG_WEIGHTS))) {
-                out /= (desc.dims[idx] / groups[idx]);
+            for (int idx : mask_iterator(zp.get_mask(DNNL_ARG_WEIGHTS))) {
+                out /= (desc.dims[idx] / zp.get_group(DNNL_ARG_WEIGHTS, idx));
             }
         }
         return static_cast<int>(out);

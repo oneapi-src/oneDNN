@@ -44,9 +44,9 @@ struct gated_mlp_desc_t : public op_desc_t  {
     memory_desc_t dst_desc;
 
     //TODO: add enum for type of activation, swish relu sigmoid...
-    runtime_scales_t wts_gate_scales;
-    runtime_scales_t wts_up_scales;
-    runtime_scales_t wts_down_scales;
+    quant_entry_t wts_gate_scales;
+    quant_entry_t wts_up_scales;
+    quant_entry_t wts_down_scales;
 
     zero_points_t wts_gate_zero_points;
     zero_points_t wts_up_zero_points;
