@@ -34,7 +34,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-/* This struct computes the compensation for src_zero_point related to
+/*a This struct computes the compensation for src_zero_point related to
  * padding */
 struct jit_avx512_core_amx_compute_zp_pbuff_t : public jit_generator {
 

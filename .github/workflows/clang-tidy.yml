@@ -50,7 +50,7 @@ jobs:
         env:
           ONEDNN_ACTION: configure
 
-      - name: Build oneDNN
+      - name: Check clang-tidy
         run: |
           .github/automation/x64/build_linters.sh ${{ github.event.pull_request.base.sha }} 2>&1 | tee build.log
           grep -i "warning:" build.log | sort -u
