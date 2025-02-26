@@ -671,10 +671,13 @@ void CopyPlan::planTypeConversions()
         } else if (st == Type::ngen_f4_e3m0() && dt == DataType::hf) {
             planEmulatedE3M0ToHF(i);
             rerun = true;
-        } else if (dt == Type::ngen_f4_e2m1()) {
+        } else if (dt == Type::ngen_f4_e3m0() && st == DataType::hf) {
+            planEmulatedHFToE3M0(i);
+            rerun = true;
+        } else if (isFP4(dt)) {
             copyThrough(i, DataType::hf);
             rerun = true;
-        } else if (st == Type::ngen_f4_e2m1()) {
+        } else if (isFP4(st)) {
             copyThrough(i, DataType::hf);
             rerun = true;
         } else if (st == DataType::u4 && dt == DataType::hf) {
@@ -1043,10 +1046,10 @@ void CopyPlan::planEmulatedHFToF4E2M1(CopyInstruction &i)
     ie[13]->simd = simd/2;
     ie[13]->dst = ddst;
     if (ddst.inVS != 0)
-    ie[13]->dst.stride = ddst.inVS / ddst.inW;
+        ie[13]->dst.stride = ddst.inVS / ddst.inW;
     ie[13]->dst.type = DataType::ub;
     if (ie[13]->dst.offset != 0)
-            ie[13]->dst.offset /= 2;
+        ie[13]->dst.offset /= 2;
     ie[13]->src0 = tmp2;
     ie[13]->src0.type = DataType::ub;
 
@@ -1477,6 +1480,248 @@ void CopyPlan::planEmulatedF4E2M1ToHF(CopyInstruction &i) {
         ie[7]->src0 = yUW;
     } else
         ie[7]->invalidate();
+}
+
+// Emulation sequence for hf->e3m0 conversion.
+void CopyPlan::planEmulatedHFToE3M0(CopyInstruction &i)
+{
+    // Iterative emulation sequence for mov y:e3m0 x:hf 
+    // Control flow variables are shared and duplicates eliminated in later passes.
+    //
+    // mov /* give x stride 1 */
+    // Extract exponent bits.
+    // and                 bits:uw      x:uw        0x7C00
+    // shr                 bits:uw      bits:uw     0xA
+    // Subtract bias diff from non-zeros. 
+    // (f0)and (NZ)        null:uw      bits:uw     0xFFFF
+    // add                 bits:w       bits:w      -12:w
+    // Add msb of mantissa to odd idx e3m0 encodings.
+    // (f0)and (NZ)        null         x:uw        0x200
+    // mov                 rnd:uw       0x1
+    // (f0)sel             rnd:uw       rnd:uw      0x0
+    // (f0)and (NZ)        null         bits:uw     0x1
+    // (f0)add             bits:w       bits:w      rnd:w
+    // Clamp and sign.
+    // (f0)and (ZE)        null         bits:uw     0xFFF8
+    // and                 bits:uw      bits:uw     0x7
+    // (f0)sel             bits:uw      bits:uw     0x7
+    // (f0)and (NZ)        null         x:uw        0x8000
+    // (f0)or              bits:uw      bits:uw     0x8
+
+    // 
+    // /* Pack into bytes */
+
+    if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
+
+    auto ie = splitMultiple<20>(i);
+
+    auto yOrig = i.dst, y = yOrig;
+    auto xOrig = i.src0, x = xOrig;
+
+    bool tempX = (x.stride > 1);
+
+    auto bits = newTemp(DataType::uw, i.simd, 1, 0, 0);
+    auto rnd = newTemp(DataType::uw, i.simd, 1, 0, 0);
+
+    auto selFlag = newFlag(i.simd);
+    int simd = i.simd;
+    int idx = 0;
+
+    if(tempX){
+        ie[idx]->op = Opcode::mov;
+        ie[idx]->dst = x;
+        ie[idx]->dst.stride = 1;
+        ie[idx]->src0 = x;
+    }else{
+        ie[idx]->invalidate();
+    }
+    ++idx;
+
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->dst = bits;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src1 = Immediate::uw(0x7C00); 
+    ++idx;
+
+    ie[idx]->op = Opcode::shr;
+    ie[idx]->dst = bits;
+    ie[idx]->src0 = bits;
+    ie[idx]->src1 = Immediate::uw(0xA); 
+    ++idx;
+
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->flag = selFlag;
+    ie[idx]->cmod = ConditionModifier::nz;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src1 = Immediate::uw(0xFFFF); 
+    ++idx;
+
+    ie[idx]->op = Opcode::add;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = bits;
+    ie[idx]->dst.type = DataType::w;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::w;
+    ie[idx]->src1 = Immediate::w(0xFFF4); 
+    ++idx;
+
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->cmod = ConditionModifier::nz;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src1 = Immediate::uw(0x200); 
+    ++idx;
+
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->dst = rnd;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = Immediate::uw(0x1);
+    ++idx;
+
+    ie[idx]->op = Opcode::sel;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = rnd;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = rnd;
+    ie[idx]->src1 = Immediate::uw(0x0);
+    ++idx;
+
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->cmod = ConditionModifier::nz;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src1 = Immediate::uw(0x1); 
+    ++idx;
+
+    ie[idx]->op = Opcode::add;
+    ie[idx]->dst = bits;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst.type = DataType::w;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::w;
+    ie[idx]->src1 = rnd; 
+    ie[idx]->src1.type = DataType::w; 
+    ++idx;
+
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->cmod = ConditionModifier::ze;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = bits;
+    ie[idx]->src1 = Immediate::uw(0xfff8); 
+    ++idx;
+    
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->dst = bits;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = bits;
+    ie[idx]->src1 = Immediate::uw(0x7); 
+    ++idx;
+
+    ie[idx]->op = Opcode::sel;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = bits;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src1 = Immediate::uw(0x7);
+    ++idx;
+
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->cmod = ConditionModifier::nz;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src1 = Immediate::uw(0x8000); 
+    ++idx;
+
+    ie[idx]->op = Opcode::or_;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = bits;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = bits;
+    ie[idx]->src1 = Immediate::uw(0x8); 
+    ++idx;
+
+    // Pack.
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = x;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.stride = 2;
+    ++idx;
+
+    ie[idx]->op = Opcode::shl;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = bits;
+    ie[idx]->dst.offset = 0;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.offset = 1;
+    ie[idx]->src0.stride = 2;
+    ie[idx]->src1 = Immediate::uw(0x4);
+    ++idx;
+
+    ie[idx]->op = Opcode::or_;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = x;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src1 = bits;
+    ie[idx]->src1.type = DataType::uw;
+    ie[idx]->src1.stride = 1;
+    ++idx;
+
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = x;
+    ie[idx]->dst.type = DataType::ub;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 2;
+    ie[idx]->src0.type = DataType::ub;
+    ++idx;
+
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = y;
+    ie[idx]->dst.type = DataType::ub;
+    if (y.inVS != 0)
+        ie[idx]->dst.stride = y.inVS / y.inW;
+    if (ie[idx]->dst.offset != 0)
+            ie[idx]->dst.offset /= 2;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src0.type = DataType::ub;
+    ++idx;
+
+    //sharedAlloced=true;
+
 }
 
 // Emulation sequence for e3m0->hf conversion.
