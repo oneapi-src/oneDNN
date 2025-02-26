@@ -83,7 +83,7 @@ struct CopyInstruction
     CopyOperand dst, src0, src1, src2, flag;
     ngen::ConditionModifier cmod = ngen::ConditionModifier::none;
     bool atomic = false, sat = false;
-    bool label = false;
+    bool label = false, cFlow = false;
     int16_t cnumSub = 0;
 
     void invalidate()       { simd = 0; }
@@ -163,9 +163,13 @@ public:
 protected:
     ngen::HW hw;
     bool systolicAvailable;
+    bool sharedAlloced = false;
     std::vector<CopyInstruction> insns, newInsns;
     std::vector<CopyTemporary> temps;
     std::vector<ngen::Label*> tempLabels;
+    CopyOperand sharedIdx;
+    CopyOperand sharedTmp;
+    CopyOperand sharedIdxFlag;
 
     enum class SortType {
         PhaseOnly, Register, SourceOrder
@@ -189,6 +193,7 @@ protected:
     void repositionSrc(CopyInstruction &i, int n, int stride, int offset);
     void repositionDst(CopyInstruction &i, int stride, int offset);
 
+    void allocSharedF4E3M0();
     void checkNoSubbytes();
     void collapseCNums();
 

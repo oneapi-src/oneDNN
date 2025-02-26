@@ -1052,10 +1052,10 @@ void CopyPlan::planEmulatedHFToF4E2M1(CopyInstruction &i)
     ie[13]->simd = simd/2;
     ie[13]->dst = ddst;
     if (ddst.inVS != 0)
-    ie[13]->dst.stride = ddst.inVS / ddst.inW;
+        ie[13]->dst.stride = ddst.inVS / ddst.inW;
     ie[13]->dst.type = DataType::ub;
     if (ie[13]->dst.offset != 0)
-            ie[13]->dst.offset /= 2;
+        ie[13]->dst.offset /= 2;
     ie[13]->src0 = tmp2;
     ie[13]->src0.type = DataType::ub;
 
@@ -1488,10 +1488,48 @@ void CopyPlan::planEmulatedF4E2M1ToHF(CopyInstruction &i) {
         ie[7]->invalidate();
 }
 
+void CopyPlan::allocSharedF4E3M0() {
+    if(sharedAlloced) return;
+    sharedIdx = newTemp(DataType::uw, 1, 1, 0, 0);
+    sharedIdxFlag = newFlag(1);
+    sharedTmp = newTemp(DataType::hf, 1, 1, 1, 1);
+
+}
+
 // Emulation sequence for hf->e3m0 conversion.
 void CopyPlan::planEmulatedHFToE3M0(CopyInstruction &i)
 {
+    // Iterative emulation sequence for mov y:e3m0 x:hf 
+    // Control flow variables are shared and duplicates eliminated in later passes.
+    //
+    // mov                 idx:uw       0:uw
+    // mov                 bits:uw      0:uw
+    // mov                 x<1>:uw      x<2>:uw
+    // mov                 tmin:uw      x:uw
+    // mov                 tmp<0>:hf    0x3400:hf
+    // Label loopTop
+    // add                 idx:uw       idx:uw          0x1:uw
+    // add                 tdiff:hf     tmp<0>:hf       -x:hf
+    // (f0)and (ZE)        null         idx<0>:uw       0x1:uw
+    // jmpi (f0) labelEven
+    // (f1)cmp (LT)        null:hf      abs(tmin:hf)    abs(tdiff:hf)
+    // jmp condEnd
+    // Label labelEven
+    // (f1)cmp (LE)        null:hf      abs(tmin:hf)    abs(tdiff:hf)
+    // Label condEnd
+    // mov (f1)            bits:uw      idx<0>:uw
+    // mov (f1)            tmin:uw      tdiff:uw
+    // (f0)cmp (LT)        null:uw      idx:uw          0x0007:uw
+    // mul (f1)            tmp:hf       tmp:hf          0x4000:hf
+    // jmpi (f0) loopTop
+    // (f1)and             null:uw      x:uw            0x1000:uw
+    // or (f1)             bits:uw      bits:uw         0x8:uw
+    // 
+    // /* Pack into bytes */
+
     if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
+
+    allocSharedF4E3M0();
 
     auto ie = splitMultiple<27>(i);
 
@@ -1499,219 +1537,257 @@ void CopyPlan::planEmulatedHFToE3M0(CopyInstruction &i)
     auto xOrig = i.src0, x = xOrig;
 
     bool tempX = (x.stride > 1);
-    if (tempX)  /* Replace y by temporary if nonunit stride hurts performance */
-        x = newTemp(DataType::hf, i.simd, 1);
 
-    auto yUW = y;
-    yUW.type = DataType::uw;
-
-    auto idx = newTemp(DataType::uw, 1, 1, 0, 0);
     auto bits = newTemp(DataType::uw, i.simd, 1, 0, 0);
-    auto t0 = newTemp(DataType::hf, 1, 1, 0, 0);
     auto tmin = newTemp(DataType::hf, i.simd, 1, 0, 0);
     auto ldiff = newTemp(DataType::hf, i.simd, 1, 0, 0);
-    auto selFlag = newFlag(i.simd * 2);
+
+    auto selFlag = newFlag(i.simd);
     int simd = i.simd;
     ngen::Label * loopTop = newLabel();
     ngen::Label * labelEven = newLabel();
-    ngen::Label * loopEnd = newLabel();
+    ngen::Label * condEnd = newLabel();
+    int idx = 0;
 
-    auto t0UW = t0;
-    t0UW.type = DataType::uw;
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = 1;
+    ie[idx]->cFlow = true;
+    ie[idx]->dst = sharedIdx;
+    ie[idx]->src0 = Immediate::uw(0x0);
+    ++idx;
 
-    ie[0]->op = Opcode::mov;
-    ie[0]->simd = 1;
-    ie[0]->dst = t0;
-    ie[0]->src0 = Immediate::hf(0x0000);
-
-    ie[1]->op = Opcode::mov;
-    ie[1]->simd = 1;
-    ie[1]->dst = idx;
-    ie[1]->src0 = Immediate::uw(0x0);
-
-    ie[2]->op = Opcode::mov;
-    ie[2]->simd = simd;
-    ie[2]->dst = bits;
-    ie[2]->src0 = Immediate::uw(0x0);
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd;
+    ie[idx]->dst = bits;
+    ie[idx]->src0 = Immediate::uw(0x0);
+    ++idx;
 
     if(tempX){
-        ie[3]->op = Opcode::mov;
-        ie[3]->dst = x;
-        ie[3]->dst.stride = 1;
-        ie[3]->src0 = xOrig;
+        ie[idx]->op = Opcode::mov;
+        ie[idx]->dst = x;
+        ie[idx]->dst.stride = 1;
+        ie[idx]->src0 = x;
     }else{
-        ie[3]->invalidate();
+        ie[idx]->invalidate();
     }
+    ++idx;
 
-    // change to mov since t0 is always 0 here
-    ie[4]->op = Opcode::add;
-    ie[4]->dst = tmin;
-    ie[4]->src0 = t0;
-    ie[4]->src0.stride = 0;
-    ie[4]->src1 = -x;
-    ie[4]->src1.stride = 1;
-    ie[4]->src1.abs = true;
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->dst = tmin;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 1;
+    ++idx;
 
-    ie[5]->op = Opcode::mov;
-    ie[5]->simd = 1;
-    ie[5]->dst = t0;
-    ie[5]->src0 = Immediate::hf(0x3400);
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = 1;
+    ie[idx]->cFlow = true;
+    ie[idx]->dst = sharedTmp;
+    ie[idx]->src0 = Immediate::hf(0x3400);
+    ++idx;
 
     // Loop Begin
-    ie[6]->op = Opcode::nop;
-    ie[6]->label = true;
-    ie[6]->label_ = loopTop;
+    ie[idx]->op = Opcode::nop;
+    ie[idx]->label = true;
+    ie[idx]->label_ = loopTop;
+    ie[idx]->cFlow = true;
+    ++idx;
 
-    ie[7]->op = Opcode::add;
-    ie[7]->dst = idx;
-    ie[7]->src0 = idx;
-    ie[7]->src1 = Immediate::uw(0x1);
+    ie[idx]->op = Opcode::add;
+    ie[idx]->dst = sharedIdx;
+    ie[idx]->src0 = sharedIdx;
+    ie[idx]->src1 = Immediate::uw(0x1);
+    ie[idx]->cFlow = true;
+    ++idx;
 
-    ie[8]->op = Opcode::add;
-    ie[8]->dst = ldiff;
-    ie[8]->src0 = t0;
-    ie[8]->src0.stride = 0;
-    ie[8]->src1 = -x;
-    ie[8]->src1.stride = 1;
-    ie[8]->src1.abs = true;
+    ie[idx]->op = Opcode::add;
+    ie[idx]->dst = ldiff;
+    ie[idx]->src0 = sharedTmp;
+    ie[idx]->src0.stride = 0;
+    ie[idx]->src1 = -x;
+    ie[idx]->src1.stride = 1;
+    ie[idx]->src1.abs = true;
+    ++idx;
 
-    ie[9]->op = Opcode::and_;
-    ie[9]->cmod = ConditionModifier::ze;
-    ie[9]->flag = newFlag(1);
-    ie[9]->dst = CopyOperand();
-    ie[9]->dst.type = DataType::uw;
-    ie[9]->src0 = idx;
-    ie[9]->src1 = Immediate::uw(0x1);
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->cmod = ConditionModifier::ze;
+    ie[idx]->flag = sharedIdxFlag;
+    ie[idx]->cFlow = true;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = sharedIdx;
+    ie[idx]->src1 = Immediate::uw(0x1);
+    ++idx;
 
-    ie[10]->op = Opcode::jmpi;
-    ie[10]->simd = 1;
-    ie[10]->flag = ie[9]->flag;
-    ie[10]->label_ = labelEven;
+    ie[idx]->op = Opcode::jmpi;
+    ie[idx]->simd = 1;
+    ie[idx]->flag = sharedIdxFlag;
+    ie[idx]->label_ = labelEven;
+    ie[idx]->cFlow = true;
+    ++idx;
 
     // Condition Odd.
-    ie[11]->op = Opcode::cmp;
-    ie[11]->cmod = ConditionModifier::lt;
-    ie[11]->flag = selFlag;
-    ie[11]->dst = CopyOperand();
-    ie[11]->dst.type = DataType::hf;
-    ie[11]->src0 = ldiff;
-    ie[11]->src0.abs = true;
-    ie[11]->src1 = tmin;
-    ie[11]->src1.abs = true;
+    ie[idx]->op = Opcode::cmp;
+    ie[idx]->cmod = ConditionModifier::lt;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::hf;
+    ie[idx]->src0 = ldiff;
+    ie[idx]->src0.abs = true;
+    ie[idx]->src1 = tmin;
+    ie[idx]->src1.abs = true;
+    ++idx;
 
-    ie[12]->op = Opcode::jmpi;
-    ie[12]->simd = 1;
-    ie[12]->label_ = loopEnd;
+    ie[idx]->op = Opcode::jmpi;
+    ie[idx]->simd = 1;
+    ie[idx]->label_ = condEnd;
+    ie[idx]->cFlow = true;
+    ++idx;
 
     // Condition Even.
-    ie[13]->op = Opcode::nop;
-    ie[13]->label = true;
-    ie[13]->label_ = labelEven;
+    ie[idx]->op = Opcode::nop;
+    ie[idx]->label = true;
+    ie[idx]->label_ = labelEven;
+    ie[idx]->cFlow = true;
+    ++idx;
 
-    ie[14]->op = Opcode::cmp;
-    ie[14]->cmod = ConditionModifier::le;
-    //ie[14]->wrEn = true;
-    ie[14]->flag = selFlag;
-    ie[14]->dst = CopyOperand();//tmin;
-    ie[14]->dst.type = DataType::hf;
-    ie[14]->src0 = ldiff;
-    ie[14]->src0.abs = true;
-    ie[14]->src1 = tmin;
-    ie[14]->src1.abs = true;
+    ie[idx]->op = Opcode::cmp;
+    ie[idx]->cmod = ConditionModifier::le;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::hf;
+    ie[idx]->src0 = ldiff;
+    ie[idx]->src0.abs = true;
+    ie[idx]->src1 = tmin;
+    ie[idx]->src1.abs = true;
+    ++idx;
 
     // Condition End
-    ie[15]->op = Opcode::nop;
-    ie[15]->label = true;
-    ie[15]->label_ = loopEnd;
+    ie[idx]->op = Opcode::nop;
+    ie[idx]->label = true;
+    ie[idx]->label_ = condEnd;
+    ie[idx]->cFlow = true;
+    ++idx;
 
-    ie[16]->op = Opcode::mov;
-    ie[16]->flag = selFlag;
-    ie[16]->dst = bits;
-    ie[16]->src0 = idx;
-    ie[16]->src0.stride = 0;
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = bits;
+    ie[idx]->src0 = sharedIdx;
+    ie[idx]->src0.stride = 0;
+    ++idx;
 
-    ie[17]->op = Opcode::mov;
-    ie[17]->flag = selFlag;
-    ie[17]->dst = tmin;
-    ie[17]->src0 = ldiff;
+    // Update minimum diff, results.
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = tmin;
+    ie[idx]->src0 = ldiff;
+    ++idx;
 
-    ie[18]->op = Opcode::cmp;
-    ie[18]->flag = ie[9]->flag;
-    ie[18]->cmod = ConditionModifier::lt;
-    ie[18]->dst = CopyOperand();
-    ie[18]->dst.type = DataType::uw;
-    ie[18]->src0 = idx;
-    ie[18]->src1 = Immediate::uw(0x7); 
+    ie[idx]->op = Opcode::cmp;
+    ie[idx]->flag = sharedIdxFlag;
+    ie[idx]->cFlow = true;
+    ie[idx]->cmod = ConditionModifier::lt;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = sharedIdx;
+    ie[idx]->src1 = Immediate::uw(0x7); 
+    ++idx;
 
-    ie[19]->op = Opcode::mul;
-    ie[19]->simd = 1;
-    ie[19]->dst = t0;
-    ie[19]->src0 = t0;
-    ie[19]->src1 = Immediate::hf(0x4000);
+    ie[idx]->op = Opcode::mul;
+    ie[idx]->simd = 1;
+    ie[idx]->cFlow = true;
+    ie[idx]->dst = sharedTmp;
+    ie[idx]->src0 = sharedTmp;
+    ie[idx]->src1 = Immediate::hf(0x4000);
+    ++idx;
 
     // Loop Iter.
-    ie[20]->op = Opcode::jmpi;
-    ie[20]->simd = 1;
-    ie[20]->flag = ie[9]->flag;
-    ie[20]->label_ = loopTop;
+    ie[idx]->op = Opcode::jmpi;
+    ie[idx]->simd = 1;
+    ie[idx]->flag = sharedIdxFlag;
+    ie[idx]->label_ = loopTop;
+    ie[idx]->cFlow = true;
+    ++idx;
 
-    ie[21]->op = Opcode::and_;
-    ie[21]->flag = selFlag;
-    ie[21]->cmod = ConditionModifier::nz;
-    ie[21]->dst = CopyOperand();
-    ie[21]->dst.type = DataType::uw;
-    ie[21]->src0 = x;
-    ie[21]->src0.stride = 1;
-    ie[21]->src0.type = DataType::uw;
-    ie[21]->src1 = Immediate::uw(0x8000); 
+    // Apply sign.
+    ie[idx]->op = Opcode::and_;
+    ie[idx]->flag = selFlag;
+    ie[idx]->cmod = ConditionModifier::nz;
+    ie[idx]->dst = CopyOperand();
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src1 = Immediate::uw(0x8000); 
+    ++idx;
 
-    ie[22]->op = Opcode::or_;
-    ie[22]->flag = selFlag;
-    ie[22]->dst = bits;
-    ie[22]->src0 = bits;
-    ie[22]->src1 = Immediate::uw(0x8); 
+    ie[idx]->op = Opcode::or_;
+    ie[idx]->flag = selFlag;
+    ie[idx]->dst = bits;
+    ie[idx]->src0 = bits;
+    ie[idx]->src1 = Immediate::uw(0x8); 
+    ++idx;
 
-    ie[23]->op = Opcode::mov;
-    ie[23]->simd = simd/2;
-    ie[23]->dst = x;
-    ie[23]->dst.type = DataType::uw;
-    ie[23]->dst.stride = 1;
-    ie[23]->src0 = bits;
-    ie[23]->src0.type = DataType::uw;
-    ie[23]->src0.stride = 2;
+    // Pack.
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = x;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.stride = 2;
+    ++idx;
 
-    ie[24]->op = Opcode::shl;
-    ie[24]->simd = simd/2;
-    ie[24]->dst = bits;
-    ie[24]->dst.offset = 0;
-    ie[24]->dst.stride = 1;
-    ie[24]->dst.type = DataType::uw;
-    ie[24]->src0 = bits;
-    ie[24]->src0.type = DataType::uw;
-    ie[24]->src0.offset = 1;
-    ie[24]->src0.stride = 2;
-    ie[24]->src1 = Immediate::uw(0x4);
+    ie[idx]->op = Opcode::shl;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = bits;
+    ie[idx]->dst.offset = 0;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.offset = 1;
+    ie[idx]->src0.stride = 2;
+    ie[idx]->src1 = Immediate::uw(0x4);
+    ++idx;
 
-    ie[25]->op = Opcode::or_;
-    ie[25]->simd = simd/2;
-    ie[25]->dst = x;
-    ie[25]->dst.type = DataType::uw;
-    ie[25]->dst.stride = 1;
-    ie[25]->src0 = x;
-    ie[25]->src0.type = DataType::uw;
-    ie[25]->src0.stride = 1;
-    ie[25]->src1 = bits;
-    ie[25]->src1.type = DataType::uw;
-    ie[25]->src1.stride = 1;
+    ie[idx]->op = Opcode::or_;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = x;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src1 = bits;
+    ie[idx]->src1.type = DataType::uw;
+    ie[idx]->src1.stride = 1;
+    ++idx;
 
-    ie[26]->op = Opcode::mov;
-    ie[26]->simd = simd;
-    ie[26]->dst = y;
-    ie[26]->dst.type = DataType::ub;
-    if (ie[26]->dst.offset != 0)
-            ie[26]->dst.offset /= 2;
-    ie[26]->src0 = x;
-    ie[26]->src0.type = DataType::uw;
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = x;
+    ie[idx]->dst.type = DataType::ub;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 2;
+    ie[idx]->src0.type = DataType::ub;
+    ++idx;
+
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = y;
+    ie[idx]->dst.type = DataType::ub;
+    if (y.inVS != 0)
+        ie[idx]->dst.stride = y.inVS / y.inW;
+    if (ie[idx]->dst.offset != 0)
+            ie[idx]->dst.offset /= 2;
+    ie[idx]->src0 = x;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src0.type = DataType::ub;
+    ++idx;
+
+    sharedAlloced=true;
 
 }
 
@@ -2714,7 +2790,7 @@ void CopyPlan::materializeTemps(const GRFAllocator &grfAllocator, const FlagAllo
 
         /* Issue instructions for this batch of instruction groups */
         for (const auto &i: insns)
-            if (i.cnumMin >= cnum0 && i.cnumMax < cnum1)
+            if (i.cnumMin >= cnum0 && i.cnumMax < cnum1 && (!i.cFlow || i.cnumMin == cnum0))
                 sortedInsns.push_back(i);
 
         /* Release temporaries for next round. */
