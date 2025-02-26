@@ -37,29 +37,31 @@ enum class ngen_operand_kind_t {
 // Wrapper to generalize ngen::FlagRegister, ngen::RegData, reg_buf_data_t and
 // ngen::Immediate operands.
 class ngen_operand_t {
+private:
+    template <typename T, ngen_operand_kind_t kind>
+    struct helper_t {
+        static constexpr ngen_operand_kind_t value = kind;
+        using type = T;
+    };
+
+    // These are only used in unevaluated contexts, no definition needed
+    static helper_t<ngen::FlagRegister, ngen_operand_kind_t::flag_register>
+    kind_of(const ngen::FlagRegister &);
+    static helper_t<reg_buf_data_t, ngen_operand_kind_t::reg_buf_data> kind_of(
+            const reg_buf_data_t &);
+    static helper_t<ngen::Immediate, ngen_operand_kind_t::immediate> kind_of(
+            const ngen::Immediate &);
+
 public:
     ngen_operand_t() : kind_(ngen_operand_kind_t::invalid) {}
+    ngen_operand_t(const ngen_operand_t &other, ngen::InstructionModifier mod)
+        : kind_(other.kind_), ptr_(other.ptr_), mod_(mod) {}
 
-    ngen_operand_t(const ngen::FlagRegister &flag)
-        : kind_(ngen_operand_kind_t::flag_register)
-        , ptr_(new ngen::FlagRegister(flag),
-                  destroy<ngen_operand_kind_t::flag_register>) {}
-
-    ngen_operand_t(const reg_buf_data_t &reg_buf_data)
-        : kind_(ngen_operand_kind_t::reg_buf_data)
-        , ptr_(new reg_buf_data_t(reg_buf_data),
-                  destroy<ngen_operand_kind_t::reg_buf_data>) {}
-
-    ngen_operand_t(const ngen::Immediate &imm)
-        : kind_(ngen_operand_kind_t::immediate)
-        , ptr_(new ngen::Immediate(imm),
-                  destroy<ngen_operand_kind_t::immediate>) {}
-
-    template <typename T>
-    ngen_operand_t(const T &other, const ngen::InstructionModifier &mod)
-        : ngen_operand_t(other) {
-        mod_ = mod;
-    }
+    template <typename T, typename Kind = decltype(kind_of(std::declval<T>())),
+            typename PtrT = typename Kind::type,
+            ngen_operand_kind_t kind = Kind::value>
+    ngen_operand_t(const T &operand, ngen::InstructionModifier mod = {})
+        : kind_(kind), ptr_(new PtrT(operand), destroy<kind>), mod_(mod) {}
 
     const ngen::Immediate &immediate() const {
         gpu_assert(is_immediate());
