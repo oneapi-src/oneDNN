@@ -143,27 +143,28 @@ public:
             return true;
         };
 
-        auto get_bcast_difference = [](expr_t expr_a, expr_t expr_b) {
-            if (!expr_a.is<shuffle_t>() || !expr_b.is<shuffle_t>())
-                return expr_t();
+        auto get_bcast_difference
+                = [](const expr_t &expr_a, const expr_t &expr_b) {
+                      if (!expr_a.is<shuffle_t>() || !expr_b.is<shuffle_t>())
+                          return expr_t();
 
-            auto &a = expr_a.as<shuffle_t>();
-            auto &b = expr_b.as<shuffle_t>();
-            if (a.idx.size() != b.idx.size()) return expr_t();
-            if (a.vec.size() != b.vec.size()) return expr_t();
+                      auto &a = expr_a.as<shuffle_t>();
+                      auto &b = expr_b.as<shuffle_t>();
+                      if (a.idx.size() != b.idx.size()) return expr_t();
+                      if (a.vec.size() != b.vec.size()) return expr_t();
 
-            for (size_t i = 0; i < a.idx.size(); i++) {
-                if (a.idx[i] != b.idx[i]) return expr_t();
-            }
+                      for (size_t i = 0; i < a.idx.size(); i++) {
+                          if (a.idx[i] != b.idx[i]) return expr_t();
+                      }
 
-            if (a.vec.size() <= 0) return expr_t();
-            expr_t offset = const_fold(a.vec[0] - b.vec[0]);
-            for (size_t i = 0; i < a.vec.size(); i++) {
-                expr_t new_offset = const_fold(a.vec[i] - b.vec[i]);
-                if (!offset.is_equal(new_offset)) return expr_t();
-            }
-            return offset;
-        };
+                      if (a.vec.empty()) return expr_t();
+                      expr_t offset = const_fold(a.vec[0] - b.vec[0]);
+                      for (size_t i = 0; i < a.vec.size(); i++) {
+                          expr_t new_offset = const_fold(a.vec[i] - b.vec[i]);
+                          if (!offset.is_equal(new_offset)) return expr_t();
+                      }
+                      return offset;
+                  };
 
         auto base_args = args[0];
         for (int i = 1; i < (int)args.size(); i++) {
