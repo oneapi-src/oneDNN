@@ -935,6 +935,7 @@ struct texpr_t {
         if (!is_zero(base)) parts.push_back(base.str());
         for (int i = 0; i < nvargs(); i++) {
             auto s = "_" + std::to_string(vidxs[i]);
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             if (vstrides[i] != 1) s = std::to_string(vstrides[i]) + " x " + s;
             parts.push_back(s);
         }
@@ -1519,6 +1520,7 @@ zp_plan_t::zp_plan_t(const hw_t &hw)
 
 zp_plan_t::~zp_plan_t() = default;
 
+// NOLINTNEXTLINE(readability-make-member-function-const)
 void zp_plan_t::init(const conv_config_t &cfg, bool src_2d_loads,
         const gemm_schedule_t &gemm_schedule, const view_t &zp_view,
         const view_t &zp_src_view, const layout_t &src_layout,
@@ -1645,6 +1647,7 @@ bool zp_plan_t::can_split(abc_kind_t abc, int factor) const {
     return impl->can_split(abc, factor);
 }
 
+// NOLINTNEXTLINE(readability-make-member-function-const)
 void zp_plan_t::set_split(abc_kind_t abc, int factor) {
     impl->set_split(abc, factor);
 }

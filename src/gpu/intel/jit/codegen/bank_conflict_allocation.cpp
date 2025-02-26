@@ -362,6 +362,7 @@ struct reg_t {
         return block->masks[off].bank();
     }
 
+    // NOLINTNEXTLINE(readability-make-member-function-const)
     void exclude(const reg_mask_t &mask) {
         if (is_empty()) return;
         block->masks[off].subtract(mask);
