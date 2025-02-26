@@ -324,6 +324,8 @@ public:
         jit::stringify(out, raw_tag_);
         out << ":";
         jit::stringify(out, type_);
+        out << ":";
+        jit::stringify(out, is_strided_);
     }
 
     void parse(std::istream &in) {

@@ -1029,6 +1029,7 @@ serialized_t kernel_desc_t::serialize() const {
     std::ostringstream oss;
     jit::stringify(oss, *this);
     auto str = oss.str();
+    printf("%s \n", str.c_str());
     return serialized_t::from_data(
             std::vector<uint8_t>(str.begin(), str.end()));
 }

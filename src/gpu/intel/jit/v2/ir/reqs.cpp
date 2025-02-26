@@ -481,7 +481,7 @@ public:
                 && (rhs_ == other.rhs_);
     }
     bool fits(const pvar_map_t<dim_t> &values) const {
-        printf("req: %s \n ", str().c_str());
+        //printf("req: %s \n ", str().c_str());
         if (kind_ == req_kind_t::_or_eq) {
             int64_t lhs0 = values.at(lhs_[0]);
             int64_t lhs1 = values.at(lhs_[1]);
@@ -690,12 +690,23 @@ void prb_reqs_t::add_stride_reqs(
         auto lhs = r.impl().lhs();
         bool mod_eq_0 = r.impl().kind() == req_kind_t::mod_eq_0;
         bool can_replace = mod_eq_0 ? false : true;
+        dim_t factor = 1;
+        bool pvar_found = false;
         for (auto v : vars) {
+            dim_t pvar_value;
+            if (get_value(v, pvar_value)) {
+                factor *= pvar_value;
+                continue;
+                //	if (!lhs.has(pvar_value) && !mod_eq_0)
+                //		can_replace = false;
+            }
+            if (lhs.has(v)) pvar_found = true;
             if (lhs.has(v) && mod_eq_0)
                 can_replace = true;
             else if (!lhs.has(v) && !mod_eq_0)
                 can_replace = false;
         }
+        can_replace &= pvar_found;
         //	if (!mod_eq_0 && lhs.pvars().size() != vars.size())
         //		can_replace=false;
         if (can_replace) {
@@ -715,18 +726,21 @@ void prb_reqs_t::add_stride_reqs(
                 if (!found) new_lhs.push_back(lhs_v);
             }
             new_lhs.push_back(stride);
-            new_reqs.push_back(req_impl_t(
-                    r.impl().kind(), req_lhs_t(new_lhs), r.impl().rhs()));
+            auto rhs = r.impl().rhs();
+            auto new_rhs
+                    = rhs.is_value() ? req_rhs_t(rhs.value() / factor) : rhs;
+            new_reqs.push_back(
+                    req_impl_t(r.impl().kind(), req_lhs_t(new_lhs), new_rhs));
         }
     }
 
-    printf(" stride: %s ", stride.str().c_str());
-    for (auto &v : vars)
+    //printf(" stride: %s ", stride.str().c_str());
+    /* for (auto &v : vars)
         printf(" %s ", v.str().c_str());
-    printf("\n");
+    printf("\n");*/
     for (auto &r : new_reqs) {
 
-        printf("addded: %s \n ", r.str().c_str());
+        //printf("addded: %s \n ", r.str().c_str());
         reqs_.push_back(req_t(r));
     }
     //printf("full reqs: %s \n", str().c_str());
@@ -941,9 +955,9 @@ bool prb_reqs_t::is_equal(const pvar_t &pvar, dim_t value) const {
 }
 
 bool prb_reqs_t::implies(const prb_reqs_t &other) const {
-    printf("str : %s ", str().c_str());
+    //printf("str : %s ", str().c_str());
     for (auto &req : other.reqs_) {
-        printf("can prove : %s \n", req.str().c_str());
+        //printf("can prove : %s \n", req.str().c_str());
         gpu_check(can_prove(req.impl())) << "Cannot prove: " << req.impl();
     }
     return true;

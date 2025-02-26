@@ -396,13 +396,14 @@ static inline void advance(
 bool layout_tag_t::matches(const layout_tag_t &other, const pvar_tile_t &sizes,
         bool check_type) const {
     if (check_type && type_ != other.type_) return false;
+    //if (is_strided_ != other.is_strided()) return false;
     return raw_tag().matches(other.raw_tag(), desc_, sizes);
 }
 
 std::string layout_tag_t::str() const {
     if (is_empty()) return "x";
     std::ostringstream oss;
-    oss << raw_tag_ << ":" << type_;
+    oss << raw_tag_ << ":" << type_ << ":" << is_strided_;
     return oss.str();
 }
 
