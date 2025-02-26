@@ -84,7 +84,7 @@ protected:
     ngen::HW hw_ = ngen::HW::Unknown;
     int stepping_ = 0;
     GEMMProblem problem_ = {};
-    GEMMStrategy strategy_ = {};
+    GEMMStrategy strategy_;
     const kcatalog::Entry *entry_ = nullptr;
     EvaluateAuxOutput aux_params_;
     CommonDriverInfo driver_info_;
