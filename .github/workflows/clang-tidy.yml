@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Checkout oneDNN
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - name: Install clang
         run: |
@@ -50,8 +52,9 @@ jobs:
 
       - name: Build oneDNN
         run: |
-          .github/automation/x64/build_linters.sh 2>&1 | tee build.log
+          .github/automation/x64/build_linters.sh ${{ github.event.pull_request.base.sha }} 2>&1 | tee build.log
           grep -i "warning:" build.log | sort -u
           grep -q -i "warning:" build.log && exit 1 || true
         env:
           ONEDNN_ACTION: build
+
