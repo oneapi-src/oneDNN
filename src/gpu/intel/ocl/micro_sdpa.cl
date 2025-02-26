@@ -214,8 +214,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         const global INDEX_DATA_T *prompt_lens,
         const global INDEX_DATA_T *subsequence_begins,
         const global INDEX_DATA_T *block_indices,
-        const global INDEX_DATA_T *block_indices_begins,
-        const int context_len
+        const global INDEX_DATA_T *block_indices_begins, const int context_len
 #endif
 ) {
 
@@ -417,13 +416,8 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 
     const int tiles_per_page = DIV_UP(PAGE_SIZE, ugemm_kq_wg_tile_m);
     const int num_multiplies = num_blocks * tiles_per_page;
-    const int partial_num_rows = PAGE_SIZE - (PAGE_SIZE / ugemm_kq_wg_tile_m) * ugemm_kq_wg_tile_m;
-    // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
-    //   printf("!! context len %d\n", context_len);
-    // }
-    // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
-    //   printf("!! PAGE_SIZE %d, ugemm_kq_wg_tile_m %d, tiles_per_page %d, num_multiplies %d, partial_num_rows %d\n", PAGE_SIZE, ugemm_kq_wg_tile_m, tiles_per_page, num_multiplies, partial_num_rows);
-    // }
+    const int partial_num_rows
+            = PAGE_SIZE - (PAGE_SIZE / ugemm_kq_wg_tile_m) * ugemm_kq_wg_tile_m;
 
     /* Main loop over k blocks */
     int k0 = 0;
@@ -464,40 +458,31 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         kmask_tile_type_float k_mask;
 #pragma unroll
         for (int ii = 0; ii < ugemm_kq_sg_tile_m / SUBGROUP_SIZE; ii++) {
-            k_mask.x[0][ii] = (sg_i0_kq + ii * SUBGROUP_SIZE
-                               + get_sub_group_local_id() < PAGE_SIZE)
-                              ? nan(0u)
-                              : -INFINITY;
+            k_mask.x[0][ii]
+                    = (sg_i0_kq + ii * SUBGROUP_SIZE + get_sub_group_local_id()
+                              < PAGE_SIZE)
+                    ? nan(0u)
+                    : -INFINITY;
         }
 #endif
 
         /* Calculate S = (K^T) * Q */
-        s_tile_type S_tile = ugemm_kq(K + key_offset,
-                                      ldk,
-                                      Q_slm,
-                                      D_MAX,
-                                      PAGE_SIZE,
-                                      ugemm_kq_wg_tile_n,
-                                      d,
-                                      0,
-                                      0,
-                                      0,
-                                      sg_i_kq,
-                                      sg_j_kq,
-                                      (local char *)ugemm_slm
+        s_tile_type S_tile = ugemm_kq(K + key_offset, ldk, Q_slm, D_MAX,
+                PAGE_SIZE, ugemm_kq_wg_tile_n, d, 0, 0, 0, sg_i_kq, sg_j_kq,
+                (local char *)ugemm_slm
 #if KEY_SCALES == QUANTIZE_2D
-                        ,
-                        K_scales
+                ,
+                K_scales
 #endif
 #if KEY_ZERO_POINTS
-                        ,
-                        K_zp
+                ,
+                K_zp
 #endif
 #if (KEY_SCALES == QUANTIZE_2D) || KEY_ZERO_POINTS
-                        ,
-                        ldkq
+                ,
+                ldkq
 #endif
-                );
+        );
 
 #if KEY_SCALES == QUANTIZE_COMMON
 #define k_scale_op(x) ((x)*k_scale)
@@ -746,9 +731,9 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
             intel_work_group_barrier_arrive(CLK_LOCAL_MEM_FENCE);
 
         /* Accumulate A += V * S */
-        a_tile_type A_tile1 = ugemm_vs(
-                V + value_offset, ldv, S_slm, ugemm_kq_wg_tile_m, d, ugemm_kq_wg_tile_n,
-                k_chunk, 0, 0, 0, sg_i_vs, sg_j_vs, (local char *)ugemm_slm
+        a_tile_type A_tile1 = ugemm_vs(V + value_offset, ldv, S_slm,
+                ugemm_kq_wg_tile_m, d, ugemm_kq_wg_tile_n, k_chunk, 0, 0, 0,
+                sg_i_vs, sg_j_vs, (local char *)ugemm_slm
 #if VAL_SCALES == QUANTIZE_2D
                 ,
                 V_scales
@@ -774,13 +759,9 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 
         if ((multiply_no + 1) % tiles_per_page == 0 && partial_num_rows > 0) {
             k0 += partial_num_rows;
-        }
-        else {
+        } else {
             k0 += ugemm_kq_wg_tile_m;
         }
-        // if (get_global_id(0) == 0 && get_global_id(1) == 0) {
-        //     printf("!! k0 is %d\n", k0);
-        // }
     }
 
     /* Wait for column sums to be ready */
