@@ -1243,6 +1243,17 @@ std::string conv_plan_t::str() const {
     return jit::add_indent("conv_plan", oss.str());
 }
 
+type_t get_accumulation_type(
+        fma_kind_t fma_kind, const type_t &a, const type_t &b) {
+    if (a.is_int()) return type_t::s32();
+    if (a.is_f64()) return type_t::f64();
+    if (fma_kind == fma_kind_t::mad && a.is_f16() && b.is_f16()) {
+        // XXX: f16 must use f32 accumulator according to documentation.
+        return type_t::f16();
+    }
+    return type_t::f32();
+}
+
 struct fma_layout_hint_t {
     int vec_dim_idx = -1;
 
@@ -1257,7 +1268,7 @@ struct fma_context_t {
         fma = cfg.fma_kind();
         a_type = type_t(cfg.prb().a_data_type);
         b_type = type_t(cfg.prb().b_data_type);
-        c_type = type_t(cfg.prb().c_data_type);
+        acc_type = get_accumulation_type(cfg.fma_kind(), a_type, b_type);
         is_src1_broadcast = !cfg.prb().is_dw;
         ab_swap_transpose_ = cfg.prb().ab_swap_transpose;
     }
@@ -1272,35 +1283,19 @@ struct fma_context_t {
 
     layout_t maybe_retype_layout_for_mad(
             bool is_a, const layout_t &layout) const {
-        bool is_b = !is_a;
         // mad with s8/u8 is not supported, promote to strided s16.
         if (layout.type().is_x8())
             return layout.retype(type_t::s16()).make_strided(2);
-
-        if (a_type.is_f16() && b_type.is_f16() && c_type.is_f32()) {
-            return layout.retype(type_t::f32()).make_dense();
-        }
-        if (layout.type().is_fp8()) {
-            auto alt_type = is_b ? a_type : b_type;
-            return layout.make_dense().retype(
-                    alt_type.is_fp8() ? type_t::f16() : alt_type);
-        }
-
         // mad with f16 requires aligned regioning for src1/src2.
-        if (a_type.is_f16()) return layout.make_dense();
-
-        if (layout.type().is_bf16() && !hw.systolic_support())
+        if (a_type.is_f16() && acc_type.is_f16()) {
+            return layout.make_dense();
+        }
+        bool is_a_xf8_or_xf16
+                = (a_type.is_fp8() || a_type.is_bf16() || a_type.is_f16());
+        bool is_b_xf8_or_xf16
+                = (b_type.is_fp8() || b_type.is_bf16() || b_type.is_f16());
+        if (is_a_xf8_or_xf16 || is_b_xf8_or_xf16) {
             return layout.retype(type_t::f32()).make_dense();
-
-        if (a_type.is_bf16()) {
-            // bf16 mixed mode requires src1 to be converted to f32 when it's
-            // broadcasted.
-            if (is_a && is_src1_broadcast)
-                return layout.retype(type_t::f32()).make_dense();
-            // bf16 mixed mode mad requires src1 to be packed
-            if (is_a) return layout.make_dense();
-            // bf16 mixed mode mad requires src2 to be f32.
-            if (is_b) return layout.retype(type_t::f32()).make_dense();
         }
         return layout;
     }
@@ -1310,7 +1305,6 @@ struct fma_context_t {
         bool is_mad = (fma == fma_kind_t::mad);
         bool is_dpas = is_dp_fma(fma);
         bool is_a = (abc == abc_kind_t::a);
-        bool is_b = (abc == abc_kind_t::b);
         auto type = (is_a ? a_type : b_type);
         int type_size = (layout.type().is_fp8() ? 2 : type.size());
         if (is_dpas) {
@@ -1342,30 +1336,6 @@ struct fma_context_t {
         }
 
         if (is_mad) {
-            // swap b blocks for axb layouts when a inner dim is required by transpose
-            if (is_b && ab_swap_transpose_) {
-                if (layout.blocks().size() > 1) {
-                    std::vector<block_t> blocks;
-                    dim_t new_inner_stride = 1;
-                    int nblocks = (int)layout.blocks().size();
-                    auto inner_most_block = layout.blocks()[0];
-                    for (int i = nblocks - 1; i >= 0; --i) {
-                        auto &b = layout.blocks()[i];
-                        if (b.dim_idx != inner_most_block.dim_idx) {
-                            new_inner_stride = b.block;
-                            blocks.insert(blocks.begin(),
-                                    block_t(b.dim_idx, b.block, stride_t(1)));
-                        } else {
-                            blocks.emplace_back(block_t(b.dim_idx, b.block,
-                                    stride_t(new_inner_stride)));
-                        }
-                    }
-                    return maybe_retype_layout_for_mad(is_a,
-                            layout_t(layout.type(), layout.ndims(),
-                                    layout.offset(), blocks)
-                                    .make_dense());
-                }
-            }
             // XXX: type and layout.type() may be different here when using mad
             // with fpmath attribute. For now type is ignored and hence fpmath
             // attribute has no effect with mad.
@@ -1458,7 +1428,7 @@ struct fma_context_t {
     fma_kind_t fma;
     type_t a_type;
     type_t b_type;
-    type_t c_type;
+    type_t acc_type;
     bool is_src1_broadcast;
     bool ab_swap_transpose_;
     fma_layout_hint_t a_layout_hint;
@@ -1573,13 +1543,6 @@ layout_t get_slm_layout(const fma_context_t &fma_ctx, abc_kind_t abc,
     return layout;
 }
 
-type_t get_default_accumulation_type(const type_t &a, const type_t &b) {
-    UNUSED(b);
-    if (a.is_int()) return type_t::s32();
-    if (a.is_f64()) return type_t::f64();
-    return type_t::f32();
-}
-
 struct reduce_mask_t {
     reduce_mask_t() = default;
     reduce_mask_t(uint32_t mask) : enable(true), mask(mask) {}
@@ -1628,7 +1591,8 @@ tensor_t to_reduce_tensor(const tensor_t &tile, uint32_t mask) {
     return tensor_t(reduce_dims, reduce_start);
 }
 
-layout_t to_reduce_layout(const layout_t &layout, uint32_t mask) {
+layout_t to_reduce_layout(
+        fma_kind_t fma_kind, const layout_t &layout, uint32_t mask) {
     int reduce_ndims = layout.ndims();
     auto map = get_reduce_dim_map(mask, reduce_ndims);
     std::vector<block_t> reduce_blocks;
@@ -1638,7 +1602,7 @@ layout_t to_reduce_layout(const layout_t &layout, uint32_t mask) {
         bb.dim_idx = map[b.dim_idx];
         reduce_blocks.push_back(bb);
     }
-    auto type = get_default_accumulation_type(layout.type(), layout.type());
+    auto type = get_accumulation_type(fma_kind, layout.type(), layout.type());
     return layout_t(type, reduce_ndims, 0, reduce_blocks).make_dense();
 }
 
@@ -2107,7 +2071,8 @@ private:
         reorder = create_reorder_plan(cfg_.hw(), src, dst);
         if (reduce_mask && cfg_.allow_global_reduction()) {
             *reduce_tile = to_reduce_tensor(abs_thr_tile, reduce_mask.mask);
-            auto reduce_layout = to_reduce_layout(src, reduce_mask.mask);
+            auto reduce_layout
+                    = to_reduce_layout(cfg_.fma_kind(), src, reduce_mask.mask);
             *reduce = create_reduce_plan(
                     cfg_.hw(), src, reduce_layout, reduce_mask.mask);
         }
@@ -2172,7 +2137,8 @@ private:
         layout = load.reg_layout();
         if (reduce_mask && !cfg_.allow_global_reduction()) {
             *reduce_tile = to_reduce_tensor(abs_thr_tile, reduce_mask.mask);
-            auto reduce_layout = to_reduce_layout(layout, reduce_mask.mask);
+            auto reduce_layout = to_reduce_layout(
+                    cfg_.fma_kind(), layout, reduce_mask.mask);
             *reduce = create_reduce_plan(
                     cfg_.hw(), layout, reduce_layout, reduce_mask.mask);
         }
@@ -2214,7 +2180,8 @@ private:
         if (reduce_mask) {
             gpu_assert(!direct_view);
             *reduce_tile = to_reduce_tensor(abs_thr_tile, reduce_mask.mask);
-            auto reduce_layout = to_reduce_layout(reg_layout, reduce_mask.mask);
+            auto reduce_layout = to_reduce_layout(
+                    cfg_.fma_kind(), reg_layout, reduce_mask.mask);
             *reduce = create_reduce_plan(
                     cfg_.hw(), reg_layout, reduce_layout, reduce_mask.mask);
         }
@@ -2377,11 +2344,7 @@ private:
         int k_blk = 1;
         auto &a_type = a_layout.type();
         auto &b_type = b_layout.type();
-        auto c_type = get_default_accumulation_type(a_type, b_type);
-        if (fma_kind == fma_kind_t::mad && a_type.is_f16() && b_type.is_f16()) {
-            // FIXME: f16 must use f32 accumulator according to documentation.
-            c_type = type_t::f16();
-        }
+        auto c_type = get_accumulation_type(fma_kind, a_type, b_type);
         layout_t c_blk_layout(c_type, 0, std::vector<dim_t>(3, 1));
         switch (fma_kind) {
             case fma_kind_t::dp4a:
