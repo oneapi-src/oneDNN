@@ -42,7 +42,7 @@ public:
     object_t _mutate(const alloc_t &obj) override {
         if (!do_lift(obj)) return ir_mutator_t::_mutate(obj);
         // Remove alloc and insert it before the compute loop.
-        allocs_.push_back(&obj);
+        allocs_.emplace_back(&obj);
         return obj.body;
     }
 

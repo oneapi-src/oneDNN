@@ -96,7 +96,7 @@ public:
                     args.back()[a] += 1;
                 }
             }
-            vec_const.push_back(const_fold(e_const));
+            vec_const.emplace_back(const_fold(e_const));
         }
 
         if (!can_split) return new_obj;
@@ -173,7 +173,7 @@ public:
 
         vec_bcast = make_add(base_args);
         for (auto &a : args)
-            vec_off.push_back(make_add(difference(a, base_args)));
+            vec_off.emplace_back(make_add(difference(a, base_args)));
 
         bool is_bcast_empty = base_args.size() == 0;
         bool is_consts_empty = is_empty_or_fill(vec_const);

@@ -1001,7 +1001,7 @@ public:
         std::vector<expr_t> off;
         off.reserve(simd);
         for (int i = 0; i < simd; i++) {
-            off.push_back(-stride * i);
+            off.emplace_back(-stride * i);
         }
         return binary_op_t::make(op_, e_lhs, e_rhs + shuffle_t::make(off));
     }
