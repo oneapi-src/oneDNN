@@ -108,7 +108,7 @@ opening a PR against MAINTAINERS.md file.
 
 ## Core (API, Architecture, Tests)
 
-Team: @oneapi-src/onednn-arch
+Team: @uxlfoundation/onednn-arch
 
 | Name               | Github ID             | Affiliation       | Role       |
 | -----------------  | --------------------- | ----------------- | ---------- |
@@ -121,7 +121,7 @@ Team: @oneapi-src/onednn-arch
 
 ## Graph API
 
-Team: @oneapi-src/onednn-graph
+Team: @uxlfoundation/onednn-graph
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -138,7 +138,7 @@ Team: @oneapi-src/onednn-graph
 
 ### x64
 
-Team: @oneapi-src/onednn-cpu-x64
+Team: @uxlfoundation/onednn-cpu-x64
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -152,7 +152,7 @@ Team: @oneapi-src/onednn-cpu-x64
 
 ### AArch64
 
-Team: @oneapi-src/onednn-cpu-aarch64
+Team: @uxlfoundation/onednn-cpu-aarch64
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -184,7 +184,7 @@ Vacant. Maintained by Core team.
 
 ### Intel
 
-Team: @oneapi-src/onednn-gpu-intel
+Team: @uxlfoundation/onednn-gpu-intel
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -206,9 +206,9 @@ Team: @oneapi-src/onednn-gpu-intel
 ### NVIDIA, AMD, and generic GPU
 
 Teams:
-* @oneapi-src/onednn-gpu-nvidia
-* @oneapi-src/onednn-gpu-amd
-* @oneapi-src/onednn-gpu-generic
+* @uxlfoundation/onednn-gpu-nvidia
+* @uxlfoundation/onednn-gpu-amd
+* @uxlfoundation/onednn-gpu-generic
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -220,7 +220,7 @@ Teams:
 
 ### Documentation
 
-Team: @oneapi-src/onednn-doc
+Team: @uxlfoundation/onednn-doc
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -230,7 +230,7 @@ Team: @oneapi-src/onednn-doc
 
 ### DevOps
 
-Team: @oneapi-src/onednn-devops
+Team: @uxlfoundation/onednn-devops
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
