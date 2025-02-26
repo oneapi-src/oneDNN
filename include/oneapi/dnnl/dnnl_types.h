@@ -2671,6 +2671,7 @@ typedef const struct dnnl_primitive *const_dnnl_primitive_t;
 #define DNNL_ARG_ATTR_DROPOUT_SEED 511
 
 /// Output scaling factors provided at execution time.
+/// Deprecated value.
 #define DNNL_ARG_ATTR_OUTPUT_SCALES 513
 
 /// Starting index for source arguments for primitives that take a variable
