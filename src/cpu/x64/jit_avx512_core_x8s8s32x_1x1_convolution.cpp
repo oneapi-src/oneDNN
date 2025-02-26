@@ -47,7 +47,7 @@ status_t jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t::execute_forward(
             const char *, DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_BIAS);
     const auto post_ops_binary_rhs_arg_vec
             = binary_injector::prepare_binary_args(pd()->jcp_.post_ops, ctx);
-    const auto post_ops_binary_rhs_arg_vec_dw = pd()->jcp_dw_
+    const auto& post_ops_binary_rhs_arg_vec_dw = pd()->jcp_dw_
             ? binary_injector::prepare_binary_args(pd()->jcp_dw_->post_ops, ctx,
                     pd()->jcp_.post_ops.entry_.size() + 1)
             : std::vector<const void *> {};

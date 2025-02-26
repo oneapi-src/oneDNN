@@ -556,7 +556,7 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
             || (jcp_.dst_dt != jcp_.acc_dt) || jcp_.with_sum || jcp_.use_M_mask
             || jcp_.src_zero_point || jcp_.dst_zero_point;
 
-    const auto Mv = (jcp_.M_tail > 0 && jcp_.M_tail != jcp_.M)
+    const auto& Mv = (jcp_.M_tail > 0 && jcp_.M_tail != jcp_.M)
             ? std::vector<int> {jcp_.M, jcp_.M_tail}
             : std::vector<int> {jcp_.M};
 
