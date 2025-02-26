@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 * Copyright 2018 YANDEX LLC
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -136,6 +136,24 @@ static status_t set_binary_postops_formats(
 }
 
 template <cpu_isa_t isa>
+bool jit_uni_pool_kernel<isa>::has_large_buffers(const pooling_pd_t *ppd) {
+    auto is_large = [](const memory_desc_t &md) {
+        memory_desc_wrapper mdw(md);
+        return mdw.size() > std::numeric_limits<int32_t>::max();
+    };
+
+    if (is_large(*ppd->invariant_src_md())) return true;
+    auto &post_ops = ppd->attr()->post_ops_;
+    for (int i = 0; i < post_ops.len(); i++) {
+        auto &e = post_ops.entry_[i];
+        if (e.is_binary()) {
+            if (is_large(e.binary.src1_desc)) return true;
+        }
+    }
+    return false;
+}
+
+template <cpu_isa_t isa>
 status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
         memory_tracking::registrar_t &scratchpad, primitive_attr_t &attr,
         const pooling_pd_t *ppd) {
@@ -145,6 +163,8 @@ status_t jit_uni_pool_kernel<isa>::init_conf(jit_pool_conf_t &jpp,
             ppd->is_fwd() ? ppd->src_md() : ppd->diff_src_md());
     const memory_desc_wrapper dst_d(
             ppd->is_fwd() ? ppd->dst_md() : ppd->diff_dst_md());
+
+    if (has_large_buffers(ppd)) return status::unimplemented;
 
     const int ndims = src_d.ndims();
 
