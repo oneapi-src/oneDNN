@@ -27,7 +27,7 @@ namespace jit {
 
 class dp4a_injector_t : public ir_mutator_t {
 public:
-    object_t _mutate(const func_call_t &obj) {
+    object_t _mutate(const func_call_t &obj) override {
         auto *dpas = obj.func.as_ptr<dpas_t>();
         if (!dpas) return obj;
 

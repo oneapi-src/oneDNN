@@ -449,7 +449,7 @@ struct search_context_t {
         saved_blocks.resize(nblocks() * nblocks());
     }
 
-    int nblocks() { return int(blocks.size()); }
+    int nblocks() const { return int(blocks.size()); }
 
     void set_check_bundles(bool value = true) { check_bundles = value; }
 
