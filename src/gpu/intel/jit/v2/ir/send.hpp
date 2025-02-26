@@ -121,12 +121,12 @@ struct addr_t {
 struct dim_mask_t {
     dim_mask_t() = default;
 
-    dim_mask_t(const dim_mask_desc_t &dmd, int slots) : slot_incs(slots, 0) {
-        dim = dmd.dim;
-        base = dmd.base;
-        bound = dmd.bound;
-        has_underflow = dmd.has_underflow;
-    }
+    dim_mask_t(const dim_mask_desc_t &dmd, int slots)
+        : dim(dmd.dim)
+        , base(dmd.base)
+        , bound(dmd.bound)
+        , slot_incs(slots, 0)
+        , has_underflow(dmd.has_underflow) {}
 
     bool is_empty() const { return slot_incs.empty(); }
     int slots() const { return (int)slot_incs.size(); }
