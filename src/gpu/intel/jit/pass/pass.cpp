@@ -29,7 +29,7 @@ namespace jit {
 
 class external_var_visitor_t : public scope_visitor_t {
 public:
-    void _visit(const var_t &obj) {
+    void _visit(const var_t &obj) override {
         if (!is_expr_defined(obj)) external_vars.insert(obj);
     }
 

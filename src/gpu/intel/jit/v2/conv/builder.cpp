@@ -117,7 +117,7 @@ class idiv_fixup_mutator_t : public ir_mutator_t {
 public:
     idiv_fixup_mutator_t(var_manager_t &var_mgr) : var_mgr_(var_mgr) {}
 
-    object_t _mutate(const binary_op_t &_obj) {
+    object_t _mutate(const binary_op_t &_obj) override {
         auto new_obj = ir_mutator_t::_mutate(_obj);
         auto &obj = new_obj.as<binary_op_t>();
         bool is_var_idivmod
