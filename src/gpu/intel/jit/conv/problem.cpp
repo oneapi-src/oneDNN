@@ -306,31 +306,18 @@ bool conv_problem_t::with_sum_post_op() const {
 }
 
 void conv_problem_t::init_transpose(const hw_t &hw) {
-    using sm = primitive_attr_t::skip_mask_t;
-    auto attr_skip_mask = sm::post_ops | sm::sum_dt | sm::scales;
-    bool allow_ab_transpose = gpu_utils::dev_getenv("allow_ab_transpose", true);
-    bool any_zp = !attr->has_default_values(attr_skip_mask);
-    bool any_f64 = utils::one_of(data_type::f64, src_data_type, dst_data_type);
-    if (!allow_ab_transpose || any_zp || any_f64 || with_groups
-            || hw <= ngen::HW::Gen9) {
-        ab_swap_transpose = gpu_utils::dev_getenv("ab_swap_transpose", false);
-        return;
-    }
-    int max_sp = (hw >= ngen::HW::XeHPC) ? 1240 : 512;
-    bool do_ic_swap = ((is_fwd || is_bwd_w) && oc < 6);
-    bool do_oc_swap = ((is_bwd_d) && ic < 6);
-    bool allow_bwd_w = !is_bwd_w
-            || ((src_data_type != data_type::f32
-                        || fpmath_mode == dnnl_fpmath_mode_tf32)
-                    && osp % 8 == 0);
-    bool allow_bwd_d
-            = !is_bwd_d || (wei_data_type == data_type::f32 && osp == isp);
-    bool allow_fwd = !is_fwd
-            || (dst_data_type != data_type::f32
-                    && dst_data_type != data_type::f64 && mb <= 8 && ih != iw
-                    && iw <= max_sp);
-    ab_swap_transpose = allow_fwd && allow_bwd_d && allow_bwd_w
-            && (do_oc_swap || do_ic_swap);
+    bool is_dw = (g > 1) && (oc == 1) && (ic == 1);
+    bool wei_any
+            = (conv_pd->invariant_wei_md()->format_kind == format_kind::any);
+    bool has_zp = !attr->zero_points_.has_default_values();
+    bool allow_fwd = (mb <= 8 && oc <= 3 && ic <= 3 && kw <= 2)
+            || (oc <= 2 && ic <= 2);
+    bool allow_bwd_d = (mb <= 8 && oc <= 3 && ic <= 3);
+    bool allow_bwd_w = (mb <= 8 && oc <= 3 && ic >= 16);
+    ab_swap_transpose = wei_any && !is_dw && !has_zp;
+    if (is_fwd) ab_swap_transpose &= allow_fwd;
+    if (is_bwd_d) ab_swap_transpose &= allow_bwd_d;
+    if (is_bwd_w) ab_swap_transpose &= allow_bwd_w;
     ab_swap_transpose
             = gpu_utils::dev_getenv("ab_swap_transpose", ab_swap_transpose);
 }
