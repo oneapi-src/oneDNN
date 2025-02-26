@@ -185,7 +185,7 @@ Vacant. Maintained by Core team.
 
 ### Intel
 
-Team: @oneapi-src/onednn-gpu-intel
+Team: @uxlfoundation/onednn-gpu-intel
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -207,9 +207,9 @@ Team: @oneapi-src/onednn-gpu-intel
 ### NVIDIA, AMD, and generic GPU
 
 Teams:
-* @oneapi-src/onednn-gpu-nvidia
-* @oneapi-src/onednn-gpu-amd
-* @oneapi-src/onednn-gpu-generic
+* @uxlfoundation/onednn-gpu-nvidia
+* @uxlfoundation/onednn-gpu-amd
+* @uxlfoundation/onednn-gpu-generic
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -224,7 +224,7 @@ Teams:
 
 ### Documentation
 
-Team: @oneapi-src/onednn-doc
+Team: @uxlfoundation/onednn-doc
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
@@ -234,7 +234,7 @@ Team: @oneapi-src/onednn-doc
 
 ### DevOps
 
-Team: @oneapi-src/onednn-devops
+Team: @uxlfoundation/onednn-devops
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |

@@ -22,7 +22,7 @@ Both kinds of experimental features can be enabled simultaneously.
 
 | Environment variable                     | Description                                                                                                                                                    |
 |:-----------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ONEDNN_EXPERIMENTAL_BNORM_STATS_ONE_PASS | Calculate mean and variance in batch normalization(BN) in single pass ([RFC](https://github.com/oneapi-src/oneDNN/tree/rfcs/rfcs/20210519-single-pass-bnorm)). |
+| ONEDNN_EXPERIMENTAL_BNORM_STATS_ONE_PASS | Calculate mean and variance in batch normalization(BN) in single pass ([RFC](https://github.com/uxlfoundation/oneDNN/tree/rfcs/rfcs/20210519-single-pass-bnorm)). |
 | ONEDNN_EXPERIMENTAL_GPU_CONV_V2          | Enable shapeless GPU convolution implementation (the feature is under development).                                                                            |
 
 | Build time option                          | Description                                                        |

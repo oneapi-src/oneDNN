@@ -151,7 +151,7 @@ Above, we can see that the highest performance implementations were
 not dispatched either because they required a higher ISA, or because
 they did not support that datatype configuration.
 A complete list of verbose messages encountered in the dispatch mode 
-can be found [here](https://oneapi-src.github.io/oneDNN/dev_guide_verbose_table.html) along with their explanation.
+can be found [here](https://uxlfoundation.github.io/oneDNN/dev_guide_verbose_table.html) along with their explanation.
 
 ### Enable ONEDNN_VERBOSE with timestamps
 
@@ -240,7 +240,7 @@ primitive execution.
 
 @note
 When oneDNN verbose mode is enabled for builds with
-[Compute Library for the Arm architecture](https://oneapi-src.github.io/oneDNN/dev_guide_build.html#gcc-with-arm-compute-library-acl-on-aarch64-host),
+[Compute Library for the Arm architecture](https://uxlfoundation.github.io/oneDNN/dev_guide_build.html#gcc-with-arm-compute-library-acl-on-aarch64-host),
 any failures in the validation of Compute Library primitives will be detailed
 in the verbose output.
 
