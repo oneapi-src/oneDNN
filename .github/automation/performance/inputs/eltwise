@@ -18,6 +18,6 @@
 --inplace=true
 --alg=gelu_erf
 --dir=FWD_D
---dt=bf16
+--dt=f32,bf16
 --tag=abc
 1x1x1536

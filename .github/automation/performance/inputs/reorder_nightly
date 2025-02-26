@@ -19,27 +19,18 @@
 --batch=reorder
 
 #
-# f32 <-> s32 <-> s8 <-> u8
+# f32 <-> s32 <-> s8
 #
 --reset
---sdt=f32,s32,s8,u8
---ddt=f32,s32,s8,u8
+--sdt=f32,s32,s8
+--ddt=f32,s32,s8
 
 --attr-scales=src:per_dim_1
 --stag=abx,axb,aBx4b,aBx8b
 --dtag=abx,axb,aBx8b
-4x128x5x5
+2x64x3x3
 
 # blocked with tail
 --stag=abx,axb,aBx4b,aBx8b
 --dtag=abx,axb,aBx4b,aBx8b
-4x128x5x5
-
-# f32, bf16 <--> bf16
---reset
---sdt=f32,bf16 --ddt=bf16
---stag=abx,bax
---dtag=aBx16b 4x128x32x32 2x56x32x32
-
---sdt=bf16 --ddt=f32
---dtag=abx,bax 4x128x32x32 2x56x32x32
+2x64x3x3
