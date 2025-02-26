@@ -51,9 +51,25 @@ bool is_reduction_dim(const pvar_t &d, const conv_problem_t &prb) {
     return to_gemm(d, prb) == pvars::k;
 }
 
-bool is_vectorized_dim(const pvar_t &d, const conv_problem_t &prb) {
-    if (prb.is_dw) return d == pvars::g;
-    return to_gemm(d, prb) == pvars::n;
+pvar_t vectorized_dim(const conv_problem_t &prb, const pvar_tile_t &tile) {
+    pvar_t vec_dim;
+    if (prb.is_dw) {
+        vec_dim = pvars::g;
+    } else {
+        for (auto &d : tile) {
+            if (to_gemm(d, prb) != pvars::n) continue;
+            gpu_assert(vec_dim.is_undef()) << "Found 2+ N dimensions: " << tile;
+            vec_dim = d;
+        }
+    }
+    gpu_assert(!vec_dim.is_undef())
+            << "Cannot find vectorized dimension: " << tile;
+    return vec_dim;
+}
+
+bool is_vectorized_dim(
+        const pvar_t &d, const conv_problem_t &prb, const pvar_tile_t &tile) {
+    return d == vectorized_dim(prb, tile);
 }
 
 int tensor_conv_dim_index(const pvar_t &d, tensor_kind_t t) {
@@ -273,7 +289,7 @@ private:
         for (auto &d : iter_) {
             auto &info = tile_info(d);
             int unit = 1;
-            if (is_vectorized_dim(d, prb)) unit = cfg.vec_size();
+            if (is_vectorized_dim(d, prb, iter_)) unit = cfg.vec_size();
             if (is_reduction_dim(d, prb)) {
                 // This is to ensure that reduction-related address shifts are
                 // constant. For example with a_blk = 8 and Ax16a layout there are two
@@ -679,7 +695,7 @@ private:
 
         int vec_ndims = 0;
         for (auto &d : ctx.blk.iter()) {
-            if (is_vectorized_dim(d, cfg_.prb())) vec_ndims++;
+            if (is_vectorized_dim(d, cfg_.prb(), ctx.blk.iter())) vec_ndims++;
         }
         return vec_ndims == 1;
     }
@@ -954,14 +970,10 @@ namespace conv_schemes {
 //   #dim - remove minimum block restriction (minimum is 1)
 conv_blocking_scheme_t fwd_T_wo_I_noi("ls:[ic,kd,kh,kw],T:[oc,ow],i:[mb,oc,ic]");
 conv_blocking_scheme_t fwd_T_no_I_noi("ls:[ic,kd,kh,kw],T:[oc,mb],i:[mb,oc,ic]");
-conv_blocking_scheme_t fwd_T_wn_I_wnoi("ls:[ic,kd,kh,kw],T:[ow,mb],i:[ow,mb,oc,ic]");
 conv_blocking_scheme_t fwd_T_i_I_noi("ls:[ic,kd,kh,kw],T:[ic],i:[mb,oc,ic]");
-conv_blocking_scheme_t fwd_T_iw_I_wnoi("ls:[ic,kd,kh,kw],T:[ic,ow],i:[ow,mb,oc,ic]");
 conv_blocking_scheme_t fwd_T_wo_I_woi("ls:[ic,kd,kh,kw],T:[oc,ow],i:[ow,oc,ic]");
 conv_blocking_scheme_t fwd_T_i_I_woi("ls:[ic,kd,kh,kw],T:[ic],i:[ow,oc,ic]");
 conv_blocking_scheme_t fwd_T_wo_I_woki("ls:[ic,kd,kh,kw],T:[oc,ow],i:[ow,oc,kw,ic]");
-conv_blocking_scheme_t fwd_T_w_I_woki("ls:[ic,kd,kh,kw],T:[ow],i:[ow,oc,kw,ic]");
-conv_blocking_scheme_t fwd_T_w_I_noki("ls:[ic,kd,kh,kw],T:[ow],i:[mb,ow,oc,kw,ic]");
 conv_blocking_scheme_t fwd_T_wo_I_noki("ls:[ic,kd,kh,kw],T:[oc,ow],i:[mb,oc,kw,ic]");
 conv_blocking_scheme_t fwd_dw_T_w_I_wgk("ls:[kd,kh,kw],T:[ow],i:[ow,g,#kw]");
 conv_blocking_scheme_t fwd_dw_T_w_I_ngk("ls:[kd,kh,kw],T:[ow],i:[mb,g,#kw]");
@@ -1081,26 +1093,18 @@ conv_blocking_scheme_list_t get_blocking_schemes_bwd_w_dw(
 
 conv_blocking_scheme_list_t get_blocking_schemes_fwd(const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
-    auto m_iter_dim = cfg.prb().ab_swap_transpose
-            ? pvars::oc
-            : select_iter_dim(cfg, {pvars::mb, pvars::ow});
-    bool m_is_mb = (m_iter_dim == pvars::mb);
-    bool m_is_ow = (m_iter_dim == pvars::ow);
-    bool m_is_oc = (m_iter_dim == pvars::oc);
+    auto m_iter_dim = select_iter_dim(cfg, {pvars::mb, pvars::ow});
+    bool mb_iter = (m_iter_dim == pvars::mb);
+    bool ow_iter = (m_iter_dim == pvars::ow);
     bool ge_xelp = (cfg.hw() >= ngen::HW::XeLP);
     bool small_ic = (is_small_ic(cfg.prb()) && cfg.prb().kw > 1);
-    ret.add(m_is_mb, conv_schemes::fwd_T_wo_I_noi);
-    ret.add(m_is_mb, conv_schemes::fwd_T_no_I_noi);
-    ret.add(m_is_mb && ge_xelp, conv_schemes::fwd_T_i_I_noi);
-    ret.add(m_is_oc, conv_schemes::fwd_T_wn_I_wnoi);
-    ret.add(m_is_oc && ge_xelp, conv_schemes::fwd_T_i_I_noi);
-    ret.add(m_is_oc && ge_xelp, conv_schemes::fwd_T_iw_I_wnoi);
-    ret.add(m_is_ow, conv_schemes::fwd_T_wo_I_woi);
-    ret.add(m_is_ow && ge_xelp, conv_schemes::fwd_T_i_I_woi);
-    ret.add(m_is_mb && small_ic, conv_schemes::fwd_T_wo_I_noki);
-    ret.add(m_is_oc && small_ic, conv_schemes::fwd_T_w_I_woki);
-    ret.add(m_is_oc && small_ic, conv_schemes::fwd_T_w_I_noki);
-    ret.add(m_is_ow && small_ic, conv_schemes::fwd_T_wo_I_woki);
+    ret.add(mb_iter, conv_schemes::fwd_T_wo_I_noi);
+    ret.add(mb_iter, conv_schemes::fwd_T_no_I_noi);
+    ret.add(mb_iter && ge_xelp, conv_schemes::fwd_T_i_I_noi);
+    ret.add(ow_iter, conv_schemes::fwd_T_wo_I_woi);
+    ret.add(ow_iter && ge_xelp, conv_schemes::fwd_T_i_I_woi);
+    ret.add(mb_iter && small_ic, conv_schemes::fwd_T_wo_I_noki);
+    ret.add(ow_iter && small_ic, conv_schemes::fwd_T_wo_I_woki);
     return ret;
 }
 
