@@ -43,8 +43,8 @@ Deep learning practitioners should use one of the
   and implementation details, and includes annotated examples.
 * [API Reference] provides a comprehensive reference of the library API.
 
-[Developer Guide]: https://oneapi-src.github.io/oneDNN
-[API Reference]: https://oneapi-src.github.io/oneDNN/group_dnnl_api.html
+[Developer Guide]: https://uxlfoundation.github.io/oneDNN
+[API Reference]: https://uxlfoundation.github.io/oneDNN/group_dnnl_api.html
 
 # Installation
 
@@ -63,8 +63,8 @@ If the configuration you need is not available, you can
 [Anaconda]: https://anaconda.org/conda-forge/onednn
 [Intel oneAPI]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn.html
 [System Requirements]: #system-requirements
-[Build Options]: https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html
-[Build from Source]: https://oneapi-src.github.io/oneDNN/dev_guide_build.html
+[Build Options]: https://uxlfoundation.github.io/oneDNN/dev_guide_build_options.html
+[Build from Source]: https://uxlfoundation.github.io/oneDNN/dev_guide_build.html
 
 # System Requirements
 
@@ -361,7 +361,7 @@ Submit questions, feature requests, and bug reports on the
 You can also contact oneDNN developers via [UXL Foundation Slack] using
 [#onednn] channel.
 
-[Github issues]: https://github.com/oneapi-src/oneDNN/issues
+[Github issues]: https://github.com/uxlfoundation/oneDNN/issues
 [UXL Foundation Slack]: https://slack-invite.uxlfoundation.org/
 [#onednn]: https://uxlfoundation.slack.com/channels/onednn
 
@@ -407,9 +407,9 @@ contributors are expected to adhere to the
 [RFC pull request]: https://github.com/oneapi-src/oneDNN/tree/rfcs
 [code contribution guidelines]: CONTRIBUTING.md#code-contribution-guidelines
 [coding standards]: CONTRIBUTING.md#coding-standards
-[pull request]: https://github.com/oneapi-src/oneDNN/pulls
-[Milestones]: https://github.com/oneapi-src/oneDNN/milestones
-[help wanted]: https://github.com/oneapi-src/oneDNN/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22
+[pull request]: https://github.com/uxlfoundation/oneDNN/pulls
+[Milestones]: https://github.com/uxlfoundation/oneDNN/milestones
+[help wanted]: https://github.com/uxlfoundation/oneDNN/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22
 
 # License
 
