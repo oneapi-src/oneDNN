@@ -1049,6 +1049,7 @@ public:
         }
         using entry_t = std::pair<std::string, float>;
         std::vector<entry_t> ret;
+        ret.reserve(feature_count());
         for (int i = 0; i < feature_count(); i++) {
             ret.emplace_back(feature_names[i], fi[i]);
         }
