@@ -14,10 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # *******************************************************************************
+--reset
+--batch=matmul
 
 # Plain cases
 --reset
---dt=f32,bf16,u8:s8:s8,s8:s8:f32
+--dt=f32,bf16,s8:s8:f32
 --bia-dt=f32,undef
 --bia_mask=2
 --batch=shapes_2d_ci
