@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,42 +22,36 @@ namespace cpu {
 namespace aarch64 {
 namespace matmul {
 
-status_t acl_lowp_matmul_resource_t::configure(
-        const acl_lowp_matmul_conf_t &almc) {
+namespace {
+// Keys are anonymous. So deduce the type automagically.
+using lowp_matmul_key_t = decltype(memory_tracking::names::key_gemm_tmp_buffer);
 
-    if (!acl_obj_) return status::out_of_memory;
-
-    acl_obj_->src_tensor.allocator()->init(almc.src_tensor_info);
-    acl_obj_->wei_tensor.allocator()->init(almc.wei_tensor_info);
-    if (almc.with_bias) {
-        acl_obj_->bia_tensor.allocator()->init(almc.bia_tensor_info);
-    }
-    acl_obj_->dst_tensor.allocator()->init(almc.dst_tensor_info);
-    acl_obj_->dst_s8_tensor.allocator()->init(almc.dst_s8_tensor_info);
-
-    acl_obj_->gemm.configure(&acl_obj_->src_tensor, &acl_obj_->wei_tensor,
-            almc.with_bias ? &acl_obj_->bia_tensor : nullptr,
-            &acl_obj_->dst_tensor, almc.gemm_info);
-
-    if (almc.dst_is_s8) {
-        if (almc.sum_is_fused) {
-            acl_obj_->dequant.configure(
-                    &acl_obj_->dst_s8_tensor, &acl_obj_->dst_tensor);
-        }
-        if (almc.use_cast_acc) {
-            acl_obj_->dequant.configure(
-                    &acl_obj_->dst_s8_tensor, &acl_obj_->dst_cast_tensor);
-            acl_obj_->quant.configure(
-                    &acl_obj_->dst_cast_tensor, &acl_obj_->dst_s8_tensor);
-        } else {
-            acl_obj_->quant.configure(
-                    &acl_obj_->dst_tensor, &acl_obj_->dst_s8_tensor);
-        }
-    }
-
-    return status::success;
-}
-
+// Map: [slot , key]
+//  enum AuxTensorIdx
+//     {
+//         /* Slots 0 - 2 reserved for CpuGemmAssemblyDispatch */
+//         VectorSumCol = 3,
+//         VectorSumRow,
+//         TmpA,
+//         TmpB,
+//         MMResultS32,
+//         SignedA,
+//         SignedOutput,
+//         Count
+//     };
+const std::map<int, lowp_matmul_key_t> lowp_matmul_keys = {
+        {0, memory_tracking::names::key_gemm_asm_tmp_buffer},
+        {1, memory_tracking::names::key_gemm_pretranspose_b},
+        {2, memory_tracking::names::key_gemm_pretranspose},
+        {3, memory_tracking::names::key_conv_gemm_col},
+        {4, memory_tracking::names::key_conv_gemm_row},
+        {5, memory_tracking::names::key_gemm_blocked_a},
+        {6, memory_tracking::names::key_gemm_blocked_b},
+        {7, memory_tracking::names::key_gemm_mm_result_s32},
+        {8, memory_tracking::names::key_gemm_mm_signed_a},
+        {9, memory_tracking::names::key_gemm_mm_signed_output},
+};
+} // namespace
 status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(set_default_formats(), "failed to set default formats");
     using smask_t = primitive_attr_t::skip_mask_t;
@@ -129,7 +123,9 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
             = arm_compute::TensorInfo(arm_compute::TensorShape(N(), K()), 1,
                     arm_compute::DataType::QASYMM8_SIGNED,
                     arm_compute::QuantizationInfo(1.0, 0, true));
-    almc_.wei_tensor_info.set_are_values_constant(false);
+
+    almc_.wei_tensor_info.set_are_values_constant(
+            false); // disables persistent aux memory
 
     almc_.bia_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(), 1, arm_compute::DataType::F32);
@@ -183,31 +179,52 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
                     arm_compute::DataType::QASYMM8_SIGNED,
                     arm_compute::QuantizationInfo(1.0, 0, true));
 
-    ACL_CHECK_VALID(arm_compute::NEGEMMLowpMatrixMultiplyCore::validate(
+    ACL_CHECK_VALID(arm_compute::experimental::op::CpuGEMMLowp::validate(
             &almc_.src_tensor_info, &almc_.wei_tensor_info,
             almc_.with_bias ? &almc_.bia_tensor_info : nullptr,
             &almc_.dst_tensor_info, almc_.gemm_info));
 
     if (almc_.dst_is_s8) {
         if (almc_.sum_is_fused) {
-            ACL_CHECK_VALID(arm_compute::NEDequantizationLayer::validate(
-                    &almc_.dst_s8_tensor_info, &almc_.dst_tensor_info));
+            ACL_CHECK_VALID(
+                    arm_compute::experimental::op::CpuDequantize::validate(
+                            &almc_.dst_s8_tensor_info, &almc_.dst_tensor_info));
         } else if (almc_.use_cast_acc) {
-            ACL_CHECK_VALID(arm_compute::NEDequantizationLayer::validate(
-                    &almc_.dst_s8_tensor_info, &almc_.dst_cast_tensor_info));
+            ACL_CHECK_VALID(
+                    arm_compute::experimental::op::CpuDequantize::validate(
+                            &almc_.dst_s8_tensor_info,
+                            &almc_.dst_cast_tensor_info));
         }
-        ACL_CHECK_VALID(arm_compute::NEQuantizationLayer::validate(
+        ACL_CHECK_VALID(arm_compute::experimental::op::CpuQuantize::validate(
                 &almc_.dst_tensor_info, &almc_.dst_s8_tensor_info));
     }
+    arm_compute::experimental::op::CpuGEMMLowp gemm;
+    gemm.configure(&almc_.src_tensor_info, &almc_.wei_tensor_info,
+            almc_.with_bias ? &almc_.bia_tensor_info : nullptr,
+            &almc_.dst_tensor_info, almc_.gemm_info);
 
+    auto aux_mem_req = gemm.workspace();
+    // quantization/dequantization layer has empty workspace.
     auto scratchpad = scratchpad_registry().registrar();
-    CHECK(init_scratchpad(scratchpad));
+    CHECK(init_scratchpad(scratchpad, aux_mem_req));
 
     return status::success;
 }
 
 status_t acl_lowp_matmul_t::pd_t::init_scratchpad(
-        memory_tracking::registrar_t &scratchpad) {
+        memory_tracking::registrar_t &scratchpad,
+        const arm_compute::experimental::MemoryRequirements &aux_mem_req) {
+
+    if (aux_mem_req.size() != 0) {
+        for (const auto &key : lowp_matmul_keys) {
+            const auto id = key.first;
+            if (aux_mem_req[id].size > 0) {
+                scratchpad.book(key.second, aux_mem_req[id].size, 1,
+                        aux_mem_req[id].alignment, aux_mem_req[id].alignment);
+            }
+        }
+    }
+
     const memory_desc_wrapper dst_d(&dst_md_);
     if (almc_.use_dst_acc) {
         scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
@@ -220,31 +237,46 @@ status_t acl_lowp_matmul_t::pd_t::init_scratchpad(
     return status::success;
 }
 
-status_t acl_lowp_matmul_t::create_resource(
-        engine_t *engine, resource_mapper_t &mapper) const {
+status_t acl_lowp_matmul_t::init(engine_t *engine) {
+    auto almc = pd()->almc_;
 
-    if (mapper.has_resource(this)) return status::success;
+    gemm_ = std::make_unique<arm_compute::experimental::op::CpuGEMMLowp>();
+    gemm_->configure(&almc.src_tensor_info, &almc.wei_tensor_info,
+            almc.with_bias ? &almc.bia_tensor_info : nullptr,
+            &almc.dst_tensor_info, almc.gemm_info);
 
-    auto r = utils::make_unique<acl_lowp_matmul_resource_t>();
-    if (!r) return status::out_of_memory;
+    if (almc.dst_is_s8) {
+        if (almc.sum_is_fused) {
+            dequant_ = std::make_unique<
+                    arm_compute::experimental::op::CpuDequantize>();
+            dequant_->configure(
+                    &almc.dst_s8_tensor_info, &almc.dst_tensor_info);
+        }
+        if (almc.use_cast_acc) {
+            quant_ = std::make_unique<
+                    arm_compute::experimental::op::CpuQuantize>();
+            dequant_ = std::make_unique<
+                    arm_compute::experimental::op::CpuDequantize>();
+            dequant_->configure(
+                    &almc.dst_s8_tensor_info, &almc.dst_cast_tensor_info);
 
-    CHECK(r->configure(pd()->almc_));
-
-    mapper.add(this, std::move(r));
+            quant_->configure(
+                    &almc.dst_cast_tensor_info, &almc.dst_s8_tensor_info);
+        } else {
+            quant_ = std::make_unique<
+                    arm_compute::experimental::op::CpuQuantize>();
+            quant_->configure(&almc.dst_tensor_info, &almc.dst_s8_tensor_info);
+        }
+    }
 
     return status::success;
 }
 
 status_t acl_lowp_matmul_t::execute(const exec_ctx_t &ctx) const {
-    std::lock_guard<std::mutex> _lock {this->mtx};
     const auto scratchpad = ctx.get_scratchpad_grantor();
 
+    auto alcm = pd()->almc_;
     bool with_bias = pd()->almc_.with_bias;
-
-    acl_lowp_matmul_obj_t &acl_obj
-            = ctx.get_resource_mapper()
-                      ->get<acl_lowp_matmul_resource_t>(this)
-                      ->get_acl_obj();
 
     DEFINE_ARG_SCALES_BUFFER(src_scale, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
@@ -253,57 +285,94 @@ status_t acl_lowp_matmul_t::execute(const exec_ctx_t &ctx) const {
     DEFINE_ARG_SCALES_BUFFER(dst_scale, DNNL_ARG_DST);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
 
+    arm_compute::Tensor src_tensor, dst_tensor, wei_tensor, bia_tensor,
+            dst_cast_tensor, dst_s8_tensor;
     auto src = CTX_IN_MEM(const int8_t *, DNNL_ARG_SRC);
-    acl_obj.src_tensor.allocator()->import_memory(const_cast<int8_t *>(src));
+    src_tensor.allocator()->init(alcm.src_tensor_info);
+    src_tensor.allocator()->import_memory(const_cast<int8_t *>(src));
 
     auto wei = CTX_IN_MEM(const int8_t *, DNNL_ARG_WEIGHTS);
-    acl_obj.wei_tensor.allocator()->import_memory(const_cast<int8_t *>(wei));
+    wei_tensor.allocator()->init(alcm.wei_tensor_info);
+    wei_tensor.allocator()->import_memory(const_cast<int8_t *>(wei));
 
     if (with_bias) {
         auto bias = CTX_IN_MEM(const float *, DNNL_ARG_BIAS);
-        acl_obj.bia_tensor.allocator()->import_memory(
-                const_cast<float *>(bias));
+        bia_tensor.allocator()->init(alcm.bia_tensor_info);
+        bia_tensor.allocator()->import_memory(const_cast<float *>(bias));
     }
 
     auto dst = pd()->almc_.use_dst_acc ? scratchpad.get<void>(
                        memory_tracking::names::key_matmul_dst_in_acc_dt)
                                        : CTX_OUT_MEM(float *, DNNL_ARG_DST);
-    acl_obj.dst_tensor.allocator()->import_memory(dst);
+    dst_tensor.allocator()->init(alcm.dst_tensor_info);
+    dst_tensor.allocator()->import_memory(dst);
 
     auto dst_cast = pd()->almc_.use_cast_acc ? scratchpad.get<void>(
                             memory_tracking::names::key_matmul_dst_cast_acc)
                                              : nullptr;
-    if (dst_cast) acl_obj.dst_cast_tensor.allocator()->import_memory(dst_cast);
+    if (dst_cast) {
+        dst_cast_tensor.allocator()->init(alcm.dst_cast_tensor_info);
+        dst_cast_tensor.allocator()->import_memory(dst_cast);
+    }
 
     if ((pd()->almc_.dst_is_s8 && pd()->almc_.sum_is_fused) || dst_cast) {
         auto dst_s8 = CTX_OUT_MEM(int8_t *, DNNL_ARG_DST);
-        acl_obj.dst_s8_tensor.allocator()->import_memory(
-                const_cast<int8_t *>(dst_s8));
+        dst_s8_tensor.allocator()->init(alcm.dst_s8_tensor_info);
+        dst_s8_tensor.allocator()->import_memory(const_cast<int8_t *>(dst_s8));
         // oneDNN expects all intermediate operations to be performed
         // before taking dst scale and offset into account
-        acl_obj.dst_s8_tensor.info()->set_quantization_info(
+        dst_s8_tensor.info()->set_quantization_info(
                 arm_compute::QuantizationInfo(1, 0, true));
-        acl_obj.dequant.run();
+
+        arm_compute::ITensorPack pack;
+        pack.add_tensor(arm_compute::TensorType::ACL_SRC, &dst_s8_tensor);
+        pack.add_tensor(arm_compute::TensorType::ACL_DST, &dst_tensor);
+        dequant_->run(pack);
     }
 
     // Note that we set the offset to be -zero_point, this is a known
     // inconsistency with most other operators in the ACL API
-    acl_obj.src_tensor.info()->set_quantization_info(
+    src_tensor.info()->set_quantization_info(
             arm_compute::QuantizationInfo(*src_scale, -src_zero_point, true));
 
-    acl_obj.wei_tensor.info()->set_quantization_info(
+    wei_tensor.info()->set_quantization_info(
             arm_compute::QuantizationInfo(*wei_scale, -wei_zero_point, true));
 
-    acl_obj.gemm.run();
+    arm_compute::ITensorPack gemm_pack {
+            {arm_compute::TensorType::ACL_SRC_0, &src_tensor},
+            {arm_compute::TensorType::ACL_SRC_1, &wei_tensor},
+            {arm_compute::TensorType::ACL_DST, &dst_tensor}};
 
-    auto src_post_ops = acl_obj.dst_tensor.buffer();
+    if (with_bias) {
+        gemm_pack.add_tensor(arm_compute::TensorType::ACL_SRC_2, &bia_tensor);
+    }
+
+    // Hold onto tmp tensors while we need pack.
+    auto aux_mem = gemm_->workspace();
+    std::vector<arm_compute::Tensor> tmp_tensors(aux_mem.size());
+    for (const auto &key : lowp_matmul_keys) {
+        const auto id = key.first; // slot id
+
+        if (aux_mem[id].size > 0) {
+            const auto info = arm_compute::TensorInfo(
+                    arm_compute::TensorShape(aux_mem[id].size), 1,
+                    arm_compute::DataType::U8);
+            auto buffer = scratchpad.get<void>(key.second);
+            tmp_tensors[id].allocator()->init(info, aux_mem[id].alignment);
+            tmp_tensors[id].allocator()->import_memory(buffer);
+            gemm_pack.add_tensor(aux_mem[id].slot, &tmp_tensors[id]);
+        }
+    }
+    gemm_->run(gemm_pack);
+
+    auto src_post_ops = dst_tensor.buffer();
     // Here we select the output destination for post-ops. By default,
     // these are in-place so that dst=src. However, when there is a non-fused
     // sum, we set dst to be the tensor where data to be summed is stored.
     void *dst_post_ops;
     if (pd()->acl_post_ops.has_sum() && !pd()->almc_.sum_is_fused) {
         if (pd()->almc_.dst_is_s8) {
-            dst_post_ops = acl_obj.dst_cast_tensor.buffer();
+            dst_post_ops = dst_cast_tensor.buffer();
         } else {
             dst_post_ops = CTX_OUT_MEM(void *, DNNL_ARG_DST);
         }
@@ -313,22 +382,25 @@ status_t acl_lowp_matmul_t::execute(const exec_ctx_t &ctx) const {
     pd()->acl_post_ops.execute(ctx, src_post_ops, dst_post_ops);
 
     // free() here tells ACL it can no longer use it, it does not deallocate
-    acl_obj.src_tensor.allocator()->free();
-    acl_obj.wei_tensor.allocator()->free();
-    if (with_bias) { acl_obj.bia_tensor.allocator()->free(); }
+    src_tensor.allocator()->free();
+    wei_tensor.allocator()->free();
+    if (with_bias) { bia_tensor.allocator()->free(); }
 
     if (pd()->almc_.dst_is_s8) {
         auto dst_s8 = CTX_OUT_MEM(int8_t *, DNNL_ARG_DST);
-        acl_obj.dst_s8_tensor.allocator()->import_memory(
-                const_cast<int8_t *>(dst_s8));
-        acl_obj.dst_s8_tensor.info()->set_quantization_info(
+        dst_s8_tensor.allocator()->init(alcm.dst_s8_tensor_info);
+        dst_s8_tensor.allocator()->import_memory(const_cast<int8_t *>(dst_s8));
+        dst_s8_tensor.info()->set_quantization_info(
                 arm_compute::QuantizationInfo(
                         1.0 / (*dst_scale), dst_zero_point, true));
-        acl_obj.quant.run();
-        acl_obj.dst_s8_tensor.allocator()->free();
+        arm_compute::ITensorPack pack;
+        pack.add_tensor(arm_compute::TensorType::ACL_SRC, &dst_tensor);
+        pack.add_tensor(arm_compute::TensorType::ACL_DST, &dst_s8_tensor);
+        quant_->run(pack);
+        dst_s8_tensor.allocator()->free();
     }
 
-    acl_obj.dst_tensor.allocator()->free();
+    dst_tensor.allocator()->free();
 
     return status::success;
 };
