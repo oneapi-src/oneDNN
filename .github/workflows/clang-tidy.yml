@@ -57,6 +57,7 @@ jobs:
         run: |
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp$|\.c$'); do
             if grep -q "$file" "build/compile_commands.json"; then
+              echo $file
               clang-tidy -p build --header-filter='' $file 2>&1 | tee -a source-check.log
             fi
           done
@@ -68,6 +69,7 @@ jobs:
         run: |
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.hpp$|\.h$'); do
             header_dir=$(dirname "$file") 
+            echo $header_dir
             if [[ "$header_dir" =~ ^include || $(grep -q $header_dir "build/compile_commands.json") ]]; then
               echo $header_dir
               clang-tidy -p build --header-filter='' $file | tee headers-check.log
