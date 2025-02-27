@@ -297,6 +297,14 @@ if(DNNL_BLAS_VENDOR STREQUAL "ACCELERATE")
     DESTINATION ${LIB_CONFIG_INSTALL_DIR})
 endif()
 
+if(DNNL_SYCL_CUDA)
+    install(FILES
+        "../cmake/FindcuBLAS.cmake"
+        "../cmake/FindcublasLt.cmake"
+        "../cmake/FindcuDNN.cmake"
+        DESTINATION ${LIB_CONFIG_INSTALL_DIR})
+endif()
+
 # On Windows we need to add dnnl.dll path to CTESTCONFIG_PATH which is later
 # passed to ctest and Visual Studio solutions
 if(WIN32)
