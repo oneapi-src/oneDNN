@@ -49,9 +49,10 @@ jobs:
       - name: Configure oneDNN
         run: |
           .github/automation/x64/build_linters.sh
-          ls -la ./build
           echo "----------------------------"
-          find build -type f
+          cmake --trace-expand -B build
+          echo "----------------------------"
+          cat build/compile_commands.json | grep '"file":'
         env:
           ONEDNN_ACTION: configure
 
