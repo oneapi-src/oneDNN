@@ -1,7 +1,7 @@
 # Verbose log converter
 
 Verbose log converter is a tool that allows to convert [oneDNN
-verbose](https://oneapi-src.github.io/oneDNN/dev_guide_verbose.html)
+verbose](https://uxlfoundation.github.io/oneDNN/dev_guide_verbose.html)
 output to various outputs (input files for benchdnn and execution
 statistics breakdown at this time). The tool can be extended to
 produce other types of output by adding generators.

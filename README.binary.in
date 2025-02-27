@@ -13,17 +13,17 @@ developers interested in improving application performance on CPUs and GPUs.
 This package contains oneDNN v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@).
 
 You can find information about the latest version and release notes
-at the oneDNN Github (https://github.com/oneapi-src/oneDNN/releases).
+at the oneDNN Github (https://github.com/uxlfoundation/oneDNN/releases).
 
 Documentation
 -------------
 
 * Developer guide
-(https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
+(https://uxlfoundation.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
 explains the programming model, supported functionality, and implementation
 details, and includes annotated examples.
 * API reference
-(https://oneapi-src.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@/modules.html)
+(https://uxlfoundation.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@/modules.html)
 provides a comprehensive reference of the library API.
 
 System Requirements
@@ -48,7 +48,7 @@ just-in-time (JIT) code generation to deploy the code optimized
 for the latest supported ISA. Future ISAs may have initial support in the
 library disabled by default and require the use of run-time controls to enable
 them. See CPU dispatcher control
-(https://oneapi-src.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html)
+(https://uxlfoundation.github.io/oneDNN/dev_guide_cpu_dispatcher_control.html)
 for more details.
 
 The library is optimized for the following GPUs:
@@ -65,7 +65,7 @@ Support
 -------
 
 Submit questions, feature requests, and bug reports on the
-GitHub issues page (https://github.com/oneapi-src/oneDNN/issues).
+GitHub issues page (https://github.com/uxlfoundation/oneDNN/issues).
 
 License
 -------
@@ -102,7 +102,7 @@ govern your use of the third party programs as set forth in the
 
 # Security
 
-Security Policy (https://github.com/oneapi-src/oneDNN/blob/main/SECURITY.md)
+Security Policy (https://github.com/uxlfoundation/oneDNN/blob/main/SECURITY.md)
 outlines our guidelines and procedures for ensuring the highest level
 of Security and trust for our users who consume oneDNN.
 

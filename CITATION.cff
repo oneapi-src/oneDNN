@@ -8,8 +8,8 @@ message: >-
 type: software
 authors:
   - name: oneDNN Contributors
-repository-code: 'https://github.com/oneapi-src/oneDNN'
-url: 'https://oneapi-src.github.io/oneDNN'
+repository-code: 'https://github.com/uxlfoundation/oneDNN'
+url: 'https://uxlfoundation.github.io/oneDNN'
 abstract: >-
   oneAPI Deep Neural Network Library (oneDNN) is an open-source cross-platform
   performance library of basic building blocks for deep learning applications.
