@@ -1,0 +1,297 @@
+{
+    "version": "3.6.0",
+    "engine_kind": "gpu",
+    "fpmath_mode": "strict",
+    "graph": [
+      {
+        "id": 0,
+        "name": "matmul_qk",
+        "kind": "MatMul",
+        "attrs": {
+          "transpose_a": {
+            "type": "bool",
+            "value": 0
+          },
+          "transpose_b": {
+            "type": "bool",
+            "value": 1
+          }
+        },
+        "inputs": [
+          {
+            "id": 0,
+            "dtype": "bf16",
+            "shape": [
+              2,
+              8,
+              1024,
+              80
+            ],
+            "stride": [
+              655360,
+              81920,
+              80,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          },
+          {
+            "id": 1,
+            "dtype": "bf16",
+            "shape": [
+              2,
+              8,
+              77,
+              80
+            ],
+            "stride": [
+              49280,
+              6160,
+              80,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ],
+        "outputs": [
+          {
+            "id": 5,
+            "dtype": "bf16",
+            "shape": [
+              2,
+              8,
+              1024,
+              77
+            ],
+            "stride": [
+              630784,
+              78848,
+              77,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "name": "cast1",
+        "kind": "TypeCast",
+        "attrs": {},
+        "inputs": [
+          {
+            "id": 5,
+            "dtype": "bf16",
+            "shape": [
+              2,
+              8,
+              1024,
+              77
+            ],
+            "stride": [
+              630784,
+              78848,
+              77,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ],
+        "outputs": [
+          {
+            "id": 7,
+            "dtype": "f32",
+            "shape": [
+              2,
+              8,
+              1024,
+              77
+            ],
+            "stride": [
+              630784,
+              78848,
+              77,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "name": "softmax",
+        "kind": "SoftMax",
+        "attrs": {
+          "axis": {
+            "type": "s64",
+            "value": -1
+          }
+        },
+        "inputs": [
+          {
+            "id": 7,
+            "dtype": "f32",
+            "shape": [
+              2,
+              8,
+              1024,
+              77
+            ],
+            "stride": [
+              630784,
+              78848,
+              77,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ],
+        "outputs": [
+          {
+            "id": 8,
+            "dtype": "f32",
+            "shape": [
+              2,
+              8,
+              1024,
+              77
+            ],
+            "stride": [
+              630784,
+              78848,
+              77,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "name": "cast2",
+        "kind": "TypeCast",
+        "attrs": {},
+        "inputs": [
+          {
+            "id": 8,
+            "dtype": "f32",
+            "shape": [
+              2,
+              8,
+              1024,
+              77
+            ],
+            "stride": [
+              630784,
+              78848,
+              77,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ],
+        "outputs": [
+          {
+            "id": 9,
+            "dtype": "bf16",
+            "shape": [
+              2,
+              8,
+              1024,
+              77
+            ],
+            "stride": [
+              630784,
+              78848,
+              77,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "name": "matmul_v",
+        "kind": "MatMul",
+        "attrs": {
+          "transpose_a": {
+            "type": "bool",
+            "value": 0
+          },
+          "transpose_b": {
+            "type": "bool",
+            "value": 0
+          }
+        },
+        "inputs": [
+          {
+            "id": 9,
+            "dtype": "bf16",
+            "shape": [
+              2,
+              8,
+              1024,
+              77
+            ],
+            "stride": [
+              630784,
+              78848,
+              77,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          },
+          {
+            "id": 11,
+            "dtype": "bf16",
+            "shape": [
+              2,
+              8,
+              77,
+              80
+            ],
+            "stride": [
+              49280,
+              6160,
+              80,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ],
+        "outputs": [
+          {
+            "id": 12,
+            "dtype": "bf16",
+            "shape": [
+              2,
+              8,
+              1024,
+              80
+            ],
+            "stride": [
+              655360,
+              81920,
+              80,
+              1
+            ],
+            "layout_type": "strided",
+            "property_type": "undef"
+          }
+        ]
+      }
+    ]
+  }
+  

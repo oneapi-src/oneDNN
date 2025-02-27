@@ -210,8 +210,8 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_gqa_fusion)
 
                     // Optional select for distilbert
                     auto p_select2 = optional_select(pgraph, mask, 2);
-                    auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
-                            {in_edge(0, p_select2, 0)});
+
+                    auto softmax = alter_fp_softmax(pgraph, p_select2);
                     auto reshape3
                             = pgraph->append_op(graph::op_kind::StaticReshape);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
