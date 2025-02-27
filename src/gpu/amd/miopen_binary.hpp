@@ -46,7 +46,7 @@ struct miopen_binary_t : public gpu::primitive_t {
                     && check_data_types() && check_no_blocking()
                     && check_broadcast()
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales_runtime)
+                            primitive_attr_t::skip_mask_t::scales)
                     && IMPLICATION(!attr()->scales_.has_default_values(),
                             check_scales_mask())
                     && check_format();

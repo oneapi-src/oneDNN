@@ -44,7 +44,7 @@ struct gen9_binary_t : public gpu_primitive_t {
             auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
-            const auto attr_skip_mask = sm::post_ops | sm::scales_runtime;
+            const auto attr_skip_mask = sm::post_ops | sm::scales;
             VDISPATCH_BINARY_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_BINARY(
                     !memory_desc_ndims_ok(src_md(0), src_md(1), dst_md()),

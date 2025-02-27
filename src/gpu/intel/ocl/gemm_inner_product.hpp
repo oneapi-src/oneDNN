@@ -52,9 +52,8 @@ struct gemm_inner_product_fwd_t : public gpu_primitive_t {
 
             using smask_t = primitive_attr_t::skip_mask_t;
 
-            const auto attr_skip_mask = smask_t::scales_runtime
-                    | smask_t::post_ops | smask_t::fpmath_mode
-                    | smask_t::accumulation_mode;
+            const auto attr_skip_mask = smask_t::scales | smask_t::post_ops
+                    | smask_t::fpmath_mode | smask_t::accumulation_mode;
 
             VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_INNER_PRODUCT_SC(

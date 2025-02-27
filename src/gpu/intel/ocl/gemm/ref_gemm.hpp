@@ -126,9 +126,8 @@ struct ref_gemm_t : public gpu_gemm_t {
             VDISPATCH_GEMM(IMPLICATION(acc_dt != s32 && !wei_decompress,
                                    attr()->zero_points_.has_default_values()),
                     VERBOSE_UNSUPPORTED_ZP_CFG);
-            VDISPATCH_GEMM(
-                    attr()->has_default_values(smask_t::zero_points_runtime
-                            | smask_t::post_ops | smask_t::fpmath_mode),
+            VDISPATCH_GEMM(attr()->has_default_values(smask_t::zero_points
+                                   | smask_t::post_ops | smask_t::fpmath_mode),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GEMM(attr_oscale_ok(), VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GEMM(attr_zp_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);

@@ -40,7 +40,7 @@ struct simple_binary_t : public gpu_primitive_t {
             using namespace data_type;
             using sm = primitive_attr_t::skip_mask_t;
 
-            const auto attr_skip_mask = sm::post_ops | sm::scales_runtime;
+            const auto attr_skip_mask = sm::post_ops | sm::scales;
 
             VDISPATCH_BINARY_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_BINARY(

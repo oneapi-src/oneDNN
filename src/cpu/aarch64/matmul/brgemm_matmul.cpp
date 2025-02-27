@@ -112,9 +112,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
     VDISPATCH_MATMUL(
             no_dynamic_strides_for_B_and_C, VERBOSE_RUNTIMEDIM_UNSUPPORTED);
     VDISPATCH_MATMUL(
-            attr()->has_default_values(
-                    primitive_attr_t::skip_mask_t::scales_runtime
-                            | primitive_attr_t::skip_mask_t::zero_points_runtime
+            attr()->has_default_values(primitive_attr_t::skip_mask_t::scales
+                            | primitive_attr_t::skip_mask_t::zero_points
                             | primitive_attr_t::skip_mask_t::post_ops
                             | primitive_attr_t::skip_mask_t::sum_dt,
                     dst_dt),

@@ -63,7 +63,7 @@ struct matmul_inner_product_fwd_t : public primitive_t {
 
             auto skip_mask = skip_mask_t::post_ops | skip_mask_t::sum_dt
                     | skip_mask_t::fpmath_mode;
-            if (is_int8) skip_mask |= skip_mask_t::scales_runtime;
+            if (is_int8) skip_mask |= skip_mask_t::scales;
 
             // This implementation is currently enabled only for inference.
             VDISPATCH_INNER_PRODUCT(is_fwd(), VERBOSE_BAD_PROPKIND);

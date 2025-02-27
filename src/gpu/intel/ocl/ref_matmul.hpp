@@ -59,12 +59,11 @@ struct ref_matmul_t : public gpu_primitive_t {
             VDISPATCH_MATMUL(
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
             VDISPATCH_MATMUL(
-                    attr()->has_default_values(smask_t::scales_runtime_data_type
-                            | smask_t::scales_runtime_groups | smask_t::dropout
-                            | smask_t::zero_points_runtime_data_type
-                            | smask_t::zero_points_runtime_groups
-                            | smask_t::post_ops | smask_t::fpmath_mode
-                            | smask_t::rounding_mode),
+                    attr()->has_default_values(smask_t::scales_data_type
+                            | smask_t::scales_groups | smask_t::dropout
+                            | smask_t::zero_points_data_type
+                            | smask_t::zero_points_groups | smask_t::post_ops
+                            | smask_t::fpmath_mode | smask_t::rounding_mode),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_MATMUL(attr_scales_ok(), VERBOSE_UNSUPPORTED_SCALES_CFG);
             VDISPATCH_MATMUL(zero_points_ok(), VERBOSE_UNSUPPORTED_ZP_CFG);

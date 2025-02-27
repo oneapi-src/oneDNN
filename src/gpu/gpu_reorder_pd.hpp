@@ -30,8 +30,8 @@ struct gpu_reorder_pd_t : public reorder_pd_t {
 protected:
     bool attr_ok() const {
         using sm = dnnl_primitive_attr::skip_mask_t;
-        return attr()->has_default_values(sm::zero_points_runtime
-                       | sm::scales_runtime | sm::post_ops)
+        return attr()->has_default_values(
+                       sm::zero_points | sm::scales | sm::post_ops)
                 && post_ops_ok() && zero_points_ok();
     }
 
