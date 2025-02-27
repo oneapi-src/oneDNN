@@ -49,17 +49,17 @@ jobs:
       - name: Configure oneDNN
         run: |
           .github/automation/x64/build_linters.sh
-          echo "----------------------------"
-          cat build/compile_commands.json | grep '"file":'
-          echo "------------Full file----------------"
-          cat build/compile_commands.json
         env:
           ONEDNN_ACTION: configure
 
       - name: Check source files
         continue-on-error: true
         run: |
-          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp'); do clang-tidy -p build --header-filter='' $file; done 2>&1 | tee source-check.log
+          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp'); do
+            if grep -q "$file" "build/compile_commands.json"; then
+              clang-tidy -p build --header-filter='' $file; done 2>&1 | tee -a source-check.log
+            fi
+          done
           grep -i "warning:" source-check.log | sort -u
           grep -q -i "warning:" source-check.log && exit 1 || true
 
