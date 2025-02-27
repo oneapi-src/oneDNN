@@ -18,7 +18,7 @@
 #define GPU_INTEL_JIT_EMULATED_GENERATOR_HPP
 
 // Must be included before emulation.hpp
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/jit/codegen/register_allocator.hpp"
