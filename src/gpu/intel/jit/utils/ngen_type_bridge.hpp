@@ -19,7 +19,7 @@
 
 #include "common/c_types_map.hpp"
 #include "gpu/intel/compute/device_info.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 namespace dnnl {
 namespace impl {
