@@ -67,7 +67,7 @@ jobs:
       - name: Check header files
         continue-on-error: true
         run: |
-          git diff --name-only ${{ github.event.pull_request.base.sha }}
+          git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(h|hpp)$'
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(h|hpp)$'); do
             header_dir=$(dirname "$file") 
             echo $header_dir
