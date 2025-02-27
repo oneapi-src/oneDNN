@@ -22,7 +22,7 @@
 
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 namespace dnnl {
 namespace impl {
