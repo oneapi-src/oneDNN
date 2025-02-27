@@ -50,8 +50,6 @@ jobs:
         run: |
           .github/automation/x64/build_linters.sh
           echo "----------------------------"
-          cmake --trace-expand -B build
-          echo "----------------------------"
           cat build/compile_commands.json | grep '"file":'
         env:
           ONEDNN_ACTION: configure
