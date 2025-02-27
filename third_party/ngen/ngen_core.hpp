@@ -1216,6 +1216,7 @@ public:
     constexpr bool isValid()        const { return !base.isInvalid(); }
     constexpr bool isScalar()       const { return base.isScalar(); }
     constexpr bool isARF()          const { return base.isARF(); }
+    constexpr bool isNull()          const { return base.isNull(); }
 
     constexpr14 RegData &getBase()        { return base; }
     constexpr RegData getBase()     const { return base; }
