@@ -100,6 +100,9 @@
 --dt=u8:s8:u8,f16,f32
 --batch=shapes_mem_strided
 
+# ref smoke test
+--batch=test_matmul_smoke_ref
+
 # Test CI in Nightly
 --reset
 --batch=test_matmul_ci

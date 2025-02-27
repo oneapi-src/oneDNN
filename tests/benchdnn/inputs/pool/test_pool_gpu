@@ -85,6 +85,10 @@
 --reset
 --batch=test_pool_ci
 
+# Test ref smoke
+--reset
+--batch=test_pool_smoke_ref
+
 # Test layers of some key and ext GPU DL Frameworks
 --reset
 --batch=option_set_fwks_key_gpu
