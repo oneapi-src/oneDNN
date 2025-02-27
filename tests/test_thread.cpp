@@ -97,8 +97,13 @@ inline int read_num_threads_from_env() {
 
 #if defined(DNNL_TEST_THREADPOOL_USE_EIGEN)
 
+#define EIGEN_USE_THREADS
+
 #include <memory>
+
+#include "benchdnn/runner/parallel_loop_runner.h"
 #include "Eigen/Core"
+#include "unsupported/Eigen/CXX11/Tensor"
 #include "unsupported/Eigen/CXX11/ThreadPool"
 
 #if EIGEN_WORLD_VERSION + 10 * EIGEN_MAJOR_VERSION < 33
@@ -121,30 +126,20 @@ namespace testing {
 class threadpool_t : public dnnl::threadpool_interop::threadpool_iface {
 private:
     std::unique_ptr<EigenThreadPool> tp_;
+    std::unique_ptr<ParallelLoopRunner> runner_;
 
 public:
     explicit threadpool_t(int num_threads = 0) {
         if (num_threads <= 0) num_threads = read_num_threads_from_env();
         tp_.reset(new EigenThreadPool(num_threads));
+        runner_.reset(new ParallelLoopRunner(new Eigen::ThreadPoolDevice(tp_.get(), tp_->NumThreads())));
     }
-    int get_num_threads() const override { return tp_->NumThreads(); }
-    bool get_in_parallel() const override {
-        return tp_->CurrentThreadId() != -1;
-    }
-    uint64_t get_flags() const override { return ASYNCHRONOUS; }
+    int get_num_threads() const override { return runner_->num_threads(); }
+    bool get_in_parallel() const override { return runner_->is_in_runner(); }
+    uint64_t get_flags() const override { return 0; }
     void parallel_for(int n, const std::function<void(int, int)> &fn) override {
-        int nthr = get_num_threads();
-        int njobs = std::min(n, nthr);
-
-        for (int i = 0; i < njobs; i++) {
-            tp_->Schedule([i, n, njobs, fn]() {
-                int start, end;
-                impl::balance211(n, njobs, i, start, end);
-                for (int j = start; j < end; j++)
-                    fn(j, n);
-            });
-        }
-    };
+        runner_->Parallelize(n, [fn, n](size_t task_index) { fn(task_index, n); });
+    }
 };
 
 } // namespace testing
