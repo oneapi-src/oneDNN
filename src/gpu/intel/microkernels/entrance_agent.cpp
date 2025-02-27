@@ -18,9 +18,9 @@
 
 #include <array>
 
-#include "ngen/ngen_config.hpp"
-#include "ngen/ngen_decoder.hpp"
-#include "ngen/npack/neo_packager.hpp"
+#include "ngen_config.hpp"
+#include "ngen_decoder.hpp"
+#include "npack/neo_packager.hpp"
 
 namespace dnnl {
 namespace impl {

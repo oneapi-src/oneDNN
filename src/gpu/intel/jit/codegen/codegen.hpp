@@ -18,7 +18,7 @@
 #define GPU_INTEL_JIT_CODEGEN_CODEGEN_HPP
 
 #include "gpu/intel/jit/codegen/kernel.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 namespace dnnl {
 namespace impl {

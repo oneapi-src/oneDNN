@@ -20,7 +20,7 @@
 #include <memory>
 
 // Must be included before emulation.hpp
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 #include "common/impl_registration.hpp"
 #include "common/nstl.hpp"
