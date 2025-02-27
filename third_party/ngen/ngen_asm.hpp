@@ -16,7 +16,7 @@
 
 #ifndef NGEN_ASM_HPP
 #define NGEN_ASM_HPP
-#if NGEN_ASM
+#ifdef NGEN_ASM
 
 #include "ngen_config.hpp"
 
@@ -25,8 +25,7 @@
 #include <sstream>
 #include <string>
 
-#include "ngen.hpp"
-
+#include "ngen_gen12.hpp"
 
 namespace NGEN_NAMESPACE {
 
@@ -1624,6 +1623,40 @@ void AsmCodeGenerator::opX(Opcode op, DataType defaultType, const InstructionMod
     streamStack.back()->append(op, ext, emod, &labelManager, dst, src0, src1, src2);
 }
 
+static const char *getMnemonic(Opcode op, HW hw)
+{
+    const char *names[0x80] = {
+        "illegal", "sync", "sel", "movi", "not", "and", "or", "xor",
+        "shr", "shl", "smov", "", "asr", "", "ror", "rol",
+        "cmp", "cmpn", "csel", "", "", "", "", "bfrev",
+        "bfe", "bfi1", "bfi2", "", "", "", "", "",
+        "jmpi", "brd", "if", "brc", "else", "endif", "", "while",
+        "break", "cont", "halt", "calla", "call", "ret", "goto", "join",
+        "wait", "send", "sendc", "sends", "sendsc", "", "", "",
+        "math", "", "", "", "", "", "", "",
+        "add", "mul", "avg", "frc", "rndu", "rndd", "rnde", "rndz",
+        "mac", "mach", "lzd", "fbh", "fbl", "cbit", "addc", "subb",
+        "sad2", "sada2", "add3", "macl", "srnd", "dph", "dp3", "dp2",
+        "dp4a", "dpas", "dpasw", "mad", "lrp", "madm", "", "",
+        "nop", "mov", "sel", "movi", "not", "and", "or", "xor",
+        "shr", "shl", "smov", "bfn", "asr", "", "ror", "rol",
+        "cmp", "cmpn", "csel", "", "", "", "", "bfrev",
+        "bfe", "bfi1", "bfi2", "", "", "", "nop", ""
+    };
+
+    const char *mnemonic = names[static_cast<int>(op) & 0x7F];
+
+    if (hw < HW::Gen12LP) switch (op) {
+        case Opcode::mov:    mnemonic = "mov";    break;
+        case Opcode::line:   mnemonic = "line";   break;
+        case Opcode::pln:    mnemonic = "pln";    break;
+        case Opcode::dp4:    mnemonic = "dp4";    break;
+        default: break;
+    }
+
+    return mnemonic;
+}
+
 void AsmCodeGenerator::outX(std::ostream &out, const AsmInstruction &i, int lineNo)
 {
     bool ternary = (i.src[2].type != AsmOperand::Type::none);
@@ -1717,6 +1750,12 @@ void AsmCodeGenerator::outExt(std::ostream &out, const AsmInstruction &i)
         }
         default: break;
     }
+}
+
+static const char *toText(PredCtrl ctrl, bool align16) {
+    const char *names[2][16] = {{"", "", "anyv", "allv", "any2h", "all2h", "any4h", "all4h", "any8h", "all8h", "any16h", "all16h", "any32h", "all32h", "any", "all"},
+                                {"", "", "x",    "y",    "z",     "w",     "",      "",      "",      "",      "",       "",       "",       "",       "",    ""}};
+    return names[align16][static_cast<int>(ctrl) & 0xF];
 }
 
 void AsmCodeGenerator::outMods(std::ostream &out,const InstructionModifier &mod, Opcode op, AsmCodeGenerator::ModPlacementType location)
