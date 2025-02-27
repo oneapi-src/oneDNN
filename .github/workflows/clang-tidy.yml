@@ -70,7 +70,7 @@ jobs:
             header_dir=$(dirname "$sciezka") 
             if $header_dir=="include/" || grep -q $header_dir "build/compile_commands.json"; then
               echo $header_dir
-              clang-tidy -p build --header-filter='' $file; done | tee headers-check.log
+              clang-tidy -p build --header-filter='' $file | tee headers-check.log
             fi
           done
           grep -i "warning:" headers-check.log | sort -u
