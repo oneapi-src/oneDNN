@@ -5,14 +5,14 @@
 --skip-impl=ref
 --dir=FWD_B
 --dt=f16:f16:f32 --batch=shapes_resnet_50
---dt=f16 --batch=set_conv_all
+--dt=f16,f32:f16:f32 --batch=set_conv_all
 
 --dir=FWD_D
 --dt=f16 --batch=shapes_resnet_50
 
 --dir=BWD_D
 --dt=f32:f16:f16 --batch=shapes_resnet_50
---dt=f16 --batch=set_conv_all
+--dt=f16,f32:f16:f32 --batch=set_conv_all
 
 --dir=BWD_WB
 --dt=f16:f32:f16 --batch=set_conv_all --batch=set_dilated-conv
