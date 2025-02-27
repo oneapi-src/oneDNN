@@ -249,7 +249,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                         // when target tensor is being dequantized.
                         VDISPATCH_GEMM(!dy_quant_enabled_
                                         || utils::one_of(d->a_type(), s4, u4)
-                                        || wei_q2d_group_k == desc()->k(),
+                                        || zp_group_k == desc()->k(),
                                 VERBOSE_UNSUPPORTED_ZP_CFG);
                     } else {
                         VDISPATCH_GEMM(utils::one_of(cmask_a, 0, mask_per_oc,
@@ -281,7 +281,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                         // when target tensor is being dequantized.
                         VDISPATCH_GEMM(!dy_quant_enabled_
                                         || utils::one_of(d->b_type(), s4, u4)
-                                        || src_q2d_group_k == desc()->k(),
+                                        || zp_group_k == desc()->k(),
                                 VERBOSE_UNSUPPORTED_ZP_CFG);
                     } else {
                         VDISPATCH_GEMM(utils::one_of(cmask_b, 0, mask_scalar,
