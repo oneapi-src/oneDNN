@@ -34,9 +34,7 @@ where *matmul-knobs* are:
             tensors with option values other than `0`, a correspondent memory
             format tag must be specified.
 - `--encoding=STRING` - sparse encodings and sparsity. No encodings are set by
-            default. Refer to [encodings](knobs_encoding.md) for details. This
-            is an experimental feature that must be enabled via a build time
-            CMake option `DNNL_EXPERIMENTAL_SPARSE`.
+            default. Refer to [encodings](knobs_encoding.md) for details.
  - `--match=REGEX` -- skip problems not matching the regular expression in
             `REGEX`. By default no pattern is applied (run everything).
             Note: Windows may interpret only string arguments surrounded by

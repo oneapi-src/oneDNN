@@ -10,8 +10,7 @@ should be executed to re-generate the debug header and relevant source code.
 
 ```sh
 # Generate dnnl_config.h
-# -DDNNL_EXPERIMENTAL_SPARSE=ON is required to preserve sparse-specific symbols
-$ (mkdir -p build && cd build && cmake -DONEDNN_BUILD_GRAPH=OFF -DDNNL_EXPERIMENTAL_SPARSE=ON ..)
+$ (mkdir -p build && cd build && cmake -DONEDNN_BUILD_GRAPH=OFF ..)
 
 # Generate types.xml
 # CastXML can be found at https://github.com/CastXML/CastXML
