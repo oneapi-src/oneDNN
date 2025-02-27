@@ -57,7 +57,7 @@ jobs:
         run: |
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp'); do
             if grep -q "$file" "build/compile_commands.json"; then
-              clang-tidy -p build --header-filter='' $file; done 2>&1 | tee -a source-check.log
+              clang-tidy -p build --header-filter='' $file 2>&1 | tee -a source-check.log
             fi
           done
           grep -i "warning:" source-check.log | sort -u
