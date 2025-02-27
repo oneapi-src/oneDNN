@@ -274,28 +274,25 @@ private:
 
     static bool is_out_alloc_buf(const expr_t &buf) {
         auto &buf_name = buf.as<var_t>().name;
-        return utils::one_of(buf_name, "x_reduce", "c");
+        return utils::one_of(buf_name, "x_reduce", "x_reduce_tmp", "c");
     }
 
     void build_g2s() {
         auto &slm = plan_.slm;
         if (slm.has_a()) {
             build_g2s_x("a", ap_buf_, buf_mgr_.get("a_slm"), slm.a_g2s_load,
-                    slm.x_reduce_layout, slm.x_reduce, slm.a_reorder,
-                    slm.a_g2s_store, slm.a_grid);
+                    slm.x_reduce, slm.a_reorder, slm.a_g2s_store, slm.a_grid);
         }
         if (slm.has_b()) {
             build_g2s_x("b", bp_buf_, buf_mgr_.get("b_slm"), slm.b_g2s_load,
-                    slm.x_reduce_layout, slm.x_reduce, slm.b_reorder,
-                    slm.b_g2s_store, slm.b_grid);
+                    slm.x_reduce, slm.b_reorder, slm.b_g2s_store, slm.b_grid);
         }
     }
 
     void build_g2s_x(const std::string &prefix, const expr_t &mem_buf,
             const expr_t &slm_buf, const send_plan_t &g2s_load,
-            const layout_t &reduce_layout, const reduce_plan_t &g2s_reduce,
-            const reorder_plan_t &g2s_reorder, const send_plan_t &g2s_store,
-            const grid_info_t &grid) {
+            const reduce_plan_t &g2s_reduce, const reorder_plan_t &g2s_reorder,
+            const send_plan_t &g2s_store, const grid_info_t &grid) {
         auto g2s_buf = buf_mgr_.get(prefix + "_g2s", g2s_load.reg_buf_size());
         expr_t pattern;
         if ((prefix == "a") && plan_.zp.is_src_precomp_compatible())
@@ -567,14 +564,31 @@ private:
                 || !plan_.slm.x_reduce_tile.is_empty());
         auto x_reduce_buf = buf_mgr_.find("x_reduce", /*allow_empty=*/true).buf;
         if (x_reduce_buf.is_empty()) return;
+        auto x_reduce_dummy_buf
+                = var_t::make(type_t::byte_ptr(), "x_reduce_dummy");
         auto x_reduce_view
                 = plan_.bia_view.create_sub_view(plan_.x_reduce_tile());
         auto r2g = make_access_builder(ir_ctx_, x_reduce_view, x_reduce_buf_,
-                x_reduce_buf,
+                x_reduce_dummy_buf,
                 use_atomic ? send_op_t::atomic_fadd : send_op_t::store,
                 send_address_t::a64);
+        auto x_reduce_type = (plan_.slm ? plan_.slm.x_reduce.dst.type()
+                                        : plan_.x2r.x_reduce.dst.type());
+        layout_t x_reduce_reg_layout
+                = r2g.reg_layout().retype(x_reduce_type).make_dense();
+        stmt_t stmt = r2g.stmt();
+        if (r2g.reg_layout() == x_reduce_reg_layout) {
+            stmt = substitute(stmt, x_reduce_dummy_buf, x_reduce_buf);
+        } else {
+            auto x_reduce_tmp_buf = buf_mgr_.get(
+                    "x_reduce_tmp", into<int>(r2g.reg_layout().size()));
+            auto reorder_stmt = create_reorder_stmt(x_reduce_reg_layout,
+                    r2g.reg_layout(), x_reduce_buf, x_reduce_tmp_buf);
+            stmt = reorder_stmt.append(stmt);
+            stmt = substitute(stmt, x_reduce_dummy_buf, x_reduce_tmp_buf);
+        }
         auto cond = get_x_reduce_store_condition();
-        x_reduce_store_stmt_ = if_t::make(cond, r2g.stmt());
+        x_reduce_store_stmt_ = if_t::make(cond, stmt);
     }
 
     const conv_config_t &cfg_;
