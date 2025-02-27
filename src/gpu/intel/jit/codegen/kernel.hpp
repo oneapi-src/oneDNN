@@ -39,7 +39,7 @@
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/ir/walk_order.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 #include "ngen/ngen_register_allocator.hpp"
 #include "xpu/utils.hpp"
 

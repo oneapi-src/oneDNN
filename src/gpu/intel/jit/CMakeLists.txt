@@ -29,10 +29,6 @@ foreach(d ${DIRS})
         )
     list(APPEND SOURCES "${d_sources}")
 endforeach()
-file(GLOB_RECURSE NGEN_SOURCES
-    ${PROJECT_SOURCE_DIR}/third_party/ngen/*.cpp
-    )
-list(APPEND SOURCES "${NGEN_SOURCES}")
 
 if(DNNL_EXPERIMENTAL)
     list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/v2/conv/planner/planner_main.cpp")
