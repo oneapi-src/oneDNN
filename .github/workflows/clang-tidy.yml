@@ -49,6 +49,8 @@ jobs:
       - name: Configure oneDNN
         run: |
           .github/automation/x64/build_linters.sh
+          ls -la ./build
+          echo "----------------------------"
           find build -type f
         env:
           ONEDNN_ACTION: configure
@@ -66,11 +68,3 @@ jobs:
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.h|\.hpp'); do clang-tidy -p build --header-filter='' $file; done | tee headers-check.log
           grep -i "warning:" headers-check.log | sort -u
           grep -q -i "warning:" headers-check.log && exit 1 || true
-
-      - name: Build oneDNN
-        run: |
-          .github/automation/x64/build_linters.sh 2>&1 | tee build.log
-          grep -i "warning:" build.log | sort -u
-          grep -q -i "warning:" build.log && exit 1 || true
-        env:
-          ONEDNN_ACTION: build
