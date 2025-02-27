@@ -109,3 +109,14 @@
 --reset --dt=0:s8+2:s8+6:s8+8:s8 --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
 # Change group size to 128. It also affects the shapes of the scales and zps.
 --reset --dt=0:s8+2:s8+6:s8+8:s8 --op-attrs=0:group_shape:1x1x128x1+99:group_shape:1x1x1x128 --in-shapes=1:1x32x1x32+2:1x32x1x32+7:1x32x32x1+8:1x32x32x1 --case=complex_fusion/mha/sdpa-compressed-kv-int4-gs32.json
+
+# f32 softmax
+--reset --case=complex_fusion/mha-f32-softmax/GQA-fp16-with-f32-softmax.json
+--reset --case=complex_fusion/mha-f32-softmax/MHA-bert_large-inf-fp32-bs1-with-f32-softmax.json
+--reset --case=complex_fusion/mha-f32-softmax/MHA-stable_diffusion-intf-fp32-bs1-with-f32-softmax.json
+--reset --case=complex_fusion/mha-f32-softmax/sdpa-compressed-kv-implicit-causal-mask-int8-gs128-with-f32-softmax.json
+--reset --case=complex_fusion/mha-f32-softmax/sdpa-plain-implicit-causal-mask-fp32-bs1-with-f32-softmax.json
+--reset --case=complex_fusion/mha-f32-softmax/sdpa-plain-scale-by-mul-f16-with-f32-softmax.json
+--reset --case=complex_fusion/mha-f32-softmax/sdpa-plain-simplified-f16-with-f32-softmax.json
+--reset --case=complex_fusion/mha-f32-softmax/sdpa-plain-wo-mask-f16-with-f32-softmax.json
+--reset --case=complex_fusion/mha-f32-softmax/sdpa-plain-wo-scale-f16-bs1-with-f32-softmax.json

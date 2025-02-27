@@ -1,22 +1,21 @@
 {
-  "version": "3.8.0",
-  "engine_kind": "cpu",
+  "version": "3.6.0",
+  "engine_kind": "gpu",
   "fpmath_mode": "strict",
-  "fpmath_mode_apply_to_int": "false",
   "input_ports": [
     0, 
     1, 
-    4, 
-    7, 
-    16
+    3, 
+    5, 
+    8
   ],
   "output_ports": [
-    17
+    9
   ],
   "graph": [
     {
-      "id": 3,
-      "name": "bmm1",
+      "id": 0,
+      "name": "matmul_qk",
       "kind": "MatMul",
       "attrs": {
         "transpose_a": {
@@ -31,9 +30,9 @@
       "inputs": [
         {
           "id": 0,
-          "dtype": "f16",
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             64
@@ -49,9 +48,9 @@
         }, 
         {
           "id": 1,
-          "dtype": "f16",
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             64
@@ -69,9 +68,9 @@
       "outputs": [
         {
           "id": 2,
-          "dtype": "f16",
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -88,7 +87,7 @@
       ]
     }, 
     {
-      "id": 6,
+      "id": 1,
       "name": "scale_div",
       "kind": "Divide",
       "attrs": {
@@ -100,9 +99,9 @@
       "inputs": [
         {
           "id": 2,
-          "dtype": "f16",
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -117,8 +116,8 @@
           "property_type": "undef"
         }, 
         {
-          "id": 4,
-          "dtype": "f16",
+          "id": 3,
+          "dtype": "bf16",
           "shape": [
             1
           ],
@@ -126,15 +125,15 @@
             1
           ],
           "layout_type": "strided",
-          "property_type": "undef"
+          "property_type": "constant"
         }
       ],
       "outputs": [
         {
-          "id": 5,
-          "dtype": "f16",
+          "id": 4,
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -151,7 +150,7 @@
       ]
     }, 
     {
-      "id": 9,
+      "id": 2,
       "name": "mask_add",
       "kind": "Add",
       "attrs": {
@@ -162,10 +161,10 @@
       },
       "inputs": [
         {
-          "id": 5,
-          "dtype": "f16",
+          "id": 4,
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -180,17 +179,17 @@
           "property_type": "undef"
         }, 
         {
-          "id": 7,
-          "dtype": "f16",
+          "id": 5,
+          "dtype": "bf16",
           "shape": [
-            32, 
             1, 
-            384, 
+            1, 
+            384,
             384
           ],
           "stride": [
-            147456, 
-            147456, 
+            147456,
+            147456,
             384, 
             1
           ],
@@ -200,10 +199,10 @@
       ],
       "outputs": [
         {
-          "id": 8,
-          "dtype": "f16",
+          "id": 6,
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -220,16 +219,16 @@
       ]
     }, 
     {
-      "id": 11,
+      "id": 101,
       "name": "cast1",
       "kind": "TypeCast",
       "attrs": {},
       "inputs": [
         {
-          "id": 8,
-          "dtype": "f16",
+          "id": 6,
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -246,10 +245,10 @@
       ],
       "outputs": [
         {
-          "id": 10,
+          "id": 600,
           "dtype": "f32",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -264,9 +263,9 @@
           "property_type": "undef"
         }
       ]
-    }, 
+    },
     {
-      "id": 13,
+      "id": 3,
       "name": "softmax",
       "kind": "SoftMax",
       "attrs": {
@@ -277,10 +276,10 @@
       },
       "inputs": [
         {
-          "id": 10,
+          "id": 600,
           "dtype": "f32",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -297,10 +296,10 @@
       ],
       "outputs": [
         {
-          "id": 12,
+          "id": 700,
           "dtype": "f32",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -317,24 +316,24 @@
       ]
     }, 
     {
-      "id": 15,
+      "id": 102,
       "name": "cast2",
       "kind": "TypeCast",
       "attrs": {},
       "inputs": [
         {
-          "id": 12,
+          "id": 700,
           "dtype": "f32",
           "shape": [
-            32, 
-            16, 
-            384, 
+            1,
+            16,
+            384,
             384
           ],
           "stride": [
-            2359296, 
-            147456, 
-            384, 
+            2359296,
+            147456,
+            384,
             1
           ],
           "layout_type": "strided",
@@ -343,28 +342,28 @@
       ],
       "outputs": [
         {
-          "id": 14,
-          "dtype": "f16",
+          "id": 7,
+          "dtype": "bf16",
           "shape": [
-            32, 
-            16, 
-            384, 
+            1,
+            16,
+            384,
             384
           ],
           "stride": [
-            2359296, 
-            147456, 
-            384, 
+            2359296,
+            147456,
+            384,
             1
           ],
           "layout_type": "strided",
           "property_type": "undef"
         }
       ]
-    }, 
+    },
     {
-      "id": 18,
-      "name": "bmm2",
+      "id": 4,
+      "name": "matmul_v",
       "kind": "MatMul",
       "attrs": {
         "transpose_a": {
@@ -378,10 +377,10 @@
       },
       "inputs": [
         {
-          "id": 14,
-          "dtype": "f16",
+          "id": 7,
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             384
@@ -396,10 +395,10 @@
           "property_type": "undef"
         }, 
         {
-          "id": 16,
-          "dtype": "f16",
+          "id": 8,
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             64
@@ -416,10 +415,10 @@
       ],
       "outputs": [
         {
-          "id": 17,
-          "dtype": "f16",
+          "id": 9,
+          "dtype": "bf16",
           "shape": [
-            32, 
+            1, 
             16, 
             384, 
             64
@@ -437,3 +436,4 @@
     }
   ]
 }
+
