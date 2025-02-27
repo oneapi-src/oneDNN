@@ -18,18 +18,38 @@ AMD\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance on CPUs and GPUs.
-Deep learning practitioners should use one of the
-[applications enabled with oneDNN](#applications-enabled-with-onednn).
+Deep learning practitioners should use one of the applications enabled with oneDNN.
+
+Applications Enabled with oneDNN
+----------------------------------
+
+* [Apache\* MXNet](https://mxnet.apache.org)
+* [Apache SINGA](https://singa.apache.org)
+* [DeepLearning4J\*](https://deeplearning4j.konduit.ai)
+* [Flashlight\*](https://github.com/flashlight/flashlight)
+* [Korali](https://github.com/cselab/korali)
+* [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning)
+* [ONNX Runtime](https://onnxruntime.ai)
+* [OpenVINO(TM) toolkit](https://github.com/openvinotoolkit/openvino)
+* [PaddlePaddle\*](http://www.paddlepaddle.org)
+* [PyTorch\*](https://pytorch.org). Intel GPU support and additional
+optimizations are available with [Intel Extension for PyTorch].
+* [Tensorflow\*](https://www.tensorflow.org). Intel GPU support and additional
+optimizations are available with [Intel Extension for Tensorflow].
+
+[Intel Extension for PyTorch]: https://github.com/intel/intel-extension-for-pytorch
+[Intel Extension for Tensorflow]: https://github.com/intel/intel-extension-for-tensorflow
 
 [UXL Foundation]: http://www.uxlfoundation.org
 [oneAPI specification]: https://spec.oneapi.io
 
 # Table of Contents
 
-- [Documentation](#documentation)
-- [Installation](#installation)
 - [System Requirements](#system-requirements)
-- [Applications Enabled with oneDNN](#applications-enabled-with-onednn)
+- [Installation](#installation)
+- [Runtime Dependencies](#runtime-dependencies)
+- [Validated Configurations](#validated-configurations)
+- [Documentation](#documentation)
 - [Governance](#governance)
 - [Support](#support)
 - [Contributing](#contributing)
@@ -37,34 +57,6 @@ Deep learning practitioners should use one of the
 - [Security](#security)
 - [Trademark Information](#trademark-information)
 
-# Documentation
-
-* [Developer Guide] explains the programming model, supported functionality,
-  and implementation details, and includes annotated examples.
-* [API Reference] provides a comprehensive reference of the library API.
-
-[Developer Guide]: https://oneapi-src.github.io/oneDNN
-[API Reference]: https://oneapi-src.github.io/oneDNN/group_dnnl_api.html
-
-# Installation
-
-Binary distribution of this software is available in:
-* [Anaconda]
-* [Intel oneAPI]
-
-The packages do not include library dependencies and these need to be resolved
-in the application at build time. See the [System Requirements] section below
-and the [Build Options] section in the [Developer Guide] for more details on
-CPU and GPU runtimes.
-
-If the configuration you need is not available, you can
-[build the library from source][Build from Source].
-
-[Anaconda]: https://anaconda.org/conda-forge/onednn
-[Intel oneAPI]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn.html
-[System Requirements]: #system-requirements
-[Build Options]: https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html
-[Build from Source]: https://oneapi-src.github.io/oneDNN/dev_guide_build.html
 
 # System Requirements
 
@@ -239,12 +231,33 @@ is enabled:
 [timeout detection and recovery]: https://learn.microsoft.com/en-us/windows-hardware/drivers/display/timeout-detection-and-recovery
 [TdrDelay]: https://learn.microsoft.com/en-us/windows-hardware/drivers/display/tdr-registry-keys#tdrdelay
 
-### Runtime Dependencies
+
+# Installation
+
+Binary distribution of this software is available in:
+* [Anaconda]
+* [Intel oneAPI]
+
+The packages do not include library dependencies and these need to be resolved
+in the application at build time. See the [System Requirements] section below
+and the [Build Options] section in the [Developer Guide] for more details on
+CPU and GPU runtimes.
+
+If the configuration you need is not available, you can
+[build the library from source][Build from Source].
+
+[Anaconda]: https://anaconda.org/conda-forge/onednn
+[Intel oneAPI]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn.html
+[System Requirements]: #system-requirements
+[Build Options]: https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html
+[Build from Source]: https://oneapi-src.github.io/oneDNN/dev_guide_build.html
+
+# Runtime Dependencies
 
 When oneDNN is built from source, the library runtime dependencies and specific
 versions are defined by the build environment.
 
-#### Linux
+## Linux
 
 Common dependencies:
 * GNU C Library (`libc.so`)
@@ -265,7 +278,7 @@ Runtime-specific dependencies:
 | `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL loader (`libOpenCL.so`)
 | `DNNL_GPU_RUNTIME=SYCL`  | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`libsycl.so`), OpenCL loader (`libOpenCL.so`), oneAPI Level Zero loader (`libze_loader.so`)
 
-#### Windows
+## Windows
 
 Common dependencies:
 * Microsoft Visual C++ Redistributable (`msvcrt.dll`)
@@ -281,7 +294,7 @@ Runtime-specific dependencies:
 | `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL loader (`OpenCL.dll`)
 | `DNNL_GPU_RUNTIME=SYCL`  | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`sycl.dll`), OpenCL loader (`OpenCL.dll`), oneAPI Level Zero loader (`ze_loader.dll`)
 
-#### macOS
+## macOS
 
 Common dependencies:
 * System C/C++ runtime (`libc++.dylib`, `libSystem.dylib`)
@@ -293,7 +306,7 @@ Runtime-specific dependencies:
 | `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (`libiomp5.dylib`)
 | `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (`libtbb.dylib`)
 
-### Validated Configurations
+# Validated Configurations
 
 x86-64 CPU engine was validated on RedHat\* Enterprise Linux 8 with
 * GNU Compiler Collection 8.5, 9.5, 11.1, 11.3
@@ -334,24 +347,16 @@ time of release
 [Intel Arc & Iris Xe Graphics Driver]: https://www.intel.com/content/www/us/en/download/785597/intel-arc-iris-xe-graphics-windows.html
 [Arm Compiler for Linux]: https://developer.arm.com/Tools%20and%20Software/Arm%20Compiler%20for%20Linux
 
-# Applications Enabled with oneDNN
 
-* [Apache\* MXNet](https://mxnet.apache.org)
-* [Apache SINGA](https://singa.apache.org)
-* [DeepLearning4J\*](https://deeplearning4j.konduit.ai)
-* [Flashlight\*](https://github.com/flashlight/flashlight)
-* [Korali](https://github.com/cselab/korali)
-* [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning)
-* [ONNX Runtime](https://onnxruntime.ai)
-* [OpenVINO(TM) toolkit](https://github.com/openvinotoolkit/openvino)
-* [PaddlePaddle\*](http://www.paddlepaddle.org)
-* [PyTorch\*](https://pytorch.org). Intel GPU support and additional
-optimizations are available with [Intel Extension for PyTorch].
-* [Tensorflow\*](https://www.tensorflow.org). Intel GPU support and additional
-optimizations are available with [Intel Extension for Tensorflow].
+# Documentation
 
-[Intel Extension for PyTorch]: https://github.com/intel/intel-extension-for-pytorch
-[Intel Extension for Tensorflow]: https://github.com/intel/intel-extension-for-tensorflow
+* [Developer Guide] explains the programming model, supported functionality,
+  and implementation details, and includes annotated examples.
+* [API Reference] provides a comprehensive reference of the library API.
+
+[Developer Guide]: https://oneapi-src.github.io/oneDNN
+[API Reference]: https://oneapi-src.github.io/oneDNN/group_dnnl_api.html
+
 
 # Support
 
