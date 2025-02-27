@@ -18,18 +18,38 @@ AMD\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
 
 oneDNN is intended for deep learning applications and framework
 developers interested in improving application performance on CPUs and GPUs.
-Deep learning practitioners should use one of the
-[applications enabled with oneDNN](#applications-enabled-with-onednn).
+Deep learning practitioners should use one of the applications enabled with oneDNN.
+
+Applications Enabled with oneDNN
+----------------------------------
+
+* [Apache\* MXNet](https://mxnet.apache.org)
+* [Apache SINGA](https://singa.apache.org)
+* [DeepLearning4J\*](https://deeplearning4j.konduit.ai)
+* [Flashlight\*](https://github.com/flashlight/flashlight)
+* [Korali](https://github.com/cselab/korali)
+* [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning)
+* [ONNX Runtime](https://onnxruntime.ai)
+* [OpenVINO(TM) toolkit](https://github.com/openvinotoolkit/openvino)
+* [PaddlePaddle\*](http://www.paddlepaddle.org)
+* [PyTorch\*](https://pytorch.org). Intel GPU support and additional
+optimizations are available with [Intel Extension for PyTorch].
+* [Tensorflow\*](https://www.tensorflow.org). Intel GPU support and additional
+optimizations are available with [Intel Extension for Tensorflow].
+
+[Intel Extension for PyTorch]: https://github.com/intel/intel-extension-for-pytorch
+[Intel Extension for Tensorflow]: https://github.com/intel/intel-extension-for-tensorflow
 
 [UXL Foundation]: http://www.uxlfoundation.org
 [oneAPI specification]: https://spec.oneapi.io
 
 # Table of Contents
 
-- [Documentation](#documentation)
-- [Installation](#installation)
 - [System Requirements](#system-requirements)
-- [Applications Enabled with oneDNN](#applications-enabled-with-onednn)
+- [Installation](#installation)
+- [Runtime Dependencies](#runtime-dependencies)
+- [Validated Configurations](#validated-configurations)
+- [Documentation](#documentation)
 - [Governance](#governance)
 - [Support](#support)
 - [Contributing](#contributing)
@@ -39,32 +59,33 @@ Deep learning practitioners should use one of the
 
 # Documentation
 
-* [Developer Guide] explains the programming model, supported functionality,
+* [Release Notes] explains the new features added, issues resolved, and improvements implemented in each version of oneDNN.
+* [oneDNN Developer Guide and Reference] explains the programming model, supported functionality,
   and implementation details, and includes annotated examples.
 * [API Reference] provides a comprehensive reference of the library API.
 
 [Developer Guide]: https://oneapi-src.github.io/oneDNN
 [API Reference]: https://oneapi-src.github.io/oneDNN/group_dnnl_api.html
+[Release Notes]: https://github.com/oneapi-src/oneDNN/releases/tag/v3.7
 
 # Installation
 
-Binary distribution of this software is available in:
-* [Anaconda]
-* [Intel oneAPI]
+You can download and install the oneDNN library using one of the following options:
 
-The packages do not include library dependencies and these need to be resolved
-in the application at build time. See the [System Requirements] section below
-and the [Build Options] section in the [Developer Guide] for more details on
-CPU and GPU runtimes.
+-	Binary Distribution: You can download pre-built binary packages from the following sources:
+    - [conda-forge]: If the configuration you need is not available, you can build the library using the Source Distribution.
+    - Intel oneAPI:
+       - [Download as a part of the Intel® oneAPI Base Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn-download.html)
+       - [Download as the Stand-Alone Intel® oneAPI Deep Neural Network Library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html)
 
-If the configuration you need is not available, you can
-[build the library from source][Build from Source].
+-	Source Distribution: You can build the library from source by following the instructions on the [Build from Source] page.
 
-[Anaconda]: https://anaconda.org/conda-forge/onednn
-[Intel oneAPI]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn.html
+
+[conda-forge]: https://anaconda.org/conda-forge/onednn
 [System Requirements]: #system-requirements
 [Build Options]: https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html
 [Build from Source]: https://oneapi-src.github.io/oneDNN/dev_guide_build.html
+
 
 # System Requirements
 
@@ -239,12 +260,33 @@ is enabled:
 [timeout detection and recovery]: https://learn.microsoft.com/en-us/windows-hardware/drivers/display/timeout-detection-and-recovery
 [TdrDelay]: https://learn.microsoft.com/en-us/windows-hardware/drivers/display/tdr-registry-keys#tdrdelay
 
-### Runtime Dependencies
+
+# Installation
+
+Binary distribution of this software is available in:
+* [Anaconda]
+* [Intel oneAPI]
+
+The packages do not include library dependencies and these need to be resolved
+in the application at build time. See the [System Requirements] section below
+and the [Build Options] section in the [Developer Guide] for more details on
+CPU and GPU runtimes.
+
+If the configuration you need is not available, you can
+[build the library from source][Build from Source].
+
+[Anaconda]: https://anaconda.org/conda-forge/onednn
+[Intel oneAPI]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn.html
+[System Requirements]: #system-requirements
+[Build Options]: https://oneapi-src.github.io/oneDNN/dev_guide_build_options.html
+[Build from Source]: https://oneapi-src.github.io/oneDNN/dev_guide_build.html
+
+# Runtime Dependencies
 
 When oneDNN is built from source, the library runtime dependencies and specific
 versions are defined by the build environment.
 
-#### Linux
+## Linux
 
 Common dependencies:
 * GNU C Library (`libc.so`)
@@ -265,7 +307,7 @@ Runtime-specific dependencies:
 | `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL loader (`libOpenCL.so`)
 | `DNNL_GPU_RUNTIME=SYCL`  | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`libsycl.so`), OpenCL loader (`libOpenCL.so`), oneAPI Level Zero loader (`libze_loader.so`)
 
-#### Windows
+## Windows
 
 Common dependencies:
 * Microsoft Visual C++ Redistributable (`msvcrt.dll`)
@@ -281,7 +323,7 @@ Runtime-specific dependencies:
 | `DNNL_GPU_RUNTIME=OCL`   | any                           | OpenCL loader (`OpenCL.dll`)
 | `DNNL_GPU_RUNTIME=SYCL`  | Intel oneAPI DPC++ Compiler   | Intel oneAPI DPC++ Compiler runtime (`sycl.dll`), OpenCL loader (`OpenCL.dll`), oneAPI Level Zero loader (`ze_loader.dll`)
 
-#### macOS
+## macOS
 
 Common dependencies:
 * System C/C++ runtime (`libc++.dylib`, `libSystem.dylib`)
@@ -293,65 +335,31 @@ Runtime-specific dependencies:
 | `DNNL_CPU_RUNTIME=OMP` | Intel C/C++ Compiler          | Intel OpenMP runtime (`libiomp5.dylib`)
 | `DNNL_CPU_RUNTIME=TBB` | any                           | TBB (`libtbb.dylib`)
 
-### Validated Configurations
+# Validated Configurations
 
-x86-64 CPU engine was validated on RedHat\* Enterprise Linux 8 with
-* GNU Compiler Collection 8.5, 9.5, 11.1, 11.3
-* Clang\* 11.0, 14.0.6
-* [Intel oneAPI DPC++/C++ Compiler] 2024.0
+oneDNN CPU engine is validated on the following operating systems:
 
-on Windows Server\* 2019 with
-* Microsoft Visual Studio 2022
-* [Intel oneAPI DPC++/C++ Compiler] 2024.0
+| OS  | Developer Tools used   
+| :--------------------- | :----------------------------                 
+| RedHat\* Enterprise Linux 8 | <ul><li>OpenCL\* runtime library (OpenCL version 1.2 or later)GNU Compiler Collection 5.4, 6.1, 7.2, 8.1, 9.1, 11.1, 11.3</li><li>Clang\* 7.1, 8.0, 9.0, 14.0.6</li><li>[Intel oneAPI DPC++/C++ Compiler] 2024.0</li></ul> 
+| Windows Server\* 2019 | <ul><li>Microsoft Visual Studio 2022</li><li>[Intel oneAPI DPC++/C++ Compiler] 2024.0</li></ul> 
+| macOS 11 (Big Sur) | <ul><li>Apple LLVM version 13.0</li></ul>
+| Ubuntu 20.04 AArch64 | <ul><li>GNU Compiler Collection 7.0, 8.0, 9.0, 10.0</li><li>Clang\* 9.0, 17.0</li><li>[Arm Compiler for Linux] 24.04</li><li>[Arm Compute Library (ACL)] built for armv8-a arch, latest stable version available at the time of release</li></ul>
 
-on macOS 11 (Big Sur) with
-* Apple LLVM version 13.0
 
-AArch64 CPU engine was validated on Ubuntu 22.04 with
-* GNU Compiler Collection 10.0, 13.0
-* Clang\* 17.0
-* [Arm Compiler for Linux] 24.04
-* [Arm Compute Library (ACL)] built for armv8-a arch, latest stable version
-available at the time of release
+oneDNN GPU engine is validated on the following operating systems:
 
-on macOS 14 (Sonoma) with
-* Apple LLVM version 15.0
+| OS  | Developer Tools used   
+| :--------------------- | :----------------------------                 
+| Ubuntu\* 22.04 | <ul><li>GNU Compiler Collection 7.2, 8.1, and 9.1</li><li>Clang 7.1, 8.0, 9.0</li><li>[Intel oneAPI DPC++/C++ Compiler] 2024.0</li><li>[Intel Software for General Purpose GPU capabilities] latest stable version available at the time of release</li></ul> 
+| Windows Server\* 2019 | <ul><li>Microsoft Visual Studio 2022</li><li>[Intel oneAPI DPC++/C++ Compiler] 2024.0</li><li>[Intel Arc & Iris Xe Graphics Driver] latest stable version available at the time of release</li></ul> 
 
-GPU engine was validated on Ubuntu\* 22.04 with
-* GNU Compiler Collection 8.5, and 9.5
-* Clang 11.0
-* [Intel oneAPI DPC++/C++ Compiler] 2024.0
-* [Intel Software for General Purpose GPU capabilities] latest stable version
-available at the time of release
 
-on Windows Server 2019 with
-* Microsoft Visual Studio 2022
-* [Intel oneAPI DPC++/C++ Compiler] 2024.0
-* [Intel Arc & Iris Xe Graphics Driver] latest stable version available at the
-time of release
 
 [Intel Software for General Purpose GPU capabilities]: https://dgpu-docs.intel.com/index.html
 [Intel Arc & Iris Xe Graphics Driver]: https://www.intel.com/content/www/us/en/download/785597/intel-arc-iris-xe-graphics-windows.html
 [Arm Compiler for Linux]: https://developer.arm.com/Tools%20and%20Software/Arm%20Compiler%20for%20Linux
 
-# Applications Enabled with oneDNN
-
-* [Apache\* MXNet](https://mxnet.apache.org)
-* [Apache SINGA](https://singa.apache.org)
-* [DeepLearning4J\*](https://deeplearning4j.konduit.ai)
-* [Flashlight\*](https://github.com/flashlight/flashlight)
-* [Korali](https://github.com/cselab/korali)
-* [MATLAB\* Deep Learning Toolbox](https://www.mathworks.com/help/deeplearning)
-* [ONNX Runtime](https://onnxruntime.ai)
-* [OpenVINO(TM) toolkit](https://github.com/openvinotoolkit/openvino)
-* [PaddlePaddle\*](http://www.paddlepaddle.org)
-* [PyTorch\*](https://pytorch.org). Intel GPU support and additional
-optimizations are available with [Intel Extension for PyTorch].
-* [Tensorflow\*](https://www.tensorflow.org). Intel GPU support and additional
-optimizations are available with [Intel Extension for Tensorflow].
-
-[Intel Extension for PyTorch]: https://github.com/intel/intel-extension-for-pytorch
-[Intel Extension for Tensorflow]: https://github.com/intel/intel-extension-for-tensorflow
 
 # Support
 
@@ -387,22 +395,13 @@ schedule and work already in progress towards future milestones in Github's
 [Milestones] section. If you are looking for a specific task to start,
 consider selecting from issues that are marked with the [help wanted] label.
 
-If you have an idea on how to improve the library:
-* For changes impacting the public API or library overall, such as adding new
-primitives or changes to the architecture, submit an [RFC pull request].
-* Ensure that the changes are consistent with the [code contribution guidelines]
-and [coding standards].
-* Ensure that you can build the product and run all the examples with your
-patch.
-* Submit a [pull request].
 
-For additional details, see [contribution guidelines](CONTRIBUTING.md). You can
+See [contribution guidelines](CONTRIBUTING.md) to start contributing to oneDNN. You can
 also contact oneDNN developers and maintainers via [UXL Foundation Slack] using
 [#onednn] channel.
 
 This project is intended to be a safe, welcoming space for collaboration, and
-contributors are expected to adhere to the
-[Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct.
+contributors are expected to adhere to the [Contributor Covenant](CODE_OF_CONDUCT.md) code of conduct.
 
 [RFC pull request]: https://github.com/oneapi-src/oneDNN/tree/rfcs
 [code contribution guidelines]: CONTRIBUTING.md#code-contribution-guidelines
@@ -411,40 +410,17 @@ contributors are expected to adhere to the
 [Milestones]: https://github.com/oneapi-src/oneDNN/milestones
 [help wanted]: https://github.com/oneapi-src/oneDNN/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22
 
+
 # License
 
-oneDNN is licensed under [Apache License Version 2.0](LICENSE). Refer to the
-"[LICENSE](LICENSE)" file for the full license text and copyright notice.
+| Third-party Software | License Terms
+| :--------------------- | :----------------------------     
+| 3-clause BSD license  | <ul><li>[Xbyak](https://github.com/herumi/xbyak)</li><li>[gtest](https://github.com/google/googletest)</li><li>(ITT API)](https://github.com/intel/ittapi)</li><li>[CMake](https://github.com/Kitware/CMake)</li></ul> 
+| 2-clause BSD license  | [Sphinx](https://www.sphinx-doc.org/)
+| Apache License Version 2.0 | <ul><li>[Xbyak_aarch64](https://github.com/fujitsu/xbyak_aarch64)</li><li>[LLVM](https://llvm.org)</li></ul>
+| Boost Software License, Version 1.0 | [Boost C++ Libraries](https://www.boost.org/)
+| MIT License | <ul><li>[Intel Graphics Compute Runtime for oneAPI Level Zero and OpenCL Driver](https://github.com/intel/compute-runtime)</li><li>[Intel Graphics Compiler](https://github.com/intel/intel-graphics-compiler)</li><li>[oneAPI Level Zero](https://github.com/oneapi-src/level-zero)</li><li>[Doxyrest](https://github.com vovkos/doxyrest)</li><li>[spdlog](https://github.com/gabime/spdlog)</li></ul> 
 
-This distribution includes third party software governed by separate license
-terms.
-
-3-clause BSD license:
-* [Xbyak](https://github.com/herumi/xbyak)
-* [gtest](https://github.com/google/googletest)
-* [Instrumentation and Tracing Technology API
-(ITT API)](https://github.com/intel/ittapi)
-* [CMake](https://github.com/Kitware/CMake)
-
-2-clause BSD license:
-* [Sphinx](https://www.sphinx-doc.org/)
-
-Apache License Version 2.0:
-* [Xbyak_aarch64](https://github.com/fujitsu/xbyak_aarch64)
-* [LLVM](https://llvm.org)
-
-Boost Software License, Version 1.0:
-* [Boost C++ Libraries](https://www.boost.org/)
-
-MIT License:
-* [Intel Graphics Compute Runtime for oneAPI Level Zero
-and OpenCL Driver](https://github.com/intel/compute-runtime)
-* [Intel Graphics Compiler](https://github.com/intel/intel-graphics-compiler)
-* [oneAPI Level Zero](https://github.com/oneapi-src/level-zero)
-* [Doxyrest](https://github.com/vovkos/doxyrest)
-* [Intel Metrics Discovery Application Programming
-Interface](https://github.com/intel/metrics-discovery)
-* [spdlog](https://github.com/gabime/spdlog)
 
 This third party software, even if included with the distribution of
 the Intel software, may be governed by separate license terms, including
