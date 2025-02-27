@@ -18,7 +18,6 @@
 
 #include <array>
 
-#include "ngen_config.hpp"
 #include "ngen_decoder.hpp"
 #include "npack/neo_packager.hpp"
 

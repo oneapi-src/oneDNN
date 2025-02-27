@@ -18,6 +18,10 @@
  * Do not #include this file directly; ngen uses it internally.
  */
 
+#ifndef NGEN_GEN12_HPP
+#define NGEN_GEN12_HPP
+
+namespace NGEN_NAMESPACE {
 // Gen12 binary encoding.
 
 struct EncodingTag12 {};
@@ -1226,3 +1230,6 @@ autoswsb::DestinationMask Instruction12::destinations(int &jip, int &uip) const
 
     return mask;
 }
+
+}
+#endif

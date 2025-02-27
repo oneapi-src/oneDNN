@@ -43,6 +43,16 @@
 #include "ngen_auto_swsb.hpp"
 #include "ngen_debuginfo.hpp"
 
+// -----------------------------------------------------------------------
+// Binary formats, split between pre-Gen12 and post-Gen12.
+#include "ngen_gen8.hpp"
+#include "ngen_gen12.hpp"
+// -----------------------------------------------------------------------
+
+#ifdef NGEN_ASM
+#include "ngen_asm.hpp"
+#endif
+
 namespace NGEN_NAMESPACE {
 
 // Forward declarations.
@@ -54,15 +64,6 @@ static constexpr bool hwLT(HW hw1, HW hw2) { return hw1 < hw2; }
 static constexpr bool hwLE(HW hw1, HW hw2) { return hw1 <= hw2; }
 static constexpr bool hwGE(HW hw1, HW hw2) { return hw1 >= hw2; }
 static constexpr bool hwGT(HW hw1, HW hw2) { return hw1 > hw2; }
-
-// -----------------------------------------------------------------------
-// Binary formats, split between pre-Gen12 and post-Gen12.
-
-#include "ngen_gen8.hpp"
-#include "ngen_gen12.hpp"
-
-// -----------------------------------------------------------------------
-
 
 class LabelFixup {
 public:
