@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,15 +37,46 @@ enum class cold_cache_mode_t : unsigned {
     custom = 0x4,
 };
 
-extern cold_cache_mode_t default_cold_cache_mode; // default cold cache mode
-extern cold_cache_mode_t cold_cache_mode; // user cold cache mode
+// User's choices for enabling cold-cache.
+struct cold_cache_input_t {
+    // Requested mode.
+    cold_cache_mode_t cold_cache_mode_ = cold_cache_mode_t::none;
+    // Optional cold TLB (Translation Lookaside Buffer) enabling.
+    bool cold_tlb_ = false;
+    // If TLB is enabled, the size of extra memory to touch.
+    // The less memory used, the faster the execution should be, but the effect
+    // of cold TLB might not be observed until a certain amount of memory
+    // touched to thrash TLB. This amount is system dependent.
+    //
+    // Keep string to return it to the user in the repro line.
+    std::string cold_tlb_size_str_ = "1.0G";
+    // Countable value of the string stored to use inside the implementation.
+    size_t cold_tlb_size_ = 1024 * 1024 * 1024;
+
+    bool operator==(const cold_cache_input_t &other) const {
+        // Don't compare `cold_tlb_size_` as it's the product of
+        // `cold_tlb_size_str_`.
+        return cold_cache_mode_ == other.cold_cache_mode_
+                && cold_tlb_ == other.cold_tlb_
+                && cold_tlb_size_str_ == other.cold_tlb_size_str_;
+    }
+    bool operator!=(const cold_cache_input_t &other) const {
+        return !operator==(other);
+    }
+};
+
+extern cold_cache_input_t cold_cache_input;
+
+const cold_cache_input_t &default_cold_cache_input();
 
 std::ostream &operator<<(std::ostream &s, cold_cache_mode_t cold_cache_mode);
+std::ostream &operator<<(
+        std::ostream &s, const cold_cache_input_t &cold_cache_input);
 
 struct cold_cache_t {
     // Default constructor to have an ability create cold_cache in std::vector.
     // Such cold_cache is always disabled.
-    cold_cache_t();
+    cold_cache_t() = default;
 
     // Initializes a cold_cache object with extra memories to iterate over.
     // It identifies how many buffers must be created to avoid cache hits.
@@ -75,28 +106,31 @@ struct cold_cache_t {
     bool should_stop() const;
 
 private:
-    bool enabled_;
-    size_t n_buffers_top_limit_;
-    size_t n_buffers_bottom_limit_;
+    cold_cache_input_t cold_cache_input_;
+    bool enabled_ = false;
+    size_t n_buffers_top_limit_ = 0;
+    size_t n_buffers_bottom_limit_ = 0;
     // `n_buffers` is responsible for the number of allocated buffers per arg.
-    size_t n_buffers_;
-    bool override_n_buffers_;
+    size_t n_buffers_ = 0;
+    bool override_n_buffers_ = false;
     std::unordered_map<int, std::vector<dnn_mem_t>> cache_;
 
-    // Memory allocations are time consuming on GPU, thus, limiting number of
-    // buffers from above.
+    // Memory allocations are time consuming on GPU, thus, introducing the
+    // upper bound for the number of buffers in cold-cache.
     // Since `no_ref_memory` allocations use `memset` call to initialize the
-    // data, the assumption is it makes newly created memory objects get into
-    // GPU cache. Using these memory objects in cold cache run will not be
-    // "cold" any more.
-    // Thus, an extra reorder is added with brand new memory objects to reset
-    // the state of the cache.
+    // data, the assumption is it makes newly created memory objects with newly
+    // allocated buffer underneath get into the GPU cache. Using these memory
+    // objects in cold-cache run won't be "cold" any longer.
+    // Thus, introducing an extra reorder with brand new memory objects which
+    // sole purpose is to reset the state of the cache by entirely thrashing it.
     static constexpr size_t gpu_n_buffers_top_limit_ = 100;
 
     size_t cc_counter_ = 0;
 
-    // Returns `true`, if "cold cache" was requested and eligible.
-    bool use_cold_cache(const std::vector<dnnl_exec_arg_t> &dnnl_args);
+    // Returns `true`, if cold-cache was requested and eligible.
+    bool use_cold_cache(const std::vector<dnnl_exec_arg_t> &dnnl_args) const;
+
+    int thrash_reorder(size_t mem_size, size_t granularity) const;
 
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(cold_cache_t);
 };

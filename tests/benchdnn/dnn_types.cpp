@@ -918,8 +918,8 @@ std::ostream &dump_global_params(std::ostream &s) {
     if (canonical || stream_kind != default_stream_kind)
         s << "--stream-kind=" << stream_kind << " ";
 #endif
-    if (canonical || cold_cache_mode != default_cold_cache_mode)
-        s << "--cold-cache=" << cold_cache_mode << " ";
+    if (canonical || cold_cache_input != default_cold_cache_input())
+        s << "--cold-cache=" << cold_cache_input << " ";
     if (canonical || execution_mode != execution_mode_t::direct)
         s << "--execution-mode=" << execution_mode2str(execution_mode) << " ";
 
