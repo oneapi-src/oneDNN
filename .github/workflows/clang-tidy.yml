@@ -51,6 +51,8 @@ jobs:
           .github/automation/x64/build_linters.sh
           echo "----------------------------"
           cat build/compile_commands.json | grep '"file":'
+          echo "------------Full file----------------"
+          cat build/compile_commands.json
         env:
           ONEDNN_ACTION: configure
 
