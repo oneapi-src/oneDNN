@@ -37,6 +37,9 @@ jobs:
     steps:
       - name: Checkout oneDNN
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
 
       - name: Install clang
         run: |
@@ -44,14 +47,37 @@ jobs:
           sudo apt-get install -y clang libomp-dev ocl-icd-libopencl1 ocl-icd-opencl-dev
 
       - name: Configure oneDNN
-        run: .github/automation/x64/build_linters.sh
+        run: |
+          .github/automation/x64/build_linters.sh
         env:
           ONEDNN_ACTION: configure
 
-      - name: Build oneDNN
+      - name: Check source files
+        continue-on-error: true
         run: |
-          .github/automation/x64/build_linters.sh 2>&1 | tee build.log
-          grep -i "warning:" build.log | sort -u
-          grep -q -i "warning:" build.log && exit 1 || true
-        env:
-          ONEDNN_ACTION: build
+          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(c|cpp)$'); 
+          do
+            echo $file
+            if grep -q "$file" "build/compile_commands.json"; then
+              echo $file
+              clang-tidy -p build --header-filter='' $file 2>&1 | tee -a source-check.log
+            fi
+          done
+          grep -i "warning:" source-check.log | sort -u
+          grep -q -i "warning:" source-check.log && exit 1 || true
+
+      - name: Check header files
+        continue-on-error: true
+        run: |
+          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(h|hpp)$'); 
+          do
+            echo $file
+            header_dir=$(dirname "$file") 
+            echo $header_dir
+            if [[ "$header_dir" =~ ^include || $(grep -q $header_dir "build/compile_commands.json") ]]; then
+              echo $header_dir
+              clang-tidy -p build --header-filter='' $file | tee headers-check.log
+            fi
+          done
+          grep -i "warning:" headers-check.log | sort -u
+          grep -q -i "warning:" headers-check.log && exit 1 || true
