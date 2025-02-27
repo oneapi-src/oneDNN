@@ -179,6 +179,7 @@ private:
 
 using partition_mem_map_t = std::unordered_map<size_t, dnn_graph_mem_t>;
 
+int add_memory_footprint(bool is_input, size_t mem_sz, res_t *res);
 void flush_temp_memory();
 
 } // namespace graph
