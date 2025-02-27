@@ -71,12 +71,13 @@ jobs:
         run: |
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(h|hpp)$'); 
           do
-              header_dir=$(dirname "$file") 
+            echo $file
+            header_dir=$(dirname "$file") 
+            echo $header_dir
+            if [[ "$header_dir" =~ ^include || $(grep -q $header_dir "build/compile_commands.json") ]]; then
               echo $header_dir
-              if [[ "$header_dir" =~ ^include || $(grep -q $header_dir "build/compile_commands.json") ]]; then
-                echo $header_dir
-                clang-tidy -p build --header-filter='' $file | tee headers-check.log
-              fi
+              clang-tidy -p build --header-filter='' $file | tee headers-check.log
+            fi
           done
           grep -i "warning:" headers-check.log | sort -u
           grep -q -i "warning:" headers-check.log && exit 1 || true
