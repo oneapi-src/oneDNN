@@ -143,7 +143,6 @@ jobs:
       - name: Run performance tests
         shell: bash
         run: |
-          OMP_NUM_THREADS=4 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_nightly_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
           OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_nightly_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
