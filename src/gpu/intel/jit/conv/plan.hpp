@@ -89,7 +89,6 @@ struct slm_plan_t : public base_plan_t {
     send_plan_t a_g2s_load;
     send_plan_t b_g2s_load;
     tensor_t x_reduce_tile;
-    layout_t x_reduce_layout;
     reduce_plan_t x_reduce;
     reorder_plan_t a_reorder;
     reorder_plan_t b_reorder;
@@ -133,7 +132,6 @@ struct x2r_plan_t : public base_plan_t {
     send_plan_t a_load;
     send_plan_t b_load;
     tensor_t x_reduce_tile;
-    layout_t x_reduce_layout;
     reduce_plan_t x_reduce;
     reorder_plan_t a_reorder;
     reorder_plan_t b_reorder;
