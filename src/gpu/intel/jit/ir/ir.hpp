@@ -412,6 +412,18 @@ std::vector<std::pair<expr_t, ValueT>> sort_var_map_by_key(
 class alloc_manager_t {
 public:
     alloc_manager_t(const stmt_t &root) {
+        auto name_sort = [](const expr_t &a, const expr_t &b) {
+            return a.as<var_t>().name < b.as<var_t>().name;
+        };
+
+        auto lets = find_objects<let_t>(root);
+        for (auto &_l : lets) {
+            auto &l = _l.as<let_t>();
+            lets_.push_back(l.var);
+        }
+        // Sort lets by name.
+        std::sort(lets_.begin(), lets_.end(), name_sort);
+
         auto allocs = find_objects<alloc_t>(root);
         for (auto &_a : allocs) {
             auto &a = _a.as<alloc_t>();
@@ -420,23 +432,20 @@ public:
             gpu_assert(ret.second) << "Buffer already exists: " << a.buf;
             MAYBE_UNUSED(ret);
         }
-
         // Sort buffers by name.
-        std::sort(buffers_.begin(), buffers_.end(),
-                [](const expr_t &a, const expr_t &b) {
-                    return a.as<var_t>().name < b.as<var_t>().name;
-                });
+        std::sort(buffers_.begin(), buffers_.end(), name_sort);
     }
 
+    const std::vector<expr_t> &lets() const { return lets_; }
     const std::vector<expr_t> &buffers() const { return buffers_; }
+
+    expr_t find_let(const std::string &name, bool allow_empty = false) const {
+        return find_var(lets(), name, allow_empty);
+    }
 
     expr_t find_buffer(
             const std::string &name, bool allow_empty = false) const {
-        for (auto &b : buffers())
-            if (b.as<var_t>().name == name) return b;
-
-        if (!allow_empty) gpu_error_not_expected() << name;
-        return expr_t();
+        return find_var(buffers(), name, allow_empty);
     }
 
     std::vector<expr_t> find_buffers(alloc_kind_t kind) const {
@@ -468,6 +477,14 @@ public:
     }
 
 private:
+    expr_t find_var(const std::vector<expr_t> &vars, const std::string &name,
+            bool allow_empty) const {
+        for (auto &v : vars)
+            if (v.as<var_t>().name == name) return v;
+        if (!allow_empty) gpu_error_not_expected() << name;
+        return expr_t();
+    }
+
     const alloc_t *find_alloc(const expr_t &buf) const {
         auto it = buf2alloc_.find(buf);
         if (it == buf2alloc_.end()) return nullptr;
@@ -476,6 +493,7 @@ private:
 
     object_map_t<expr_t, stmt_t> buf2alloc_;
     std::vector<expr_t> buffers_;
+    std::vector<expr_t> lets_;
     object_map_t<expr_t, stmt_t> alloc_updates_;
 };
 

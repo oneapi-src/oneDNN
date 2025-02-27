@@ -152,8 +152,8 @@ public:
     grid_info_t(dim_idx_t ndims) : dims_(ndims), offs_(ndims), idxs_(ndims) {}
     grid_info_t(const std::vector<dim_t> &dims, const std::vector<expr_t> &idxs)
         : grid_info_t(dims, {}, idxs) {}
-    grid_info_t(const std::vector<dim_t> &dims, const std::string &prefix)
-        : grid_info_t(dims, make_idxs(prefix, into<dim_idx_t>(dims.size()))) {}
+    grid_info_t(const std::vector<dim_t> &dims, std::string (*genname)(int))
+        : grid_info_t(dims, make_idxs(genname, into<dim_idx_t>(dims.size()))) {}
     grid_info_t(const std::vector<dim_t> &dims, const std::vector<dim_t> &offs,
             const std::vector<expr_t> &idxs)
         : dims_(dims), offs_(offs), idxs_(idxs) {
@@ -269,12 +269,11 @@ public:
     IR_DEFINE_DUMP()
 
 private:
-    static std::vector<expr_t> make_idxs(const std::string &prefix, int n) {
+    static std::vector<expr_t> make_idxs(std::string (*genname)(int), int n) {
         std::vector<expr_t> ret;
         ret.reserve(n);
         for (int i = 0; i < n; i++)
-            ret.push_back(
-                    var_t::make(type_t::s32(), prefix + std::to_string(i)));
+            ret.push_back(var_t::make(type_t::s32(), genname(i)));
         return ret;
     }
 
