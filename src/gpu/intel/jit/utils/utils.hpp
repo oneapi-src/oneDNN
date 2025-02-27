@@ -34,7 +34,7 @@
 #include "gpu/intel/logging.hpp"
 #include "gpu/intel/serialization.hpp"
 #include "gpu/intel/utils.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 #ifdef DNNL_DEV_MODE
 #include "common/profiler.hpp"

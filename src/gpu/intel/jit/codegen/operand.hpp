@@ -19,7 +19,7 @@
 
 #include "gpu/intel/jit/codegen/ngen_helpers.hpp"
 #include "gpu/intel/jit/codegen/reg_buf.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 namespace dnnl {
 namespace impl {
