@@ -22,13 +22,14 @@
 #pragma clang diagnostic ignored "-Wimplicit-int-conversion"
 #endif
 
+#include "ngen_config.hpp"
+
 #include "ngen_core.hpp"
 #include "ngen_auto_swsb.hpp"
-
-namespace NGEN_NAMESPACE {
-
 #include "ngen_gen8.hpp"
 #include "ngen_gen12.hpp"
+
+namespace NGEN_NAMESPACE {
 
 using DependencyRegion = autoswsb::DependencyRegion;
 
