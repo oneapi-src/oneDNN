@@ -2474,8 +2474,11 @@ private:
             zp_ic_dim = b_tile(ic_idx);
         }
 
-        layout_t zp_layout(cfg_.zp_cfg().src_zp_type, zp_off,
-                std::vector<dim_t> {zp_g_dim, zp_ic_dim});
+        const auto src_zp_type = (cfg_.zp_cfg().do_src_compensation)
+                ? cfg_.zp_cfg().src_zp_type
+                : type_t::s32();
+        layout_t zp_layout(
+                src_zp_type, zp_off, std::vector<dim_t> {zp_g_dim, zp_ic_dim});
         view_t zp_view(zp_layout);
         // TODO: support non-scalar wei layouts
         layout_t zp_wei_layout(
