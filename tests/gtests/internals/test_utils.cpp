@@ -87,12 +87,15 @@ void print_mem(const dnnl::memory &mem, const std::string &name) {
     size_t ndims = dims.size();
     size_t lastdim = ndims - 1;
 
-
     printf("%sbegin : ", name.c_str());
     printf("dims : [");
-    for(auto d : dims) { printf("%6ld ", (long)d); }
+    for (auto d : dims) {
+        printf("%6ld ", (long)d);
+    }
     printf("]  strides : [");
-    for(auto s : strides) { printf("%6ld ", (long)s); }
+    for (auto s : strides) {
+        printf("%6ld ", (long)s);
+    }
 
     if (mem.get_desc().get_data_type() == dnnl_bf16) { printf("bf16\n"); }
     void *mapped_ptr_ = (void *)mem.map_data();
@@ -118,14 +121,14 @@ void print_mem(const dnnl::memory &mem, const std::string &name) {
             std::vector<size_t> idxs(ndims, 0);
             while (true) {
                 size_t offset = 0;
-                for(size_t i=0; i < ndims; ++i) {
+                for (size_t i = 0; i < ndims; ++i) {
                     offset += idxs[i] * strides[i];
                 }
                 offset /= 2;
 
                 const bool odd_lastdim = idxs[lastdim] % 2;
                 bool is_odd = odd_lastdim;
-                if(ndims > 1 && strides[lastdim] != 1) {
+                if (ndims > 1 && strides[lastdim] != 1) {
                     // assumes last 2 dims transposed, TODO: arbitrary continuous dim?
                     const bool odd_2lastdim = idxs[lastdim - 1] % 2;
                     is_odd = odd_2lastdim;
@@ -166,7 +169,7 @@ void print_mem(const dnnl::memory &mem, const std::string &name) {
             std::vector<size_t> idxs(ndims, 0);
             while (true) {
                 size_t offset = 0;
-                for(size_t i=0; i < ndims; ++i) {
+                for (size_t i = 0; i < ndims; ++i) {
                     offset += idxs[i] * strides[i];
                 }
                 printf("%4d", mapped_ptr[offset]);
@@ -190,7 +193,7 @@ void print_mem(const dnnl::memory &mem, const std::string &name) {
             std::vector<size_t> idxs(ndims, 0);
             while (true) {
                 size_t offset = 0;
-                for(size_t i=0; i < ndims; ++i) {
+                for (size_t i = 0; i < ndims; ++i) {
                     offset += idxs[i] * strides[i];
                 }
                 printf("%+9.3f", (float)(mapped_ptr[offset]));
@@ -213,17 +216,17 @@ void print_mem(const dnnl::memory &mem, const std::string &name) {
 
             std::vector<size_t> idxs(ndims, 0);
             while (true) {
-//               // uncomment to enable printing dim1 idxs
-//               if(idxs[lastdim] == 0) {
-//                   printf("(");
-//                   for(size_t i=0; i < ndims-1; ++i) {
-//                       printf("%3d%s ", idxs[i], (i < ndims-2) ? "," : "");
-//                   }
-//                   printf("): ");
-//               }
+                //               // uncomment to enable printing dim1 idxs
+                //               if(idxs[lastdim] == 0) {
+                //                   printf("(");
+                //                   for(size_t i=0; i < ndims-1; ++i) {
+                //                       printf("%3d%s ", idxs[i], (i < ndims-2) ? "," : "");
+                //                   }
+                //                   printf("): ");
+                //               }
 
                 size_t offset = 0;
-                for(size_t i=0; i < ndims; ++i) {
+                for (size_t i = 0; i < ndims; ++i) {
                     offset += idxs[i] * strides[i];
                 }
                 printf("%+9.3f", (mapped_ptr[offset].f()));
@@ -246,7 +249,7 @@ void print_mem(const dnnl::memory &mem, const std::string &name) {
             std::vector<size_t> idxs(ndims, 0);
             while (true) {
                 size_t offset = 0;
-                for(size_t i=0; i < ndims; ++i) {
+                for (size_t i = 0; i < ndims; ++i) {
                     offset += idxs[i] * strides[i];
                 }
                 printf("%+9.3f", (mapped_ptr[offset]));
@@ -295,7 +298,7 @@ void transpose_strides(const dnnl::engine &eng, memory &out, memory &in) {
 
         size_t ndims = dims.size();
         assert(ndims > 1); // TODO: will fail w/ndim == 1
-        size_t lastdim  = ndims - 1;
+        size_t lastdim = ndims - 1;
         size_t n2lastdim = lastdim - 1;
 
         std::vector<size_t> idxs(ndims, 0);
@@ -303,13 +306,13 @@ void transpose_strides(const dnnl::engine &eng, memory &out, memory &in) {
             int is_odd = idxs[lastdim] % 2;
             int is_odd_t = idxs[n2lastdim] % 2;
 
-            size_t offset   = 0;
+            size_t offset = 0;
             size_t offset_t = 0;
-            for(size_t i=0; i < ndims; ++i) {
-                offset   += idxs[i] * strides[i];
+            for (size_t i = 0; i < ndims; ++i) {
+                offset += idxs[i] * strides[i];
                 offset_t += idxs[i] * strides_t[i];
             }
-            offset   /= 2;
+            offset /= 2;
             offset_t /= 2;
 
             auto &val = mapped_ptr[offset];
@@ -350,6 +353,8 @@ std::ostream &operator<<(std::ostream &ss, const quantize_type &qt) {
     switch (qt) {
         case quantize_type::no_quantization: ss << "no_quantization"; break;
         case quantize_type::per_tensor: ss << "per_tensor"; break;
+        case quantize_type::per_tensor1: ss << "per_tensor1"; break;
+        case quantize_type::per_tensor3: ss << "per_tensor3"; break;
         case quantize_type::per_token: ss << "per_token"; break;
         case quantize_type::per_token_with_groups:
             ss << "per_token_with_groups";
@@ -371,4 +376,3 @@ std::ostream &operator<<(std::ostream &ss, const memory::data_type &dt) {
     }
     return ss;
 }
-
