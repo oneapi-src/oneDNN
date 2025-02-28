@@ -27,7 +27,7 @@ status_t acl_batch_normalization_fwd_t::execute_forward(
     // concurrent multithreaded access.
     std::lock_guard<std::mutex> _lock {this->mtx};
 
-    // Retrieve primitive resource and configured Compute Library objects
+    //a Retrieve primitive resource and configured Compute Library objects
     acl_batch_normalization_obj_t &acl_obj
             = ctx.get_resource_mapper()
                       ->get<acl_batch_normalization_resource_t>(this)
