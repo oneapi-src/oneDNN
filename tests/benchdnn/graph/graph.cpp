@@ -253,7 +253,6 @@ int make_input_tensors(std::vector<dnnl::graph::tensor> &input_ts,
         }
 
         // generate tensor for graph path
-
         const auto iter = partition_mem_map.find(lt_id);
         if (iter != partition_mem_map.end()) {
             const auto &graph_mem = iter->second;
@@ -644,10 +643,16 @@ int doit(const prb_t *prb, res_t *res) {
         std::vector<dnnl::graph::tensor> output_ts(outputs.size());
 
         ref_partition_t ref_partition(dg, partitions[i], inputs, outputs);
-        // Construct memory for both perf & corr modes
-        SAFE(ref_partition.init_ref(
-                     graph_in_ports, partition_mem_map_v[i], res),
-                WARN);
+
+        if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) {
+            // Construct memory for both perf & corr modes
+            SAFE(ref_partition.init_ref(
+                         graph_in_ports, partition_mem_map_v[i], res),
+                    WARN);
+            if (res->state == SKIPPED) return OK;
+        }
+
+        SAFE(ref_partition.init_graph_mem(partition_mem_map_v[i], res), WARN);
         if (res->state == SKIPPED) return OK;
 
         if (has_bench_mode_bit(mode_bit_t::corr)) {

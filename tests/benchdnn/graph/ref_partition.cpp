@@ -154,30 +154,43 @@ int ref_partition_t::init_ref(const std::vector<size_t> &graph_in_ports,
                     entry.first, const_cast<dnn_mem_t &>(entry.second), res));
         }
     }
+    return OK;
+}
+
+int ref_partition_t::init_graph_mem(
+        partition_mem_map_t &partition_mem_map, res_t *res) {
 
     // init graph input/oputput memory from lt_id_2_mems_
     for (const auto &id : partition_in_ids_) {
-        if (lt_id_2_mems_.find(id) == lt_id_2_mems_.end()) {
-            BENCHDNN_PRINT(0, "Fail: cannot find memory for %zu\n", id);
-            res->state = FAILED;
-            return FAIL;
-        }
-        partition_mem_map.emplace(id,
-                dnn_graph_mem_t(
-                        lt_id_2_mems_.at(id), lt_id_2_lt_.at(id), true));
-    }
-    for (const auto &id : partition_out_ids_) {
-        if (fake_lt_ids_.find(id) != fake_lt_ids_.end()) {
-            partition_mem_map.emplace(
-                    id, dnn_graph_mem_t({}, lt_id_2_lt_.at(id), false, true));
-        } else if (lt_id_2_mems_.find(id) == lt_id_2_mems_.end()) {
-            BENCHDNN_PRINT(0, "Fail: cannot find memory for %zu\n", id);
-            res->state = FAILED;
-            return FAIL;
-        } else
+        if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) {
+            if (lt_id_2_mems_.find(id) == lt_id_2_mems_.end()) {
+                BENCHDNN_PRINT(0, "Fail: cannot find memory for %zu\n", id);
+                res->state = FAILED;
+                return FAIL;
+            }
             partition_mem_map.emplace(id,
                     dnn_graph_mem_t(
-                            lt_id_2_mems_.at(id), lt_id_2_lt_.at(id), false));
+                            lt_id_2_mems_.at(id), lt_id_2_lt_.at(id), true));
+        } else
+            partition_mem_map.emplace(
+                    id, dnn_graph_mem_t(lt_id_2_lt_.at(id), true));
+    }
+    for (const auto &id : partition_out_ids_) {
+        if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) {
+            if (fake_lt_ids_.find(id) != fake_lt_ids_.end()) {
+                partition_mem_map.emplace(id,
+                        dnn_graph_mem_t({}, lt_id_2_lt_.at(id), false, true));
+            } else if (lt_id_2_mems_.find(id) == lt_id_2_mems_.end()) {
+                BENCHDNN_PRINT(0, "Fail: cannot find memory for %zu\n", id);
+                res->state = FAILED;
+                return FAIL;
+            } else
+                partition_mem_map.emplace(id,
+                        dnn_graph_mem_t(lt_id_2_mems_.at(id),
+                                lt_id_2_lt_.at(id), false));
+        } else
+            partition_mem_map.emplace(
+                    id, dnn_graph_mem_t(lt_id_2_lt_.at(id), false));
     }
 
     return OK;

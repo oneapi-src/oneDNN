@@ -163,6 +163,8 @@ public:
     dnn_graph_mem_t(const dnn_mem_t &mem, const deserialized_lt &lt,
             const bool is_op_input, const bool is_fake_output = false);
 
+    dnn_graph_mem_t(const deserialized_lt &lt, const bool is_op_input);
+
     dnnl::graph::tensor make_graph_tensor(const deserialized_lt &lt) const;
 
     const dnn_mem_t &get_mem() const { return mem_; }
