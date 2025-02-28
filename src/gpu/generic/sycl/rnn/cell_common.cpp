@@ -29,13 +29,17 @@ using namespace rnn_utils;
 
 status_t _ref_rnn_common_t::cell_execution(const cell_ctx_t &cell_struct) {
 
-    auto cell_layer = cell_struct.workspace.states_range(cell_struct.lay - 1,
-            cell_struct.lay - 1, cell_struct.dir, cell_struct.dir,
-            cell_struct.iter - 1, cell_struct.iter);
+    auto cell_layer = cell_struct.workspace.states_range(cell_struct.lay,
+            cell_struct.lay, cell_struct.dir, cell_struct.dir, cell_struct.iter,
+            cell_struct.iter);
 
-    auto cell_iter = cell_struct.workspace.states_range(cell_struct.lay,
-            cell_struct.lay, cell_struct.dir, cell_struct.dir,
-            cell_struct.iter - 2, cell_struct.iter - 1);
+    auto iter_off = cell_struct.iter == 0
+            ? (-1 * (cell_struct.rnn.n_dir - 1) * (cell_struct.rnn.n_iter + 1))
+                    - 1
+            : cell_struct.iter - 1;
+    auto cell_iter = cell_struct.workspace.states_range(cell_struct.lay + 1,
+            cell_struct.lay + 1, cell_struct.dir, cell_struct.dir, iter_off,
+            iter_off);
 
     auto scratch_gates = cell_struct.scratch.gates(0);
 
