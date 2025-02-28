@@ -793,7 +793,7 @@ HANDLE_EXCEPTIONS_FOR_TEST_F(attr_test_t, TestGetCppObjects) {
     // of using a dangling pointer from destroyed object via
     // `pd.get_primitive_attr().get_post_ops()` construction as attributes will
     // be destroyed once post-ops are saved on stack.
-    // See https://github.com/oneapi-src/oneDNN/issues/1337 for details.
+    // See https://github.com/uxlfoundation/oneDNN/issues/1337 for details.
     dnnl::primitive_attr attr;
     dnnl::post_ops ops;
     memory::desc po_src1_md({1, 1, 1, 1}, data_type::f32, tag::abcd);

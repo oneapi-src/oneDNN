@@ -243,7 +243,7 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 #if DNNL_AARCH64 || defined(DNNL_SYCL_HIP) || defined(DNNL_SYCL_CUDA)
     // MIOpen and ACL softmax accumulate in F16, but oneDNN now expects accumulation in
     // F32, this partially reverts 6727bbe8. For more information on ACL softmax, see
-    // https://github.com/oneapi-src/oneDNN/issues/1819
+    // https://github.com/uxlfoundation/oneDNN/issues/1819
     // Similarly, for bf16 on AArch64, the relaxed threshold is necessary due to
     // minor accuracy drops observed compared to f32
     const float trh = trh_f32;
