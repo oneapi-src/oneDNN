@@ -58,6 +58,11 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
 
     const auto &g_eng = get_graph_engine().operator const dnnl::engine &();
 
+    const auto &set_default_test_value = [](dnn_mem_t &mem) {
+        size_t sz = dnnl_memory_desc_get_size(mem.md_);
+        mem.memset(dnnl_mem_default_perf_test_value, sz);
+    };
+
     // We create memory for graph path in two steps:
     // 1. Create memory objects.
     // 2. Do memory copy if needed.
@@ -91,10 +96,17 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
             // doesn't coincide with the graph memory...
             dnn_mem_t c_mem(ndims, mem.dims(), graph_dt, mtag, g_eng.get());
             SAFE_V(c_mem.reorder(mem));
-            prim_to_graph_memcpy(mem_, c_mem);
+
+            if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory))
+                set_default_test_value(mem_);
+            else
+                prim_to_graph_memcpy(mem_, c_mem);
         } else {
-            // ... otherwise, perform a plain memcpy.
-            prim_to_graph_memcpy(mem_, mem);
+            if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory))
+                set_default_test_value(mem_);
+            else
+                // ... otherwise, perform a plain memcpy.
+                prim_to_graph_memcpy(mem_, mem);
         }
     } else {
         if (is_fake_output) {

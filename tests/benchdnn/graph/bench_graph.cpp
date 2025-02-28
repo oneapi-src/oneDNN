@@ -58,17 +58,6 @@ void check_correctness(const settings_t &s) {
     }
 }
 
-int verify_input(const settings_t &s) {
-    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) {
-        // TODO: update graph driver doc page once the limitation is removed.
-        BENCHDNN_PRINT(0, "%s\n",
-                "Error: graph driver doesn't support "
-                "--mode-modifier=M/--mode=F.");
-        return FAIL;
-    }
-    return OK;
-}
-
 int bench(int argc, char **argv) {
     driver_name = "graph";
     using namespace parser;
@@ -88,7 +77,6 @@ int bench(int argc, char **argv) {
         if (!parsed_options) {
             if (!parse_input_file(s.json_file, argv[0]))
                 catch_unknown_options(argv[0]);
-            SAFE(verify_input(s), WARN);
             check_correctness(s);
             flush_temp_memory();
         }
