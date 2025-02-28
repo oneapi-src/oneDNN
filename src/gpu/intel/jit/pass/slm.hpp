@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ stmt_t merge_slm_buffers(const stmt_t &_stmt, ir_context_t &ir_ctx);
 
 // Replaces some heavy GRF reorders by reorder through SLM (store and load).
 stmt_t inject_slm_reorder(const stmt_t &s, ir_context_t &ir_ctx,
-        const grid_info_t &tg_grid, bool has_slm_usage);
+        const grid_info_t &thr_grid, bool has_slm_usage);
 
 } // namespace jit
 } // namespace intel

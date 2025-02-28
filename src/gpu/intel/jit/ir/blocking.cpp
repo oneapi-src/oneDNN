@@ -54,10 +54,9 @@ std::vector<int> tile_info_t::iter_blocks(dim_t size) const {
     return ret;
 }
 
-std::vector<int> tile_info_t::thread_group_blocks(dim_t size) const {
+std::vector<int> tile_info_t::thread_blocks(dim_t size) const {
     std::vector<int> ret;
-    int bound = any(flags & tile_flags_t::thread_group) ? max_thread_group_blk
-                                                        : 1;
+    int bound = any(flags & tile_flags_t::thread) ? max_thread_blk : 1;
     for (int i = 1; i <= bound; i *= 2) {
         dim_t size_padded = utils::rnd_up(size, i);
         double eff = (double)size / size_padded;
@@ -119,16 +118,15 @@ void get_level_tiles(
     ret.clear();
     auto iter_blocks = info.iter_blocks(size);
     for (int iter : iter_blocks) {
-        dim_t tg_size = utils::div_up(size, iter);
-        auto tg_blocks = info.thread_group_blocks(tg_size);
-        for (int tg : tg_blocks) {
-            dim_t loop_size = utils::div_up(size, tg * iter);
+        dim_t thr_size = utils::div_up(size, iter);
+        auto thr_blocks = info.thread_blocks(thr_size);
+        for (int thr : thr_blocks) {
+            dim_t loop_size = utils::div_up(size, thr * iter);
             auto loop_blocks = info.loop_blocks(loop_size, iter);
             for (dim_t loop : loop_blocks) {
                 level_tile_t t;
                 if (any(info.flags & tile_flags_t::loop)) t.loop = loop;
-                if (any(info.flags & tile_flags_t::thread_group))
-                    t.thread_group = tg;
+                if (any(info.flags & tile_flags_t::thread)) t.thread = thr;
                 if (any(info.flags & tile_flags_t::iter)) t.iter = iter;
                 ret.push_back(t);
             }
@@ -205,8 +203,7 @@ std::vector<blocking_t> level_tile_set_t::sample(int target,
 void level_tile_set_t::set(
         blocking_t &blk, const pvar_t &dim, const level_tile_t &tile) {
     if (tile.has(level_t::loop)) blk.set_loop(dim, tile.loop);
-    if (tile.has(level_t::thread_group))
-        blk.set_thread_group(dim, tile.thread_group);
+    if (tile.has(level_t::thread)) blk.set_thread(dim, tile.thread);
     if (tile.has(level_t::iter)) blk.set_iter(dim, tile.iter);
 }
 

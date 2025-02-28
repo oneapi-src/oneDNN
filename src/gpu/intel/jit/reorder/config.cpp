@@ -82,18 +82,18 @@ reorder_config_t::reorder_config_t(
     padded_dims().set(dims);
     iter_dims().set(iter_tile);
     loop_dims().set(loop_tile);
-    thread_group_dims().set(tg_tile);
+    thread_dims().set(tg_tile);
 
-    init_kernel_grid(grid_);
     init_thread_group_grid(grid_);
+    init_thread_grid(grid_);
 }
 
 compute::nd_range_t reorder_config_t::nd_range() const {
     compute::range_t gws = compute::range_t::empty();
     compute::range_t lws = compute::range_t::empty();
     for (dim_idx_t i = 0; i < compute::range_t::max_ndims; ++i) {
-        lws[i] = thread_group_grid().dim(i);
-        gws[i] = kernel_grid().dim(i) * lws[i];
+        lws[i] = thread_grid().dim(i);
+        gws[i] = thread_group_grid().dim(i) * lws[i];
     }
     lws[0] *= simd();
     gws[0] *= simd();

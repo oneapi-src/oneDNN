@@ -81,8 +81,8 @@ stmt_t merge_slm_buffers(const stmt_t &_stmt, ir_context_t &ir_ctx) {
 class slm_reorder_injector_t : public ir_mutator_t {
 public:
     slm_reorder_injector_t(
-            const stmt_t &root, const hw_t &hw, const grid_info_t &tg_grid)
-        : hw_(hw), tg_grid_(tg_grid) {
+            const stmt_t &root, const hw_t &hw, const grid_info_t &thr_grid)
+        : hw_(hw), thr_grid_(thr_grid) {
         alloc_manager_t alloc_mgr(root);
         auto slm_buffers = alloc_mgr.find_buffers(alloc_kind_t::slm);
         gpu_assert(slm_buffers.size() == 1);
@@ -166,7 +166,7 @@ private:
         gpu_assert(tile_size % hword_size == 0);
 
         slm_size_ = std::max(
-                slm_size_, slm_thr_size * into<int>(tg_grid_.elems()));
+                slm_size_, slm_thr_size * into<int>(thr_grid_.elems()));
 
         auto store_send = send_t::make(hw_, send_op_t::store,
                 send_address_t::slm, type_t::dword(vect_size), simd, true);
@@ -177,7 +177,7 @@ private:
         for (int i = 0; i < simd; i++)
             vec[i] = expr_t(i * vect_size * dword_size);
         auto vec_off = shuffle_t::make(vec);
-        auto tid = tg_grid_.idx(1) * tg_grid_.dim(0) + tg_grid_.idx(0);
+        auto tid = thr_grid_.idx(1) * thr_grid_.dim(0) + thr_grid_.idx(0);
         expr_t off0 = tid * slm_thr_size;
 
         stmt_t store_stmt;
@@ -219,18 +219,18 @@ private:
     }
 
     hw_t hw_;
-    grid_info_t tg_grid_;
+    grid_info_t thr_grid_;
 
     expr_t slm_base_;
     int slm_size_ = 0;
 };
 
 stmt_t inject_slm_reorder(const stmt_t &s, ir_context_t &ir_ctx,
-        const grid_info_t &tg_grid, bool has_slm_usage) {
+        const grid_info_t &thr_grid, bool has_slm_usage) {
     trace_start();
     if (has_slm_usage) return s;
     if (ir_ctx.hw() < ngen::HW::XeHPC) return s;
-    slm_reorder_injector_t injector(s, ir_ctx.hw(), tg_grid);
+    slm_reorder_injector_t injector(s, ir_ctx.hw(), thr_grid);
     stmt_t ret = injector.mutate(s);
 
     auto &slm_buf = injector.slm_base();
