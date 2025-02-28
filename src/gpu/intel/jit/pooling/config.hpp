@@ -497,12 +497,10 @@ public:
         kg[0] *= utils::div_up(oc, lg[1]);
         kg[1] *= utils::div_up(mb, lg[0]);
 
-        set_dims_padded(grid_info_t(padded, ""));
-        set_loop_grid(grid_info_t(lg, "lg_idx"));
-        auto &tg_idxs = ir_builder_t::tg_idxs();
-        set_kernel_grid(grid_info_t(
-                kg, std::vector<expr_t>(tg_idxs.begin(), tg_idxs.end())));
-        set_thread_group_grid(grid_info_t(tg, "tg_idx"));
+        set_dims_padded(grid_info_t(padded, ir_builder_t::local_id));
+        set_loop_grid(grid_info_t(lg, ir_builder_t::local_id));
+        set_kernel_grid(grid_info_t(kg, ir_builder_t::tg_idx));
+        set_thread_group_grid(grid_info_t(tg, ir_builder_t::thr_idx));
     }
 
     compute::nd_range_t nd_range() const {
