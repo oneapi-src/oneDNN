@@ -42,8 +42,6 @@ public:
         build();
     }
 
-    const grid_info_t &kernel_grid() const { return cfg_.kernel_grid(); }
-
 private:
     void build() override;
     bool try_build(const pvar_tile_t &iter_tile, const pvar_tile_t &loop_tile);

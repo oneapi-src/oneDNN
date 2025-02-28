@@ -33,22 +33,20 @@ class blocking_t {
 public:
     int simd() const { return simd_; }
     const pvar_tile_t &loop() const { return loop_; }
-    const pvar_tile_t &thread_group() const { return thread_group_; }
+    const pvar_tile_t &thread() const { return thread_; }
     const pvar_tile_t &iter() const { return iter_; }
 
     dim_t loop_dim(const pvar_t &d) const { return loop_[d]; }
-    dim_t thread_group_dim(const pvar_t &d) const { return thread_group_[d]; }
+    dim_t thread_dim(const pvar_t &d) const { return thread_[d]; }
     dim_t iter_dim(const pvar_t &d) const { return iter_[d]; }
 
     void set_simd(int simd) { simd_ = simd; }
     void set_loop(const pvar_t &d, dim_t value) { loop_[d] = value; }
-    void set_thread_group(const pvar_t &d, dim_t value) {
-        thread_group_[d] = value;
-    }
+    void set_thread(const pvar_t &d, dim_t value) { thread_[d] = value; }
     void set_iter(const pvar_t &d, dim_t value) { iter_[d] = value; }
 
     bool is_empty() const {
-        return loop_.is_empty() && thread_group_.is_empty() && iter_.is_empty();
+        return loop_.is_empty() && thread_.is_empty() && iter_.is_empty();
     }
     bool is_spatial() const {
         for (const auto &d : {pvars::iw, pvars::ow}) {
@@ -59,12 +57,12 @@ public:
 
     void unset(const pvar_t &d) {
         if (loop_.has(d)) loop_[d] = 1;
-        if (thread_group_.has(d)) thread_group_[d] = 1;
+        if (thread_.has(d)) thread_[d] = 1;
         if (iter_.has(d)) iter_[d] = 1;
     }
 
     bool operator==(const blocking_t &other) const {
-        return (loop_ == other.loop_) && (thread_group_ == other.thread_group_)
+        return (loop_ == other.loop_) && (thread_ == other.thread_)
                 && (iter_ == other.iter_);
     }
 
@@ -73,7 +71,7 @@ public:
         out << " l=";
         loop_.stringify(out);
         out << " T=";
-        thread_group_.stringify(out);
+        thread_.stringify(out);
         out << " i=";
         iter_.stringify(out);
     }
@@ -84,13 +82,13 @@ public:
         stream_match(in, "l=");
         loop_.parse(in);
         stream_match(in, "T=");
-        thread_group_.parse(in);
+        thread_.parse(in);
         stream_match(in, "i=");
         iter_.parse(in);
     }
 
     size_t get_hash() const {
-        return ir_utils::get_hash(loop_, thread_group_, iter_);
+        return ir_utils::get_hash(loop_, thread_, iter_);
     }
 
     std::string str(bool csv = false) const {
@@ -98,12 +96,12 @@ public:
         if (csv) {
             oss << simd_;
             oss << "," << loop_;
-            oss << "," << thread_group_;
+            oss << "," << thread_;
             oss << "," << iter_;
         } else {
             oss << "simd=" << simd_;
             oss << " l=" << loop_;
-            oss << " T=" << thread_group_;
+            oss << " T=" << thread_;
             oss << " i=" << iter_;
         }
         return oss.str();
@@ -114,10 +112,10 @@ public:
         double ret = 1;
         for (auto &d : shape) {
             dim_t loop = loop_.get(d, 1);
-            dim_t tg = thread_group_.get(d, 1);
+            dim_t thr = thread_.get(d, 1);
             dim_t iter = iter_.get(d, 1);
             dim_t size = shape[d];
-            dim_t size_padded = utils::rnd_up(size, loop * tg * iter);
+            dim_t size_padded = utils::rnd_up(size, loop * thr * iter);
             if (size_padded != size) ret *= double(size) / size_padded;
         }
         return ret;
@@ -128,7 +126,7 @@ public:
 private:
     int simd_ = 0;
     pvar_tile_t loop_;
-    pvar_tile_t thread_group_;
+    pvar_tile_t thread_;
     pvar_tile_t iter_;
 };
 
@@ -141,8 +139,8 @@ enum class tile_flags_t : uint32_t {
     undef = 0,
     // Dimension participates in loop blocking.
     loop = (1 << 0),
-    // Dimension participates in thread group blocking.
-    thread_group = (1 << 1),
+    // Dimension participates in thread blocking.
+    thread = (1 << 1),
     // Dimension participates in iteration blocking.
     iter = (1 << 2),
     // Loop block spans the remaining dimension.
@@ -207,7 +205,7 @@ struct tile_info_t {
     }
 
     std::vector<int> iter_blocks(dim_t size) const;
-    std::vector<int> thread_group_blocks(dim_t size) const;
+    std::vector<int> thread_blocks(dim_t size) const;
     std::vector<dim_t> loop_blocks(dim_t size, int iter_blk) const;
 
     static bool block_ok(dim_t size, int blk, int target_eff) {
@@ -226,19 +224,19 @@ struct tile_info_t {
     int min_iter_blk = default_min_iter_blk;
     int min_iter_pow2_blk = default_min_iter_pow2_blk;
     int max_iter_blk = default_max_iter_blk;
-    int max_thread_group_blk = default_max_thread_group_blk;
+    int max_thread_blk = default_max_thread_blk;
 
     static const int default_min_iter_blk = 6;
     static const int default_min_iter_pow2_blk = 8;
     static const int default_max_iter_blk = 64;
-    static const int default_max_thread_group_blk = 16;
+    static const int default_max_thread_blk = 16;
 };
 
 // Tile levels.
 enum class level_t {
     undef = 0,
     loop,
-    thread_group,
+    thread,
     iter,
 };
 
@@ -247,7 +245,7 @@ public:
     bool has(level_t level) const {
         switch (level) {
             case level_t::loop: return loop != 0;
-            case level_t::thread_group: return thread_group != 0;
+            case level_t::thread: return thread != 0;
             case level_t::iter: return iter != 0;
             default: gpu_error_not_expected();
         }
@@ -255,10 +253,10 @@ public:
     }
 
     std::string str() const {
-        if (utils::everyone_is(0, loop, thread_group, iter)) return "x";
+        if (utils::everyone_is(0, loop, thread, iter)) return "x";
         std::ostringstream oss;
         if (loop != 0) oss << "l" << loop;
-        if (thread_group != 0) oss << "T" << thread_group;
+        if (thread != 0) oss << "T" << thread;
         if (iter != 0) oss << "i" << iter;
         return oss.str();
     }
@@ -266,7 +264,7 @@ public:
     IR_DEFINE_DUMP()
 
     dim_t loop = 0;
-    int thread_group = 0;
+    int thread = 0;
     int iter = 0;
 };
 
@@ -347,7 +345,7 @@ public:
 
     std::vector<pvar_t> dims() const {
         std::set<pvar_t> dims;
-        for (auto *t : {&loop_, &thread_group_, &iter_}) {
+        for (auto *t : {&loop_, &thread_, &iter_}) {
             for (auto &d : t->keys()) {
                 dims.insert(d);
             }
@@ -358,7 +356,7 @@ public:
     std::string str() const {
         std::ostringstream oss;
         oss << "l:" << loop_;
-        oss << " T:" << thread_group_;
+        oss << " T:" << thread_;
         oss << " i:" << iter_;
         return oss.str();
     }
@@ -376,7 +374,7 @@ private:
             add_iter_dim(d);
             if (no_min_check) tile_info(d).set_min_iter_block(1);
         } else if (s_tile == "T") {
-            add_thread_group_dim(d);
+            add_thread_dim(d);
         } else if (s_tile == "l") {
             add_loop_dim(d);
         } else if (s_tile == "ls") {
@@ -404,10 +402,10 @@ private:
         tile_info(d).add(tile_flags_t::loop_iter_unroll);
     }
 
-    void add_thread_group_dim(const pvar_t &d) {
-        thread_group_[d] = 1;
+    void add_thread_dim(const pvar_t &d) {
+        thread_[d] = 1;
         auto &info = tile_info(d);
-        info.add(tile_flags_t::thread_group);
+        info.add(tile_flags_t::thread);
     }
 
     void add_iter_dim(const pvar_t &d) {
@@ -418,7 +416,7 @@ private:
 
 protected:
     pvar_tile_t loop_;
-    pvar_tile_t thread_group_;
+    pvar_tile_t thread_;
     pvar_tile_t iter_;
     std::map<pvar_t, tile_info_t> tile_infos_;
 };
@@ -519,7 +517,7 @@ public:
     IR_DEFINE_DUMP()
 
     static std::vector<std::string> csv_keys() {
-        return {"simd", "loop", "tg", "iter", "bufs_hint"};
+        return {"simd", "loop", "thr", "iter", "bufs_hint"};
     }
 
 private:

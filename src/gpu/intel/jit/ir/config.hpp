@@ -166,19 +166,19 @@ public:
     bool is_overridable() const override { return false; }
 };
 
-class kernel_grid_param_t : public grid_param_t {
+class thread_group_grid_param_t : public grid_param_t {
 public:
-    std::string name() const override { return "kernel-grid"; }
+    std::string name() const override { return "tg-grid"; }
     std::string desc() const override {
         return "Number of thread groups across dimensions (kernel grid).";
     }
     bool is_overridable() const override { return false; }
 };
 
-class thread_group_grid_param_t : public grid_param_t {
+class thread_grid_param_t : public grid_param_t {
 public:
-    std::string name() const override { return "tg-grid"; }
-    std::string desc() const override { return "Thread group grid."; }
+    std::string name() const override { return "thread-grid"; }
+    std::string desc() const override { return "Thread grid within a group."; }
     bool is_overridable() const override { return false; }
 };
 
@@ -260,12 +260,12 @@ public:
     bool is_overridable() const override { return false; }
 };
 
-class thread_group_dims_param_t : public tile_param_t {
+class thread_dims_param_t : public tile_param_t {
 public:
-    std::string name() const override { return "tg"; }
+    std::string name() const override { return "thr"; }
     std::string short_name() const override { return "T"; }
     std::string desc() const override {
-        return "Thread group-level dimension blocks.";
+        return "Thread-level dimension blocks.";
     }
     bool is_overridable() const override { return true; }
     bool is_default() const override { return false; }
@@ -309,13 +309,13 @@ public:
         gpu_assert(!params.is_empty());
         const auto &blocking = params.blocking();
         if (!loop_dims().is_overridden()) loop_dims().set(blocking.loop());
-        if (!thread_group_dims().is_overridden())
-            thread_group_dims().set(blocking.thread_group());
+        if (!thread_dims().is_overridden())
+            thread_dims().set(blocking.thread());
         if (!iter_dims().is_overridden()) iter_dims().set(blocking.iter());
 
         // update padded dimensions based on what was set just above
         for (auto &d : index_dims()) {
-            dim_t blk = loop_dim(d) * thread_group_dim(d) * iter_dim(d);
+            dim_t blk = loop_dim(d) * thread_dim(d) * iter_dim(d);
             dim_t padded = utils::rnd_up(
                     dim(d), math::lcm<dim_t>(blk, pad_block(d)));
             padded_dims().set(d, padded);
@@ -330,10 +330,10 @@ public:
         blocking_t blocking;
         for (auto &d : index_dims()) {
             dim_t loop = loop_dim(d);
-            dim_t tg = thread_group_dim(d);
+            dim_t thr = thread_dim(d);
             dim_t iter = iter_dim(d);
             if (loop != 1) blocking.set_loop(d, loop);
-            if (tg != 1) blocking.set_thread_group(d, tg);
+            if (thr != 1) blocking.set_thread(d, thr);
             if (iter != 1) blocking.set_iter(d, iter);
         }
         blocking.set_simd(exec_cfg().vec_size());
@@ -343,14 +343,14 @@ public:
     }
 
     static int get_max_threadgroups_per_wave(
-            const exec_config_t &exec_cfg, dim_t tg_elems) {
+            const exec_config_t &exec_cfg, dim_t tg_size) {
         auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw().to_ngen());
         int threads_per_eu = compute::device_info_t::threads_per_eu(
                 arch, exec_cfg.regs() > 128);
         int eus_per_subslice = compute::device_info_t::max_eus_per_wg(arch);
         int subslice_count = exec_cfg.hw().eu_count() / eus_per_subslice;
 
-        int tgs_per_subslice = eus_per_subslice * threads_per_eu / tg_elems;
+        int tgs_per_subslice = eus_per_subslice * threads_per_eu / tg_size;
         gpu_assert(tgs_per_subslice > 0);
         return subslice_count * tgs_per_subslice;
     }
@@ -358,25 +358,25 @@ public:
     // Return thread utilization as a percentage. If this value is low,
     // parallelism is a fundamental limitation to the current work scheduling.
     static float get_thread_utilization(
-            const exec_config_t &exec_cfg, dim_t kg_elems, dim_t tg_elems) {
+            const exec_config_t &exec_cfg, dim_t tg_count, dim_t tg_size) {
         auto arch = convert_ngen_arch_to_dnnl(exec_cfg.hw().to_ngen());
         int eus_per_subslice = compute::device_info_t::max_eus_per_wg(arch);
         int subslice_count = exec_cfg.hw().eu_count() / eus_per_subslice;
 
         dim_t min_wg_per_subslice_wave
-                = std::max<dim_t>(eus_per_subslice / tg_elems, 1);
+                = std::max<dim_t>(eus_per_subslice / tg_size, 1);
         dim_t min_wg_per_wave = subslice_count * min_wg_per_subslice_wave;
-        return (100.f * float(kg_elems))
-                / float(utils::rnd_up(kg_elems, min_wg_per_wave));
+        return (100.f * float(tg_count))
+                / float(utils::rnd_up(tg_count, min_wg_per_wave));
     }
 
     // Return wave utilization as a percentage. If this value is low, memory
     // latency may be an issue due to limited use of SMT to hide the latency.
     static float get_wave_utilization(
-            const exec_config_t &exec_cfg, dim_t kg_elems, dim_t tg_elems) {
-        int tgs_per_wave = get_max_threadgroups_per_wave(exec_cfg, tg_elems);
-        return (100.f * float(kg_elems))
-                / float(utils::rnd_up(kg_elems, tgs_per_wave));
+            const exec_config_t &exec_cfg, dim_t tg_count, dim_t tg_size) {
+        int tg_per_wave = get_max_threadgroups_per_wave(exec_cfg, tg_size);
+        return (100.f * float(tg_count))
+                / float(utils::rnd_up(tg_count, tg_per_wave));
     }
 
 #define DECL_PARAM(name) \
@@ -401,14 +401,14 @@ public:
     } \
     name##_param_t &name() { return name##_; }
     DECL_PARAM(exec_cfg)
-    DECL_PARAM(kernel_grid)
     DECL_PARAM(thread_group_grid)
+    DECL_PARAM(thread_grid)
     DECL_PARAM2(src_layout)
     DECL_PARAM2(dst_layout)
     DECL_PARAM2(padded_dims)
     DECL_PARAM2(iter_dims)
     DECL_PARAM2(loop_dims)
-    DECL_PARAM2(thread_group_dims)
+    DECL_PARAM2(thread_dims)
 #undef DECL_PARAM
 #undef DECL_PARAM2
 
@@ -423,15 +423,13 @@ public:
 
     dim_t loop_dim(const pvar_t &d) const { return loop_dims().get(d); }
 
-    dim_t thread_group_dim(const pvar_t &d) const {
-        return thread_group_dims().get(d);
-    }
+    dim_t thread_dim(const pvar_t &d) const { return thread_dims().get(d); }
 
     dim_t padded_dim(const pvar_t &d) const { return padded_dims().get(d); }
 
     dim_t grid_dim(const pvar_t &dim) const {
         return ir_utils::safe_divide(padded_dim(dim),
-                loop_dim(dim) * thread_group_dim(dim) * iter_dim(dim));
+                loop_dim(dim) * thread_dim(dim) * iter_dim(dim));
     }
 
     pvar_tile_t dims() const { return shape(/* pad = */ false); }
@@ -439,25 +437,24 @@ public:
 
     int sort_key(const param_t *param) const override;
 
-    void init_kernel_grid(const std::array<pvar_tile_t, 3> &grid) {
-        std::vector<dim_t> dims(grid.size(), 1);
-        for (dim_idx_t i = 0; i < grid.size(); i++) {
-            for (auto &d : grid[i]) {
-                dim_t tg_block
-                        = loop_dim(d) * thread_group_dim(d) * iter_dim(d);
-                dims[i] *= ir_utils::safe_divide(padded_dim(d), tg_block);
-            }
-        }
-        set_kernel_grid(grid_info_t(dims, ir_builder_t::tg_idx));
-    }
-
     void init_thread_group_grid(const std::array<pvar_tile_t, 3> &grid) {
         std::vector<dim_t> dims(grid.size(), 1);
         for (dim_idx_t i = 0; i < grid.size(); i++) {
-            for (auto &d : grid[i])
-                dims[i] *= thread_group_dim(d);
+            for (auto &d : grid[i]) {
+                dim_t tg_block = loop_dim(d) * thread_dim(d) * iter_dim(d);
+                dims[i] *= ir_utils::safe_divide(padded_dim(d), tg_block);
+            }
         }
-        set_thread_group_grid(grid_info_t(dims, ir_builder_t::thr_idx));
+        set_thread_group_grid(grid_info_t(dims, ir_builder_t::tg_idx));
+    }
+
+    void init_thread_grid(const std::array<pvar_tile_t, 3> &grid) {
+        std::vector<dim_t> dims(grid.size(), 1);
+        for (dim_idx_t i = 0; i < grid.size(); i++) {
+            for (auto &d : grid[i])
+                dims[i] *= thread_dim(d);
+        }
+        set_thread_grid(grid_info_t(dims, ir_builder_t::thr_idx));
     }
 
 protected:
@@ -472,14 +469,14 @@ protected:
                   return &static_cast<const prim_config_t *>(c)->name##_; \
               });
     INIT_PARAM(exec_cfg)
-    INIT_PARAM(kernel_grid)
     INIT_PARAM(thread_group_grid)
+    INIT_PARAM(thread_grid)
     INIT_PARAM(src_layout)
     INIT_PARAM(dst_layout)
     INIT_PARAM(padded_dims)
     INIT_PARAM(iter_dims)
     INIT_PARAM(loop_dims)
-    INIT_PARAM(thread_group_dims)
+    INIT_PARAM(thread_dims)
 #undef INIT_PARAM
 };
 

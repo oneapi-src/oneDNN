@@ -99,7 +99,7 @@ static type_t dpas_type(type_t t) {
 
 static void get_kw_ic_from_b_view(const gemm_schedule_t &gemm_schedule,
         expr_t &kw_var, expr_t &ic_var, dim_t &kw, dim_t &ic) {
-    loop_kind_t exp_loops = loop_kind_t::tg_grid | loop_kind_t::kernel_grid
+    loop_kind_t exp_loops = loop_kind_t::tg_grid | loop_kind_t::thr_grid
             | loop_kind_t::serial;
     auto &view = gemm_schedule.b_view();
     auto ic_var_tmp = view.vvar("ic");

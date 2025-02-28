@@ -31,13 +31,13 @@ class dpasw_injector_t {
 public:
     dpasw_injector_t(const hw_t &hw, const stmt_t &load_mul_stmt,
             const expr_t &c_buf, const stmt_t &c_store_stmt,
-            alloc_updater_t &alloc_updater, const expr_t &tg_idx0)
+            alloc_updater_t &alloc_updater, const expr_t &thr_idx0)
         : hw_(hw)
         , load_mul_stmt_(load_mul_stmt)
         , c_buf_(c_buf)
         , c_store_stmt_(c_store_stmt)
         , alloc_updater_(alloc_updater)
-        , tg_idx0_(tg_idx0) {}
+        , thr_idx0_(thr_idx0) {}
 
     const stmt_t &load_mul_stmt() const { return load_mul_stmt_; }
 
@@ -341,7 +341,7 @@ private:
         //   dpas.sxr(a_dst, a_src0, src1, src2[0])
         //   dpas.sxr(b_dst, b_src0, src1, src2[s * r * 4])
         // After:
-        //   send(mem, a_off + (tg_idx0 % 2) * (b_off - a_off), src2)
+        //   send(mem, a_off + (thr_idx0 % 2) * (b_off - a_off), src2)
         //   dpasw.sxr(p_a_dst, p_a_src0, src1, src2[0])
         //   dpasw.sxr(p_b_dst, p_b_src0, src1, src2[s * r * 4 / 2])
         // Where:
@@ -386,7 +386,7 @@ private:
 
         auto new_send_args = a_send.args();
         send_t::arg_mem_off(new_send_args)
-                += (tg_idx0_ % 2) * to_cpp<int64_t>(ab_addr_diff);
+                += (thr_idx0_ % 2) * to_cpp<int64_t>(ab_addr_diff);
 
         a_send.set_new_call(a_send.send().call(new_send_args));
         b_send.set_new_call(stmt_t(), a_send.call);
@@ -413,8 +413,8 @@ private:
     }
 
     static bool can_convert_to_dpasw(const dpas_info_t &a_dpas,
-            const send_info_t &a_send, const expr_t &tg_idx0) {
-        if (contains_object(a_send.call, tg_idx0)) return false;
+            const send_info_t &a_send, const expr_t &thr_idx0) {
+        if (contains_object(a_send.call, thr_idx0)) return false;
         if (!has_constant_mask(a_send.call)) return false;
         return a_dpas.dpas().rcount % 2 == 0;
     }
@@ -433,7 +433,8 @@ private:
 
     bool try_convert_to_dpasw(dpas_info_t &a, grf_permutation_t &grf_perm) {
         if (hw_ >= ngen::HW::XeHPC) return false;
-        if (!can_convert_to_dpasw(a, find_send_info(a.send_producer), tg_idx0_))
+        if (!can_convert_to_dpasw(
+                    a, find_send_info(a.send_producer), thr_idx0_))
             return false;
 
         // Perform the transformation:
@@ -441,7 +442,7 @@ private:
         //   send(mem, a_off, src2[0])
         //   dpas.sxr(a_dst, a_src0, src1, src2[0])
         // After:
-        //   send(mem, a_off + (tg_idx0 % 2) * (s * r * 4 / 2), src2)
+        //   send(mem, a_off + (thr_idx0 % 2) * (s * r * 4 / 2), src2)
         //   dpasw.sxr(a_dst, a_src0, src1, src2[0])
 
         auto _dpasw = dpas_t::make_dpasw(a.dpas());
@@ -452,7 +453,7 @@ private:
         auto &a_send = find_send_info(a.send_producer);
         auto new_send_args = a_send.args();
         send_t::arg_mem_off(new_send_args)
-                += (tg_idx0_ % 2) * (a.src2_size() / 2);
+                += (thr_idx0_ % 2) * (a.src2_size() / 2);
         a_send.set_new_call(
                 create_half_send(a_send.send()).call(new_send_args));
 
@@ -464,7 +465,7 @@ private:
     expr_t c_buf_;
     stmt_t c_store_stmt_;
     alloc_updater_t &alloc_updater_;
-    expr_t tg_idx0_;
+    expr_t thr_idx0_;
 
     std::vector<dpas_info_t> dpas_infos_;
     std::vector<send_info_t> send_infos_;
@@ -472,9 +473,9 @@ private:
 
 void inject_dpasw(const hw_t &hw, stmt_t &load_mul_stmt, const expr_t &c_buf,
         stmt_t &c_store_stmt, alloc_updater_t &alloc_updater,
-        const expr_t &tg_idx0) {
+        const expr_t &thr_idx0) {
     dpasw_injector_t injector(
-            hw, load_mul_stmt, c_buf, c_store_stmt, alloc_updater, tg_idx0);
+            hw, load_mul_stmt, c_buf, c_store_stmt, alloc_updater, thr_idx0);
 
     injector.inject();
     load_mul_stmt = injector.load_mul_stmt();
