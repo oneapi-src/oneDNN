@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,12 +14,45 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include <oneapi/dnnl/experimental/dnnl_experimental.h>
+#ifndef DNNL_TEST_INTERNAL_MLP_INTERNAL_HPP
+#define DNNL_TEST_INTERNAL_MLP_INTERNAL_HPP
+
+#include "dnnl.hpp"
+
+#define DNNL_ARG_SRC DNNL_ARG_SRC_0
+#define DNNL_ARG_WTS_GATE DNNL_ARG_SRC_1
+#define DNNL_ARG_WTS_UP DNNL_ARG_SRC_2
+#define DNNL_ARG_WTS_DOWN DNNL_ARG_SRC_3
+
+/// Creates a primitive descriptor for a gated mlp primitive
+///
+/// @param primitive_desc Output primitive descriptor.
+/// @param engine Engine to use.
+/// @param src_desc src memory descriptor.
+/// @param W_gate_desc W_gate memory descriptor.
+/// @param W_up_desc W_up memory descriptor.
+/// @param W_down_desc W_down memory descriptor.
+/// @param dst_desc Destination memory descriptor.
+/// @param attr Primitive attributes (can be NULL).
+/// @param attr wts_gate attributes (can be NULL).
+/// @param attr wts_up attributes (can be NULL).
+/// @param attr wts_down attributes (can be NULL).
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+
+dnnl_status_t DNNL_API gmlp_primitive_desc_create(
+        dnnl_primitive_desc_t *primitive_desc_iface, dnnl_engine_t engine,
+        const_dnnl_memory_desc_t src_desc, const_dnnl_memory_desc_t W_gate_desc,
+        const_dnnl_memory_desc_t W_up_desc,
+        const_dnnl_memory_desc_t W_down_desc, const_dnnl_memory_desc_t dst_desc,
+        const_dnnl_primitive_attr_t attr, const_dnnl_primitive_attr_t gate_attr,
+        const_dnnl_primitive_attr_t up_attr,
+        const_dnnl_primitive_attr_t down_attr);
 
 namespace dnnl {
-namespace experimental {
+namespace impl {
 
-/// Scaled Dot Product Attention (gmlp) primitive.
+/// Gated MLP (gmlp) internal primitive.
 struct gmlp : public dnnl::primitive {
     /// Primitive descriptor for a gmlp primitive.
     struct primitive_desc : public dnnl::primitive_desc {
@@ -33,26 +66,10 @@ struct gmlp : public dnnl::primitive {
         primitive_desc(dnnl_primitive_desc_t pd)
             : dnnl::primitive_desc(pd, dnnl::primitive::kind::undef) {}
 
-        /// @copydoc dnnl::primitive_desc_base::src_desc()const
-        memory::desc src_desc() const { return query_md(query::src_md, 0); }
-
-        /// @copydoc dnnl::primitive_desc_base::weights_desc()const
-        memory::desc W_gate_desc() const { return query_md(query::src_md, 1); }
-
-        /// @copydoc dnnl::primitive_desc_base::weights_desc()const
-        memory::desc W_up_desc() const { return query_md(query::src_md, 2); }
-
-        /// @copydoc dnnl::primitive_desc_base::weights_desc()const
-        memory::desc W_down_desc() const {
-            return query_md(query::src_md, 3);
-        }
-
-        ///// @copydoc dnnl::primitive_desc_base::dst_desc()const
-        memory::desc dst_desc() const { return query_md(query::dst_md, 0); }
-
         primitive_desc(const engine &aengine, const memory::desc &src_desc,
                 const memory::desc &W_gate_desc, const memory::desc &W_up_desc,
-                const memory::desc &W_down_desc, const memory::desc &output_desc,
+                const memory::desc &W_down_desc,
+                const memory::desc &output_desc,
                 const primitive_attr &attr = default_attr(),
                 const primitive_attr &gate_attr = default_attr(),
                 const primitive_attr &up_attr = default_attr(),
@@ -60,7 +77,7 @@ struct gmlp : public dnnl::primitive {
 
             dnnl_primitive_desc_t pd = nullptr;
             dnnl_status_t status
-                    = dnnl_gmlp_primitive_desc_create(&pd, aengine.get(),
+                    = gmlp_primitive_desc_create(&pd, aengine.get(),
                             src_desc.get(), W_gate_desc.get(), W_up_desc.get(),
                             W_down_desc.get(), output_desc.get(), attr.get(),
                             gate_attr.get(), up_attr.get(), down_attr.get());
@@ -78,13 +95,9 @@ struct gmlp : public dnnl::primitive {
     /// Constructs a gmlp primitive.
     /// @param pd Primitive descriptor for a gmlp primitive.
     gmlp(const primitive_desc &pd) : primitive(pd) {}
-
-    /// Constructs a gmlp primitive from a cache blob.
-    /// @param pd Primitive descriptor for a gmlp primitive.
-    /// @param cache_blob Cache blob.
-    gmlp(const primitive_desc &pd, const std::vector<uint8_t> &cache_blob)
-        : primitive(pd, cache_blob) {}
 };
 
-} // namespace experimental
+} // namespace impl
 } // namespace dnnl
+
+#endif
