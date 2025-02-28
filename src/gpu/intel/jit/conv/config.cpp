@@ -979,8 +979,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     if (prb.is_fwd || prb.is_bwd_d) {
         attr_skip_mask |= sm::post_ops | sm::sum_dt | sm::zero_points_runtime
                 | sm::zero_points_runtime_data_type | sm::scales_runtime
-                | sm::rounding_mode | sm::scales_runtime_groups
-                | sm::scales_runtime_data_type;
+                | sm::rounding_mode | sm::scales_runtime_data_type;
         if (!attr->has_default_values(attr_skip_mask)) return false;
     } else {
         if (!attr->has_default_values(attr_skip_mask)) return false;

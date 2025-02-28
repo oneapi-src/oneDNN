@@ -177,7 +177,6 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
             fwd_attr_mask |= smask_t::scales_runtime
                     | smask_t::zero_points_runtime
                     | smask_t::zero_points_runtime_data_type
-                    | smask_t::scales_runtime_groups
                     | smask_t::scales_runtime_data_type;
 
         VCHECK_CONV_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
