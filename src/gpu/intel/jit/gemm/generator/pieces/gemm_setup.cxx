@@ -571,7 +571,7 @@ void BLASKernelGenerator<hw>::gemmOffsetBatchABC(const GEMMProblem &problem, con
                 auto offsetC = state.offsetC[q];
                 eadd(1, offsetC, offsetC, bOffsetC[b], strategy, state);
             }
-            if (!strategy.persistent) {
+            if (!strategy.persistentLoop()) {
                 state.ra.safeRelease(state.inputs.strideA[b]);
                 state.ra.safeRelease(state.inputs.strideB[b]);
                 state.ra.safeRelease(state.inputs.strideC[b]);
@@ -643,7 +643,7 @@ void BLASKernelGenerator<hw>::gemmRestoreOffsets(const GEMMProblem &problem, con
 template <HW hw>
 void BLASKernelGenerator<hw>::gemmSetupABC(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    if (strategy.persistent) {
+    if (strategy.persistentLoop()) {
         state.effA = state.offsetA;
         state.effB = state.offsetB;
         for (int q = 0; q < state.C_count; q++)
@@ -658,7 +658,7 @@ void BLASKernelGenerator<hw>::gemmSetupABC(const GEMMProblem &problem, const GEM
                 state.effC[q] = state.inputs.C[q] = state.ra.alloc_sub<uint64_t>(getHint(HintType::LongTerm, strategy));
 
             eadd(1, state.effC[q], Csrc, state.offsetC[q], strategy, state);
-            if (strategy.persistent)
+            if (strategy.persistentLoop())
                 state.offsetC[q] = invalid;
             else
                 state.ra.safeRelease(state.offsetC[q]);
@@ -667,7 +667,7 @@ void BLASKernelGenerator<hw>::gemmSetupABC(const GEMMProblem &problem, const GEM
 
     if (problem.usesCO() && strategy.CO.base.isStateless()) {
         eadd(1, state.effCO, state.inputs.CO, state.offsetCO, strategy, state);
-        if (strategy.persistent)
+        if (strategy.persistentLoop())
             state.offsetCO = invalid;
         else
             state.ra.safeRelease(state.offsetCO);
@@ -706,7 +706,7 @@ void BLASKernelGenerator<hw>::gemmSetupABC(const GEMMProblem &problem, const GEM
             state.effA = state.inputs.A = state.ra.alloc_sub<uint64_t>(getHint(HintType::LongTerm, strategy));
 
         eadd(1, state.effA, Asrc, state.offsetA, strategy, state);
-        if (strategy.persistent)
+        if (strategy.persistentLoop())
             state.offsetA = invalid;
         else
             state.ra.safeRelease(state.offsetA);
@@ -714,7 +714,7 @@ void BLASKernelGenerator<hw>::gemmSetupABC(const GEMMProblem &problem, const GEM
 
     if (strategy.B.base.isStateless()) {
         eadd(1, state.effB, state.inputs.B, state.offsetB, strategy, state);
-        if (strategy.persistent)
+        if (strategy.persistentLoop())
             state.offsetB = invalid;
         else
             state.ra.safeRelease(state.offsetB);
@@ -747,7 +747,7 @@ void BLASKernelGenerator<hw>::gemmGetBatchIDs(const GEMMProblem &problem, const 
         if (i > 0) {
             divDown(div, div, state.inputs.batchSize[i - 1], state.inputs.recipBatchSize[i - 1], state.flagAP, strategy, state);
             emad(1, state.batchID[idx], state.batchID[idx], -div, state.inputs.batchSize[i - 1], strategy, state);
-            if (!strategy.persistent) {
+            if (!strategy.persistentLoop()) {
                 state.ra.safeRelease(state.inputs.batchSize[i - 1]);
                 state.ra.safeRelease(state.inputs.recipBatchSize[i - 1]);
             }
@@ -913,17 +913,6 @@ void BLASKernelGenerator<hw>::gemmCacheLDCMultiples(const GEMMProblem &problem, 
     int C_count = prefetch ? 1 : state.C_count;
     for (int q = 0; q < C_count; q++)
         state.ldcMultiples[q] = createLDMultiples(a64, nc, state.inputs.ldc[q], strategy, state);
-}
-
-// Calculate actual amount of k-padding for variable k-slicing.
-template <HW hw>
-Subregister BLASKernelGenerator<hw>::gemmCalcKPadding(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
-{
-    // kpad = min(strategy.kPadding, 2*k0).
-    auto effKPad = state.ra.alloc_sub<uint32_t>();
-    shl(1, effKPad, state.inputs.k0, 1);
-    min_(1, effKPad, effKPad, strategy.kPadding);
-    return effKPad;
 }
 
 template <HW hw>
@@ -1853,7 +1842,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
         }
         gemmRepack2DOffsetData(problem.Ta_ext, problem.Tao, state.Tao_int, A_offsetLayout, state.Ar_offsetLayout, aoLoad, state.Ar_offsetRegs, problem, strategy, state);
         state.ra.safeRelease(aoLoad);
-        if (!strategy.persistent)
+        if (!strategy.persistentLoop())
             state.ra.safeRelease(state.inputs.aoPtr);
     }
     if (boTo2D) {
@@ -1881,7 +1870,7 @@ bool BLASKernelGenerator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStr
         }
         gemmRepack2DOffsetData(problem.Tb_ext, problem.Tbo, state.Tbo_int, B_offsetLayout, state.Br_offsetLayout, boLoad, state.Br_offsetRegs, problem, strategy, state);
         state.ra.safeRelease(boLoad);
-        if (!strategy.persistent)
+        if (!strategy.persistentLoop())
             state.ra.safeRelease(state.inputs.boPtr);
     }
     if (i0q != state.i0) state.ra.safeRelease(i0q);
@@ -2519,15 +2508,13 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
         state.inputs.bslice = interface.getArgument("bslice");
         state.inputs.bthresh = interface.getArgument("bthresh");
     }
-    if (strategy.persistent) {
+    if (strategy.persistent)
         state.inputs.groupCountMN = interface.getArgumentIfExists("group_count");
+    if (strategy.persistent || strategy.kParallelVariable)
         state.inputs.groupStride = interface.getArgument("group_stride");
-        if (strategy.kParallelVariable) {
-            state.inputs.kParallelStart = interface.getArgument("k_parallel_start");
-            state.inputs.kRecip = interface.getArgument("k_recip");
-            if (strategy.fuseBeta)
-                state.inputs.k0Recip = interface.getArgument("k0_recip");
-        }
+    if (strategy.kParallelVariable) {
+        state.inputs.kvConfig = interface.getArgument("kv_config");
+        state.inputs.kRecip = interface.getArgument("k_recip");
     }
     if (strategy.kParallel && strategy.fuseBeta)
         state.inputs.groupCountK = interface.getArgument("group_count_k");
@@ -2575,6 +2562,7 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
         state.groupIDMN = state.inputs.groupIDMN = tgids[0];
         state.inputs.groupIDM = invalid;
         state.inputs.groupIDN = invalid;
+        state.groupCountMN = state.inputs.groupCountMN;
     }
 
     // Move SLM pointers to offset arguments.
@@ -2767,17 +2755,15 @@ void BLASKernelGenerator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrate
         state.ra.claim(state.inputs.bthresh);
     }
 
-    if (strategy.persistent) {
+    if (strategy.persistent || strategy.kParallelVariable)
         state.ra.claim(state.inputs.groupStride);
-        if (state.inputs.groupCountMN.isValid())
-            state.ra.claim(state.inputs.groupCountMN);
-    }
+
+    if (state.inputs.groupCountMN.isValid())
+        state.ra.claim(state.inputs.groupCountMN);
 
     if (strategy.kParallelVariable) {
-        state.ra.claim(state.inputs.kParallelStart);
+        state.ra.claim(state.inputs.kvConfig);
         state.ra.claim(state.inputs.kRecip);
-        if (strategy.fuseBeta)
-            state.ra.claim(state.inputs.k0Recip);
     }
 
     if (strategy.kParallel && strategy.fuseBeta)
@@ -2804,7 +2790,7 @@ void BLASKernelGenerator<hw>::gemmInitState(GEMMProblem &problem, GEMMStrategy &
         initState(problem, strategy, state);
         gemmInitInterface(problem, strategy, state, inSK);
         state.isNested |= strategy.fused;
-        state.isNested |= strategy.persistent;
+        state.isNested |= strategy.persistentLoop();
     }
 
     state.effA = strategy.A.base.isStateless() ? state.inputs.A
@@ -2856,7 +2842,7 @@ void BLASKernelGenerator<hw>::gemmInitState(GEMMProblem &problem, GEMMStrategy &
     if (strategy.kParallel || strategy.kParallelLocal)
         state.lidK = state.inputs.localIDK[0];
 
-    state.k = state.inputs.k;
+    state.k = state.wgK = state.inputs.k;
 
     state.lda = state.inputs.lda;
     state.ldb = state.inputs.ldb;

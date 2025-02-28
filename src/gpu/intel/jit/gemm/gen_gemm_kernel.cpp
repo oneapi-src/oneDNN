@@ -914,9 +914,8 @@ void gen_gemm_kernel_t::init_interface() {
     }
     if (strategy.kParallelVariable) {
         interface_.newArgument("k0", DataType::ud);
-        interface_.newArgument("k_parallel_start", DataType::ud);
+        interface_.newArgument("kv_config", DataType::ud);
         interface_.newArgument("k_recip", DataType::ud);
-        if (strategy.fuseBeta) interface_.newArgument("k0_recip", DataType::ud);
     }
     if (strategy.persistent)
         interface_.newArgument("group_stride", DataType::ud);

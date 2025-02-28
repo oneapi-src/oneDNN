@@ -48,6 +48,7 @@
 #include "pieces/remask.cxx"
 #include "pieces/row_column_sums.cxx"
 #include "pieces/state_utils.cxx"
+#include "pieces/stream_k.cxx"
 #include "pieces/tlb_warmup.cxx"
 #include "pieces/walk_orders.cxx"
 
