@@ -114,26 +114,28 @@ void bench_gqa(engine::kind ekind, logical_tensor::data_type dt,
     dnnl_dim_t head_rep = p.q_head_num / p.kv_head_num;
     // Prepare input and output shapes to construct the gqa graph.
     const dims q_sz = {p.mb, p.q_head_num, p.seq_len, p.head_size};
-    const dims q_sz_reshape
-            = {p.mb, p.kv_head_num, head_rep, p.seq_len, p.head_size};
+    const dims q_sz_reshape = {p.mb, p.kv_head_num, head_rep, -1, p.head_size};
     const dims kv_sz = {p.mb, p.kv_head_num, p.seq_len, p.head_size};
-    const dims kv_sz_reshape = {p.mb, p.kv_head_num, 1, p.seq_len, p.head_size};
-    const dims score_sz = {p.mb, p.kv_head_num, head_rep, p.seq_len, p.seq_len};
+    const dims kv_sz_reshape = {p.mb, p.kv_head_num, 1, -1, p.head_size};
     const dims scale_sz = {1};
     const dims mask_sz = {p.mb, 1, 1, p.seq_len};
-    const dims mask_sz_reshape = {p.mb, 1, 1, 1, p.seq_len};
+    const dims mask_sz_reshape = {p.mb, 1, 1, 1, -1};
+    const dims out_sz_reshape = {p.mb, p.q_head_num, -1, p.head_size};
 
     // Incremental IDs used to create logical tensors and operations.
     size_t id = 0;
 
     // score = query x key.T
-    auto query = logical_tensor(id++, dt, q_sz, layout_type::strided);
-    auto query_reshape
-            = logical_tensor(id++, dt, q_sz_reshape, layout_type::strided);
-    auto key = logical_tensor(id++, dt, kv_sz, layout_type::strided);
-    auto key_reshape
-            = logical_tensor(id++, dt, kv_sz_reshape, layout_type::strided);
-    auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto query = logical_tensor(id++, dt);
+    auto key = logical_tensor(id++, dt);
+    auto scale = logical_tensor(id++, dt);
+    auto mask = logical_tensor(id++, dt);
+    auto value = logical_tensor(id++, dt);
+    auto output = logical_tensor(id++, dt);
+
+    auto query_reshape = logical_tensor(id++, dt);
+    auto key_reshape = logical_tensor(id++, dt);
+    auto score = logical_tensor(id++, dt);
 
     auto reshape1 = op(id++, op::kind::StaticReshape, "reshape1");
     reshape1.set_attr(op::attr::shape, q_sz_reshape);
@@ -153,43 +155,35 @@ void bench_gqa(engine::kind ekind, logical_tensor::data_type dt,
     bmm1.add_outputs({score});
 
     // scaled_score = score / scale
-    auto scale = logical_tensor(id++, dt, scale_sz, layout_type::strided);
-    auto scaled_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto scaled_score = logical_tensor(id++, dt);
     auto scale_div = op(id++, op::kind::Divide, "scale_div");
     scale_div.add_inputs({score, scale});
     scale_div.add_outputs({scaled_score});
 
     // masked_score = scaled_score + mask
-    auto mask = logical_tensor(id++, dt, mask_sz, layout_type::strided);
-    auto mask_reshape
-            = logical_tensor(id++, dt, mask_sz_reshape, layout_type::strided);
+    auto mask_reshape = logical_tensor(id++, dt);
     auto reshape3 = op(id++, op::kind::StaticReshape, "reshape3");
     reshape3.set_attr(op::attr::shape, mask_sz_reshape);
     reshape3.set_attr(op::attr::special_zero, false);
     reshape3.add_inputs({mask});
     reshape3.add_outputs({mask_reshape});
 
-    auto masked_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto masked_score = logical_tensor(id++, dt);
     auto mask_add = op(id++, op::kind::Add, "mask_add");
     mask_add.add_inputs({scaled_score, mask_reshape});
     mask_add.add_outputs({masked_score});
 
     // attention_probs = softmax(masked_score)
-    auto probs = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto probs = logical_tensor(id++, dt);
     auto softmax = op(id++, op::kind::SoftMax, "softmax");
     softmax.set_attr<int64_t>(op::attr::axis, -1);
     softmax.add_inputs({masked_score});
     softmax.add_outputs({probs});
 
     // attention_output = attention_probs x value
-    auto value = logical_tensor(id++, dt, kv_sz, layout_type::strided);
-    auto value_reshape
-            = logical_tensor(id++, dt, kv_sz_reshape, layout_type::strided);
+    auto value_reshape = logical_tensor(id++, dt);
 
-    auto output_reshape
-            = logical_tensor(id++, dt, q_sz_reshape, layout_type::strided);
+    auto output_reshape = logical_tensor(id++, dt);
 
     auto reshape4 = op(id++, op::kind::StaticReshape, "reshape3");
     reshape4.set_attr(op::attr::shape, kv_sz_reshape);
@@ -201,9 +195,8 @@ void bench_gqa(engine::kind ekind, logical_tensor::data_type dt,
     bmm2.add_inputs({probs, value_reshape});
     bmm2.add_outputs({output_reshape});
 
-    auto output = logical_tensor(id++, dt, q_sz, layout_type::strided);
     auto reshape5 = op(id++, op::kind::StaticReshape, "reshape4");
-    reshape5.set_attr(op::attr::shape, q_sz);
+    reshape5.set_attr(op::attr::shape, out_sz_reshape);
     reshape5.set_attr(op::attr::special_zero, false);
     reshape5.add_inputs({output_reshape});
     reshape5.add_outputs({output});
@@ -230,9 +223,20 @@ void bench_gqa(engine::kind ekind, logical_tensor::data_type dt,
         return;
     }
 
+    id = 0;
+    query = logical_tensor(id++, dt, q_sz, layout_type::strided);
+    key = logical_tensor(id++, dt, kv_sz, layout_type::strided);
+    scale = logical_tensor(id++, dt, scale_sz, layout_type::strided);
+    mask = logical_tensor(id++, dt, mask_sz, layout_type::strided);
+    value = logical_tensor(id++, dt, kv_sz, layout_type::strided);
+    output = logical_tensor(
+            id, dt, DNNL_GRAPH_UNKNOWN_NDIMS, layout_type::strided);
+
     // Compile the partition with inputs, outputs, and an engine.
     compiled_partition cp = partitions[0].compile(
             {query, key, scale, mask, value}, {output}, eng);
+
+    output = cp.query_logical_tensor(id);
 
     // Create tensor objects
     auto ts_query = tensor(query, eng);
