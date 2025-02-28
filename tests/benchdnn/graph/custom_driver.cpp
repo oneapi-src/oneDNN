@@ -293,6 +293,17 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
 
 int fill_mem(dnn_mem_t &mem_dt, dnn_mem_t &mem_fp, int f_min, int f_max) {
 
+    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) {
+        const int nhandles = query_md_num_handles(mem_dt.md_);
+        size_t sz = dnnl_memory_desc_get_size(mem_dt.md_);
+        if (sz != 0) {
+            for (int i = 0; i < nhandles; i++)
+                mem_dt.memset(dnnl_mem_default_perf_test_value, sz, i);
+        }
+
+        return OK;
+    }
+
     const auto nelems = mem_fp.nelems();
     if (nelems == 0) return OK;
 
@@ -339,8 +350,6 @@ void init_memory_args(dnn_mem_map_t &mem_map, const prb_t *prb,
 
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         const prb_t *prb, res_t *res) {
-    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) return OK;
-
     switch (prb->alg) {
         case GENINDEX:
             SAFE(::custom::genindex::init_ref_memory_args(

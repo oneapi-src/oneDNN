@@ -42,6 +42,36 @@ size_t get_benchdnn_device_limit() {
     return benchdnn_device_limit;
 }
 
+dnn_graph_mem_t::dnn_graph_mem_t(
+        const deserialized_lt &lt, const bool is_op_input)
+    : graph_dims_(lt.shape_), graph_strides_(lt.stride_) {
+
+    const auto &graph_dt = convert_dt(lt.get_data_type());
+    const auto data_type = static_cast<dnnl::memory::data_type>(graph_dt);
+
+    const auto &g_eng = get_graph_engine().operator const dnnl::engine &();
+
+    if (is_op_input) {
+
+        if (graph_dims_.empty()) graph_dims_.push_back(1);
+        if (graph_strides_.empty()) graph_strides_.push_back(1);
+
+        // create graph memory
+        dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
+        mem_ = dnn_mem_t(md.get(), g_eng.get());
+        size_t sz = dnnl_memory_desc_get_size(mem_.md_);
+        const int nhandles = query_md_num_handles(mem_.md_);
+
+        if (sz != 0) {
+            for (int i = 0; i < nhandles; i++)
+                mem_.memset(dnnl_mem_default_perf_test_value, sz, i);
+        }
+    } else {
+        dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
+        mem_ = dnn_mem_t(md.get(), g_eng.get());
+    }
+}
+
 // Constructs memories for all inputs and outputs needed for comparison.
 dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
         const deserialized_lt &lt, const bool is_op_input,
@@ -93,7 +123,6 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
             SAFE_V(c_mem.reorder(mem));
             prim_to_graph_memcpy(mem_, c_mem);
         } else {
-            // ... otherwise, perform a plain memcpy.
             prim_to_graph_memcpy(mem_, mem);
         }
     } else {
