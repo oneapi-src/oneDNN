@@ -87,8 +87,8 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 
     // Bind "external" variables.
     expr_binding_t expr_binding(hw);
-    bind_external_vars(body, cfg_.plan().gemm_schedule.kernel_grid_walk_order(),
-            expr_binding);
+    bind_external_vars(
+            body, cfg_.plan().gemm_schedule.tg_grid_walk_order(), expr_binding);
     profile.stamp("Bind Variables");
 
 #ifdef DNNL_DEV_MODE
