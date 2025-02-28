@@ -663,15 +663,18 @@ int doit(const prb_t *prb, res_t *res) {
             }
         }
 
-        // unmap memory from host to device
-        map_unmap_partition_mem(partition_mem_map_v[i], inputs, UNMAP, res);
-        map_unmap_partition_mem(partition_mem_map_v[i], outputs, UNMAP, res);
-        if (res->state == FAIL) {
-            BENCHDNN_PRINT(0,
-                    "FAIL: Fail to unmap memories to host for partition "
-                    "%zu.\n",
-                    i);
-            return FAIL;
+        if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) {
+            // unmap memory from host to device
+            map_unmap_partition_mem(partition_mem_map_v[i], inputs, UNMAP, res);
+            map_unmap_partition_mem(
+                    partition_mem_map_v[i], outputs, UNMAP, res);
+            if (res->state == FAIL) {
+                BENCHDNN_PRINT(0,
+                        "FAIL: Fail to unmap memories to host for partition "
+                        "%zu.\n",
+                        i);
+                return FAIL;
+            }
         }
 
         const op_ref_list_t &op_list = ref_partition.get_partition_ops();
