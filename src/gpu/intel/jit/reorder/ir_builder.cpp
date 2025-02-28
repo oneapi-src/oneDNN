@@ -333,10 +333,8 @@ void reorder_ir_builder_t::compute_grid(const layout_t &src,
         kernel_grid_dims[grid_idx] *= outer;
         if (outer != 1 && grid_idx != max_grid_idx) grid_idx++;
     }
-    auto &tg_idxs = ir_builder_t::tg_idxs();
-    kernel_grid = grid_info_t(kernel_grid_dims,
-            std::vector<expr_t>(tg_idxs.begin(), tg_idxs.end()));
-    tg_grid = grid_info_t(tg_grid_dims, "thr_idx");
+    kernel_grid = grid_info_t(kernel_grid_dims, ir_builder_t::tg_idx);
+    tg_grid = grid_info_t(tg_grid_dims, ir_builder_t::thr_idx);
 }
 
 compute::nd_range_t reorder_ir_builder_t::nd_range(
