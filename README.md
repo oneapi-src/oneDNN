@@ -59,26 +59,26 @@ optimizations are available with [Intel Extension for Tensorflow].
 
 # Documentation
 
-* [Release Notes] explains the new features added, issues resolved, and improvements implemented in each version of oneDNN.
+* [Release Notes] explains the new features and performance optimizations added, and improvements implemented in each version of oneDNN.
 * [oneDNN Developer Guide and Reference] explains the programming model, supported functionality,
   and implementation details, and includes annotated examples.
 * [API Reference] provides a comprehensive reference of the library API.
 
 [Developer Guide]: https://oneapi-src.github.io/oneDNN
 [API Reference]: https://oneapi-src.github.io/oneDNN/group_dnnl_api.html
-[Release Notes]: https://github.com/oneapi-src/oneDNN/releases/tag/v3.7
+[Release Notes]: https://github.com/oneapi-src/oneDNN/releases
 
 # Installation
 
 You can download and install the oneDNN library using one of the following options:
 
--	Binary Distribution: You can download pre-built binary packages from the following sources:
+- Binary Distribution: You can download pre-built binary packages from the following sources:
     - [conda-forge]: If the configuration you need is not available, you can build the library using the Source Distribution.
     - Intel oneAPI:
-       - [Download as a part of the Intel® oneAPI Base Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn-download.html)
-       - [Download as the Stand-Alone Intel® oneAPI Deep Neural Network Library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.html)
+       - [Intel oneAPI Base Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit-download.htm)
+       - [Intel oneDNN](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn-download.html)
 
--	Source Distribution: You can build the library from source by following the instructions on the [Build from Source] page.
+- Source Distribution: You can build the library from source by following the instructions on the [Build from Source] page.
 
 
 [conda-forge]: https://anaconda.org/conda-forge/onednn
@@ -355,7 +355,6 @@ oneDNN GPU engine is validated on the following operating systems:
 | Windows Server\* 2019 | <ul><li>Microsoft Visual Studio 2022</li><li>[Intel oneAPI DPC++/C++ Compiler] 2024.0</li><li>[Intel Arc & Iris Xe Graphics Driver] latest stable version available at the time of release</li></ul> 
 
 
-
 [Intel Software for General Purpose GPU capabilities]: https://dgpu-docs.intel.com/index.html
 [Intel Arc & Iris Xe Graphics Driver]: https://www.intel.com/content/www/us/en/download/785597/intel-arc-iris-xe-graphics-windows.html
 [Arm Compiler for Linux]: https://developer.arm.com/Tools%20and%20Software/Arm%20Compiler%20for%20Linux
@@ -413,7 +412,7 @@ contributors are expected to adhere to the [Contributor Covenant](CODE_OF_CONDUC
 
 # License
 
-| Third-party Software | License Terms
+| License Terms | Third-party Software
 | :--------------------- | :----------------------------     
 | 3-clause BSD license  | <ul><li>[Xbyak](https://github.com/herumi/xbyak)</li><li>[gtest](https://github.com/google/googletest)</li><li>(ITT API)](https://github.com/intel/ittapi)</li><li>[CMake](https://github.com/Kitware/CMake)</li></ul> 
 | 2-clause BSD license  | [Sphinx](https://www.sphinx-doc.org/)
