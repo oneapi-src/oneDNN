@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -162,6 +162,8 @@ public:
     //
     dnn_graph_mem_t(const dnn_mem_t &mem, const deserialized_lt &lt,
             const bool is_op_input, const bool is_fake_output = false);
+
+    dnn_graph_mem_t(const deserialized_lt &lt, const bool is_op_input);
 
     dnnl::graph::tensor make_graph_tensor(const deserialized_lt &lt) const;
 

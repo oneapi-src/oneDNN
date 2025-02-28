@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,6 +42,9 @@ public:
     // prepare memories in both paths, one by one ref primitive
     int init_ref(const std::vector<size_t> &graph_ports,
             partition_mem_map_t &partition_mem_map, res_t *res);
+
+    int init_graph_mem(partition_mem_map_t &partition_mem_map, res_t *res);
+
     // run partition in ref path, one by one ref primitive
     void exec_ops(res_t *res);
 
