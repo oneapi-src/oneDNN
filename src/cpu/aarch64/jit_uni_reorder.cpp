@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2018-2023 Intel Corporation
 * Copyright 2020-2024 FUJITSU LIMITED
-* Copyright 2022-2024 Arm Ltd. and affiliates
+* Copyright 2022-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -170,7 +170,8 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 || (p.itype == bf16 && p.otype == f32 && mayiuse_bf16()
                         && p.beta == 0.f);
 
-        bool f16_ok = (p.itype != f16 && p.otype != f16)
+        bool is_f16 = (p.itype == f16 || p.otype == f16);
+        bool f16_ok = (p.itype == f32 && p.otype == f16 && p.beta == 0.f)
                 || (p.itype == f16 && p.otype == f32 && p.beta == 0.f);
 
         bool ok = true && p.ndims > 0
@@ -181,7 +182,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                 && utils::everyone_is(0, p.ioff, p.ooff) /* do we need this? */
                 && utils::one_of(p.beta, 0.f, 1.f) /* anything else? */
                 && simple_impl_desc_init(p, nullptr) && prb_has_small_strides(p)
-                && bf16_ok && f16_ok;
+                && bf16_ok && IMPLICATION(is_f16, f16_ok);
 
         return ok;
     }
