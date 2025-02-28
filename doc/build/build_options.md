@@ -272,7 +272,7 @@ for a limited number of operations, provided by AArch64 libraries.
 #### Arm Compute Library
 Arm Compute Library is an open-source library for machine learning applications.
 The development repository is available from
-[mlplatform.org](https://review.mlplatform.org/#/admin/projects/ml/ComputeLibrary),
+[mlplatform.org](https://review.mlplatform.org/admin/projects/ml/ComputeLibrary),
 and releases are also available on [GitHub](https://github.com/ARM-software/ComputeLibrary).
 The `ONEDNN_AARCH64_USE_ACL` CMake option is used to enable Compute Library integration:
 
