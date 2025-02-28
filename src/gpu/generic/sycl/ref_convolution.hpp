@@ -102,9 +102,9 @@ struct ref_convolution_fwd_t : public gpu::generic::sycl::primitive_t {
                     VERBOSE_UNSUPPORTED_DT_CFG);
             VDISPATCH_CONV(check_convolution_formats(data_d, weights_d, dst_d),
                     VERBOSE_UNSUPPORTED_TAG);
-            VDISPATCH_CONV(attr()->has_default_values(sm::scales_runtime
-                                   | sm::zero_points_runtime | sm::post_ops
-                                   | sm::sum_dt),
+            VDISPATCH_CONV(
+                    attr()->has_default_values(sm::scales | sm::zero_points
+                            | sm::post_ops | sm::sum_dt),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_CONV(
                     IMPLICATION(!attr()->scales_.has_default_values(),
@@ -171,9 +171,9 @@ struct ref_convolution_bwd_data_t : public gpu::generic::sycl::primitive_t {
             VDISPATCH_CONV(check_convolution_formats(
                                    diff_data_d, weights_d, diff_dst_d),
                     VERBOSE_UNSUPPORTED_TAG);
-            VDISPATCH_CONV(attr()->has_default_values(sm::scales_runtime
-                                   | sm::zero_points_runtime | sm::sum_dt
-                                   | sm::post_ops),
+            VDISPATCH_CONV(
+                    attr()->has_default_values(sm::scales | sm::zero_points
+                            | sm::sum_dt | sm::post_ops),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_CONV(sycl_post_ops_t::post_ops_ok(attr(), false),
                     VERBOSE_UNSUPPORTED_POSTOP);

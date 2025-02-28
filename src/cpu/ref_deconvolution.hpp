@@ -165,8 +165,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
             using smask_t = primitive_attr_t::skip_mask_t;
             auto skip_mask = smask_t::post_ops | smask_t::sum_dt;
             if (utils::one_of(desc()->src_desc.data_type, s8, u8))
-                skip_mask |= smask_t::scales_runtime
-                        | smask_t::zero_points_runtime;
+                skip_mask |= smask_t::scales | smask_t::zero_points;
 
             VDISPATCH_DECONVOLUTION(is_fwd(), VERBOSE_BAD_PROPKIND);
             VDISPATCH_DECONVOLUTION(utils::one_of(desc()->alg_kind,

@@ -52,14 +52,13 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     auto attr_mask = smask_t::post_ops | smask_t::sum_dt | smask_t::dropout
             | smask_t::rounding_mode;
     // Matmul supports scales for floating point data types
-    attr_mask |= smask_t::scales_runtime;
-    attr_mask |= smask_t::scales_runtime_data_type;
+    attr_mask |= smask_t::scales_data_type;
 
     const bool src_is_int8
             = utils::one_of(src_dt, data_type::s8, data_type::u8);
     const bool src_is_fp8
             = utils::one_of(src_dt, data_type::f8_e5m2, data_type::f8_e4m3);
-    if (src_is_int8 || src_is_fp8) attr_mask |= smask_t::zero_points_runtime;
+    if (src_is_int8 || src_is_fp8) attr_mask |= smask_t::zero_points;
 
     // Matmul supports zero points for floating point data types as part of
     // weights decompression.
@@ -68,9 +67,9 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     const bool wei_is_fp8
             = utils::one_of(wei_dt, data_type::f8_e5m2, data_type::f8_e4m3);
     if (wei_is_int || wei_is_fp8) {
-        attr_mask |= smask_t::zero_points_runtime_data_type;
-        attr_mask |= smask_t::zero_points_runtime_groups;
-        attr_mask |= smask_t::scales_runtime_groups;
+        attr_mask |= smask_t::zero_points_data_type;
+        attr_mask |= smask_t::zero_points_groups;
+        attr_mask |= smask_t::scales_groups;
     }
 
     // Matmul supports fpmath mode and accumulation mode

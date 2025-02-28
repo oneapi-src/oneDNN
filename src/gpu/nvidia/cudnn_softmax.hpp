@@ -52,7 +52,7 @@ struct cudnn_softmax_fwd_t : public gpu::primitive_t {
                     && IMPLICATION(src_md()->data_type == data_type::bf16,
                             has_bf16_support(sycl_dev))
                     && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::scales_runtime)
+                            primitive_attr_t::skip_mask_t::scales)
                     && set_default_formats() == status::success
                     && src_d.is_plain() && dst_d.is_plain() && dst_d == src_d
                     && IMPLICATION(!attr()->scales_.has_default_values(),

@@ -43,10 +43,8 @@ struct ref_convolution_fwd_t : public gpu_primitive_t {
                     = utils::downcast<compute::compute_engine_t *>(engine);
 
             using sm = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime
-                    | sm::zero_points_runtime_data_type | sm::scales_runtime
-                    | sm::scales_runtime_data_type | sm::sum_dt
-                    | sm::rounding_mode;
+            const auto attr_skip_mask = sm::post_ops | sm::zero_points_data_type
+                    | sm::scales_data_type | sm::sum_dt | sm::rounding_mode;
 
             const bool is_int8 = utils::one_of(src_md_.data_type, s8, u8);
             const bool is_fp8
@@ -153,8 +151,8 @@ struct ref_convolution_bwd_data_t : public gpu_primitive_t {
 
         status_t init(impl::engine_t *engine) {
             using sm = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm::post_ops | sm::zero_points_runtime
-                    | sm::zero_points_runtime_data_type | sm::scales_runtime;
+            const auto attr_skip_mask
+                    = sm::post_ops | sm::zero_points_data_type | sm::scales;
             using namespace data_type;
             const auto *compute_engine
                     = utils::downcast<compute::compute_engine_t *>(engine);

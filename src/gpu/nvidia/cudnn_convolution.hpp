@@ -51,7 +51,7 @@ struct cudnn_convolution_fwd_t : public gpu::primitive_t {
 
             using sm_t = primitive_attr_t::skip_mask_t;
             const auto attr_skip_mask
-                    = sm_t::scales_runtime | sm_t::post_ops | sm_t::fpmath_mode;
+                    = sm_t::scales | sm_t::post_ops | sm_t::fpmath_mode;
             auto *sycl_engine = utils::downcast<nvidia::engine_t *>(engine);
 
             bool ok = utils::one_of(desc()->prop_kind,

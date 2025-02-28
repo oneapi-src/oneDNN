@@ -133,9 +133,7 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             is_f32, is_int8, is_bf16, is_f16, is_f32_bf16, is_f32_f16);
 
     auto skip_mask = skip_mask_t::post_ops;
-    if (is_int8)
-        skip_mask |= (skip_mask_t::scales_runtime
-                | skip_mask_t::zero_points_runtime);
+    if (is_int8) skip_mask |= (skip_mask_t::scales | skip_mask_t::zero_points);
 
     VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
     VDISPATCH_CONV(one_of(true, is_f32, is_int8, is_bf16, is_f16, is_f32_f16,
