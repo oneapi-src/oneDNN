@@ -269,6 +269,8 @@ private:
         return jpp.is_fp8 && is_superset(isa, avx512_core_fp16);
     }
 
+    static bool has_large_buffers(const pooling_pd_t *ppd);
+
     std::unique_ptr<bf16_emulation_t> bf16_emu_;
     std::unique_ptr<fp8_emulation_e5m2_t> f8_e5m2_emu_;
     std::unique_ptr<fp8_emulation_e4m3_t> f8_e4m3_emu_;
