@@ -293,10 +293,18 @@ public:
                         = buf_mgr.get("bias_reduced", plan.bias_layout.size());
         }
 
+        arg_helper_t arg_helper(desc);
+        for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            if (desc.scales.has_default_values(arg)) continue;
+            auto name = arg_helper.scales_name(arg);
+            auto &e = entries_[name];
+            e.mem_buf = var_mgr.get_arg(name);
+        }
+
         for (size_t i = 0; i < desc.post_ops.len(); i++) {
             auto &po = desc.post_ops[i];
             if (po.is_binary()) {
-                std::string name = "binary_" + std::to_string(i);
+                auto name = arg_helper.post_op_name(i);
                 auto &e = entries_[name];
                 e.mem_buf = var_mgr.get_arg(name);
             }
@@ -630,7 +638,8 @@ private:
     expr_t build_post_ops(const layout_t &layout,
             const pvar_coord_t<expr_t> &coord, const expr_t &_buf,
             layout_t &out_layout) {
-        if (desc_.post_ops.len() == 0 && !desc_.with_bias_fwd()) {
+        if (desc_.post_ops.len() == 0 && desc_.scales.has_default_values()
+                && !desc_.with_bias_fwd()) {
             out_layout = layout;
             return _buf;
         }
@@ -642,11 +651,41 @@ private:
         arg_helper_t arg_helper(desc_);
         auto &c_tag = pick_c(
                 desc_.prop, desc_.src_tag, desc_.wei_tag, desc_.dst_tag);
+        auto to_rhs_mask = [](int arg, int mask) {
+            if (mask == 0) return 0;
+            switch (arg) {
+                case DNNL_ARG_WEIGHTS:
+                    gpu_assert(mask == ((1 << 0) | (1 << 1)))
+                            << "Only per-output channels scales are supported, "
+                               "mask: "
+                            << mask;
+                    return (1 << 1);
+                case DNNL_ARG_DST: return mask;
+                default: gpu_error_not_expected();
+            }
+            return 0;
+        };
+        auto build_scale = [&](int arg) {
+            if (desc_.scales.has_default_values(arg)) return;
+            auto rhs_buf_name = arg_helper.scales_name(arg);
+            auto mask = desc_.scales.get_mask(arg);
+            auto data_type = desc_.scales.get_data_type(arg);
+            alg_kind_t alg = (arg == DNNL_ARG_DST ? alg_kind::binary_div
+                                                  : alg_kind::binary_mul);
+            build_post_op(coord, tile, alg, nullptr, f32_layout, buf,
+                    buf_info_.mem_buf(rhs_buf_name), type_t(data_type),
+                    into<uint16_t>(to_rhs_mask(arg, mask)));
+        };
+        // Apply non-dst scales.
+        build_scale(DNNL_ARG_SRC);
+        build_scale(DNNL_ARG_WEIGHTS);
+        // Apply bias.
         if (desc_.with_bias_fwd()) {
             build_post_op(coord, tile, alg_kind::binary_add, nullptr,
                     f32_layout, buf, buf_info_.mem_buf("bias"), desc_.bias_type,
                     /*rhs_mask=*/0x2);
         }
+        // Apply post-ops.
         for (size_t i = 0; i < desc_.post_ops.len(); i++) {
             auto &po = desc_.post_ops[i];
             if (po.is_eltwise()) {
@@ -670,6 +709,8 @@ private:
                 gpu_error_not_expected();
             }
         }
+        // Apply dst scales.
+        build_scale(DNNL_ARG_DST);
         out_layout = f32_layout;
         return buf;
     }

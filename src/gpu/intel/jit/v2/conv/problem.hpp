@@ -52,6 +52,8 @@ public:
         return src_tag_;
     }
     const pvar_tile_t &shape() const { return shape_; }
+    bool with_groups() const { return with_groups_; }
+    bool with_scales() const { return with_scales_; }
     bool with_post_ops() const { return with_post_ops_; }
     bool deterministic() const { return deterministic_; }
     bool is_depthwise() const {
@@ -71,6 +73,8 @@ public:
     void set_dst_tag(const layout_tag_t &tag) { dst_tag_ = tag; }
     void set_bias_type(const type_t &bias_type) { bias_type_ = bias_type; }
     void set_shape(const pvar_tile_t &shape) { shape_ = shape; }
+    void set_with_groups(bool value) { with_groups_ = value; }
+    void set_with_scales(bool value) { with_scales_ = value; }
     void set_with_post_ops(bool value) { with_post_ops_ = value; }
     void set_deterministic(bool value) { deterministic_ = value; }
     bool with_bias_fwd() const {
@@ -101,6 +105,8 @@ private:
     type_t bias_type_;
     pvar_tile_t shape_;
     std::array<int, 3> dhw_map_;
+    bool with_groups_ = false;
+    bool with_scales_ = false;
     bool with_post_ops_ = false;
     bool deterministic_ = false;
 };

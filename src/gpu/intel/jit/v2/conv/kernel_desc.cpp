@@ -368,7 +368,8 @@ bool is_compatible(
     gpu_check(prb.is_depthwise() == desc.is_dw)
             << "Mixing depthwise/non-depthwise descriptor and problem";
     if (desc.use_stream_k) {
-        gpu_check(!prb.with_bias_fwd() && !prb.with_post_ops())
+        gpu_check(!prb.with_bias_fwd() && !prb.with_post_ops()
+                && !prb.with_scales())
                 << "Stream-K is incompatible with post-ops/bias";
         gpu_check(!prb.deterministic())
                 << "Stream-K is not supported in deterministic mode";
@@ -425,8 +426,19 @@ void kernel_desc_t::fit_to(const problem_t &prb) {
     spec.specialize(prb);
 }
 
-status_t kernel_desc_t::set_post_ops(const post_ops_t &attr_post_ops,
-        const memory_desc_t *out_md, const convolution_pd_t *pd) {
+status_t kernel_desc_t::set_attr(const convolution_pd_t *pd,
+        const primitive_attr_t *attr, const memory_desc_t *out_md) {
+    scales = attr->scales_;
+    if (!pd->with_groups()) {
+        // Extend weights scales mask to include groups as the kernel can be
+        // reused for group convolution as well.
+        auto &e = scales.get(DNNL_ARG_WEIGHTS);
+        if (e.get_mask() & ((1 << 0) | (1 << 1))) {
+            scales.set(DNNL_ARG_WEIGHTS, (e.get_mask() << 1) | 1,
+                    e.get_data_type(), 0, {});
+        }
+    }
+    auto &attr_post_ops = attr->post_ops_;
     for (int i = 0; i < attr_post_ops.len(); i++) {
         auto &e = attr_post_ops.entry_[i];
         if (e.is_binary()) {
@@ -554,6 +566,22 @@ void kernel_desc_t::init_parse_iface(parse_iface_t<kernel_desc_t> *iface) {
             "Kernel extensions, comma-separated (e.g. "
             "bias,out_b1,out_b2,out_b4).");
 
+    parse_iface_t<kernel_desc_t>::entry_t scales_entry;
+    scales_entry.name = "scales";
+    scales_entry.help = "Kernel scales.";
+    scales_entry._default = [](const kernel_desc_t &) {
+        return serialize_to_hex(scales_t());
+    };
+    scales_entry.stringify
+            = [](std::ostream &out, const kernel_desc_t &parent) {
+                  out << serialize_to_hex(parent.scales);
+              };
+    scales_entry.parse = [](std::istream &in, kernel_desc_t &parent) {
+        auto s_data = stream_parse<std::string>(in);
+        deserialize_from_hex(parent.scales, s_data);
+    };
+    iface->add(scales_entry);
+
     parse_iface_t<kernel_desc_t>::entry_t po_entry;
     po_entry.name = "post_ops";
     po_entry.help = "Kernel post-ops.";
@@ -615,6 +643,16 @@ bool arg_helper_t::is_output(const std::string &name) const {
     return false;
 }
 
+std::string arg_helper_t::scales_name(int arg) const {
+    switch (arg) {
+        case DNNL_ARG_SRC: return "src_scales";
+        case DNNL_ARG_WEIGHTS: return "wei_scales";
+        case DNNL_ARG_DST: return "dst_scales";
+        default: gpu_error_not_expected();
+    }
+    return "";
+}
+
 std::string arg_helper_t::post_op_name(size_t idx) const {
     gpu_assert(idx < desc_.post_ops.len());
     auto &po = desc_.post_ops[idx];
@@ -622,6 +660,10 @@ std::string arg_helper_t::post_op_name(size_t idx) const {
     if (po.is_binary()) return "binary_" + std::to_string(idx);
     gpu_error_not_expected();
     return "";
+}
+
+int arg_helper_t::scales_key(int arg) const {
+    return DNNL_ARG_ATTR_SCALES | arg;
 }
 
 int arg_helper_t::post_op_key(size_t idx) const {
@@ -650,6 +692,12 @@ tensor_config_t get_tensor_config(
         int key = h.key(t);
         tensor_cfg.add_tensor(t, key, is_input, is_output,
                 pd ? jit::layout_t(pd->arg_md(key)) : jit::layout_t());
+    }
+    for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+        if (desc.scales.get(arg).has_default_values()) continue;
+        tensor_cfg.add_tensor(h.scales_name(arg), h.scales_key(arg),
+                /*is_input=*/true,
+                /*is_output=*/false, jit::layout_t());
     }
     for (size_t i = 0; i < desc.post_ops.len(); i++) {
         auto name = h.post_op_name(i);
@@ -907,6 +955,8 @@ jit::layout_t get_kernel_layout(const std::string &name,
     } else if (name == "bias") {
         tag = make_conv_layout_tag(
                 tensor_kind_t::bias, "a:" + desc.bias_type.str());
+    } else if (name.find("_scales") != std::string::npos) {
+        return jit::layout_t();
     } else if (name.find("binary") == 0) {
         auto out_kind = pick_c(desc.prop, tensor_kind_t::src,
                 tensor_kind_t::wei, tensor_kind_t::dst);
@@ -927,7 +977,9 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
         auto user_name = t.name;
         auto &md = *pd->arg_md(t.arg_key);
         auto compute_layout = get_kernel_layout(t.name, *this, md, pd);
-        auto user_layout = jit::layout_t(md, /*do_normalize=*/false);
+        auto user_layout
+                = (md.ndims == 0 ? jit::layout_t()
+                                 : jit::layout_t(md, /*do_normalize=*/false));
         bool is_out_stream_k = use_stream_k && t.is_output;
         bool zero_out = is_out_stream_k;
         if (compute_layout != user_layout) {
