@@ -38,6 +38,14 @@ struct cpu_stream_t : public stream_t {
 
     dnnl::impl::status_t wait() override {
         // CPU execution is synchronous so return immediately
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+        dnnl::threadpool_interop::threadpool_iface *tp;
+        auto rc = this->get_threadpool(&tp);
+        if (rc == status::success) {
+            if (tp->get_flags() & threadpool_interop::threadpool_iface::ASYNCHRONOUS)
+                tp->wait();
+        }
+#endif
         return dnnl::impl::status::success;
     }
 

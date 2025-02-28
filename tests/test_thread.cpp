@@ -140,6 +140,11 @@ public:
     void parallel_for(int n, const std::function<void(int, int)> &fn) override {
         runner_->Parallelize(n, [fn, n](size_t task_index) { fn(task_index, n); });
     }
+    void wait() override {
+        // Here we can wait for donce_event to be concrete.
+        // .runner_->done_event().AndThen([]{});
+        BlockUntilReady(runner_->done_event());
+    }
 };
 
 } // namespace testing
