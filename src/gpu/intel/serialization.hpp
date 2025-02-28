@@ -110,14 +110,12 @@ struct serialized_data_t {
     template <typename T,
             gpu_utils::enable_if_t<is_trivially_serialized<T>::value,
                     bool> = true>
-    T get(size_t idx) const {
-        T t {};
+    void get(size_t idx, T &t) const {
         if (data.size() < idx + sizeof(T)) {
             assert(!"unexpected");
-            return t;
+            return;
         }
         std::memcpy(&t, &data[idx], sizeof(T));
-        return t;
     }
 
     size_t hash() const { return hash_range(data.data(), data.size()); };
@@ -210,7 +208,7 @@ struct deserializer_t {
                             && !has_deserialize_t<T>::value,
                     bool> = true>
     void pop(T &t) {
-        t = s.get<T>(idx);
+        s.get<T>(idx, t);
         idx += sizeof(T);
     };
     template <typename T,
@@ -221,7 +219,9 @@ struct deserializer_t {
     T pop() {
         auto idx_start = idx;
         idx += sizeof(T);
-        return s.get<T>(idx_start);
+        T t {};
+        s.get<T>(idx_start, t);
+        return t;
     };
 
     // Helper for vector types

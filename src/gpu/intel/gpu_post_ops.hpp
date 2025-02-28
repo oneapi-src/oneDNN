@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include "common/math_utils.hpp"
 #include "common/primitive_attr.hpp"
+#include "common/primitive_attr_quant.hpp"
 #include "gpu/intel/block_structure.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 #include "gpu/intel/utils.hpp"
@@ -614,6 +615,73 @@ struct gpu_post_ops_t {
 
 private:
     std::vector<entry_t> ops_;
+};
+
+struct gpu_scales_t {
+    gpu_scales_t() = default;
+
+    static status_t make(gpu_scales_t &gpu_scales, const scales_t &scales) {
+        for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
+            if (scales.get(arg).has_default_values()) continue;
+            gpu_scales.entries_.emplace_back(arg, scales.get(arg));
+        }
+        return status::success;
+    }
+
+    struct entry_t {
+        int arg = DNNL_ARG_UNDEF;
+        quant_entry_t quant_entry;
+
+        entry_t() = default;
+        entry_t(int arg, const quant_entry_t &quant_entry)
+            : arg(arg), quant_entry(quant_entry) {}
+
+        void serialize(serialized_data_t &s) const {
+            s.append(arg);
+            s.append(quant_entry.get_mask());
+            s.append(quant_entry.get_data_type());
+            s.append(quant_entry.get_group_ndims());
+            s.append(quant_entry.get_group_dims());
+        }
+
+        static entry_t deserialize(deserializer_t &d) {
+            entry_t e;
+            d.pop(e.arg);
+            int mask, group_ndims;
+            data_type_t data_type;
+            dims_t group_dims;
+            d.pop(mask);
+            d.pop(data_type);
+            d.pop(group_ndims);
+            d.pop(group_dims);
+            e.quant_entry.set(mask, data_type, group_ndims, group_dims);
+            return e;
+        }
+
+#if __cplusplus >= 202002L
+        bool operator==(const entry_t &other) const = default;
+#endif
+    };
+
+    const entry_t &operator[](size_t idx) const { return entries_[idx]; }
+    entry_t &operator[](size_t idx) { return entries_[idx]; }
+
+    void serialize(serialized_data_t &s) const { s.append(entries_); }
+
+    static gpu_scales_t deserialize(deserializer_t &d) {
+        gpu_scales_t scales;
+        d.pop(scales.entries_);
+        return scales;
+    }
+
+#if __cplusplus >= 202002L
+    bool operator==(const gpu_scales_t &) const = default;
+#endif
+
+    size_t len() const { return entries_.size(); }
+
+private:
+    std::vector<entry_t> entries_;
 };
 
 } // namespace intel
