@@ -37,7 +37,8 @@ std::random_device &get_random_device();
 
 std::mt19937 &get_generator();
 
-void fill_random(std::vector<float> &out, const dnnl::memory::desc &desc);
+void fill_random(std::vector<float> &out, const dnnl::memory::desc &desc,
+        float minval = -3.f, float maxval = 4.f);
 
 void fill_random_scales(
         std::vector<float> &out, const dnnl::memory::desc &desc);
@@ -204,8 +205,8 @@ std::vector<float> dequantize(const std::vector<float> &input,
 
             int group = 0;
 
-            for(size_t i=0; i < ndims; ++i) {
-                if(groups[0] > 1) {
+            for (size_t i = 0; i < ndims; ++i) {
+                if (groups[0] > 1) {
                     group = (i == n2lastdim) ? groups[0] : 1;
                     scale_offset += idxs[i] / group * scales_strides[i];
 
@@ -233,7 +234,6 @@ std::vector<float> dequantize(const std::vector<float> &input,
             }
             if (d < 0) { break; }
         }
-
     }
     return out;
 }
@@ -241,6 +241,5 @@ std::vector<float> dequantize(const std::vector<float> &input,
 std::ostream &operator<<(std::ostream &ss, const quantize_type &qt);
 
 std::ostream &operator<<(std::ostream &ss, const memory::data_type &dt);
-
 
 #endif

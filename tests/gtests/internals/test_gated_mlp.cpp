@@ -385,7 +385,7 @@ gmlp_tensors get_descriptors(dnnl::engine &eng, mlp_dims_t p) {
         case quantize_type::no_quantization: break;
     }
 
-    fill_random(x_data, x_md);
+    fill_random(x_data, x_md, -1.f, 1.f);
     //fill_lin(x_data); //testdata
 
     fill_random_quantized(w_gate_quantized_data, w_gate_qnt_md,
@@ -398,7 +398,6 @@ gmlp_tensors get_descriptors(dnnl::engine &eng, mlp_dims_t p) {
     if (p.qtype != quantize_type::no_quantization) {
         if (wgu_wt != mdt::f16 && wgu_s_dt != mdt::undef) {
             fill_random_scales(w_gate_scales_data, w_gate_scales_md);
-            //w_gate_scales_data[63] = 2.f;
             fill_random_scales(w_up_scales_data, w_up_scales_md);
         }
         //if (qtype == quantize_type::per_token) {
@@ -429,13 +428,13 @@ gmlp_tensors get_descriptors(dnnl::engine &eng, mlp_dims_t p) {
     //if(p.qtype == quantize_type::no_quantization) {
     if (!p.do_quantize) {
         printf("no quant init\n");
-        fill_random(w_gate_data, w_gate_md);
+        fill_random(w_gate_data, w_gate_md, -1.f, 1.f);
         //fill_hceye(w_gate_data, p.ic); //testdata
 
-        fill_random(w_up_data, w_up_md);
-        fill_random(w_down_data, w_down_md);
+        fill_random(w_up_data, w_up_md, -1.f, 1.f);
+        fill_random(w_down_data, w_down_md, -1.f, 1.f);
     } else {
-        if (wgu_wt == mdt::s4 || wgu_wt == mdt::s8) {
+        if (wgu_zp_dt == mdt::s4 || wgu_zp_dt == mdt::s8) {
             printf("s4/s8 quant init\n");
             w_gate_data = dequantize(w_gate_quantized_data, w_gate_md,
                     w_gate_scales_md, w_gate_zp_data_signed, w_gate_scales_data,
@@ -474,7 +473,7 @@ gmlp_tensors get_descriptors(dnnl::engine &eng, mlp_dims_t p) {
     write_to_dnnl_memory(w_up_quantized_data.data(), out.m_w_up_quantized);
     write_to_dnnl_memory(w_down_quantized_data.data(), out.m_w_down_quantized);
 
-    if (wgu_wt == mdt::s4 || wgu_wt == mdt::s8) {
+    if (wgu_zp_dt == mdt::s4 || wgu_zp_dt == mdt::s8) {
         write_to_dnnl_memory(w_gate_zp_data_signed.data(), out.m_w_gate_zp);
         write_to_dnnl_memory(w_up_zp_data_signed.data(), out.m_w_up_zp);
         write_to_dnnl_memory(w_down_zp_data_signed.data(), out.m_w_down_zp);
@@ -1113,8 +1112,10 @@ TEST_P(mlp_test, compare) {
     int total_size = resph.size();
     int threshold = total_size * 0.0006;
 
-    std::cout << "max diff: " << max_diff << ":  " << max_val
-              << " != " << max_gold << std::endl;
+    if (n_mismatches > 0) {
+        std::cout << "max diff: " << max_diff << ":  " << max_val
+                  << " != " << max_gold << std::endl;
+    }
     ASSERT_LE(n_mismatches, threshold) << "out of: " << total_size;
 }
 
@@ -1149,26 +1150,26 @@ INSTANTIATE_TEST_SUITE_P(VEC,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
                      quantize_type::per_token},
- //           mlp_dims_t{1024,  896,   18944,    false, // mb ic oc quant?  //TODO: 896 failing?
- //                       1, 1,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   quantize_type::per_token},
- //           mlp_dims_t{1024,  896,   4864,    false,
- //                       1, 1,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   quantize_type::per_token},
- //           mlp_dims_t{1024,  896,   14336,    false,
- //                       1, 1,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   quantize_type::per_token},
- //           mlp_dims_t{1024,  896,   27392,    false,
- //                       1, 1,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   quantize_type::per_token},
+             mlp_dims_t{1024,  896,   18944,    false, // mb ic oc quant?  //TODO: 896 failing?
+                         1, 1,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     quantize_type::per_token},
+             mlp_dims_t{1024,  896,   4864,    false,
+                         1, 1,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     quantize_type::per_token},
+             mlp_dims_t{1024,  896,   14336,    false,
+                         1, 1,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     quantize_type::per_token},
+             mlp_dims_t{1024,  896,   27392,    false,
+                         1, 1,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     quantize_type::per_token},
              mlp_dims_t{1024,  4096,   18944,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
@@ -1207,26 +1208,26 @@ INSTANTIATE_TEST_SUITE_P(VEC,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
                      quantize_type::per_token},
- //           mlp_dims_t{1,  896,   18944,    false, // mb ic oc quant?  //TODO: 896 failing?
- //                       1, 1,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   quantize_type::per_token},
- //           mlp_dims_t{1,  896,   4864,    false,
- //                       1, 1,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   quantize_type::per_token},
- //           mlp_dims_t{1,  896,   14336,    false,
- //                       1, 1,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   quantize_type::per_token},
- //           mlp_dims_t{1,  896,   27392,    false,
- //                       1, 1,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   mdt::f16, mdt::f16, mdt::f16,
- //                   quantize_type::per_token},
+             mlp_dims_t{1,  896,   18944,    false, // mb ic oc quant?  //TODO: 896 failing?
+                         1, 1,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     quantize_type::per_token},
+             mlp_dims_t{1,  896,   4864,    false,
+                         1, 1,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     quantize_type::per_token},
+             mlp_dims_t{1,  896,   14336,    false,
+                         1, 1,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     quantize_type::per_token},
+             mlp_dims_t{1,  896,   27392,    false,
+                         1, 1,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     mdt::f16, mdt::f16, mdt::f16,
+                     quantize_type::per_token},
              mlp_dims_t{1,  4096,   18944,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
@@ -1375,7 +1376,6 @@ INSTANTIATE_TEST_SUITE_P(VEC,
                     mdt::s4, mdt::f16, mdt::u8,
                     mdt::s8, mdt::f16, mdt::s8,
                     quantize_type::per_token_with_groups},
-
             // per tensor
             mlp_dims_t{1024,  3584,   18944,   true, 1, 1,
                     mdt::u8, mdt::f16, mdt::u8,
@@ -1393,6 +1393,5 @@ INSTANTIATE_TEST_SUITE_P(VEC,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
                     quantize_type::per_tensor}
-
     //,
     ), &PrintToString);
