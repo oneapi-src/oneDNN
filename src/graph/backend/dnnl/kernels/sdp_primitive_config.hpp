@@ -46,6 +46,10 @@ public:
     std::shared_ptr<op_t> mm1_ = nullptr;
     std::shared_ptr<op_t> mm2_ = nullptr;
 
+    // for paged attention
+    std::shared_ptr<op_t> k_paged_cache_load_ = nullptr;
+    std::shared_ptr<op_t> v_paged_cache_load_ = nullptr;
+
     std::shared_ptr<value_t> q_ = nullptr;
     std::shared_ptr<value_t> k_ = nullptr;
     std::shared_ptr<value_t> v_ = nullptr;
@@ -59,17 +63,31 @@ public:
     std::shared_ptr<value_t> k_zero_points_ = nullptr;
     std::shared_ptr<value_t> v_zero_points_ = nullptr;
 
+    // for paged attention
+    std::shared_ptr<value_t> k_cache_ = nullptr;
+    std::shared_ptr<value_t> v_cache_ = nullptr;
+    std::shared_ptr<value_t> block_table_ = nullptr;
+
     bool invert_scale_ = false;
     bool quantized_ = false;
     bool causal_mask_ = false;
+    bool page_attention_enabled_ = false;
     dim_t kv_head_number_;
 
     // SDP pd and primitive.
     std::shared_ptr<primitive_desc_t> sdpa_pd_;
     std::shared_ptr<primitive_t> sdpa_prim_;
 
+    // // paged attention SDP pd and primitive.
+    std::shared_ptr<dnnl::sdpa_micro::primitive_desc> paged_sdpa_pd_;
+    std::shared_ptr<dnnl::sdpa_micro::primitive> paged_sdpa_prim_;
+    memory prompt_lens;
+    memory subsequence_begins;
+    memory block_indices_begin;
+
 private:
     op_ptr get_post_op(const op_ptr &op) const;
+    op_ptr get_paged_cache_load_op(const op_ptr &op) const;
 
 public:
     status_t locate_io(std::shared_ptr<subgraph_t> &sg,

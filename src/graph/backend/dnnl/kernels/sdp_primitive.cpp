@@ -150,7 +150,7 @@ void sdp_primitive_kernel_t<quantized>::prepare_args_set(
 
 template <bool quantized>
 status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
-        exec_args_t &args, memory (&mem_storage)[10],
+        exec_args_t &args, memory (&mem_storage)[16],
         const execution_args_set_t *res) const {
     bool ok = res->find_value_mem_map(cfg_.q_.get(), mem_storage[0])
             && res->find_value_mem_map(cfg_.k_.get(), mem_storage[1])
@@ -179,6 +179,15 @@ status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
                 && res->find_value_mem_map(
                         cfg_.v_zero_points_.get(), mem_storage[9]);
 
+    if (cfg_.page_attention_enabled_) {
+        ok = ok && res->find_value_mem_map(cfg_.k_cache_.get(), mem_storage[10])
+                && res->find_value_mem_map(cfg_.v_cache_.get(), mem_storage[11])
+                && res->find_value_mem_map(
+                        cfg_.block_table_.get(), mem_storage[12]);
+        // && res->find_value_mem_map(cfg_.block_indices_begin_.get(), mem_storage[13]);
+        // && res->find_value_mem_map(cfg_.prompt_lens_.get(), mem_storage[14])
+        // && res->find_value_mem_map(cfg_.subsequence_begins_.get(), mem_storage[15]);
+    }
     VCONDCHECK(graph, exec, check, sdp_primitive_kernel, ok,
             status::runtime_error,
             "sdp_primitive_kernel get_prim_exec_args failed");
@@ -224,7 +233,7 @@ status_t sdp_primitive_kernel_t<quantized>::execute_impl(
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[10];
+    memory mem_storage[16];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));
@@ -254,7 +263,7 @@ status_t sdp_primitive_kernel_t<quantized>::sycl_execute_impl(
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[10];
+    memory mem_storage[16];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));
@@ -300,7 +309,7 @@ status_t sdp_primitive_kernel_t<quantized>::ocl_execute_impl(
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[10];
+    memory mem_storage[16];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));
@@ -319,7 +328,10 @@ status_t sdp_primitive_kernel_t<quantized>::ocl_execute_impl(
         ocl_stream->ocl_ctx().set_deps(events);
     }
 
-    auto status = cfg_.sdpa_prim_->execute(ctx);
+    auto status = status::success;
+    auto status = cfg_.page_attention_enabled_
+            ? cfg_.paged_sdpa_prim_->execute(ctx)
+            : cfg_.sdpa_prim_->execute(ctx);
 
     cl_event return_event = nullptr;
     if ((ocl_stream->flags() & stream_flags::in_order) == 0) {

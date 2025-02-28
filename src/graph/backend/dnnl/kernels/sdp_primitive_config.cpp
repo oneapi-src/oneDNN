@@ -35,6 +35,14 @@ op_ptr sdp_primitive_config_t::get_post_op(const op_ptr &op) const {
     return consumers[0].get_op().shared_from_this();
 }
 
+op_ptr sdp_primitive_config_t::get_paged_cache_load_op(const op_ptr &op) const {
+    const auto in_val = op->get_input_value(1);
+    if (!in_val->has_producer()) return nullptr;
+    auto &producer = in_val->get_producer();
+    if (producer.get_kind() != op_kind::dnnl_paged_cache_load) return nullptr;
+    return producer.shared_from_this();
+}
+
 status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
         const std::vector<logical_tensor_t> &inputs,
         const std::vector<logical_tensor_t> &outputs) {
@@ -109,6 +117,23 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
     q_ = mm1->get_input_value(0);
     k_ = mm1->get_input_value(1);
     v_ = mm2->get_input_value(1);
+
+    // Locate paged attention input/outputs: QCache, VCache, block_table
+    k_paged_cache_load_ = get_paged_cache_load_op(mm1);
+    v_paged_cache_load_ = get_paged_cache_load_op(mm2);
+
+    if (k_paged_cache_load_ != nullptr && v_paged_cache_load_ != nullptr) {
+        k_cache_ = k_paged_cache_load_->get_input_value(0);
+        v_cache_ = v_paged_cache_load_->get_input_value(0);
+        // key and value should share the same block table
+        block_table_ = k_paged_cache_load_->get_input_value(1);
+        auto v_block_table = v_paged_cache_load_->get_input_value(1);
+        VCHECK_SDP_PRIMITIVE(
+                (k_cache_ && v_cache_ && block_table_ == v_block_table),
+                status::unimplemented,
+                "Paged attention inputs/outputs not valid");
+        page_attention_enabled_ = true;
+    }
 
     if (quantized_) {
         // The input order of fused matmul is: src_0, src_1, scale, zero points
@@ -296,6 +321,97 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
     auto md_v = make_dnnl_memory_desc(v_->get_logical_tensor());
     auto md_dst = make_dnnl_memory_desc(dst_->get_logical_tensor());
 
+    dnnl::memory::desc md_q_pa, md_k_cache, md_v_cache, md_prompt_lens,
+            md_subsequence_begins, md_block_indices, md_block_indices_begin;
+    if (page_attention_enabled_) {
+        auto q_lt = q_->get_logical_tensor();
+        const auto q_strides = q_lt.layout.strides;
+
+        // TODO: mv check to init_check
+        // paged attention micro kernel only support q shape [1,1,query_num,head_num*head_size]
+        // need to transpose and reshape original q[seq_num, head_num, seq_len, head_size]
+        // as q_pa[seq_num * seq_len, head_num*head_size]
+        if (q_strides[2] != q_lt.dims[1] * q_lt.dims[3]
+                || q_strides[0] != q_lt.dims[1] * q_lt.dims[2] * q_lt.dims[3]
+                || q_strides[3] != 1) {
+            const auto status = status::unimplemented;
+            VCONDCHECK(graph, create, dispatch, sdp, false, status,
+                    "could not create sdp primitive, falling back\n");
+            return status;
+        }
+        VCHECK_SDP_PRIMITIVE(q_lt.dims[1] == 1, status::unimplemented,
+                "currently, paged attention only supports head_num 1");
+
+        logical_tensor_t q_pa_lt = q_lt;
+        q_pa_lt.dims[0] = 1;
+        q_pa_lt.dims[1] = 1;
+        q_pa_lt.dims[2] = q_lt.dims[0] * q_lt.dims[2];
+        q_pa_lt.dims[3] = q_lt.dims[1] * q_lt.dims[3];
+        q_pa_lt.layout.strides[3] = 1;
+        q_pa_lt.layout.strides[2] = q_pa_lt.dims[3];
+        q_pa_lt.layout.strides[1] = q_pa_lt.dims[2] * q_pa_lt.dims[3];
+        q_pa_lt.layout.strides[0] = q_pa_lt.layout.strides[1];
+        md_q_pa = make_dnnl_memory_desc(q_pa_lt);
+
+        md_k_cache = make_dnnl_memory_desc(k_cache_->get_logical_tensor());
+        md_v_cache = make_dnnl_memory_desc(v_cache_->get_logical_tensor());
+
+        // block_table [seq_num, max_block_num_per_seq]
+        auto block_table_lt = block_table_->get_logical_tensor();
+        // block_indices [seq_num * max_block_num_per_seq]
+        // 1D tensor with the same number of elements as block_table;
+        logical_tensor_t block_indices_lt;
+        block_indices_lt.ndims = 1;
+        block_indices_lt.dims[0]
+                = block_table_lt.dims[0] * block_table_lt.dims[1];
+        block_indices_lt.data_type = block_table_lt.data_type;
+        block_indices_lt.layout_type = layout_type::strided;
+        block_indices_lt.layout.strides[0] = 1;
+        block_indices_lt.property = block_table_lt.property;
+        md_block_indices = make_dnnl_memory_desc(block_indices_lt);
+
+        // block_indices_begin [seq_num + 1]
+        // 1D tensor with the start position of each sequence in block_indices;
+        logical_tensor_t block_indices_begin_lt;
+        block_indices_begin_lt.ndims = 1;
+        block_indices_begin_lt.dims[0] = block_table_lt.dims[0];
+        block_indices_begin_lt.data_type = block_table_lt.data_type;
+        block_indices_begin_lt.layout_type = layout_type::strided;
+        block_indices_begin_lt.layout.strides[0] = 1;
+        block_indices_begin_lt.property = dnnl_graph_tensor_property_t::
+                dnnl_graph_tensor_property_constant;
+        ;
+        md_block_indices_begin = make_dnnl_memory_desc(block_indices_begin_lt);
+
+        // prompt_lens [query_num + 1]
+        // 1D tensor with the same number of elements as query[1,1,query_num,head_num*head_size];
+        logical_tensor_t prompt_lens_lt;
+        prompt_lens_lt.ndims = 1;
+        prompt_lens_lt.dims[0] = q_lt.dims[0] + 1;
+        prompt_lens_lt.data_type = dnnl_data_type_t::dnnl_s32;
+        prompt_lens_lt.layout_type = layout_type::strided;
+        prompt_lens_lt.layout.strides[0] = 1;
+        prompt_lens_lt.property = dnnl_graph_tensor_property_t::
+                dnnl_graph_tensor_property_constant;
+        md_prompt_lens = make_dnnl_memory_desc(prompt_lens_lt);
+
+        // subsequence_begins [seq_num + 1]
+        // 1D tensor for the lenth of seq_lens of KV;
+        //K&&V should have the same seq_len
+        k_paged_cache_load_->has_same_attr_values(*v_paged_cache_load_);
+        auto seq_lens = k_paged_cache_load_->get_attr<std::vector<int64_t>>(
+                op_attr::seq_lens);
+        logical_tensor_t subsequence_begins_lt;
+        subsequence_begins_lt.ndims = 1;
+        subsequence_begins_lt.dims[0] = q_lt.dims[0] + 1;
+        subsequence_begins_lt.data_type = dnnl_data_type_t::dnnl_s32;
+        subsequence_begins_lt.layout_type = layout_type::strided;
+        subsequence_begins_lt.layout.strides[0] = 1;
+        subsequence_begins_lt.property = dnnl_graph_tensor_property_t::
+                dnnl_graph_tensor_property_constant;
+        md_subsequence_begins = make_dnnl_memory_desc(subsequence_begins_lt);
+    }
+
     dnnl::memory::desc md_mask;
     if (attn_mask_)
         md_mask = make_dnnl_memory_desc(attn_mask_->get_logical_tensor());
@@ -321,15 +437,34 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
         vs_attr = make_dnnl_primitive_attr(mm2_, mgr.get_info(key));
     }
 
-    CHECK(create_sdpa_pd(sdpa_pd_, p_engine.get(), md_q.get(), md_k.get(),
-            md_v.get(), md_dst.get(), md_mask.get(), scale_dt, invert_scale_,
-            kv_head_number_, causal_mask_, attr.get(), qk_attr.get(),
-            vs_attr.get()));
-
-    auto status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
-
+    auto status = status::success;
+    if (!page_attention_enabled_) {
+        CHECK(create_sdpa_pd(sdpa_pd_, p_engine.get(), md_q.get(), md_k.get(),
+                md_v.get(), md_dst.get(), md_mask.get(), scale_dt,
+                invert_scale_, kv_head_number_, causal_mask_, attr.get(),
+                qk_attr.get(), vs_attr.get(), md_q_pa.get(), md_k_cache.get(),
+                md_v_cache.get(), md_prompt_lens.get(),
+                md_subsequence_begins.get(), md_block_indices.get(),
+                md_block_indices_begin.get()));
+        status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
+    } else {
+        paged_sdpa_pd_ = std::make_shared<dnnl::sdpa_micro::primitive_desc>(
+                p_engine, 10, md_q_pa, md_k_cache, md_v_cache, md_dst, md_mask,
+                md_prompt_lens, md_subsequence_begins, md_block_indices,
+                md_block_indices_begin);
+        paged_sdpa_prim_
+                = std::make_shared<dnnl::sdpa_micro>(*paged_sdpa_pd_.get());
+    }
     VCONDCHECK(graph, create, dispatch, sdp, status == status::success, status,
             "could not create sdp primitive, falling back\n");
+
+    // prepare memory for page attention
+    // if (page_attention_enabled_) {
+    //     write_to_dnnl_memory()
+    //     CHECK(create_memory(k_cache_, p_engine.get(), md_k));
+    //     CHECK(create_memory(v_cache_, p_engine.get(), md_v));
+    //     CHECK(create_memory(block_table_, p_engine.get(), md_block_indices));
+    // }
     return status;
 }
 

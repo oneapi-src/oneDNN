@@ -137,14 +137,32 @@ static inline status_t create_sdpa_pd(
         const memory_desc_t *v_md, const memory_desc_t *dst_md,
         const memory_desc_t *attn_mask_md, data_type_t scale_dt,
         bool invert_scale, dim_t kv_head_number, bool causal_mask,
-        const primitive_attr_t *attr, const primitive_attr_t *kq_attr = nullptr,
-        const primitive_attr_t *vs_attr = nullptr) {
-    CHECK(sdpa_attr_check(q_md, k_md, v_md, engine, attr, kq_attr, vs_attr));
+        const primitive_attr_t *attr, const primitive_attr_t *kq_attr,
+        const primitive_attr_t *vs_attr, const memory_desc_t *q_pa_md,
+        const memory_desc_t *key_cache, const memory_desc_t *value_cache,
+        const memory_desc_t *prompt_lens_md,
+        const memory_desc_t *subsequence_begins_md,
+        const memory_desc_t *block_indices_md,
+        const memory_desc_t *block_indices_begin_md) {
+    bool page_attention_enabled = false;
+    if (!q_pa_md && !block_indices_md && !block_indices_begin_md
+            && !prompt_lens_md)
+        page_attention_enabled = true;
 
-    auto sdpa_desc = create_sdpa_desc(q_md, k_md, v_md, dst_md, attn_mask_md,
-            scale_dt, invert_scale, kv_head_number, causal_mask, kq_attr,
-            vs_attr);
+    // quantized page attention is not supported yet
+    if (page_attention_enabled && (kq_attr || vs_attr))
+        return status::unimplemented;
+    if (!page_attention_enabled)
+        CHECK(sdpa_attr_check(
+                q_md, k_md, v_md, engine, attr, kq_attr, vs_attr));
 
+    sdpa_desc_t sdpa_desc;
+    if (!page_attention_enabled) {
+        sdpa_desc = create_sdpa_desc(q_md, k_md, v_md, dst_md, attn_mask_md,
+                scale_dt, invert_scale, kv_head_number, causal_mask, kq_attr,
+                vs_attr);
+    } else {
+    }
     int ndims = dst_md->ndims;
     int r = ndims - 2, c = ndims - 1;
     VCHECK_SDPA_COND(

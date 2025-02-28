@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,7 +73,7 @@ public:
             const std::vector<tensor_t> &outputs,
             const scratchpad_t &scratchpad);
 
-    status_t get_prim_exec_args(exec_args_t &args, memory (&mem_storage)[10],
+    status_t get_prim_exec_args(exec_args_t &args, memory (&mem_storage)[16],
             const execution_args_set_t *res) const;
 
     status_t execute_impl(const stream_t *g_stream,
