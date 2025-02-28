@@ -281,6 +281,13 @@ static inline void parallel(int nthr, const std::function<void(int, int)> &f) {
     auto task_primitive_kind = itt::primitive_task_get_current_kind();
     bool itt_enable = itt::get_itt(itt::__itt_task_level_high);
 #endif
+#if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
+    using namespace dnnl::impl::threadpool_utils;
+    dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
+    bool async = tp->get_flags()
+        & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS;
+    if (!async)
+#endif
     if (nthr == 1) {
         f(0, 1);
         return;
@@ -316,8 +323,6 @@ static inline void parallel(int nthr, const std::function<void(int, int)> &f) {
             },
             tbb::static_partitioner());
 #elif DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
-    using namespace dnnl::impl::threadpool_utils;
-    dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
     if (!tp || dnnl_in_parallel()) {
         threadpool_utils::deactivate_threadpool();
         for (int ithr = 0; ithr < nthr; ithr++) {
