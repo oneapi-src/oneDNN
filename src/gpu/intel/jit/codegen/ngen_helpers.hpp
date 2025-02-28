@@ -19,7 +19,7 @@
 
 #include "gpu/intel/jit/ir/core.hpp"
 #include "gpu/intel/jit/utils/ngen_proxy.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 #include "ngen/ngen_register_allocator.hpp"
 
 namespace dnnl {

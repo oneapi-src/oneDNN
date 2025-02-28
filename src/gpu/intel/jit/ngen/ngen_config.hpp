@@ -22,6 +22,15 @@
 #include "common/float16.hpp"
 
 #define NGEN_NAMESPACE ngen
+#define NGEN_CPP11
+#define NGEN_SAFE
+#define NGEN_NEO_INTERFACE
+#define NGEN_NO_OP_NAMES
+#define NGEN_WINDOWS_COMPAT
+
+#ifdef DNNL_DEV_MODE
+#define NGEN_ASM
+#endif
 
 namespace NGEN_NAMESPACE {
 using bfloat16 = dnnl::impl::bfloat16_t;
@@ -31,7 +40,8 @@ using half = dnnl::impl::float16_t;
 #define NGEN_BFLOAT16_TYPE
 #define NGEN_HALF_TYPE
 
-#if (!defined(NDEBUG) || defined(DNNL_DEV_MODE)) && (__cplusplus >= 202002L || _MSVC_LANG >= 202002L)
+#if (!defined(NDEBUG) || defined(DNNL_DEV_MODE)) \
+        && (__cplusplus >= 202002L || _MSVC_LANG >= 202002L)
 #if __has_include(<version>)
 #include <version>
 #if __cpp_lib_source_location >= 201907L

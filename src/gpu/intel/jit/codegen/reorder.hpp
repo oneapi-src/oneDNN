@@ -24,7 +24,7 @@
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/utils/iterator.hpp"
 #include "gpu/intel/jit/utils/range.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 namespace dnnl {
 namespace impl {

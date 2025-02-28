@@ -24,7 +24,7 @@
 #include "gpu/intel/jit/ir/core.hpp"
 #include "gpu/intel/jit/ir/grf_permutation.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 namespace dnnl {
 namespace impl {

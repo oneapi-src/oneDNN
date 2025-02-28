@@ -20,7 +20,7 @@
 #include "gpu/intel/jit/ir/hw.hpp"
 #include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 #include <vector>
 
