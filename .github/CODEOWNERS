@@ -51,7 +51,7 @@
 /third_party/mdapi/ @oneapi-src/onednn-gpu-intel
 /third_party/ngen/ @oneapi-src/onednn-gpu-intel
 /third_party/xbyak/ @oneapi-src/onednn-cpu-x64
-/third_party/xbyak_aarch64/ @oneapi-src/onednn-cpu-aarch64h
+/third_party/xbyak_aarch64/ @oneapi-src/onednn-cpu-aarch64
 
 # Governance and process
 /.github/CODEOWNERS @oneapi-src/onednn-maintain
