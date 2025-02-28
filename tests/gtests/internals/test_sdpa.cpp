@@ -655,6 +655,7 @@ sdpa_tensors_t get_descriptors(dnnl::engine &eng, const sdpa_dims_t &p) {
 
     return out;
 }
+
 class sdpa_test_t : public ::testing::TestWithParam<sdpa_dims_t> {
 public:
     void SetUp() override {

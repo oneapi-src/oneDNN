@@ -35,12 +35,13 @@ std::mt19937 &get_generator() {
 }
 
 // this is changed from the fill_random() function in matmul_perf.cpp.
-void fill_random(std::vector<float> &out, const memory::desc &desc) {
+void fill_random(std::vector<float> &out, const memory::desc &desc,
+        float minval, float maxval) {
     static std::vector<float> random_data_f;
     constexpr memory::dim nrand = 1037;
 
     if (random_data_f.empty()) {
-        std::uniform_real_distribution<float> dist_f(-3.0f, 4.0f);
+        std::uniform_real_distribution<float> dist_f(minval, maxval);
 
         random_data_f.resize(nrand);
         for (auto &d : random_data_f)
