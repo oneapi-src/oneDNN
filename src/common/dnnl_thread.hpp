@@ -325,10 +325,10 @@ static inline void parallel(int nthr, const std::function<void(int, int)> &f) {
         }
         threadpool_utils::activate_threadpool(tp);
     } else {
-        bool async = tp->get_flags()
-                & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS;
-        counting_barrier_t b;
-        if (async) b.init(nthr);
+        // bool async = tp->get_flags()
+        //         & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS;
+        //counting_barrier_t b;
+        //if (async) b.init(nthr);
         tp->parallel_for(nthr, [&, tp](int ithr, int nthr) {
             bool is_master = threadpool_utils::get_active_threadpool() == tp;
             if (!is_master) {
@@ -344,9 +344,9 @@ static inline void parallel(int nthr, const std::function<void(int, int)> &f) {
 #endif
                 threadpool_utils::deactivate_threadpool();
             }
-            if (async) b.notify();
+            //if (async) b.notify();
         });
-        if (async) b.wait();
+        //if (async) b.wait();
     }
 #endif
 #endif
