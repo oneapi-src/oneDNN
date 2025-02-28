@@ -21,37 +21,37 @@
 /.github/ @oneapi-src/onednn-devops
 
 # CPU Engine
-/src/cpu/aarch64/ @oneapi-src/onednn-cpu-aarch64 @intel-innersource/dnn-arch
-/src/cpu/x64/ @oneapi-src/onednn-cpu-x64 @intel-innersource/dnn-cpu
-/src/cpu/rnn/ @oneapi-src/onednn-cpu-x64 @intel-innersource/dnn-cpu
+/src/cpu/aarch64/ @oneapi-src/onednn-cpu-aarch64
+/src/cpu/x64/ @oneapi-src/onednn-cpu-x64
+/src/cpu/rnn/ @oneapi-src/onednn-cpu-x64
 
 # GPU Engine
-/src/gpu/amd/ @oneapi-src/onednn-gpu-amd @intel-innersource/dnn-arch
-/src/gpu/intel/ @oneapi-src/onednn-gpu-intel @intel-innersource/dnn-gpu
-/src/gpu/nvidia/ @oneapi-src/onednn-gpu-nvidia @intel-innersource/dnn-arch
-/src/gpu/generic/ @oneapi-src/onednn-arch @intel-innersource/dnn-arch @intel-innersource/dnn-gpu
-/src/gpu/generic/sycl/ @oneapi-src/onednn-gpu-generic @intel-innersource/dnn-arch @intel-innersource/dnn-gpu
+/src/gpu/amd/ @oneapi-src/onednn-gpu-amd
+/src/gpu/intel/ @oneapi-src/onednn-gpu-intel
+/src/gpu/nvidia/ @oneapi-src/onednn-gpu-nvidia
+/src/gpu/generic/ @oneapi-src/onednn-arch
+/src/gpu/generic/sycl/ @oneapi-src/onednn-gpu-generic
 
 # Tests
-/tests/benchdnn/inputs/ @oneapi-src/onednn-maintain @intel-innersource/dnn-arch @intel-innersource/dnn-cpu @intel-innersource/dnn-gpu
-/tests/benchdnn/graph/ @oneapi-src/onednn-graph @oneapi-src/onednn-arch @intel-innersource/dnn-graph @intel-innersource/dnn-arch
-/tests/benchdnn/inputs/graph/ @oneapi-src/onednn-graph @oneapi-src/onednn-arch @intel-innersource/dnn-graph @intel-innersource/dnn-arch
-/tests/gtests/graph/ @oneapi-src/onednn-graph @intel-innersource/dnn-graph
+/tests/benchdnn/inputs/ @oneapi-src/onednn-maintain
+/tests/benchdnn/graph/ @oneapi-src/onednn-graph @oneapi-src/onednn-arch
+/tests/benchdnn/inputs/graph/ @oneapi-src/onednn-graph @oneapi-src/onednn-arch
+/tests/gtests/graph/ @oneapi-src/onednn-graph
 
 # Graph API
-/src/graph/ @oneapi-src/onednn-graph @intel-innersource/dnn-graph
+/src/graph/ @oneapi-src/onednn-graph
 
 # Documentation
-*.md  @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
-/doc/ @oneapi-src/onednn-doc @oneapi-src/onednn-arch @intel-innersource/dnn-doc @intel-innersource/dnn-arch
+*.md  @oneapi-src/onednn-doc @oneapi-src/onednn-arch
+/doc/ @oneapi-src/onednn-doc @oneapi-src/onednn-arch
 
 # Third party components
-/third-party/ @oneapi-src/onednn-arch @intel-innersource/dnn-arch
-/third_party/level_zero/ @oneapi-src/onednn-gpu-intel @intel-innersource/dnn-gpu
-/third_party/mdapi/ @oneapi-src/onednn-gpu-intel @intel-innersource/dnn-gpu
-/third_party/ngen/ @oneapi-src/onednn-gpu-intel @intel-innersource/dnn-gpu
-/third_party/xbyak/ @oneapi-src/onednn-cpu-x64 @intel-innersource/dnn-cpu
-/third_party/xbyak_aarch64/ @oneapi-src/onednn-cpu-aarch64 @intel-innersource/dnn-arch
+/third-party/ @oneapi-src/onednn-arch
+/third_party/level_zero/ @oneapi-src/onednn-gpu-intel
+/third_party/mdapi/ @oneapi-src/onednn-gpu-intel
+/third_party/ngen/ @oneapi-src/onednn-gpu-intel
+/third_party/xbyak/ @oneapi-src/onednn-cpu-x64
+/third_party/xbyak_aarch64/ @oneapi-src/onednn-cpu-aarch64h
 
 # Governance and process
 /.github/CODEOWNERS @oneapi-src/onednn-maintain
