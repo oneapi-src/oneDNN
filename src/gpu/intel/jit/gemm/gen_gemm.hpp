@@ -144,7 +144,7 @@ struct gen_gemm_t : public gpu_gemm_t {
             int b_ndims = desc()->b_desc.ndims;
 
             // Check parameters.
-            if (utils::one_of(d->c_type(), s32, f16, f32, u8, s8)
+            if (utils::one_of(d->c_type(), s32, f16, bf16, f32, u8, s8)
                     && utils::one_of(d->a_type(), u8, s8, u4, s4)) {
                 VDISPATCH_GEMM(
                         (utils::one_of(d->b_type(), u8, s8) || wei_decomp_),
