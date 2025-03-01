@@ -35,13 +35,12 @@ std::mt19937 &get_generator() {
 }
 
 // this is changed from the fill_random() function in matmul_perf.cpp.
-void fill_random(std::vector<float> &out, const memory::desc &desc,
-        float minval, float maxval) {
+void fill_random(std::vector<float> &out, const memory::desc &desc) {
     static std::vector<float> random_data_f;
     constexpr memory::dim nrand = 1037;
 
     if (random_data_f.empty()) {
-        std::uniform_real_distribution<float> dist_f(minval, maxval);
+        std::uniform_real_distribution<float> dist_f(-3.0f, 4.0f);
 
         random_data_f.resize(nrand);
         for (auto &d : random_data_f)
@@ -84,24 +83,15 @@ void print_mem(const dnnl::memory &mem, const std::string &name) {
     auto desc = mem.get_desc();
     auto dims = desc.get_dims();
     auto strides = desc.get_strides();
-
-    size_t ndims = dims.size();
-    size_t lastdim = ndims - 1;
-
-    printf("%sbegin : ", name.c_str());
-    printf("dims : [");
-    for (auto d : dims) {
-        printf("%6ld ", (long)d);
-    }
-    printf("]  strides : [");
-    for (auto s : strides) {
-        printf("%6ld ", (long)s);
-    }
-
+    printf("%sbegin\n", name.c_str());
+    printf("dims   : %6ld %6ld %6ld %6ld\n", (long)dims[0], (long)dims[1],
+            (long)dims[2], (long)dims[3]);
+    printf("strides: %6ld %6ld %6ld %6ld\n", (long)strides[0], (long)strides[1],
+            (long)strides[2], (long)strides[3]);
     if (mem.get_desc().get_data_type() == dnnl_bf16) { printf("bf16\n"); }
     void *mapped_ptr_ = (void *)mem.map_data();
-    printf("]\ni:");
-    for (int i = 0; i < dims[lastdim]; i++) {
+    printf("        i:    ");
+    for (int i = 0; i < dims[3]; i++) {
         switch ((int)desc.get_data_type()) {
             case dnnl_u4:
             case dnnl_s4: printf("%4d", i); break;
@@ -112,159 +102,113 @@ void print_mem(const dnnl::memory &mem, const std::string &name) {
             case dnnl_f16: printf("%9d", i); break;
         }
     }
-    printf("\n-----\n");
+    printf("\n");
 
     switch ((int)desc.get_data_type()) {
         case dnnl_u4:
         case dnnl_s4: {
             char *mapped_ptr = (char *)mapped_ptr_;
+            for_(int l = 0; l < dims[0]; l++)
+            for_(int k = 0; k < dims[1]; k++)
+            for (int j = 0; j < dims[2]; j++) {
+                printf("(%2d, %2d, %3d):", l, k, j);
+                for (int i = 0; i < dims[3]; i++) {
+                    auto offset = l * strides[0] + k * strides[1]
+                            + j * strides[2] + i * strides[3];
+                    offset /= 2;
+                    bool is_odd = (strides[3] == 1) ? i % 2 : j % 2;
+                    if (is_odd) {
+                        int bits = (mapped_ptr[offset] & 0xf0) >> 4;
+                        if (desc.get_data_type() == dnnl_s4) {
+                            int sign = (bits & 0x08) ? -1 : 1;
+                            if (sign == -1) {
+                                bits = (bits & 0x07) - 8;
+                            } else {
+                                bits = (bits & 0x07);
+                            }
+                        }
 
-            std::vector<size_t> idxs(ndims, 0);
-            while (true) {
-                size_t offset = 0;
-                for (size_t i = 0; i < ndims; ++i) {
-                    offset += idxs[i] * strides[i];
-                }
-                offset /= 2;
-
-                const bool odd_lastdim = idxs[lastdim] % 2;
-                bool is_odd = odd_lastdim;
-                if (ndims > 1 && strides[lastdim] != 1) {
-                    // assumes last 2 dims transposed, TODO: arbitrary continuous dim?
-                    const bool odd_2lastdim = idxs[lastdim - 1] % 2;
-                    is_odd = odd_2lastdim;
-                }
-                int bits;
-                if (is_odd) {
-                    bits = (mapped_ptr[offset] & 0xf0) >> 4;
-                } else {
-                    bits = (mapped_ptr[offset] & 0x0f);
-                }
-                if (desc.get_data_type() == dnnl_s4) {
-                    int sign = (bits & 0x08) ? -1 : 1;
-                    if (sign == -1) {
-                        bits = (bits & 0x07) - 8;
+                        printf("%4d", bits);
                     } else {
-                        bits = (bits & 0x07);
+                        int bits = (mapped_ptr[offset] & 0x0f);
+                        if (desc.get_data_type() == dnnl_s4) {
+                            int sign = (bits & 0x08) ? -1 : 1;
+                            if (sign == -1) {
+                                bits = (bits & 0x07) - 8;
+                            } else {
+                                bits = (bits & 0x07);
+                            }
+                        }
+
+                        printf("%4d", bits);
                     }
                 }
-                printf("%4d", bits);
-
-                int d = lastdim;
-                while (d >= 0) {
-                    if (++idxs[d] < dims[d]) {
-                        break;
-                    } else {
-                        idxs[d--] = 0;
-                        printf("\n");
-                    }
-                }
-                if (d < 0) { break; }
+                printf("\n");
             }
         } break;
 
         case dnnl_u8:
         case dnnl_s8: {
             char *mapped_ptr = (char *)mapped_ptr_;
-
-            std::vector<size_t> idxs(ndims, 0);
-            while (true) {
-                size_t offset = 0;
-                for (size_t i = 0; i < ndims; ++i) {
-                    offset += idxs[i] * strides[i];
+            for_(int l = 0; l < dims[0]; l++)
+            for_(int k = 0; k < dims[1]; k++)
+            for (int j = 0; j < dims[2]; j++) {
+                printf("(%2d, %2d, %3d): ", l, k, j);
+                for (int i = 0; i < dims[3]; i++) {
+                    printf("%4d",
+                            (mapped_ptr[l * strides[0] + k * strides[1]
+                                    + j * strides[2] + i * strides[3]]));
                 }
-                printf("%4d", mapped_ptr[offset]);
-
-                int d = lastdim;
-                while (d >= 0) {
-                    if (++idxs[d] < dims[d]) {
-                        break;
-                    } else {
-                        idxs[d--] = 0;
-                        printf("\n");
-                    }
-                }
-                if (d < 0) { break; }
+                printf("\n");
             }
         } break;
         case dnnl_bf16: {
             using dnnl::impl::bfloat16_t;
             bfloat16_t *mapped_ptr = (bfloat16_t *)mapped_ptr_;
 
-            std::vector<size_t> idxs(ndims, 0);
-            while (true) {
-                size_t offset = 0;
-                for (size_t i = 0; i < ndims; ++i) {
-                    offset += idxs[i] * strides[i];
+            for_(int l = 0; l < dims[0]; l++)
+            for_(int k = 0; k < dims[1]; k++)
+            for (int j = 0; j < dims[2]; j++) {
+                printf("(%2d, %2d, %3d):", l, k, j);
+                for (int i = 0; i < dims[3]; i++) {
+                    printf("%+9.3f",
+                            (float)(mapped_ptr[l * strides[0] + k * strides[1]
+                                    + j * strides[2] + i * strides[3]]));
                 }
-                printf("%+9.3f", (float)(mapped_ptr[offset]));
-
-                int d = lastdim;
-                while (d >= 0) {
-                    if (++idxs[d] < dims[d]) {
-                        break;
-                    } else {
-                        idxs[d--] = 0;
-                        printf("\n");
-                    }
-                }
-                if (d < 0) { break; }
+                printf("\n");
             }
         } break;
         case dnnl_f16: {
             using dnnl::impl::float16_t;
             float16_t *mapped_ptr = (float16_t *)mapped_ptr_;
 
-            std::vector<size_t> idxs(ndims, 0);
-            while (true) {
-                //               // uncomment to enable printing dim1 idxs
-                //               if(idxs[lastdim] == 0) {
-                //                   printf("(");
-                //                   for(size_t i=0; i < ndims-1; ++i) {
-                //                       printf("%3d%s ", idxs[i], (i < ndims-2) ? "," : "");
-                //                   }
-                //                   printf("): ");
-                //               }
-
-                size_t offset = 0;
-                for (size_t i = 0; i < ndims; ++i) {
-                    offset += idxs[i] * strides[i];
+            for_(int l = 0; l < dims[0]; l++)
+            for_(int k = 0; k < dims[1]; k++)
+            for (int j = 0; j < dims[2]; j++) {
+                printf("(%2d, %2d, %3d):", l, k, j);
+                for (int i = 0; i < dims[3]; i++) {
+                    printf("%+9.3f",
+                            (mapped_ptr[l * strides[0] + k * strides[1]
+                                    + j * strides[2] + i * strides[3]]
+                                            .f()));
                 }
-                printf("%+9.3f", (mapped_ptr[offset].f()));
-
-                int d = lastdim;
-                while (d >= 0) {
-                    if (++idxs[d] < dims[d]) {
-                        break;
-                    } else {
-                        idxs[d--] = 0;
-                        printf("\n");
-                    }
-                }
-                if (d < 0) { break; }
+                printf("\n");
             }
         } break;
         case dnnl_f32: {
+            using dnnl::impl::float16_t;
             float *mapped_ptr = (float *)mapped_ptr_;
 
-            std::vector<size_t> idxs(ndims, 0);
-            while (true) {
-                size_t offset = 0;
-                for (size_t i = 0; i < ndims; ++i) {
-                    offset += idxs[i] * strides[i];
+            for_(int l = 0; l < dims[0]; l++)
+            for_(int k = 0; k < dims[1]; k++)
+            for (int j = 0; j < dims[2]; j++) {
+                printf("(%2d, %2d, %3d):", l, k, j);
+                for (int i = 0; i < dims[3]; i++) {
+                    printf("%+9.3f",
+                            (mapped_ptr[l * strides[0] + k * strides[1]
+                                    + j * strides[2] + i * strides[3]]));
                 }
-                printf("%+9.3f", (mapped_ptr[offset]));
-
-                int d = lastdim;
-                while (d >= 0) {
-                    if (++idxs[d] < dims[d]) {
-                        break;
-                    } else {
-                        idxs[d--] = 0;
-                        printf("\n");
-                    }
-                }
-                if (d < 0) { break; }
+                printf("\n");
             }
         } break;
         default: throw std::runtime_error("Not supported");
@@ -296,24 +240,19 @@ void transpose_strides(const dnnl::engine &eng, memory &out, memory &in) {
 
         char *mapped_ptr = (char *)in.map_data();
         char *mapped_ptr_t = (char *)out.map_data();
+        for_(int l = 0; l < dims[0]; l++)
+        for_(int k = 0; k < dims[1]; k++)
+        for_(int j = 0; j < dims[2]; j++)
+        for (int i = 0; i < dims[3]; i++) {
+            int is_odd = i % 2;
+            int is_odd_t = j % 2;
 
-        size_t ndims = dims.size();
-        assert(ndims > 1); // TODO: will fail w/ndim == 1
-        size_t lastdim = ndims - 1;
-        size_t n2lastdim = lastdim - 1;
-
-        std::vector<size_t> idxs(ndims, 0);
-        while (true) {
-            int is_odd = idxs[lastdim] % 2;
-            int is_odd_t = idxs[n2lastdim] % 2;
-
-            size_t offset = 0;
-            size_t offset_t = 0;
-            for (size_t i = 0; i < ndims; ++i) {
-                offset += idxs[i] * strides[i];
-                offset_t += idxs[i] * strides_t[i];
-            }
+            auto offset = l * strides[0] + k * strides[1] + j * strides[2]
+                    + i * strides[3];
             offset /= 2;
+
+            auto offset_t = l * strides_t[0] + k * strides_t[1]
+                    + j * strides_t[2] + i * strides_t[3];
             offset_t /= 2;
 
             auto &val = mapped_ptr[offset];
@@ -331,49 +270,10 @@ void transpose_strides(const dnnl::engine &eng, memory &out, memory &in) {
             } else {
                 val_t |= bits;
             }
-
-            int d = lastdim;
-            while (d >= 0) {
-                if (++idxs[d] < dims[d]) {
-                    break;
-                } else {
-                    idxs[d--] = 0;
-                }
-            }
-            if (d < 0) { break; }
         }
-
         in.unmap_data(mapped_ptr);
         out.unmap_data(mapped_ptr_t);
     } else {
         dnnl::reorder(in, out).execute(s, in, out);
     }
-}
-
-std::ostream &operator<<(std::ostream &ss, const quantize_type &qt) {
-    switch (qt) {
-        case quantize_type::no_quantization: ss << "no_quantization"; break;
-        case quantize_type::per_tensor: ss << "per_tensor"; break;
-        case quantize_type::per_tensor1: ss << "per_tensor1"; break;
-        case quantize_type::per_tensor3: ss << "per_tensor3"; break;
-        case quantize_type::per_token: ss << "per_token"; break;
-        case quantize_type::per_token_with_groups:
-            ss << "per_token_with_groups";
-            break;
-    }
-    return ss;
-}
-
-std::ostream &operator<<(std::ostream &ss, const memory::data_type &dt) {
-    switch (dt) {
-        case mdt::f32: ss << "f32"; break;
-        case mdt::s32: ss << "s32"; break;
-        case mdt::f16: ss << "f16"; break;
-        case mdt::s8: ss << "s8"; break;
-        case mdt::u8: ss << "u8"; break;
-        case mdt::s4: ss << "s4"; break;
-        case mdt::u4: ss << "u4"; break;
-        default: ss << "na"; break;
-    }
-    return ss;
 }

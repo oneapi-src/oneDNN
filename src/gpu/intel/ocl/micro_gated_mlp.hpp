@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/gated_mlp_pd.hpp"
 #include "common/gemm_types.hpp"
 #include "common/gemm_utils.hpp"
 #include "common/primitive.hpp"
-#include "common/gated_mlp_pd.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_resource.hpp"
@@ -57,8 +57,9 @@ struct micro_gated_mlp_t : public gpu_primitive_t {
                                         W_down_md()->ndims, dst_md()->ndims),
                     VERBOSE_UNSUPPORTED_TAG);
 
-            VDISPATCH_GATED_MLP(utils::everyone_is(data_type::f16,
-                                   src_md()->data_type, dst_md()->data_type),
+            VDISPATCH_GATED_MLP(
+                    utils::everyone_is(data_type::f16, src_md()->data_type,
+                            dst_md()->data_type),
                     VERBOSE_UNSUPPORTED_DT);
 
             VDISPATCH_GATED_MLP(
@@ -66,67 +67,67 @@ struct micro_gated_mlp_t : public gpu_primitive_t {
                     VERBOSE_UNSUPPORTED_DT);
             //TODO: enable unique types for all gates?
             //VDISPATCH_GATED_MLP(utils::everyone_is(W_gate_md()->data_type,
-                                   //W_up_md()->data_type, W_down_md()->data_type),
-                    //VERBOSE_UNSUPPORTED_DT);
+            //W_up_md()->data_type, W_down_md()->data_type),
+            //VERBOSE_UNSUPPORTED_DT);
 
             VDISPATCH_GATED_MLP(set_default_formats() == status::success,
                     VERBOSE_UNSUPPORTED_TAG);
 
             CHECK(init_microkernels(engine));
 
-//            // initialize fc_down gemm descriptor and primitive
-//            auto *d = desc();
-//            // auto fpmath_mode = this->attr()->fpmath_.mode_; //TODO: use as part of attr?
-//            int threads_per_eu = 0;
-//
-//            auto create_gemm_pd =
-//                    [&](std::shared_ptr<primitive_desc_t> &gemm_pd, dim_t m, dim_t n,
-//                            dim_t k, strides_t<2> a_strides, strides_t<2> b_strides,
-//                            strides_t<2> c_strides, data_type_t a_dt, data_type_t b_dt,
-//                            data_type_t c_dt, float beta) -> status_t {
-//
-//                memory_desc_t a_md, b_md, c_md;
-//                dims_t a_dims = {m, k};
-//                dims_t a_strides_md = {m, 1}; //transpose??
-//                //dims_t b_strides_md = {b_strides[0], b_strides[1]};
-//                CHECK(memory_desc_init_by_strides(a_md, 2, a_dims, a_dt, a_strides_md));
-//
-//                // dims_t a_strides_md = {a_strides[0], a_strides[1]};
-//                // CHECK(memory_desc_init_by_strides(a_md, 2, a_dims, a_dt, a_strides_md));
-//
-//                dims_t c_dims = {m, n};
-//                dims_t c_strides_md = {c_strides[0], c_strides[1]};
-//                CHECK(memory_desc_init_by_strides(c_md, 2, c_dims, c_dt, c_strides_md));
-//
-//                /*
-//            printf("a%d %d \n b%d %d \n c%d %d\n",
-//                    a_md.dims[0],
-//                    a_md.dims[1],
-//                    W_down_md()->dims[0],
-//                    W_down_md()->dims[1],
-//                    c_md.dims[0],
-//                    c_md.dims[1]);
-//                    */
-//
-//                primitive_attr_t attr;
-//                //CHECK(attr.post_ops_.append_sum(beta));
-//                //CHECK(attr.set_fpmath_mode(fpmath_mode));
-//                //attr.deterministic_ = this->attr()->deterministic_;
-//                CHECK(dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md, W_down_md(), &c_md,
-//                        &glob_zero_md, c_dt, &attr));
-//
-//                if (threads_per_eu == 0)
-//                    CHECK(gemm_pd->query(
-//                            query::preferred_gpu_threads_per_eu, 0, &threads_per_eu));
-//                else if (get_verbose_dev_mode(verbose_t::debuginfo) > 1) {
-//                    auto t = 0;
-//                    CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0, &t));
-//                    if (t != threads_per_eu)
-//                        verbose_printf("[WARNING] GEMM grf modes are inconsistent");
-//                }
-//                return status::success;
-//            };
-//
+            //            // initialize fc_down gemm descriptor and primitive
+            //            auto *d = desc();
+            //            // auto fpmath_mode = this->attr()->fpmath_.mode_; //TODO: use as part of attr?
+            //            int threads_per_eu = 0;
+            //
+            //            auto create_gemm_pd =
+            //                    [&](std::shared_ptr<primitive_desc_t> &gemm_pd, dim_t m, dim_t n,
+            //                            dim_t k, strides_t<2> a_strides, strides_t<2> b_strides,
+            //                            strides_t<2> c_strides, data_type_t a_dt, data_type_t b_dt,
+            //                            data_type_t c_dt, float beta) -> status_t {
+            //
+            //                memory_desc_t a_md, b_md, c_md;
+            //                dims_t a_dims = {m, k};
+            //                dims_t a_strides_md = {m, 1}; //transpose??
+            //                //dims_t b_strides_md = {b_strides[0], b_strides[1]};
+            //                CHECK(memory_desc_init_by_strides(a_md, 2, a_dims, a_dt, a_strides_md));
+            //
+            //                // dims_t a_strides_md = {a_strides[0], a_strides[1]};
+            //                // CHECK(memory_desc_init_by_strides(a_md, 2, a_dims, a_dt, a_strides_md));
+            //
+            //                dims_t c_dims = {m, n};
+            //                dims_t c_strides_md = {c_strides[0], c_strides[1]};
+            //                CHECK(memory_desc_init_by_strides(c_md, 2, c_dims, c_dt, c_strides_md));
+            //
+            //                /*
+            //            printf("a%d %d \n b%d %d \n c%d %d\n",
+            //                    a_md.dims[0],
+            //                    a_md.dims[1],
+            //                    W_down_md()->dims[0],
+            //                    W_down_md()->dims[1],
+            //                    c_md.dims[0],
+            //                    c_md.dims[1]);
+            //                    */
+            //
+            //                primitive_attr_t attr;
+            //                //CHECK(attr.post_ops_.append_sum(beta));
+            //                //CHECK(attr.set_fpmath_mode(fpmath_mode));
+            //                //attr.deterministic_ = this->attr()->deterministic_;
+            //                CHECK(dnnl::impl::create_gemm_pd(gemm_pd, engine, &a_md, W_down_md(), &c_md,
+            //                        &glob_zero_md, c_dt, &attr));
+            //
+            //                if (threads_per_eu == 0)
+            //                    CHECK(gemm_pd->query(
+            //                            query::preferred_gpu_threads_per_eu, 0, &threads_per_eu));
+            //                else if (get_verbose_dev_mode(verbose_t::debuginfo) > 1) {
+            //                    auto t = 0;
+            //                    CHECK(gemm_pd->query(query::preferred_gpu_threads_per_eu, 0, &t));
+            //                    if (t != threads_per_eu)
+            //                        verbose_printf("[WARNING] GEMM grf modes are inconsistent");
+            //                }
+            //                return status::success;
+            //            };
+            //
             /*
             VDISPATCH_GATED_MLP_SC(
                 create_gemm_pd(
@@ -176,6 +177,7 @@ struct micro_gated_mlp_t : public gpu_primitive_t {
         compute::gpu_arch_t arch() const { return arch_; }
 
         std::shared_ptr<primitive_desc_t> gemm_fc_down_pd_;
+
     private:
         micro::Package gemm_gateup_;
         int sg_size_ = 0;

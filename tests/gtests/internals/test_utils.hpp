@@ -37,8 +37,7 @@ std::random_device &get_random_device();
 
 std::mt19937 &get_generator();
 
-void fill_random(std::vector<float> &out, const dnnl::memory::desc &desc,
-        float minval = -3.f, float maxval = 4.f);
+void fill_random(std::vector<float> &out, const dnnl::memory::desc &desc);
 
 void fill_random_scales(
         std::vector<float> &out, const dnnl::memory::desc &desc);
@@ -183,63 +182,59 @@ std::vector<float> dequantize(const std::vector<float> &input,
         auto scales_strides = scale_md.get_strides();
         auto zp_strides = scale_md.get_strides();
 
-        size_t ndims = dims.size();
-        assert(ndims > 1); // TODO: will fail w/ndim == 1
-        size_t lastdim = ndims - 1;
-        size_t n2lastdim = lastdim - 1;
-
         if (qtype == quantize_type::no_quantization) { groups = {1, 1}; }
         if (qtype == quantize_type::per_token) {
             if (token_dim == 0) {
-                groups = {dims[n2lastdim], 1};
+                groups = {dims[2], 1};
             } else if (token_dim == 1) {
-                groups = {1, dims[lastdim]};
+                groups = {1, dims[3]};
             }
         }
 
-        std::vector<size_t> idxs(ndims, 0);
-        while (true) {
-            size_t offset = 0;
-            size_t scale_offset = 0;
-            size_t zp_offset = 0;
+        int sg = 0;
+        int zg = 0;
+        int scale_offset = 0;
+        int zp_offset = 0;
 
-            int group = 0;
-
-            for (size_t i = 0; i < ndims; ++i) {
-                if (groups[0] > 1) {
-                    group = (i == n2lastdim) ? groups[0] : 1;
-                    scale_offset += idxs[i] / group * scales_strides[i];
-
-                    // set final stride = 1
-                    auto zp_stride = (i == lastdim) ? 1 : zp_strides[i];
-                    zp_offset += idxs[i] / group * zp_stride;
-                } else if (groups[1] > 1) {
-                    group = (i == lastdim) ? groups[1] : 1;
-                    scale_offset += idxs[i] / group * scales_strides[i];
-                    zp_offset += idxs[i] / group * zp_strides[i];
-                }
-                offset += idxs[i] * strides[i];
+        for_(int l = 0; l < dims[0]; l++)
+        for_(int k = 0; k < dims[1]; k++)
+        for_(int j = 0; j < dims[2]; j++)
+        for (int i = 0; i < dims[3]; i++) {
+            if (groups[0] > 1) {
+                sg = groups[0];
+                scale_offset = l * scales_strides[0] + k * scales_strides[1]
+                        + j / sg * scales_strides[2] + i * scales_strides[3];
+            } else if (groups[1] > 1) {
+                sg = groups[1];
+                scale_offset = l * scales_strides[0] + k * scales_strides[1]
+                        + j * scales_strides[2] + i / sg * scales_strides[3];
             }
+            if (groups[1] > 1) {
+                zg = groups[1];
+                zp_offset = l * zp_strides[0] + k * zp_strides[1]
+                        + j * zp_strides[2] + i / zg * zp_strides[3];
+            } else if (groups[0] > 1) {
+                zg = groups[0];
+                zp_offset = l * zp_strides[0] + k * zp_strides[1]
+                        + j / zg * zp_strides[2] + i;
+            }
+            int offset = l * strides[0] + k * strides[1] + j * strides[2]
+                    + i * strides[3];
 
             out[offset] = (input[offset] - zero_points[zp_offset])
                     * scales[scale_offset];
-
-            int d = lastdim;
-            while (d >= 0) {
-                if (++idxs[d] < dims[d]) {
-                    break;
-                } else {
-                    idxs[d--] = 0;
-                }
-            }
-            if (d < 0) { break; }
         }
+
+        //int groups = zero_points.size();
+        //for (int g = 0; g < groups; g++) {
+        //    for (int i = g * group_size; i < g * group_size + group_size; i++) {
+        //        out[i] = (input[i] - zero_points[g]) * scales[g];
+        //        printf("out: %f = (input: %f - zero_point: %d) * scale: %f\n",
+        //                out[i], input[i], zero_points[g], scales[g]);
+        //    }
+        //}
     }
     return out;
 }
-
-std::ostream &operator<<(std::ostream &ss, const quantize_type &qt);
-
-std::ostream &operator<<(std::ostream &ss, const memory::data_type &dt);
 
 #endif

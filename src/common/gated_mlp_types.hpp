@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,14 +23,14 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc.hpp"
-#include "common/primitive_attr_quant.hpp"
 #include "common/opdesc.hpp"
+#include "common/primitive_attr_quant.hpp"
 
 namespace dnnl {
 namespace impl {
 
 // A descriptor for a gated mlp (GLU) operation.
-struct gated_mlp_desc_t : public op_desc_t  {
+struct gated_mlp_desc_t : public op_desc_t {
     gated_mlp_desc_t() : op_desc_t(primitive_kind::gated_mlp) {}
 
     std::unique_ptr<op_desc_t> clone() const override {

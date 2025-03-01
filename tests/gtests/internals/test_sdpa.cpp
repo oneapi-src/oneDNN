@@ -75,6 +75,34 @@ struct sdpa_tensors_t {
     memory::dims kq_groups, vs_groups;
 };
 
+std::ostream &operator<<(std::ostream &ss, const quantize_type &qt) {
+    switch (qt) {
+        case quantize_type::no_quantization: ss << "no_quantization"; break;
+        case quantize_type::per_tensor: ss << "per_tensor"; break;
+        case quantize_type::per_tensor1: ss << "per_tensor1"; break;
+        case quantize_type::per_tensor3: ss << "per_tensor3"; break;
+        case quantize_type::per_token: ss << "per_token"; break;
+        case quantize_type::per_token_with_groups:
+            ss << "per_token_with_groups";
+            break;
+    }
+    return ss;
+}
+std::ostream &operator<<(std::ostream &ss, const memory::data_type &dt) {
+    switch (dt) {
+        case mdt::f32: ss << "f32"; break;
+        case mdt::s32: ss << "s32"; break;
+        case mdt::f16: ss << "f16"; break;
+        case mdt::bf16: ss << "bf16"; break;
+        case mdt::s8: ss << "s8"; break;
+        case mdt::u8: ss << "u8"; break;
+        case mdt::s4: ss << "s4"; break;
+        case mdt::u4: ss << "u4"; break;
+        default: ss << "na"; break;
+    }
+    return ss;
+}
+
 std::ostream &operator<<(std::ostream &ss, const sdpa_dims_t &p) {
     ss << "mb_" << p.mb;
     if (p.with_key_transposed)
@@ -655,7 +683,6 @@ sdpa_tensors_t get_descriptors(dnnl::engine &eng, const sdpa_dims_t &p) {
 
     return out;
 }
-
 class sdpa_test_t : public ::testing::TestWithParam<sdpa_dims_t> {
 public:
     void SetUp() override {
