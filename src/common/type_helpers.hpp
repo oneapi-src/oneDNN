@@ -991,14 +991,16 @@ inline bool operator==(const sdpa_desc_t &lhs, const sdpa_desc_t &rhs) {
 
 inline bool operator==(const gated_mlp_desc_t &lhs, const gated_mlp_desc_t &rhs) {
     bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            //&& COMPARE_DESC_MEMBERS(q_desc)
-            //&& COMPARE_DESC_MEMBERS(k_desc)
-            //&& COMPARE_DESC_MEMBERS(v_desc)
-            //&& COMPARE_DESC_MEMBERS(dst_desc)
-            //&& COMPARE_DESC_MEMBERS(attn_mask_desc)
-            //&& COMPARE_DESC_MEMBERS(scale_dt)
-            //&& COMPARE_DESC_MEMBERS(invert_scale);
-            ; //STF:TODO
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(W_gate_desc)
+            && COMPARE_DESC_MEMBERS(W_up_desc)
+            && COMPARE_DESC_MEMBERS(W_down_desc)
+            && COMPARE_DESC_MEMBERS(wts_gate_scales)
+            && COMPARE_DESC_MEMBERS(wts_gate_zero_points)
+            && COMPARE_DESC_MEMBERS(wts_up_scales)
+            && COMPARE_DESC_MEMBERS(wts_up_zero_points)
+            && COMPARE_DESC_MEMBERS(wts_down_scales)
+            && COMPARE_DESC_MEMBERS(wts_down_zero_points);
     return ret;
 }
 

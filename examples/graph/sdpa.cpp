@@ -209,7 +209,7 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
 
     // Warmup run.
     // Execute primitives of sdpa.
-    //loop();
+    loop();
 
     // Wait for the computation to finish.
     strm.wait();
@@ -227,8 +227,8 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     // Timing runs.
     const int runs = std::max(min_runs, int(time_limit / dur_first.count()));
     auto start = std::chrono::steady_clock::now();
-    //for (int i = 0; i <= runs; i++)
-        //loop();
+    for (int i = 0; i <= runs; i++)
+        loop();
     strm.wait();
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> duration = end - start;
@@ -393,10 +393,10 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // Timing runs.
     const int runs = std::max(min_runs, int(time_limit / dur_first.count()));
     auto start = std::chrono::steady_clock::now();
-    //for (int i = 0; i <= runs; i++)
-        //cp.execute(strm, {ts_query, ts_key, ts_scale, ts_mask, ts_value},
-                //{ts_output});
-    //strm.wait();
+    for (int i = 0; i <= runs; i++)
+        cp.execute(strm, {ts_query, ts_key, ts_scale, ts_mask, ts_value},
+                {ts_output});
+    strm.wait();
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> duration = end - start;
 

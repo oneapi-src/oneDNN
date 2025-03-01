@@ -613,7 +613,12 @@ void serialize_desc(
     serialize_md(sstream, desc.W_up_desc);
     serialize_md(sstream, desc.W_down_desc);
     serialize_md(sstream, desc.dst_desc);
-    //STF:TODO: zp + scale  activation?
+    desc.wts_gate_scales.serialize(sstream);
+    desc.wts_gate_zero_points.serialize(sstream);
+    desc.wts_up_scales.serialize(sstream);
+    desc.wts_up_zero_points.serialize(sstream);
+    desc.wts_down_scales.serialize(sstream);
+    desc.wts_down_zero_points.serialize(sstream);
 }
 
 } // namespace serialization
