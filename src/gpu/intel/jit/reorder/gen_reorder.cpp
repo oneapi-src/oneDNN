@@ -98,6 +98,12 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
     VDISPATCH_REORDER(IMPLICATION(src_dt == f64 || dst_dt == f64,
                               device_info->has_native(f64)),
             VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(
+            IMPLICATION(src_dt == f64, utils::one_of(dst_dt, f32, f64)),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(
+            IMPLICATION(dst_dt == f64, utils::one_of(src_dt, f32, f64)),
+            VERBOSE_UNSUPPORTED_DT_CFG);
     using sm = dnnl_primitive_attr::skip_mask_t;
     auto skip_mask = sm::post_ops | sm::zero_points_runtime | sm::scales_runtime
             | sm::rounding_mode;
