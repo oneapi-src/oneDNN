@@ -959,7 +959,7 @@ private:
         }
 
         // S_y -> GMEM.
-        auto send_op = gemm_schedule_.with_kernel_grid_k_slicing()
+        auto send_op = gemm_schedule_.with_thread_group_grid_k_slicing()
                 ? send_op_t::atomic_fadd
                 : send_op_t::store;
         auto offset = c_mem_tile_view.tlayout().offset_in_bytes();

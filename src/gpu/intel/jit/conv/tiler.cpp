@@ -1606,16 +1606,16 @@ private:
             return;
         auto try_cfg = cfg;
         init_walk_order(try_cfg);
-        init_kernel_grid(try_cfg);
         init_thread_group_grid(try_cfg);
-        dim_t kg_elems = try_cfg.kernel_grid().elems(),
-              tg_elems = try_cfg.thread_group_grid().elems();
+        init_thread_grid(try_cfg);
+        dim_t tg_elems = try_cfg.thread_group_grid().elems();
+        dim_t thr_elems = try_cfg.thread_grid().elems();
         try_cfg.set_regs(128);
         int new_wave_util
                 = static_cast<int>(conv_config_t::get_wave_utilization(
-                        try_cfg.exec_cfg(), kg_elems, tg_elems));
+                        try_cfg.exec_cfg(), tg_elems, thr_elems));
         int wave_util = static_cast<int>(conv_config_t::get_wave_utilization(
-                cfg.exec_cfg(), kg_elems, tg_elems));
+                cfg.exec_cfg(), tg_elems, thr_elems));
         if (wave_util > 90 && new_wave_util >= wave_util) cfg.set_regs(128);
     }
 
