@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -59,12 +59,8 @@ size_t memory_desc_map_size(const memory_desc_t *md, int index = 0) {
     auto mdw = memory_desc_wrapper(md);
 
     if (mdw.has_runtime_dims_or_strides()) return DNNL_RUNTIME_SIZE_VAL;
-    if (mdw.offset0() == 0) return mdw.size(index);
 
-    memory_desc_t md_no_offset0 = *md;
-    md_no_offset0.offset0 = 0;
-    return memory_desc_wrapper(md_no_offset0).size(index)
-            + md->offset0 * mdw.data_type_size();
+    return mdw.size(index, true, true);
 }
 } // namespace
 
@@ -100,9 +96,10 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md,
         std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>>
                 &&memory_storages)
-    : engine_(engine), md_(*md), counter_(1) {
-    memory_storages_ = std::move(memory_storages);
-}
+    : engine_(engine)
+    , md_(*md)
+    , memory_storages_(std::move(memory_storages))
+    , counter_(1) {}
 #endif
 
 status_t dnnl_memory::set_data_handle(void *handle, int index) const {

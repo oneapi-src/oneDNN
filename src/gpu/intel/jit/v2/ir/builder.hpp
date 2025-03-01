@@ -50,7 +50,7 @@ public:
 
     void add_loop(const pvar_t &dim, const expr_t &idx, const expr_t &init,
             const expr_t &bound) {
-        loops_.push_back(loop_t(loops_.size(), dim, idx, init, bound));
+        loops_.emplace_back(loops_.size(), dim, idx, init, bound);
     }
 
     void set_linear_bound(const expr_t &linear_bound) {

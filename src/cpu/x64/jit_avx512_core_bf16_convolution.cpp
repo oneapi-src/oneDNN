@@ -1555,7 +1555,7 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
     auto uker_trans = [&](int img, int g = 0, int ic_b = 0) {
         int j {0}, d {0};
         int my_work = jcp.ih * jcp.id;
-        int ic;
+        dim_t ic;
         int icb_start = ic_b;
         if (jcp.global_transpose) {
             const int work_amount = is_src_layout_nxc
@@ -1583,11 +1583,13 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
             g += ti->g_start;
             ic_b += ti->ic_b_start;
             icb_start = ic_b;
-            ic = is_src_layout_nxc ? g * jcp.ic + ic_b * jcp.ic_block
-                                   : g * jcp.nb_ic + ic_b;
+            ic = is_src_layout_nxc ? static_cast<dim_t>(g) * jcp.ic
+                            + static_cast<dim_t>(ic_b) * jcp.ic_block
+                                   : static_cast<dim_t>(g) * jcp.nb_ic + ic_b;
         } else {
-            ic = is_src_layout_nxc ? g * jcp.ic + ic_b * jcp.ic_block
-                                   : g * jcp.nb_ic + ic_b;
+            ic = is_src_layout_nxc ? static_cast<dim_t>(g) * jcp.ic
+                            + static_cast<dim_t>(ic_b) * jcp.ic_block
+                                   : static_cast<dim_t>(g) * jcp.nb_ic + ic_b;
             g = 0;
             ic_b = 0;
         }
@@ -1595,7 +1597,9 @@ void jit_avx512_core_bf16_convolution_bwd_weights_t ::compute_diff_weights(
         const auto local_gwork = need_local_gwork ? ti->g_work : 1;
 
         for (int gg = g; gg < g + local_gwork; ++gg) {
-            if (need_local_gwork) ic = gg * jcp.ic + ic_b * jcp.ic_block;
+            if (need_local_gwork)
+                ic = static_cast<dim_t>(gg) * jcp.ic
+                        + static_cast<dim_t>(ic_b) * jcp.ic_block;
             src_data_t *tr_src = (jcp.ndims == 5)
                     ? &ti->tr_src[tr_src_off_3d(gg, ic_b, d, j)]
                     : &ti->tr_src[tr_src_off(gg, ic_b, j)];

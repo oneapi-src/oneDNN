@@ -89,10 +89,10 @@ bool post_ops_ok(jit_brdgmm_conv_conf_t &jcp, const primitive_attr_t &attr,
                     broadcasting_strategy_t::no_broadcast}));
 }
 
-cpu_isa_t get_supported_isa(
-        bool is_f32, bool is_int8, bool is_bf16, bool is_f16) {
+cpu_isa_t get_supported_isa(bool is_f32, bool is_int8, bool is_bf16,
+        bool is_f16, bool is_f32_bf16, bool is_f32_f16) {
     std::vector<cpu_isa_t> isa_list;
-    if (is_f32) {
+    if (one_of(true, is_f32, is_f32_bf16, is_f32_f16)) {
         isa_list = {avx512_core, avx2};
     } else if (is_int8) {
         isa_list = {avx512_core_vnni, avx2_vnni_2, avx2_vnni};
@@ -125,7 +125,12 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             && one_of(dst_type, bf16, f32);
     const bool is_f16 = everyone_is(f16, src_type, wei_type)
             && one_of(dst_type, f16, f32);
-    const cpu_isa_t isa = get_supported_isa(is_f32, is_int8, is_bf16, is_f16);
+    const bool is_f32_bf16
+            = everyone_is(f32, src_type, dst_type) && wei_type == bf16;
+    const bool is_f32_f16
+            = everyone_is(f32, src_type, dst_type) && wei_type == f16;
+    const cpu_isa_t isa = get_supported_isa(
+            is_f32, is_int8, is_bf16, is_f16, is_f32_bf16, is_f32_f16);
 
     auto skip_mask = skip_mask_t::post_ops;
     if (is_int8)
@@ -133,7 +138,8 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
                 | skip_mask_t::zero_points_runtime);
 
     VDISPATCH_CONV(is_fwd(), VERBOSE_BAD_PROPKIND);
-    VDISPATCH_CONV(one_of(true, is_f32, is_int8, is_bf16, is_f16),
+    VDISPATCH_CONV(one_of(true, is_f32, is_int8, is_bf16, is_f16, is_f32_f16,
+                           is_f32_bf16),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_CONV(
             IMPLICATION(is_int8,
@@ -246,24 +252,28 @@ status_t brdgmm_dw_convolution_fwd_t::pd_t::init(engine_t *engine) {
             = attr_scales_ok({DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST});
     VDISPATCH_CONV(scales_ok, VERBOSE_UNSUPPORTED_SCALES_CFG);
 
-    const auto zp_attr = attr()->zero_points_;
-    jcp.src_zero_point = !zp_attr.has_default_values(DNNL_ARG_SRC);
-    jcp.dst_zero_point = !zp_attr.has_default_values(DNNL_ARG_DST);
+    const auto &zp = attr()->zero_points_;
+    jcp.src_zero_point = !zp.has_default_values(DNNL_ARG_SRC);
+    jcp.dst_zero_point = !zp.has_default_values(DNNL_ARG_DST);
 
-    // Only common zero points for the whole output tensor is supported now
-    const bool has_zero_points = jcp.src_zero_point || jcp.dst_zero_point;
-    const bool params_ok
-            = IMPLICATION(has_zero_points, utils::one_of(jcp.src_dt, u8, s8))
-            && IMPLICATION(jcp.src_zero_point,
-                    attr()->zero_points_.common(DNNL_ARG_SRC)
-                            || attr()->zero_points_.per_dim_1(DNNL_ARG_SRC))
-            && IMPLICATION(jcp.dst_zero_point,
-                    attr()->zero_points_.common(DNNL_ARG_DST));
-    VDISPATCH_CONV(params_ok, VERBOSE_UNSUPPORTED_ZP_CFG);
-
-    VDISPATCH_CONV(!(jcp.src_zero_point
-                           && cd.weights_desc.format_kind != format_kind::any),
+    VDISPATCH_CONV(IMPLICATION(jcp.src_zero_point || jcp.dst_zero_point,
+                           utils::one_of(jcp.src_dt, s8, u8)),
             VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    VDISPATCH_CONV(
+            IMPLICATION(jcp.src_zero_point,
+                    utils::one_of(zp.get_mask(DNNL_ARG_SRC), 0, (1 << 1))),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    VDISPATCH_CONV(
+            IMPLICATION(jcp.dst_zero_point, zp.get_mask(DNNL_ARG_DST) == 0),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    // Source zero_point requires compensation, thus, must initialize weights
+    // descriptor and can't take predefined one.
+    const bool src_zp_format_ok = IMPLICATION(jcp.src_zero_point,
+            cd.weights_desc.format_kind == format_kind::any);
+    VDISPATCH_CONV(src_zp_format_ok, VERBOSE_UNSUPPORTED_ZP_CFG);
 
     // strd is only feasible for 1D (i.e., height dim is one)
     // and if there are no tails (for calculating matrix_B strides).
@@ -755,7 +765,8 @@ status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
                 post_ops_data.oc_logical_off = ch;
                 post_ops_data.dst_scales = dst_scales;
                 const bool is_bcast_zp
-                        = pd()->attr()->zero_points_.common(DNNL_ARG_SRC);
+                        = pd()->attr()->zero_points_.get_mask(DNNL_ARG_SRC)
+                        == 0;
                 post_ops_data.a_zp_values = jcp.src_zero_point
                         ? src_zero_point + ch * !is_bcast_zp
                         : nullptr;

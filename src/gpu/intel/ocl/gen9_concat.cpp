@@ -19,7 +19,7 @@
 #include "common/primitive_exec_types.hpp"
 
 #include "gpu/intel/ocl/gen9_concat.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -173,13 +173,16 @@ status_t gen9_concat_t::pd_t::init_conf(impl::engine_t *engine) {
 
 static status_t init_kernel_ctx_common(
         compute::kernel_ctx_t &kernel_ctx, const concat_conf_t &conf) {
+    constexpr bool with_punning = false;
+
     for (int i = 0; i < conf.n; ++i) {
         kernel_ctx.define_int(utils::format("SRC%d_END", i), conf.offset[i]);
         def_memory_desc_info(kernel_ctx, conf.src_md_infos[i],
-                utils::format("SRC%d", i).c_str());
+                utils::format("SRC%d", i).c_str(), with_punning);
     }
-    def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST");
-    kernel_ctx.set_data_type(conf.src_type);
+    def_memory_desc_info(kernel_ctx, conf.dst_md_info, "DST", with_punning);
+
+    kernel_ctx.set_data_type(conf.src_type, with_punning);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("CONCAT_AXIS", conf.concat_axis);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -117,8 +117,8 @@ private:
 };
 
 struct eltwise_fwd_pd_t : public eltwise_pd_t {
-    typedef eltwise_fwd_pd_t base_class;
-    typedef eltwise_fwd_pd_t hint_class;
+    using base_class = eltwise_fwd_pd_t;
+    using hint_class = eltwise_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -192,8 +192,8 @@ protected:
 };
 
 struct eltwise_bwd_pd_t : public eltwise_pd_t {
-    typedef eltwise_bwd_pd_t base_class;
-    typedef eltwise_fwd_pd_t hint_class;
+    using base_class = eltwise_bwd_pd_t;
+    using hint_class = eltwise_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (use_dst() ? arg == DNNL_ARG_DST : arg == DNNL_ARG_SRC)

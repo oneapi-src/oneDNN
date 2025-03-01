@@ -98,12 +98,20 @@ struct jit_avx512_core_amx_convolution_fwd_t : public primitive_t {
 
     protected:
         bool zero_points_ok() const {
-            // Only common zero points are supported -> mask should only be 0
-            int mask_src = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
-            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                    && mask_src == 0 && mask_dst == 0;
+            const auto &zp = attr()->zero_points_;
+
+            if (!zp.has_default_values(DNNL_ARG_SRC)) {
+                int mask_src = zp.get_mask(DNNL_ARG_SRC);
+                const bool ok = mask_src == 0;
+                if (!ok) return false;
+            }
+            if (!zp.has_default_values(DNNL_ARG_DST)) {
+                int mask_dst = zp.get_mask(DNNL_ARG_DST);
+                const bool ok = mask_dst == 0;
+                if (!ok) return false;
+            }
+
+            return zp.has_default_values(DNNL_ARG_WEIGHTS);
         }
     };
 
@@ -275,8 +283,8 @@ struct jit_avx512_core_amx_convolution_bwd_weights_t : public primitive_t {
     jit_avx512_core_amx_convolution_bwd_weights_t(const pd_t *apd)
         : primitive_t(apd) {}
 
-    typedef typename prec_traits<data_type::bf16>::type src_data_t;
-    typedef typename prec_traits<data_type::bf16>::type diff_dst_data_t;
+    using src_data_t = typename prec_traits_t<data_type::bf16>::type;
+    using diff_dst_data_t = typename prec_traits_t<data_type::bf16>::type;
 
     status_t init(engine_t *engine) override;
 

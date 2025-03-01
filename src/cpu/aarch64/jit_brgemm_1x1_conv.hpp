@@ -66,12 +66,20 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
             return attr_scales_ok(supported_args);
         }
         bool zero_points_ok() const {
-            // Only common zero points are supported -> mask should only be 0
-            int mask_src = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
-            return attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                    && mask_src == 0 && mask_dst == 0;
+            const auto &zp = attr()->zero_points_;
+
+            if (!zp.has_default_values(DNNL_ARG_SRC)) {
+                int mask_src = zp.get_mask(DNNL_ARG_SRC);
+                const bool ok = mask_src == 0;
+                if (!ok) return false;
+            }
+            if (!zp.has_default_values(DNNL_ARG_DST)) {
+                int mask_dst = zp.get_mask(DNNL_ARG_DST);
+                const bool ok = mask_dst == 0;
+                if (!ok) return false;
+            }
+
+            return zp.has_default_values(DNNL_ARG_WEIGHTS);
         }
     };
 

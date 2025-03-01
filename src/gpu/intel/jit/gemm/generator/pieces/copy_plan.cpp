@@ -250,6 +250,10 @@ void CopyPlan::transform()
     sort(SortType::PhaseOnly);
 
     legalizeImmediateTypes();
+#ifdef DNNL_DEV_MODE
+    if (get_verbose(verbose_t::debuginfo) > 100)
+        dump();
+#endif
 }
 
 
@@ -663,6 +667,9 @@ void CopyPlan::planTypeConversions()
             rerun = true;
         } else if (dt == Type::ngen_f4_e2m1() && st == DataType::hf) {
             planEmulatedHFToF4E2M1(i);
+            rerun = true;
+        } else if (st == Type::ngen_f4_e3m0() && dt == DataType::hf) {
+            planEmulatedE3M0ToHF(i);
             rerun = true;
         } else if (dt == Type::ngen_f4_e2m1()) {
             copyThrough(i, DataType::hf);
@@ -1454,6 +1461,81 @@ void CopyPlan::planEmulatedF4E2M1ToHF(CopyInstruction &i) {
     ie[4]->op = Opcode::mul;
     ie[4]->dst = ie[4]->src0 = y;
     ie[4]->src1 = Immediate::hf(0x7400);
+
+    ie[5]->op = Opcode::and_;
+    ie[5]->dst = ie[5]->src0 = t0UW;
+    ie[5]->src1 = 0x8000;
+
+    ie[6]->op = Opcode::or_;
+    ie[6]->dst = ie[6]->src0 = yUW;
+    ie[6]->src1 = t0UW;
+
+    if (tempY) {
+        ie[7]->op = Opcode::mov;
+        ie[7]->dst = yOrig;
+        ie[7]->dst.type = DataType::uw;
+        ie[7]->src0 = yUW;
+    } else
+        ie[7]->invalidate();
+}
+
+// Emulation sequence for e3m0->hf conversion.
+void CopyPlan::planEmulatedE3M0ToHF(CopyInstruction &i)
+{
+    // Emulation sequence for mov y:hf x:e3m0: play only on the exponent bits
+    // mov                 y:uw   x:u4                    /* emulated separately */
+    // shl                 t0:uw   t0:uw   12
+    // and                 y:uw    y:uw    0x7
+    // (f1)add             y:uw    y:uw    12
+    // shl                 y:uw    y:uw    10
+    // bfn.0xCA            y:uw    y:uw    t0:uw  0x8000   /* copy sign */
+
+    if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
+
+    auto ie = splitMultiple<8>(i);
+
+    auto yOrig = i.dst, y = yOrig;
+
+    bool tempY = (y.stride > 1 && multiGRF(hw, i, y));
+    if (tempY)  /* Replace y by temporary if nonunit stride hurts performance */
+        y = newTemp(DataType::uw, i.simd, 1);
+
+    auto yUW = y;
+    yUW.type = DataType::uw;
+
+    auto t0 = newTemp(DataType::hf, i.simd, y.stride, 0, y.offset);
+
+    auto t0UW = t0;
+    t0UW.type = DataType::uw;
+
+    // Copy to u16.
+    ie[0]->src0.type = DataType::u4;
+    ie[0]->dst.type = DataType::uw;
+    ie[0]->dst = yUW;
+
+    ie[1]->op = Opcode::shl;
+    ie[1]->dst = t0UW;
+    ie[1]->src0 = ie[0]->dst;
+    ie[1]->src1 = 12;
+
+    ie[2]->op = Opcode::and_;
+    ie[2]->dst = ie[2]->src0 = yUW;
+    ie[2]->src1 = 0x7;
+    ie[2]->cmod = ConditionModifier::nz;
+    ie[2]->flag = newFlag(ie[2]->simd);
+
+    ie[3]->op = Opcode::add;
+    ie[3]->dst = ie[3]->src0 = yUW;
+    ie[3]->src1 = 0xc;
+    ie[3]->dst.type = DataType::uw;
+    ie[3]->src0.type = DataType::uw;
+    ie[3]->src1.type = DataType::uw;
+    ie[3]->flag = ie[2]->flag;
+
+    ie[4]->src0 = ie[3]->dst;
+    ie[4]->op = Opcode::shl;
+    ie[4]->dst = yUW;
+    ie[4]->src1 = 10;
 
     ie[5]->op = Opcode::and_;
     ie[5]->dst = ie[5]->src0 = t0UW;
@@ -2421,5 +2503,108 @@ void CopyPlan::materializeTemps(const GRFAllocator &grfAllocator, const FlagAllo
     temps.clear();
 }
 
+#ifdef DNNL_DEV_MODE
+int CopyPlan::cycleCount() const
+{
+    int count = 0;
+    for (const auto &i: insns)
+        count += (multiGRF(hw, i, i.dst) || multiGRF(hw, i, i.src0) || multiGRF(hw, i, i.src1) || multiGRF(hw, i, i.src2)) ? 2 : 1;
+    return count;
+}
+
+void CopyPlan::dump() const
+{
+    for (const auto &i: insns)
+        i.dump(*this);
+}
+
+void CopyInstruction::dump(const CopyPlan &plan) const
+{
+    if (flag && cmod == ConditionModifier::none) {
+        std::cout << '(';
+        flag.dump();
+        std::cout << ")\t";
+    }
+
+    std::cout << getMnemonic(op, HW::Gen9);
+    if (op == Opcode::bfn)
+        std::cout << '.' << std::hex << int(ctrl) << std::dec;
+    std::cout << " (" << simd << ")\t";
+    if (sat) std::cout << "(sat) ";
+    if (cmod != ConditionModifier::none) {
+        std::cout << '(' << cmod << ')';
+        flag.dump();
+        std::cout << ' ';
+    }
+    dst.dump();
+    std::cout << '\t';
+    src0.dump();
+    if (src1) {
+        std::cout << '\t';
+        src1.dump();
+        if (src2) {
+            std::cout << '\t';
+            src2.dump();
+        }
+    }
+    if (atomic)
+        std::cout << "\t{Atomic}";
+    if (get_verbose(verbose_t::debuginfo))
+        std::cout << "\t\t(phase = " << phase << ", cnum = [" << cnumMin << ", " << cnumMax << "])";
+
+    std::cout << std::endl;
+}
+
+void CopyOperand::dump() const
+{
+    auto outType = [](DataType dt) {
+        if (dt == Type::ngen_f8_e8m0())
+            std::cout << "e8m0";
+        if (dt == Type::ngen_f4_e2m1())
+            std::cout << "e2m1";
+        if (dt == Type::ngen_f4_e3m0())
+            std::cout << "e3m0";
+        else
+            std::cout << dt;
+    };
+
+    if (neg) std::cout << '-';
+    switch (kind) {
+        case Null: std::cout << "null:" << type; break;
+        case GRF:
+            if (temp) {
+                std::cout << 't' << value;
+                if (grf) std::cout << '+' << grf;
+            } else
+                std::cout << 'r' << grf;
+            std::cout << '.' << int(offset) << ':';
+            outType(type);
+            if (range != DataType::invalid && range != type) {
+                std::cout << '[';
+                outType(range);
+                std::cout << ']';
+            }
+            std::cout << '<';
+            if (inVS || inW)
+                std::cout << int(inVS) << ';' << int(inW) << ',';
+            std::cout << int(stride) << '>';
+            break;
+        case Flag:
+            if (temp)
+                std::cout << 't' << value;
+            else
+                std::cout << 'f' << (grf >> 1) << '.' << (grf & 1);
+            if (offset)
+                std::cout << '+' << int(offset);
+            break;
+        case Immediate:
+            LabelManager man;
+            ngenImmediate().outputText(std::cout, PrintDetail::full, man);
+            break;
+    }
+    if (stride > 1 && overwriteStride) std::cout << "!!";
+    else if (overwrite)                std::cout << '!';
+}
+#endif
 
 #include "internal/namespace_end.hxx"

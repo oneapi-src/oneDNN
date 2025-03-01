@@ -145,6 +145,7 @@ int main(int argc, char **argv) {
         zeropad::bench(--argc, ++argv);
     } else if (!strcmp("--brgemm", argv[0])) {
         brgemm::bench(--argc, ++argv);
+        brgemm::brgemm_finalize();
     } else if (!strcmp("--graph", argv[0])) {
 #ifdef BUILD_GRAPH
         graph::bench(--argc, ++argv);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,53 +17,12 @@
 #ifndef UTILS_RES_HPP
 #define UTILS_RES_HPP
 
-#include <cstring>
-#include <vector>
-
-#include "oneapi/dnnl/dnnl.h"
 #include "oneapi/dnnl/dnnl_types.h"
 
 #include "utils/timer.hpp"
 
-struct check_mem_size_args_t {
-
-    check_mem_size_args_t() = default;
-    check_mem_size_args_t(const_dnnl_primitive_desc_t pd, bool want_input)
-        : pd(pd)
-        , want_input(want_input)
-        , is_scratchpad(false)
-        , total_size_device(0)
-        , total_size_cpu(0)
-        , scratchpad_size(0) {
-        // initialize the memory size for reference path
-        memset(total_ref_md_size, 0, sizeof(total_ref_md_size));
-    }
-
-    // Input args.
-    const_dnnl_primitive_desc_t pd;
-    bool want_input;
-    bool is_scratchpad;
-
-    // Output args:
-    // `sizes` used to validate OpenCL memory requirements.
-    std::vector<size_t> sizes;
-    // `total_size_device` specifies memory allocated on device for a test obj.
-    size_t total_size_device;
-    // `total_size_cpu` specifies:
-    // * Memory allocated for reference ocmputations (`C` mode only).
-    // * Memory allocated for comparison results (`C` mode only).
-    // * Memory allocated for mapping device memory (GPU backend only).
-    // * Memory allocated on CPU for a test obj (CPU backend only).
-    size_t total_size_cpu;
-    // `total_ref_md_size` specifies the additional tag::abx f32 memory
-    // required for correctness check.
-    // * The first element refers to the total memory for input reference
-    // * The second element refers to the total memory for output reference
-    // The args are used in memory estimation for graph driver only.
-    size_t total_ref_md_size[2];
-    // `scratchpad_size` specifies a scratchpad size for specific checks.
-    size_t scratchpad_size;
-};
+#include <string>
+#include <vector>
 
 /* result structure */
 enum res_state_t {
@@ -96,6 +55,45 @@ enum dir_t {
     BWD_WB = FLAG_BWD + FLAG_WEI + FLAG_BIA,
 };
 
+struct check_mem_size_args_t {
+    check_mem_size_args_t() = default;
+    check_mem_size_args_t(
+            const_dnnl_primitive_desc_t pd, bool want_input, dir_t dir)
+        : pd(pd), want_input(want_input), dir(dir) {}
+
+    // Input args.
+    const_dnnl_primitive_desc_t pd = nullptr;
+    bool want_input = false;
+    dir_t dir = DIR_UNDEF; // See ANCHOR: MEM_CHECK_ARGS_DIR;
+
+    // Output args:
+    // `sizes` used to validate OpenCL memory requirements.
+    std::vector<size_t> sizes;
+    // `total_size_device` specifies memory allocated on device for a test obj.
+    // It's an accumulated result of `sizes` values.
+    size_t total_size_device = 0;
+    // `total_size_ref` specifies Memory allocated for reference computations
+    // (`C` mode only). This value can represent either memory sizes needed for
+    // a naive reference implementation on plain formats, or memory sizes needed
+    // for a prim_ref (--fast-ref) test object which can utilize blocked
+    // formats.
+    size_t total_size_ref = 0;
+    // `total_size_compare` specifies memory allocated for comparison results
+    // tensor (`C` mode only).
+    size_t total_size_compare = 0;
+    // `total_size_mapped` specifies memory allocated for mapped buffers on the
+    // host (GPU backend only).
+    size_t total_size_mapped = 0;
+    // `total_ref_md_size` specifies the additional tag::abx f32 memory
+    // required for correctness check.
+    // * The first element refers to the total memory for input reference
+    // * The second element refers to the total memory for output reference
+    // The args are used in memory estimation for graph driver only.
+    size_t total_ref_md_size[2] = {0, 0};
+    // `scratchpad_size` specifies a scratchpad size for specific checks.
+    size_t scratchpad_size = 0;
+};
+
 struct res_t {
     res_state_t state;
     size_t errors, total;
@@ -103,10 +101,8 @@ struct res_t {
     std::string impl_name;
     std::string prim_ref_repro;
     std::string reason;
+    // TODO: fuse `ibytes` and `obytes` into `mem_size_args`.
     size_t ibytes, obytes;
-
-    // TODO: merge mem_check_dir into check_mem_size_args_t
-    dir_t mem_check_dir = DIR_UNDEF;
     check_mem_size_args_t mem_size_args;
 };
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ void check_memory_fit(
 
 } // namespace
 
-ref_partition_t::ref_partition_t(const deserialized_graph &dg,
+ref_partition_t::ref_partition_t(const deserialized_graph_t &dg,
         const dnnl::graph::partition &par,
         const std::vector<dnnl::graph::logical_tensor> &ins,
         const std::vector<dnnl::graph::logical_tensor> &outs)
@@ -367,7 +367,7 @@ int ref_partition_t::check_partition_correctness(
 }
 
 bool ref_partition_t::has_parent_op(
-        const deserialized_op &op, bool check_all_in_lts) const {
+        const deserialized_op_t &op, bool check_all_in_lts) const {
     if (partition_ops_ref_.size() < 2) return false;
 
     for (const auto &in_lt : op.in_lts_) {
@@ -389,8 +389,8 @@ bool ref_partition_t::has_parent_op(
 }
 
 // TODO: add get_child and remove the second arg.
-bool ref_partition_t::has_child_op(
-        const deserialized_op &op, const deserialized_op **child_op_ptr) const {
+bool ref_partition_t::has_child_op(const deserialized_op_t &op,
+        const deserialized_op_t **child_op_ptr) const {
     if (partition_ops_ref_.size() < 2) return false;
 
     for (const auto &out_lt : op.out_lts_) {
@@ -411,7 +411,7 @@ bool ref_partition_t::has_child_op(
     return false;
 }
 
-const deserialized_op *ref_partition_t::get_parent_op(size_t in_lt_id) const {
+const deserialized_op_t *ref_partition_t::get_parent_op(size_t in_lt_id) const {
     if (partition_ops_ref_.size() < 2) return nullptr;
 
     // Check if a parent op exists for an `op`.
@@ -430,8 +430,8 @@ const deserialized_op *ref_partition_t::get_parent_op(size_t in_lt_id) const {
 // This function decides when unfusable transcendental op output should be
 // reordered to lower data type and back to f32 for a reference path.
 bool ref_partition_t::need_unfusable_output_crop(
-        const deserialized_op &op, dnnl_data_type_t &dt) const {
-    const deserialized_op *child_op = nullptr;
+        const deserialized_op_t &op, dnnl_data_type_t &dt) const {
+    const deserialized_op_t *child_op = nullptr;
     // First of all, the output should have a child op...
     if (!has_child_op(op, &child_op)) return false;
     // If the child op is not a TypeCast, it's safe to crop.
@@ -443,7 +443,7 @@ bool ref_partition_t::need_unfusable_output_crop(
     // When it is a TypeCast (it always changes `cur_dt` <-> f32, both ways are
     // possible), there are options:
     // * If it's the last one, no crop, as f32 will happen on the other end.
-    const deserialized_op *next_child_op = nullptr;
+    const deserialized_op_t *next_child_op = nullptr;
     if (!has_child_op(*child_op, &next_child_op)) return false;
     // * If there's a child Quantize, no crop either, since output would
     //   perform a reorder with a proper scale value to match the other end.
@@ -461,7 +461,7 @@ bool ref_partition_t::need_unfusable_output_crop(
     return true;
 }
 
-bool ref_partition_t::is_output_op(const deserialized_op &op) const {
+bool ref_partition_t::is_output_op(const deserialized_op_t &op) const {
     return std::any_of(op.out_lts_.begin(), op.out_lts_.end(),
             [this](const deserialized_lt &lt) {
                 return std::find(partition_out_ids_.begin(),
@@ -472,7 +472,7 @@ bool ref_partition_t::is_output_op(const deserialized_op &op) const {
 
 // check the partition memory footprint of the graph path
 int ref_partition_t::check_partition_total_size(
-        const deserialized_op &op, res_t *res) {
+        const deserialized_op_t &op, res_t *res) {
 
     // Prepare the memory limit for benchdnn graph
     static size_t benchdnn_cpu_limit = get_benchdnn_cpu_limit();
@@ -532,7 +532,9 @@ int ref_partition_t::check_partition_total_size(
     // after reference path data filling(`C` mode only)
     // 3. Memory to be allocated for comparing results(`C` mode only)
     // 4. Memory to be allocated for mapping device memory(GPU backend only)
-    size_t new_cpu_req = check_mem_size_args.total_size_cpu;
+    size_t new_cpu_req = check_mem_size_args.total_size_ref
+            + check_mem_size_args.total_size_compare
+            + check_mem_size_args.total_size_mapped;
     size_t new_gpu_req = check_mem_size_args.total_size_device;
 
     // STEP 1: Memory allocation stage for the reference path
@@ -577,7 +579,7 @@ int ref_partition_t::check_partition_total_size(
 // Return the logical tensor ids of the given op which is the input/output of
 // the partition.
 std::vector<size_t> ref_partition_t::get_in_out_lt_ids(
-        const deserialized_op &op) const {
+        const deserialized_op_t &op) const {
     std::vector<size_t> in_out_lt_ids;
     std::for_each(op.in_lts_.begin(), op.in_lts_.end(),
             [&in_out_lt_ids, this](const deserialized_lt &lt) {

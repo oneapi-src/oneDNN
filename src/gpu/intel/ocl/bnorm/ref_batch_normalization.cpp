@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include "common/math_utils.hpp"
 #include "common/scratchpad.hpp"
 #include "common/type_helpers.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 using namespace dnnl::impl::memory_tracking::names;
 
@@ -124,7 +124,7 @@ static void init_conf_common(bnorm_conf_t &conf, compute::dispatch_t &dispatch,
 static void init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
         const bnorm_conf_t &conf, const compute::dispatch_t &dispatch,
         const offsets_t &off) {
-    kernel_ctx.set_data_type(conf.data_type);
+    kernel_ctx.set_data_type(conf.data_type, false);
 
     kernel_ctx.define_int("NDIMS", conf.ndims);
     kernel_ctx.define_int("MB", conf.mb);

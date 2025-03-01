@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 * Copyright 2023 KNS Group LLC (YADRO)
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -66,7 +66,7 @@ struct riscv_nchw_pooling_fwd_t : public primitive_t {
 
     riscv_nchw_pooling_fwd_t(const pd_t *apd);
 
-    using data_t = typename prec_traits<d_type>::type;
+    using data_t = typename prec_traits_t<d_type>::type;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);

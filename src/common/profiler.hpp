@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,8 +90,7 @@ static double get_msec() {
 // names are copied into long term storage.
 
 struct profiler_t {
-    profiler_t(const std::string &profile_name)
-        : _profile_name(profile_name), _run_data(), _data() {
+    profiler_t(const std::string &profile_name) : _profile_name(profile_name) {
         // Reserve data on construction to reduce chance of recording
         // reallocation
         _run_data.reserve(128);

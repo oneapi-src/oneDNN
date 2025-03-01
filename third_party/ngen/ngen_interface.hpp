@@ -136,6 +136,9 @@ public:
 
     template <typename CodeGenerator>
     inline void generatePrologue(CodeGenerator &generator, const GRF &temp = GRF(127)) const;
+#ifdef NGEN_ASM
+    inline void dumpAssignments(std::ostream &stream) const;
+#endif
 
     inline void generateDummyCL(std::ostream &stream) const;
     inline std::string generateZeInfo() const;
@@ -741,6 +744,25 @@ std::string InterfaceHandler::generateZeInfo() const
 
     return md.str();
 }
+
+#ifdef NGEN_ASM
+void InterfaceHandler::dumpAssignments(std::ostream &stream) const
+{
+    LabelManager manager;
+
+    for (auto &assignment : assignments) {
+        stream << "//  ";
+        if (assignment.reg.isValid())
+            assignment.reg.outputText(stream, PrintDetail::sub, manager);
+        else
+            stream << "(none)";
+        stream << '\t' << assignment.name;
+        if (assignment.surface != noSurface)
+            stream << "\t(BTI " << assignment.surface << ')';
+        stream << std::endl;
+    }
+}
+#endif
 
 } /* namespace NGEN_NAMESPACE */
 

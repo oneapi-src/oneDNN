@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ saturate(const acc_t &x) {
     acc_t v = x;
     acc_t lbound = (acc_t)nstl::numeric_limits<data_t>::lowest();
     // Pick up a modified version of max value when do f32 -> s32.
-    acc_t ubound = types::max_value<acc_t>(data_traits<data_t>::data_type);
+    acc_t ubound = types::max_value<acc_t>(data_traits_t<data_t>::data_type);
     if (v < lbound) v = lbound;
     if (v > ubound) v = ubound;
     return v;

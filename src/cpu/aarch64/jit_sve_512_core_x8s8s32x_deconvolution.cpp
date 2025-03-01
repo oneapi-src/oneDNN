@@ -114,10 +114,11 @@ status_t _jit_sve_512_core_x8s8s32x_deconv_fwd_kernel::init_conf(
     if (jcp.is_depthwise && (!jcp.signed_input || is_3d))
         return status::unimplemented;
 
-    if (!zero_points_valid(&attr)) return status::unimplemented;
+    VDISPATCH_DECONVOLUTION_IC(
+            zero_points_valid(&attr), VERBOSE_UNSUPPORTED_ZP_CFG);
     jcp.src_zero_point = !attr.zero_points_.has_default_values(DNNL_ARG_SRC);
     jcp.dst_zero_point = !attr.zero_points_.has_default_values(DNNL_ARG_DST);
-    jcp.zp_src_is_common = attr.zero_points_.common(DNNL_ARG_SRC);
+    jcp.zp_src_is_common = attr.zero_points_.get_mask(DNNL_ARG_SRC) == 0;
 
     format_tag_t dat_tag = utils::pick(
             ndims - 3, format_tag::nwc, format_tag::nhwc, format_tag::ndhwc);

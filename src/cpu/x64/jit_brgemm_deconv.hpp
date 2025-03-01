@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,16 +57,25 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
         }
 
         bool zero_points_ok() const {
-            using namespace data_type;
-            int mask_src = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
+            const auto &zp = attr()->zero_points_;
 
-            return IMPLICATION(!utils::one_of(src_md()->data_type, s8, u8),
-                           attr()->zero_points_.has_default_values())
-                    && attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                    && (mask_src == 0 || mask_src == 1 << 1)
-                    && (mask_dst == 0 || mask_dst == 1 << 1);
+            using namespace data_type;
+            bool ok = IMPLICATION(!utils::one_of(src_md()->data_type, s8, u8),
+                    zp.has_default_values());
+            if (!ok) return false;
+
+            if (!zp.has_default_values(DNNL_ARG_SRC)) {
+                int mask_src = zp.get_mask(DNNL_ARG_SRC);
+                ok = utils::one_of(mask_src, 0, (1 << 1));
+                if (!ok) return false;
+            }
+            if (!zp.has_default_values(DNNL_ARG_DST)) {
+                int mask_dst = zp.get_mask(DNNL_ARG_DST);
+                ok = utils::one_of(mask_dst, 0, (1 << 1));
+                if (!ok) return false;
+            }
+
+            return zp.has_default_values(DNNL_ARG_WEIGHTS);
         }
 
         brgemm_broadcast_t get_zp_type(int arg) const {

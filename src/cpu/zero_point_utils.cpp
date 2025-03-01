@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,8 +84,9 @@ zero_point_pad_comp_config_t::zero_point_pad_comp_config_t(
 
 zero_point_config_t::zero_point_config_t(const primitive_attr_t &attr)
     : src_exists(!attr.zero_points_.has_default_values(DNNL_ARG_SRC))
-    , dst_exists(!attr.zero_points_.has_default_values(DNNL_ARG_DST))
-    , src_is_common(attr.zero_points_.common(DNNL_ARG_SRC)) {}
+    , dst_exists(!attr.zero_points_.get(DNNL_ARG_DST).has_default_values())
+    , src_is_common(
+              src_exists && attr.zero_points_.get_mask(DNNL_ARG_SRC) == 0) {}
 
 bool zero_point_config_t::zp_exists() const noexcept {
     return src_exists || dst_exists;
@@ -99,22 +100,27 @@ zero_point_call_params_t::zero_point_call_params_t(const int32_t *src,
 bool zero_points_valid(
         const primitive_attr_t *attr, bool per_oc_bcast_accepted) noexcept {
 
-    int mask_src = -1, mask_dst = -1;
     static constexpr int common_mask = 0x0,
                          per_oc_mask = 0x2; // mask for common and per_oc_bcast
 
-    attr->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-    attr->zero_points_.get(DNNL_ARG_DST, &mask_dst);
+    if (!attr->zero_points_.has_default_values(DNNL_ARG_SRC)) {
+        int mask_src = attr->zero_points_.get_mask(DNNL_ARG_SRC);
+        const bool src_mask_valid = per_oc_bcast_accepted
+                ? utils::one_of(mask_src, common_mask, per_oc_mask)
+                : mask_src == 0;
+        if (!src_mask_valid) return false;
+    }
 
-    const bool src_mask_valid = per_oc_bcast_accepted
-            ? utils::one_of(mask_src, common_mask, per_oc_mask)
-            : mask_src == 0;
-    const bool dst_mask_valid = per_oc_bcast_accepted
-            ? utils::one_of(mask_dst, common_mask, per_oc_mask)
-            : mask_dst == 0;
+    if (!attr->zero_points_.has_default_values(DNNL_ARG_DST)) {
+        int mask_dst = attr->zero_points_.get_mask(DNNL_ARG_DST);
 
-    return attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-            && src_mask_valid && dst_mask_valid;
+        const bool dst_mask_valid = per_oc_bcast_accepted
+                ? utils::one_of(mask_dst, common_mask, per_oc_mask)
+                : mask_dst == 0;
+        if (!dst_mask_valid) return false;
+    }
+
+    return attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS);
 }
 
 void set_zp_src_comp_flags(memory_desc_t &weights_md, bool with_groups) {

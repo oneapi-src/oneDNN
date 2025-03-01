@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -85,29 +85,28 @@ enum { CRIT = 0x001, WARN = 0x002, NEED_CLEANUP = 0x004 };
 #define DNN_GRAPH_SAFE(f, s, ss) \
     do { \
         try { \
-            f; \
+            (f); \
         } catch (const dnnl::error &e) { \
-            if ((s & CRIT) || (s & WARN)) { \
+            if (((s)&CRIT) || ((s)&WARN)) { \
                 bdnn_state_t bs = convert_state(e.status); \
-                ss->state = bs.state; \
-                if (ss->state == res_state_t::SKIPPED) { \
-                    ss->reason = bs.reason; \
+                (ss)->state = bs.state; \
+                if ((ss)->state == res_state_t::SKIPPED) { \
+                    (ss)->reason = bs.reason; \
                 } else { \
                     BENCHDNN_PRINT(0, \
                             "Error: Function '%s' at (%s:%d) returned '%s'\n", \
                             __FUNCTION__, __FILE__, __LINE__, e.what()); \
                 } \
                 fflush(0); \
-                if (s & CRIT) exit(2); \
+                if ((s)&CRIT) exit(2); \
             } \
-            if (!(s & NEED_CLEANUP)) return FAIL; \
+            if (!((s)&NEED_CLEANUP)) return FAIL; \
         } \
     } while (0)
 
-typedef std::function<void(dnnl::stream &,
+using perf_function_t = std::function<void(dnnl::stream &,
         const std::vector<dnnl::graph::tensor> &inputs,
-        const std::vector<dnnl::graph::tensor> &outputs)>
-        perf_function_t;
+        const std::vector<dnnl::graph::tensor> &outputs)>;
 
 void compiled_partition_executor(dnnl::graph::compiled_partition &cp,
         dnnl::stream &stream, const std::vector<dnnl::graph::tensor> &inputs,

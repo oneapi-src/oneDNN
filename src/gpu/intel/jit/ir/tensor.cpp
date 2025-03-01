@@ -450,9 +450,8 @@ stride_t tdim_t::compute_stride(
     // e == var -> fixed stride.
     if (e.is_same(var)) return stride_t(1);
 
-    auto e0 = e;
     auto e1 = substitute(e, var, var + 1);
-    auto e_stride = simplify(e1 - e0);
+    auto e_stride = simplify(e1 - e);
 
     if (is_const(e_stride)) return stride_t(to_cpp<dim_t>(e_stride));
 

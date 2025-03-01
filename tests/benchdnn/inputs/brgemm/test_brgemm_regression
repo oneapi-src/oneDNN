@@ -1,0 +1,2 @@
+# Incorrect mask comparison in lazy hw config, need two problems to run back-to-back
+--reset --dt=bf16 128x448:448x32 42x608:608x32

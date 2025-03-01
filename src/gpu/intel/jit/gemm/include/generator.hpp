@@ -24,8 +24,8 @@
 #include "common/math_utils.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/gpu_post_ops.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
-#include "gpu/intel/jit/jit_post_op_injector.hpp"
+#include "gpu/intel/jit/generator.hpp"
+#include "gpu/intel/jit/post_op_injector.hpp"
 #include "gpu/intel/serialization.hpp"
 
 #include <array>
@@ -57,7 +57,7 @@
 #define GENERATOR_SUPER(hw) ngen::OpenCLCodeGenerator<hw>
 #define FORWARD(hw) NGEN_FORWARD_OPENCL(hw)
 
-#define GENERATOR_BASE(hw) jit_generator<hw>
+#define GENERATOR_BASE(hw) generator_t<hw>
 
 
 template <ngen::HW hw>
@@ -89,7 +89,7 @@ protected:
     GRFMultirange outputCRange;
     std::vector<RegisterBlock> outputCLayout;
 
-    using Injector = jit_post_op_injector<hw>;
+    using Injector = post_op_injector_t<hw>;
     std::unique_ptr<Injector> postOpInjector;
 
     class status_stream {

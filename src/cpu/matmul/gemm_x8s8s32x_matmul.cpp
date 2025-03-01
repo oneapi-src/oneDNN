@@ -70,8 +70,18 @@ status_t gemm_x8s8s32x_matmul_t::pd_t::init(engine_t *engine) {
         return ok;
     };
 
-    auto check_attr_zero_points
-            = [&]() -> bool { return attr()->zero_points_.common(); };
+    auto check_attr_zero_points = [&]() -> bool {
+        const auto &zp = attr()->zero_points_;
+        static const std::vector<int> supported_args {
+                DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST};
+        for (int arg : supported_args) {
+            if (!zp.has_default_values(arg)) {
+                const int mask = zp.get_mask(arg);
+                if (mask > 0) return false;
+            }
+        }
+        return true;
+    };
 
     auto check_attr_post_ops = [&]() -> bool {
         using namespace primitive_kind;

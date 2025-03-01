@@ -322,7 +322,6 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
         prim_ref_dt.erase(prim_ref_dt.begin());
         prim_ref_bia_dt.erase(prim_ref_bia_dt.begin());
     }
-    dnnl_primitive_t prim_ref_ {};
 
     for_(const auto &prim_ref_dt_i : prim_ref_dt)
     for (const auto &prim_ref_bia_dt_i : prim_ref_bia_dt) {
@@ -330,35 +329,11 @@ int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,
                 tag::any, tag::any, tag::any, DIRECT, prb->mb, cpu_attr,
                 prb->ctx_init, prb->ctx_exe, prb->impl_filter};
 
-        init_pd_args_t<prb_t> init_pd_args(
-                /* res = */ nullptr, get_cpu_engine(), &prb_cpu, prb->dir,
-                /* hint = */ nullptr, /* src_md = */ nullptr);
-        init_pd(init_pd_args);
-
-        benchdnn_dnnl_wrapper_t<dnnl_primitive_desc_t> pdw;
-        // `is_service_prim=true` prevents from filtering the implementation
-        // by name which is intended through a `get_prim_ref_impl_filter()`.
-        // As `fetch_impl` doesn't have any further logic related to it, it's
-        // safe to set it to `false`.
-        fetch_impl(pdw, init_pd_args, get_prim_ref_impl_filter(),
-                /* res = */ nullptr,
-                /* is_service_prim = */ false);
-
-        // Prim desc wasn't created - try the next set...
-        if (!pdw) continue;
-
-        auto st = dnnl_primitive_create(&prim_ref_, pdw);
-        // Primitive wasn't created - try the next set...
-        if (st != dnnl_success) continue;
-
-        BENCHDNN_PRINT(5, "CPU reference oneDNN implementation: %s\n",
-                query_impl_info(pdw).c_str());
-        res->prim_ref_repro = prb_cpu.str();
-        prim_ref.reset(prim_ref_);
-        return OK;
+        auto st = init_prim_ref_common(prim_ref, &prb_cpu, res);
+        if (st == OK) return OK;
     }
 
-    prim_ref.reset(prim_ref_);
+    prim_ref.reset(nullptr);
     return OK;
 }
 
@@ -370,11 +345,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             prb->attr, res, dnnl_deconvolution, prb->get_dt(SRC));
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_deconvolution);
 
-    // GPU supports only post ops and all but x8s8bf16 cfg
+    // GPU supports only post ops and all but x8s8bf16 and f32xf16f32 cfg
     if (is_gpu()) {
         const bool is_x8s8bf16_cfg
                 = prb->get_dt(WEI) == dnnl_s8 && prb->get_dt(DST) == dnnl_bf16;
-        const bool fwd_ok = !is_x8s8bf16_cfg;
+        const bool is_f32xf16_cfg = (prb->get_dt(WEI) == dnnl_f16
+                                            || prb->get_dt(WEI) == dnnl_bf16)
+                && prb->get_dt(SRC) == dnnl_f32;
+        const bool fwd_ok = !(is_x8s8bf16_cfg || is_f32xf16_cfg);
         if (!fwd_ok) {
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
@@ -554,11 +532,26 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     return OK;
 }
 
-int check_cacheit(
-        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+int checkit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
-    SAFE(check_caches(v_prim[0], prb, res), WARN);
-    // Don't check caches for CPU prim as the reference.
+    if (has_bench_mode_bit(mode_bit_t::exec)) {
+        const auto &prim_ref = v_prim[1];
+        if (prim_ref) {
+            // Copy res to avoid save/restore state and reason.
+            res_t res_copy = *res;
+            SAFE(check_total_size(&res_copy, prim_ref), WARN);
+            if (res_copy.state == SKIPPED) {
+                v_prim[1].reset(nullptr);
+                SAFE(check_total_size(res), WARN);
+            }
+        } else {
+            SAFE(check_total_size(res), WARN);
+        }
+    }
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
+        SAFE(check_caches(v_prim[0], prb, res), WARN);
+        // Don't check caches for CPU prim as the reference.
+    }
     return OK;
 }
 

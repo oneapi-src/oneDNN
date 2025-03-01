@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/ocl/gemm/gemm_with_post_ops.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -43,6 +44,7 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
             VERBOSE_RUNTIMEDIM_UNSUPPORTED);
     VDISPATCH_GEMM(attr()->has_default_values(attr_skip_mask),
             VERBOSE_UNSUPPORTED_ATTR);
+    VDISPATCH_GEMM(!utils::one_of(d->c_type(), u4, s4), VERBOSE_UNSUPPORTED_DT);
 
     const primitive_attr_t *attributes_with_po = attr();
     for (int arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
@@ -60,6 +62,17 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
     VDISPATCH_GEMM(d->sum_ab == sum_ab::sum_none, VERBOSE_UNSUPPORTED_FEATURE,
             "bias reduction");
 
+    subbyte_pack_ = utils::one_of(d->c_type(), f4_e2m1, f4_e3m0);
+    if (subbyte_pack_) {
+        using namespace dnnl::impl::memory_tracking::names;
+        const memory_desc_wrapper dst_mdw(dst_md(0));
+        const auto &padded_dims = dst_mdw.padded_dims();
+        const dim_t ndims = dst_mdw.ndims();
+        const dim_t nelems = utils::array_product(padded_dims, ndims);
+        auto scratchpad = scratchpad_registry().registrar();
+        scratchpad.book(memory_tracking::names::key_matmul_pack_space, nelems,
+                sizeof(char), OCL_BUFFER_ALIGNMENT);
+    }
     const auto impl_list = engine->get_implementation_list(op_desc());
     int current_impl_idx
             = impl_list_item_t::find<ocl::gemm_with_post_ops_t::pd_t>(
@@ -92,15 +105,17 @@ status_t gemm_with_post_ops_t::pd_t::init(impl::engine_t *engine) {
     attributes_without_po.set_post_ops(post_ops_t());
     attributes_without_po.scales_ = scales_t();
     attributes_without_po.zero_points_ = zero_points_t();
-    int src_mask, wei_mask;
-    auto zp = attributes_with_po->zero_points_;
-    zp.get(DNNL_ARG_SRC, &src_mask);
-    zp.get(DNNL_ARG_WEIGHTS, &wei_mask);
-    if (!zp.has_default_values(DNNL_ARG_SRC))
+    const auto &zp = attributes_with_po->zero_points_;
+    int src_mask = zp.get_mask(DNNL_ARG_SRC);
+    int wei_mask = zp.get_mask(DNNL_ARG_WEIGHTS);
+    if (!zp.has_default_values(DNNL_ARG_SRC)) {
         attributes_without_po.zero_points_.set(DNNL_ARG_SRC, src_mask);
-    if (!zp.has_default_values(DNNL_ARG_WEIGHTS))
-        attributes_without_po.zero_points_.set(DNNL_ARG_WEIGHTS, wei_mask, 0,
-                nullptr, attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS));
+    }
+    if (!zp.has_default_values(DNNL_ARG_WEIGHTS)) {
+        const auto dt = attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS);
+        attributes_without_po.zero_points_.set(
+                DNNL_ARG_WEIGHTS, wei_mask, dt, 0, {});
+    }
 
     primitive_desc_iterator_t it_gemm_without_po(engine,
             reinterpret_cast<const op_desc_t *>(&gemm_desc),
@@ -183,8 +198,6 @@ status_t gemm_with_post_ops_t::pd_t::init_kernel_ctx(
     kernel_ctx.define_int("A_SCALES", with_src_scales);
     kernel_ctx.define_int("B_SCALES", with_wei_scales);
     kernel_ctx.define_int("C_SCALES", with_dst_scales);
-    int dst_zp_mask;
-    attr()->zero_points_.get(DNNL_ARG_DST, &dst_zp_mask);
     kernel_ctx.define_int("DST_ZERO_POINT",
             !attr()->zero_points_.has_default_values(DNNL_ARG_DST));
     def_dispatch(kernel_ctx, dispatch_);
@@ -231,17 +244,22 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
 
     exec_status = gpu_gemm(gemm_prim_)->execute(gemm_ex_ctx);
     CHECK(exec_status);
+
     auto *compute_engine = utils::downcast<compute::compute_engine_t *>(
             ctx.stream()->engine());
+    const bool subbyte_pack = pd()->subbyte_pack_;
+
     auto arch = compute_engine->device_info()->gpu_arch();
     // Workaround correctness issue on Gen9
     if (arch == compute::gpu_arch_t::gen9) ctx.stream()->wait();
+    auto tmp = ctx.get_scratchpad_grantor().get_memory_storage(
+            memory_tracking::names::key_matmul_pack_space);
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0,
             pd()->use_scratchpad() ? *c_mem_before_po_worker->memory_storage()
                                    : GEMM_CTX_ARG_STORAGE(c));
     arg_list.set(1, GEMM_CTX_ARG_STORAGE(bias));
-    arg_list.set(2, GEMM_CTX_ARG_STORAGE(c));
+    arg_list.set(2, pd()->subbyte_pack_ ? *tmp : GEMM_CTX_ARG_STORAGE(c));
     const auto &args = ctx.args();
     int idx = append_post_ops_to_arg_list_gemm(
             args.exec_args, arg_list, 3, pd()->attr()->post_ops_);
@@ -253,8 +271,20 @@ status_t gemm_with_post_ops_t::execute(const gemm_exec_ctx_t &ctx) const {
             pd()->attr()->scales_.get_mask(DNNL_ARG_WEIGHTS) > 0 ? 1 : 0);
     arg_list.set(idx, GEMM_CTX_ARG_STORAGE(c_zero_point));
     auto nd_range = pd()->dispatch_.nd_range();
-    exec_status = parallel_for(ctx, nd_range, post_process_kernel_, arg_list);
-    return exec_status;
+    CHECK(parallel_for(ctx, nd_range, post_process_kernel_, arg_list));
+
+    if (!subbyte_pack) return status_t::dnnl_success;
+    memory_desc_wrapper dst_mdw(pd()->dst_md(0));
+    const dim_t nelems = dst_mdw.nelems();
+    compute::kernel_arg_list_t repack_arg_list;
+    repack_arg_list.set(0, *tmp);
+    repack_arg_list.set(1, GEMM_CTX_ARG_STORAGE(c));
+    repack_arg_list.set(2, into<dim_t>(nelems));
+    repack_arg_list.set(3, 4);
+    compute::range_t repack_gws((nelems * 4 + 7) / 8);
+    compute::nd_range_t repack_nd_range(repack_gws);
+    return large_parallel_for(exec_ctx_t(ctx.stream()), repack_nd_range,
+            subbyte_pack_kernel_, repack_arg_list, 4);
 };
 
 } // namespace ocl

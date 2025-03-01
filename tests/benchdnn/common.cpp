@@ -239,7 +239,7 @@ static void zfree_protect(void *ptr) {
 
 void *zmalloc(size_t size, size_t align) {
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (has_bench_mode_bit(mode_bit_t::corr)) { return zmalloc_protect(size); }
+    if (has_bench_mode_bit(mode_bit_t::exec)) { return zmalloc_protect(size); }
 #endif
 
     void *ptr;
@@ -264,7 +264,7 @@ void *zmalloc(size_t size, size_t align) {
 void zfree(void *ptr) {
     if (!ptr) return;
 #ifdef BENCHDNN_MEMORY_CHECK
-    if (has_bench_mode_bit(mode_bit_t::corr)) {
+    if (has_bench_mode_bit(mode_bit_t::exec)) {
         zfree_protect(ptr);
         return;
     }
@@ -438,7 +438,7 @@ int batch(const char *fname, bench_f bench) {
     std::string str;
     bool continued_line = false;
     while (ifs >> str) {
-        if (str.length() == 0) continue;
+        if (str.empty()) continue;
 
         // shell style comments
         if (str.front() == '#') {

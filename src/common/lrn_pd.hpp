@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,13 +94,12 @@ protected:
         : primitive_desc_t(attr, base_pkind)
         , desc_(*op_desc_t::to_desc<lrn_desc_t>(adesc))
         , hint_fwd_pd_(hint_fwd_pd)
-        , src_md_(desc_.src_desc)
-        , ws_md_() {}
+        , src_md_(desc_.src_desc) {}
 };
 
 struct lrn_fwd_pd_t : public lrn_pd_t {
-    typedef lrn_fwd_pd_t base_class;
-    typedef lrn_fwd_pd_t hint_class;
+    using base_class = lrn_fwd_pd_t;
+    using hint_class = lrn_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -158,8 +157,8 @@ protected:
 };
 
 struct lrn_bwd_pd_t : public lrn_pd_t {
-    typedef lrn_bwd_pd_t base_class;
-    typedef lrn_fwd_pd_t hint_class;
+    using base_class = lrn_bwd_pd_t;
+    using hint_class = lrn_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_DIFF_DST))

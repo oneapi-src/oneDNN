@@ -26,6 +26,7 @@
 #include <unordered_map>
 
 #include "common/bit_cast.hpp"
+#include "common/type_helpers.hpp"
 #include "gpu/intel/gpu_primitive_attr.hpp"
 #include "gpu/intel/utils.hpp"
 
@@ -33,6 +34,9 @@ namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
+
+struct memory_desc_info_t;
+
 namespace compute {
 
 class kernel_ctx_t {
@@ -73,8 +77,9 @@ public:
     }
 
     void register_buffer_size(const memory_desc_wrapper &mdw) {
-        register_buffer_size(mdw.size());
+        register_buffer_size(mdw.size(0, true, true));
     }
+    void register_buffer_size(const memory_desc_info_t &mdi);
 
     // Enable various optimizations when all buffers are < 2GB in size. In this
     // case, int32_t types can be used for data offsets and avoid int64_t
@@ -109,7 +114,7 @@ public:
         return has_macro(name.c_str());
     }
 
-    void set_data_type(data_type_t dt) {
+    void set_data_type(data_type_t dt, bool with_punning = true) {
         switch (dt) {
             case data_type::bf16: define_int("DT_BF16", 1); break;
             case data_type::f16: define_int("DT_F16", 1); break;
@@ -120,9 +125,11 @@ public:
             case data_type::f8_e4m3: define_int("DT_HF8", 1); break;
             case data_type::f8_e5m2: define_int("DT_BF8", 1); break;
             case data_type::f4_e2m1: define_int("DT_F4_E2M1", 1); break;
+            case data_type::f4_e3m0: define_int("DT_F4_E3M0", 1); break;
             case data_type::s32: define_int("DT_S32", 1); break;
             default: assert(!"unknown data type"); break;
         }
+        define_int("WITH_PUNNING", with_punning);
     }
 
     std::string data_type() const {

@@ -39,7 +39,7 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
     batch_size = src1_user_dims[0];
     num_head_q = src1_user_dims[1];
     seq_len_q = src1_user_dims[2];
-    size_per_head = src1_user_dims[3];
+    head_size_qk = src1_user_dims[3];
 
     dims wei1_user_dims = ltw(inputs[graph_inport[1]]).vdims();
     num_head_kv = wei1_user_dims[1];
@@ -52,6 +52,7 @@ bool sdp_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
             "Batch size mismatch, batch_size: %lld, wei1: %lld, wei2: %lld",
             batch_size, wei1_user_dims[0], wei2_user_dims[0]);
 
+    head_size_v = wei2_user_dims[3];
     // Check scale size
     if (graph_inport[2] != -1) {
         auto scale_sz = ltw(inputs[graph_inport[2]]).nelems();
@@ -137,7 +138,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     sub_reorder0_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
 
     // per-head: reorder src1 to dense, for first matmul
-    dims sub_src1_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_src1_dims = {1, 1, seq_len_q, head_size_qk};
     src1_strides = ltw(inputs[graph_inport[0]]).vstrides();
     sub_src1_md = memory::desc(sub_src1_dims, dt_src_user,
             {1, 1, src1_strides[2], src1_strides[3]});
@@ -152,7 +153,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // create reorder1 primitive attr
     dnnl::primitive_attr sub_reorder1_attr
             = make_primitive_attr(sdp_op[0], mgr);
-    dims sub_wei1_dims = {1, 1, size_per_head, seq_len_kv};
+    dims sub_wei1_dims = {1, 1, head_size_qk, seq_len_kv};
     auto wei_md = make_dnnl_memory_desc(
             sdp_op[1]->get_input_value(1)->get_logical_tensor());
     wei1_strides = wei_md.get_strides();
@@ -167,8 +168,8 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // first matmul
     // create first matmul primitive attr
     dnnl::primitive_attr sub_matmul1_attr = make_primitive_attr(sdp_op[1], mgr);
-    dims sub_mm1_src_dims = {1, 1, seq_len_q, size_per_head};
-    dims sub_mm1_wei_dims = {1, 1, size_per_head, seq_len_kv};
+    dims sub_mm1_src_dims = {1, 1, seq_len_q, head_size_qk};
+    dims sub_mm1_wei_dims = {1, 1, head_size_qk, seq_len_kv};
     dims sub_mm1_dst_dims = {1, 1, seq_len_q, seq_len_kv};
 
     sub_mm1_src_md = memory::desc(sub_mm1_src_dims, dt_src_user, tag::abcd);
@@ -209,7 +210,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // create reorder2 primitive attr
     dnnl::primitive_attr sub_reorder2_attr
             = make_primitive_attr(sdp_op[3], mgr);
-    dims sub_wei2_dims = {1, 1, seq_len_kv, size_per_head};
+    dims sub_wei2_dims = {1, 1, seq_len_kv, head_size_v};
     wei2_strides = ltw(inputs[graph_inport[4]]).vstrides();
     sub_wei2_user_md = memory::desc(sub_wei2_dims, dt_wei_user,
             {1, 1, wei2_strides[2], wei2_strides[3]});
@@ -223,8 +224,8 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // create second matmul primitive attr
     dnnl::primitive_attr sub_matmul2_attr = make_primitive_attr(sdp_op[4], mgr);
     dims sub_mm2_src_dims = {1, 1, seq_len_q, seq_len_kv};
-    dims sub_mm2_wei_dims = {1, 1, seq_len_kv, size_per_head};
-    dims sub_mm2_dst_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_mm2_wei_dims = {1, 1, seq_len_kv, head_size_v};
+    dims sub_mm2_dst_dims = {1, 1, seq_len_q, head_size_v};
     auto sub_mm2_src_md
             = memory::desc(sub_mm2_src_dims, dt_src_user, tag::abcd);
     sub_mm2_wei_md = memory::desc(sub_mm2_wei_dims, dt_wei, tag::abcd);
@@ -236,7 +237,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     // per-head: reorder dst2 from dense to strided
     primitive_attr sub_reorder3_attr;
     sub_reorder3_attr.set_scratchpad_mode(dnnl::scratchpad_mode::user);
-    dims sub_dst_dims = {1, 1, seq_len_q, size_per_head};
+    dims sub_dst_dims = {1, 1, seq_len_q, head_size_v};
     auto out_lt = sdp_op[4]->get_output_value(0)->get_logical_tensor();
     dst_strides = ltw(out_lt).vstrides();
     sub_dst_md = memory::desc(sub_dst_dims, dt_src_user, tag::abcd);
@@ -291,8 +292,7 @@ impl::status_t sdp_decomp_config_t::construct_params(
     sub_mm1_wei = memory(sub_mm1_wei_md, p_engine, nullptr);
     sub_mm1_dst = memory(sub_mm1_dst_md, p_engine, nullptr);
     for (size_t i = 0; i < sub_mm1_post_md.size(); i++) {
-        sub_mm1_post_mem.emplace_back(
-                memory(sub_mm1_post_md[i], p_engine, nullptr));
+        sub_mm1_post_mem.emplace_back(sub_mm1_post_md[i], p_engine, nullptr);
     }
     // softmax
     sub_softmax_dst = memory(sub_softmax_dst_md, p_engine, nullptr);

@@ -1,0 +1,111 @@
+#===============================================================================
+# Copyright 2019-2024 Intel Corporation
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#===============================================================================
+
+# Reference:
+# https://learn.microsoft.com/en-us/azure/devops/pipelines/yaml-schema
+
+trigger:
+  batch: true
+  branches:
+    include: [ main, 'rls-*' ]
+  paths:
+    include:
+      - .github/azure
+      - cmake
+      - examples
+      - include
+      - src
+      - tests
+      - CMakeLists.txt
+    exclude:
+      - src/gpu
+      - src/cpu/aarch64
+      - src/cpu/ppc64
+      - src/cpu/rv64
+      - src/cpu/s390x
+      - src/xpu
+
+pr:
+  autoCancel: true
+  branches:
+    include: [ main, 'rls-*' ]
+  paths:
+    include:
+      - .github/azure
+      - cmake
+      - examples
+      - include
+      - src
+      - tests
+      - CMakeLists.txt
+    exclude:
+      - src/gpu
+      - src/cpu/aarch64
+      - src/cpu/ppc64
+      - src/cpu/rv64
+      - src/cpu/s390x
+      - src/xpu
+
+jobs:
+  - job: 'Ubuntu22'
+    timeoutInMinutes: 120
+    pool:
+      vmImage: 'ubuntu-22.04'
+    strategy:
+      matrix: 
+        clang:
+          CC: clang
+          CXX: clang++
+        gcc:
+          CC: gcc
+          CXX: g++
+    steps:
+      - script: |
+          if [ "$(CC)" == "clang" ]; then
+            .github/azure/env/clang.sh 15
+          fi
+        displayName: "Init_Env"
+      - script: |
+          .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+        displayName: 'build'
+      - script: |
+          .github/azure/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
+        displayName: 'test'
+        failOnStderr: true
+  - job: 'macOS14'
+    timeoutInMinutes: 120
+    pool:
+      vmImage: 'macOS-14'
+    steps:
+      - script: |
+          .github/azure/build.sh --threading omp --mode Release --source-dir $(pwd) --build-dir $(pwd)/build
+        displayName: 'build'
+      - script: |
+          .github/azure/test.sh --build-dir $(pwd)/build --report-dir $(pwd)/report
+        displayName: 'test'
+        failOnStderr: true
+  - job: 'Windows_Server_2022'
+    timeoutInMinutes: 120
+    pool:
+      vmImage: 'windows-2022'
+    steps:
+      - script: |
+          .github\azure\build.bat /THREADING omp /MODE Release /VSVERSION vs2022 /SOURCEDIR %CD% /BUILDDIR %CD%\build
+        displayName: 'build'
+      - script: |
+          .github\azure\test.bat /BUILDDIR %CD%\build /MODE Release /REPORTDIR %CD%\report
+        displayName: 'test'
+        failOnStderr: true

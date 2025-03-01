@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2024 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -150,8 +150,7 @@ protected:
             const pooling_fwd_pd_t *hint_fwd_pd)
         : primitive_desc_t(attr, base_pkind)
         , desc_(*op_desc_t::to_desc<pooling_desc_t>(adesc))
-        , hint_fwd_pd_(hint_fwd_pd)
-        , ws_md_() {}
+        , hint_fwd_pd_(hint_fwd_pd) {}
 
     void init_default_ws(data_type_t dt = data_type::undef) {
         ws_md_ = is_fwd() ? *dst_md() : *diff_dst_md();
@@ -161,7 +160,7 @@ protected:
     data_type_t indices_data_type() const {
         /* the simplest way to express 256... */
         const int u8_max = nstl::numeric_limits<
-                typename prec_traits<data_type::u8>::type>::max();
+                typename prec_traits_t<data_type::u8>::type>::max();
         return utils::array_product(desc()->kernel, spatial_ndims()) <= u8_max
                 ? data_type::u8
                 : data_type::s32;
@@ -177,8 +176,8 @@ private:
 };
 
 struct pooling_fwd_pd_t : public pooling_pd_t {
-    typedef pooling_fwd_pd_t base_class;
-    typedef pooling_fwd_pd_t hint_class;
+    using base_class = pooling_fwd_pd_t;
+    using hint_class = pooling_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC) return arg_usage_t::input;
@@ -247,8 +246,8 @@ protected:
 };
 
 struct pooling_bwd_pd_t : public pooling_pd_t {
-    typedef pooling_bwd_pd_t base_class;
-    typedef pooling_fwd_pd_t hint_class;
+    using base_class = pooling_bwd_pd_t;
+    using hint_class = pooling_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_DIFF_DST) return arg_usage_t::input;

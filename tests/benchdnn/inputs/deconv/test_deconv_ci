@@ -13,7 +13,7 @@
 --dt=f64
 --batch=shapes_ci
 
---dt=f32,bf16,f16
+--dt=f32,bf16,f16,f32:f16:f32,f32:bf16:f32
 --attr-post-ops=, \
                 sum:0.5, \
                 linear:2:1, \

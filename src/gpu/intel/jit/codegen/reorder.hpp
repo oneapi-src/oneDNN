@@ -1057,7 +1057,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
             && dst_stride == 1 && width > 1) {
         int step = get_step();
         auto step_size = step * src_type_size * src_stride;
-        auto tmp_regs = utils::div_up(step_size, grf_size);
+        auto tmp_regs = 2 * utils::div_up(step_size, grf_size);
         auto tmp = lex_scope.alloc_reg_buf_data(tmp_regs);
         for (int i = 0; i < width; i += step) {
             step = std::min(step, width - i);

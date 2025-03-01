@@ -264,16 +264,25 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         }
 
         bool zero_points_ok() const {
-            using namespace data_type;
-            int mask_src = 0, mask_dst = 0;
-            attr()->zero_points_.get(DNNL_ARG_SRC, &mask_src);
-            attr()->zero_points_.get(DNNL_ARG_DST, &mask_dst);
+            const auto &zp = attr()->zero_points_;
 
-            return IMPLICATION(!utils::one_of(src_md()->data_type, s8, u8),
-                           attr()->zero_points_.has_default_values())
-                    && attr()->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)
-                    && (mask_src == 0 || mask_src == 1 << 1)
-                    && (mask_dst == 0 || mask_dst == 1 << 1);
+            using namespace data_type;
+            bool ok = IMPLICATION(!utils::one_of(src_md()->data_type, s8, u8),
+                    zp.has_default_values());
+            if (!ok) return false;
+
+            if (!zp.has_default_values(DNNL_ARG_SRC)) {
+                int mask_src = zp.get_mask(DNNL_ARG_SRC);
+                ok = utils::one_of(mask_src, 0, (1 << 1));
+                if (!ok) return false;
+            }
+            if (!zp.has_default_values(DNNL_ARG_DST)) {
+                int mask_dst = zp.get_mask(DNNL_ARG_DST);
+                ok = utils::one_of(mask_dst, 0, (1 << 1));
+                if (!ok) return false;
+            }
+
+            return zp.has_default_values(DNNL_ARG_WEIGHTS);
         }
     };
 
@@ -363,7 +372,9 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
                     VERBOSE_BAD_PROPKIND);
             VDISPATCH_DECONVOLUTION(utils::one_of(wei_type, f32, bf16, f16),
                     VERBOSE_UNSUPPORTED_DT);
-            VDISPATCH_DECONVOLUTION(ddst_type == wei_type,
+            VDISPATCH_DECONVOLUTION(IMPLICATION(ddst_type != wei_type,
+                                            utils::one_of(wei_type, bf16, f16)
+                                                    && ddst_type == f32),
                     VERBOSE_INCONSISTENT_DT, "diff_dst", "weights");
             VDISPATCH_DECONVOLUTION(utils::one_of(dsrc_type, wei_type, f32),
                     VERBOSE_UNSUPPORTED_DT);
@@ -402,7 +413,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
         }
     };
 
-    typedef typename prec_traits<data_type::f32>::type data_t;
+    using data_t = typename prec_traits_t<data_type::f32>::type;
 
     ref_deconvolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
@@ -557,18 +568,18 @@ private:
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bwd_bias_ncdhw(
-            typename prec_traits<dbia_type>::type *diff_bias,
-            const typename prec_traits<ddst_type>::type *diff_dst) const;
+            typename prec_traits_t<dbia_type>::type *diff_bias,
+            const typename prec_traits_t<ddst_type>::type *diff_dst) const;
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bwd_bias_ndhwc(
-            typename prec_traits<dbia_type>::type *diff_bias,
-            const typename prec_traits<ddst_type>::type *diff_dst) const;
+            typename prec_traits_t<dbia_type>::type *diff_bias,
+            const typename prec_traits_t<ddst_type>::type *diff_dst) const;
 
     template <data_type_t dbia_type, data_type_t ddst_type, dim_t blksize>
     void compute_bwd_bias_nCdhwXc(
-            typename prec_traits<dbia_type>::type *diff_bias,
-            const typename prec_traits<ddst_type>::type *diff_dst) const;
+            typename prec_traits_t<dbia_type>::type *diff_bias,
+            const typename prec_traits_t<ddst_type>::type *diff_dst) const;
 
     template <data_type_t dbia_type, data_type_t ddst_type>
     void compute_bias(const exec_ctx_t &ctx) const;

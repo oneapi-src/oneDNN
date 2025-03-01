@@ -27,7 +27,7 @@
 #include "gpu/intel/jit/gemm/include/problem.hpp"
 #include "gpu/intel/jit/gemm/include/strategy.hpp"
 #include "gpu/intel/jit/gemm/include/type.hpp"
-#include "gpu/intel/jit/jit_generator_base.hpp"
+#include "gpu/intel/jit/generator_base.hpp"
 #include "gpu/intel/kernel_cache.hpp"
 #include "xpu/utils.hpp"
 
@@ -47,6 +47,7 @@ static inline Type convert_dnnl_to_kernel_type(data_type_t type) {
         case data_type::f8_e5m2: return Type::bf8;
         case data_type::f8_e4m3: return Type::hf8;
         case data_type::f4_e2m1: return Type::f4_e2m1;
+        case data_type::f4_e3m0: return Type::f4_e3m0;
         case data_type::s32: return Type::s32;
         case data_type::u8: return Type::u8;
         case data_type::s8: return Type::s8;
@@ -83,7 +84,7 @@ protected:
     ngen::HW hw_ = ngen::HW::Unknown;
     int stepping_ = 0;
     GEMMProblem problem_ = {};
-    GEMMStrategy strategy_ = {};
+    GEMMStrategy strategy_;
     const kcatalog::Entry *entry_ = nullptr;
     EvaluateAuxOutput aux_params_;
     CommonDriverInfo driver_info_;
@@ -148,13 +149,13 @@ struct gen_gemm_xe_systolic_kernel_desc_t : public gen_gemm_kernel_desc_t {
     static int min_block_k(data_type_t a_type) { return 2048; }
 };
 
-struct gen_gemm_kernel_t : public jit_generator_base {
+struct gen_gemm_kernel_t : public generator_base_t {
 
     explicit gen_gemm_kernel_t(const gen_gemm_kernel_desc_t &desc)
         : desc_(desc) {}
 
     const char *kernel_name() const override { return "gemm_kernel"; }
-    xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) override;
+    xpu::binary_t get_binary(const ocl::engine_t *engine) override;
 
     const gen_gemm_kernel_desc_t *desc() const { return &desc_; }
 

@@ -29,7 +29,7 @@
 #include "gpu/intel/jit/reorder/config.hpp"
 #include "gpu/intel/jit/reorder/reorder_kernel.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {

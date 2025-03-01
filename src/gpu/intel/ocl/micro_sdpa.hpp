@@ -30,7 +30,7 @@
 #include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
 #include "gpu/intel/microkernels/shim.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -93,7 +93,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
                     qry_md()->dims[1], key_md()->dims[1], val_md()->dims[1]);
 
             int kq_scales_mask = desc()->kq_scales.get_mask();
-            int kq_zp_mask = desc()->kq_zero_points.get(DNNL_ARG_WEIGHTS);
+            int kq_zp_mask = desc()->kq_zero_points.get_mask(DNNL_ARG_WEIGHTS);
             if (!desc()->kq_scales.has_default_values()
                     && !desc()->kq_zero_points.has_default_values())
                 VDISPATCH_SDPA(kq_scales_mask == kq_zp_mask,
@@ -122,7 +122,7 @@ struct micro_sdpa_t : public gpu_primitive_t {
             }
 
             int vs_scales_mask = desc()->vs_scales.get_mask();
-            int vs_zp_mask = desc()->vs_zero_points.get(DNNL_ARG_WEIGHTS);
+            int vs_zp_mask = desc()->vs_zero_points.get_mask(DNNL_ARG_WEIGHTS);
             if (!desc()->vs_scales.has_default_values()
                     && !desc()->vs_zero_points.has_default_values())
                 VDISPATCH_SDPA(vs_scales_mask == vs_zp_mask,
@@ -153,8 +153,9 @@ struct micro_sdpa_t : public gpu_primitive_t {
             if (!desc()->vs_scales.has_default_values()
                     || !desc()->vs_zero_points.has_default_values()) {
                 int vgs = value_group_size();
-                VDISPATCH_SDPA(
-                        math::is_pow2<int>(vgs) || vgs == val_md()->dims[3],
+                VDISPATCH_SDPA(utils::one_of(vs_scales_mask, 0, 1, 3)
+                                || (math::is_pow2<int>(vgs)
+                                        || vgs == val_md()->dims[3]),
                         "the value group size(%d) must be a power of 2 or "
                         "equal to the number of values(%d).",
                         vgs, val_md()->dims[3]);

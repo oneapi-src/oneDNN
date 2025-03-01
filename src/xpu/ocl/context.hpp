@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ struct event_t final : xpu::event_t {
     static const event_t &from(const xpu::event_t &event) {
         return *utils::downcast<const event_t *>(&event);
     }
-    std::unique_ptr<xpu::event_t> clone() const {
+    std::unique_ptr<xpu::event_t> clone() const override {
         return std::unique_ptr<xpu::event_t>(new event_t(*this));
     }
 
@@ -62,10 +62,10 @@ struct event_t final : xpu::event_t {
 
 struct context_t final : public xpu::context_t {
     context_t() = default;
-    context_t(const std::vector<xpu::ocl::wrapper_t<cl_event>> &&events)
+    context_t(std::vector<xpu::ocl::wrapper_t<cl_event>> events)
         : events_(std::move(events)) {};
     context_t(const context_t &) = default;
-    ~context_t() = default;
+    ~context_t() override = default;
 
     context_t &operator=(const context_t &other) {
         events_ = other.events_;

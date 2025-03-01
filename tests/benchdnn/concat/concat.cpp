@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,9 +101,11 @@ int fill_src(int input_idx, dnnl_data_type_t dt, dnn_mem_t &mem_dt,
         std::minstd_rand msr(input_idx * n_chunks + idx_start + 1);
         msr.discard(1);
         std::uniform_int_distribution<> igen(min_val, max_val);
-        // No need to round final value as it's already in needed dt.
-        for (int64_t idx = idx_start; idx < idx_end; ++idx)
-            mem_fp.set_elem(idx, (float)igen(msr));
+        // Most fp8 values can't be represented exactly with integers.
+        for (int64_t idx = idx_start; idx < idx_end; ++idx) {
+            mem_fp.set_elem(idx,
+                    round_to_nearest_representable(mem_dt.dt(), igen(msr)));
+        }
     });
 
     SAFE(mem_dt.reorder(mem_fp), WARN);
@@ -196,21 +198,28 @@ int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
     return OK;
 }
 
-int check_cacheit(
-        std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
+int checkit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const prb_t *prb, res_t *res) {
-    // Assume it doesn't change through the execution.
-    static int capacity = 0;
-    static auto st = dnnl_get_primitive_cache_capacity(&capacity);
-    if (st != dnnl_success) return FAIL;
-    if (capacity > 0 && prb->n_inputs() + 1 > capacity) {
-        BENCHDNN_PRINT(2, "%s\n",
-                "[INFO] The number of potential internal reorder pds plus "
-                "concat itself exceeds the cache capacity which will lead to a "
-                "test case false-positive failure.");
-        return OK;
+    if (has_bench_mode_bit(mode_bit_t::exec)) {
+        SAFE(check_total_size(res), WARN);
     }
-    return check_caches(v_prim[0], prb, res);
+    if (has_bench_mode_bit(mode_bit_t::corr)) {
+        // The assumtion is the capacity doesn't change through the execution.
+        static int capacity = 0;
+        static auto st = dnnl_get_primitive_cache_capacity(&capacity);
+        if (st != dnnl_success) return FAIL;
+
+        if (capacity > 0 && prb->n_inputs() + 1 > capacity) {
+            BENCHDNN_PRINT(2, "%s\n",
+                    "[INFO] The number of potential internal reorder pds plus "
+                    "concat itself exceeds the cache capacity which will lead "
+                    "to a test case false-positive failure.");
+            return OK;
+        }
+
+        SAFE(check_caches(v_prim[0], prb, res), WARN);
+    }
+    return OK;
 }
 
 int doit(const std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,

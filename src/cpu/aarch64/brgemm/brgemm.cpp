@@ -291,8 +291,9 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
 
     const auto &src_scales = attr->scales_.get(DNNL_ARG_SRC);
     const auto &wei_scales = attr->scales_.get(DNNL_ARG_WEIGHTS);
-    brg->with_scales = !src_scales.has_default_values()
-            || !wei_scales.has_default_values()
+    const bool has_src_scales = !src_scales.has_default_values();
+    const bool has_wei_scales = !wei_scales.has_default_values();
+    brg->with_scales = has_src_scales || has_wei_scales
             || brg->with_weights_scale_adjust;
     if (brg->with_scales) {
         // Note. the current version supports only two different output scale
@@ -310,23 +311,32 @@ status_t brgemm_desc_set_postops(brgemm_t *brg, const primitive_attr_t *attr,
     }
 
     const auto &dst_scales = attr->scales_.get(DNNL_ARG_DST);
-    brg->with_dst_scales = !dst_scales.has_default_values();
-    const bool scales_ok = src_scales.get_mask() == 0
-            && dst_scales.get_mask() == 0
+    const bool has_dst_scales = !dst_scales.has_default_values();
+    brg->with_dst_scales = has_dst_scales;
+    const bool scales_ok
+            = IMPLICATION(has_src_scales, src_scales.get_mask() == 0)
+            && IMPLICATION(has_dst_scales, dst_scales.get_mask() == 0)
             && attr->scales_.has_default_values(
                     {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST});
     if (!scales_ok) return status::unimplemented;
 
     auto init_zp_type
             = [&](brgemm_broadcast_t &zp_type, int mem_arg) -> status_t {
-        auto zero_points = attr->zero_points_;
+        const auto &zp = attr->zero_points_;
+        // Always init a default value;
+        zp_type = brgemm_broadcast_t::none;
 
-        // common zero point type is supported for now
-        if (!zero_points.common(mem_arg)) return status::unimplemented;
+        if (!zp.has_default_values(mem_arg)) {
+            int mask = zp.get_mask(mem_arg);
+            if (mask == 0) {
+                zp_type = brgemm_broadcast_t::per_tensor;
+            } else if (mask == (1 << 1)) {
+                zp_type = brgemm_broadcast_t::per_n;
+            } else {
+                return status::unimplemented;
+            }
+        }
 
-        zp_type = zero_points.has_default_values(mem_arg)
-                ? brgemm_broadcast_t::none
-                : brgemm_broadcast_t::per_tensor;
         return status::success;
     };
 

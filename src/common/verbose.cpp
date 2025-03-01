@@ -85,7 +85,15 @@ static constexpr char verbose_version[] = "v1";
 
 static setting_t<uint32_t> verbose {0};
 
-void print_header(const filter_status_t &filter_status) noexcept {
+// Component filters help manage verbose output by parsing and printing for
+// matching components. The filter status is tracked from verbose initializaton,
+// allowing queries for the component type during verbose printing.
+filter_status_t &filter_status() {
+    static filter_status_t filter_status;
+    return filter_status;
+}
+
+void print_header() noexcept {
     static std::atomic_flag version_printed = ATOMIC_FLAG_INIT;
     if (!version_printed.test_and_set()) {
         verbose_printf("info,oneDNN v%d.%d.%d (commit %s)\n",
@@ -150,16 +158,16 @@ void print_header(const filter_status_t &filter_status) noexcept {
                 "mode,implementation,backend,exec_time\n",
                 get_verbose_timestamp() ? "timestamp," : "");
 #endif
-        if (filter_status.status == filter_status_t::flags::valid)
+        if (filter_status().status == filter_status_t::flags::valid)
             verbose_printf(
                     "common,info,filter format is enabled, hit components: "
                     "%s\n",
-                    filter_status.components.c_str());
-        else if (filter_status.status == filter_status_t::flags::invalid)
+                    filter_status().components.c_str());
+        else if (filter_status().status == filter_status_t::flags::invalid)
             verbose_printf(
                     "common,error,filter format is ill-formed and is not "
                     "applied, error: %s\n",
-                    filter_status.err_msg.c_str());
+                    filter_status().err_msg.c_str());
     }
 }
 
@@ -171,8 +179,6 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
 #endif
     // we print all verbose by default
     static int flags = component_t::all;
-    // record filter parsing result to instruct verbose printing
-    static filter_status_t filter_status;
 
     if (!verbose.initialized()) {
         // Assumes that all threads see the same environment
@@ -201,56 +207,55 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
                         std::strtol(s.c_str() + 10, nullptr, 10));
         };
 
-        auto update_filter = [&](const std::string &s,
-                                     filter_status_t &filter_status) -> int {
+        auto update_filter = [&](const std::string &s) -> int {
             int k = component_t::none;
             try {
                 std::regex regexp = std::regex(s);
 
-#define REGEX_SEARCH(k, component, regexp, filter_status) \
+#define REGEX_SEARCH(k, component, regexp) \
     if (std::regex_search("" #component "", regexp)) { \
         (k) |= component_t::component; \
-        (filter_status).components += "" #component ","; \
+        filter_status().components += "" #component ","; \
     }
-                REGEX_SEARCH(k, primitive, regexp, filter_status);
-                REGEX_SEARCH(k, reorder, regexp, filter_status);
-                REGEX_SEARCH(k, shuffle, regexp, filter_status);
-                REGEX_SEARCH(k, concat, regexp, filter_status);
-                REGEX_SEARCH(k, sum, regexp, filter_status);
-                REGEX_SEARCH(k, convolution, regexp, filter_status);
-                REGEX_SEARCH(k, deconvolution, regexp, filter_status);
-                REGEX_SEARCH(k, eltwise, regexp, filter_status);
-                REGEX_SEARCH(k, lrn, regexp, filter_status);
-                REGEX_SEARCH(k, batch_normalization, regexp, filter_status);
-                REGEX_SEARCH(k, inner_product, regexp, filter_status);
-                REGEX_SEARCH(k, rnn, regexp, filter_status);
-                REGEX_SEARCH(k, binary, regexp, filter_status);
-                REGEX_SEARCH(k, matmul, regexp, filter_status);
-                REGEX_SEARCH(k, resampling, regexp, filter_status);
-                REGEX_SEARCH(k, pooling, regexp, filter_status);
-                REGEX_SEARCH(k, reduction, regexp, filter_status);
-                REGEX_SEARCH(k, prelu, regexp, filter_status);
-                REGEX_SEARCH(k, softmax, regexp, filter_status);
-                REGEX_SEARCH(k, layer_normalization, regexp, filter_status);
-                REGEX_SEARCH(k, group_normalization, regexp, filter_status);
-                REGEX_SEARCH(k, graph, regexp, filter_status);
-                REGEX_SEARCH(k, gemm_api, regexp, filter_status);
-                REGEX_SEARCH(k, ukernel, regexp, filter_status);
+                REGEX_SEARCH(k, primitive, regexp);
+                REGEX_SEARCH(k, reorder, regexp);
+                REGEX_SEARCH(k, shuffle, regexp);
+                REGEX_SEARCH(k, concat, regexp);
+                REGEX_SEARCH(k, sum, regexp);
+                REGEX_SEARCH(k, convolution, regexp);
+                REGEX_SEARCH(k, deconvolution, regexp);
+                REGEX_SEARCH(k, eltwise, regexp);
+                REGEX_SEARCH(k, lrn, regexp);
+                REGEX_SEARCH(k, batch_normalization, regexp);
+                REGEX_SEARCH(k, inner_product, regexp);
+                REGEX_SEARCH(k, rnn, regexp);
+                REGEX_SEARCH(k, binary, regexp);
+                REGEX_SEARCH(k, matmul, regexp);
+                REGEX_SEARCH(k, resampling, regexp);
+                REGEX_SEARCH(k, pooling, regexp);
+                REGEX_SEARCH(k, reduction, regexp);
+                REGEX_SEARCH(k, prelu, regexp);
+                REGEX_SEARCH(k, softmax, regexp);
+                REGEX_SEARCH(k, layer_normalization, regexp);
+                REGEX_SEARCH(k, group_normalization, regexp);
+                REGEX_SEARCH(k, graph, regexp);
+                REGEX_SEARCH(k, gemm_api, regexp);
+                REGEX_SEARCH(k, ukernel, regexp);
 #undef REGEX_SEARCH
             } catch (const std::exception &e) {
-                filter_status.status = filter_status_t::flags::invalid;
-                filter_status.err_msg = e.what();
+                filter_status().status = filter_status_t::flags::invalid;
+                filter_status().err_msg = e.what();
                 return component_t::all;
             }
 
             // filter enabled and at least one component is hit
-            if (filter_status.components.length() != 0) {
+            if (!filter_status().components.empty()) {
                 // pop out the last comma
-                filter_status.components.pop_back();
-                filter_status.status = filter_status_t::flags::valid;
+                filter_status().components.pop_back();
+                filter_status().status = filter_status_t::flags::valid;
             } else {
-                filter_status.status = filter_status_t::flags::invalid;
-                filter_status.err_msg
+                filter_status().status = filter_status_t::flags::invalid;
+                filter_status().err_msg
                         = "component with name \'" + s + "\' not found";
             }
             return k;
@@ -267,9 +272,7 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
             // update filter flags
             if (tok.rfind("filter=", 0) == 0) {
                 auto filter_str = tok.substr(7);
-                if (!filter_str.empty()) {
-                    flags = update_filter(filter_str, filter_status);
-                }
+                if (!filter_str.empty()) { flags = update_filter(filter_str); }
             }
             if (pos_en == std::string::npos) break;
         }
@@ -287,7 +290,6 @@ uint32_t get_verbose(verbose_t::flag_kind verbosity_kind,
     int result = verbose.get() & verbosity_kind;
     if (verbosity_kind == verbose_t::debuginfo)
         result = verbose_t::get_debuginfo(verbose.get());
-    if (result) print_header(filter_status);
     bool filter_result = flags & filter_kind;
     return filter_result ? result : 0;
 }
@@ -739,30 +741,9 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         ss << field_delim() << "attr-scales:" << scales.get_verbose();
     }
 
-    const zero_points_t &zp = attr->zero_points_;
-    if (!zp.has_default_values()) {
-        std::string delim = empty_delim;
-        ss << field_delim() << "attr-zero-points:";
-        for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-            if (zp.has_default_values(arg)) continue;
-
-            int mask = 0;
-            zp.get(arg, &mask);
-            const auto dt = zp.get_data_type(arg);
-
-            ss << delim << arg2str(arg) << ":" << mask << ":" << dt;
-
-            const auto &g_ndim = zp.get_groups_ndims(arg);
-            if (g_ndim) {
-                const auto &g_dims = zp.get_groups(arg);
-                ss << ":";
-                for (int i = 0; i < g_ndim - 1; ++i)
-                    ss << g_dims[i] << 'x';
-                ss << g_dims[g_ndim - 1];
-            }
-
-            delim = attr_delim;
-        }
+    const zero_points_t &zero_points = attr->zero_points_;
+    if (!zero_points.has_default_values()) {
+        ss << field_delim() << "attr-zero-points:" << zero_points.get_verbose();
     }
 
     const post_ops_t &po = attr->post_ops_;
@@ -1582,47 +1563,24 @@ std::string init_info_sdpa(const engine_t *e, const pd_t *pd) {
 
     const sdpa_desc_t *desc = pd->desc();
 
-    // TODO: re-use the code from primitive_attr operator<<
-    auto print_zp = [&](std::ostream &ss, const zero_points_t &zp) {
-        for (const auto &arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-            if (zp.has_default_values(arg)) continue;
-
-            int mask = 0;
-            zp.get(arg, &mask);
-            const auto dt = zp.get_data_type(arg);
-
-            ss << arg2str(arg) << ":" << mask << ":" << dt;
-
-            const auto &g_ndim = zp.get_groups_ndims(arg);
-            if (g_ndim) {
-                const auto &g_dims = zp.get_groups(arg);
-                ss << ":";
-                for (int i = 0; i < g_ndim - 1; ++i)
-                    ss << g_dims[i] << 'x';
-                ss << g_dims[g_ndim - 1];
-            }
-        }
-        return std::ref(ss);
-    };
-
     std::string delimiter;
     if (!desc->kq_scales.has_default_values()) {
         ss << delimiter << "kq_attr-scales:wei:" << desc->kq_scales;
         delimiter = "+";
     }
     if (!desc->kq_zero_points.has_default_values()) {
-        ss << delimiter << "kq_attr-zero-points:";
-        print_zp(ss, desc->kq_zero_points);
+        ss << delimiter
+           << "kq_attr-zero-points:" << desc->kq_zero_points.get_verbose();
         delimiter = "+";
     }
+
     if (!desc->vs_scales.has_default_values()) {
         ss << delimiter << "vs_attr-scales:wei:" << desc->vs_scales;
         delimiter = "+";
     }
     if (!desc->vs_zero_points.has_default_values()) {
-        ss << delimiter << "vs_attr-zero-points:";
-        print_zp(ss, desc->vs_zero_points);
-        delimiter = "+";
+        ss << delimiter
+           << "vs_attr-zero-points:" << desc->vs_zero_points.get_verbose();
     }
 
     ss << ",query:" << pd->qry_md()->data_type << ":"
@@ -1698,6 +1656,8 @@ void verbose_printf_impl(const char *raw_fmt_str, verbose_t::flag_kind kind) {
 #if defined(DISABLE_VERBOSE)
     return;
 #endif
+
+    if (get_verbose(kind)) print_header();
 
     const auto &fmt_str = prepend_identifier_and_version(raw_fmt_str);
 

@@ -25,7 +25,7 @@
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/compute_stream.hpp"
 #include "gpu/intel/compute/utils.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
+#include "gpu/intel/jit/generator.hpp"
 
 #define MAGIC0 0xBEEFCAFEu
 #define MAGIC1 0x3141592653589793ull
@@ -48,12 +48,12 @@ namespace jit {
 using namespace ngen;
 
 template <HW hw>
-class binary_format_kernel_t : public jit_generator<hw> {
+class binary_format_kernel_t : public generator_t<hw> {
     NGEN_FORWARD_OPENCL(hw);
 
 public:
     binary_format_kernel_t()
-        : jit_generator<hw>({GENERATOR_NAME, GENERATOR_LINE}) {
+        : generator_t<hw>({GENERATOR_NAME, GENERATOR_LINE}) {
 
         auto low_half = [](uint64_t q) -> uint32_t { return q & 0xFFFFFFFF; };
         auto high_half = [](uint64_t q) -> uint32_t { return q >> 32; };
@@ -302,8 +302,8 @@ status_t gpu_supports_binary_format(bool *ok, impl::engine_t *engine) {
     arg_list.set(3, magic3);
     arg_list.set(4, magic4);
     arg_list.set(5, magic5);
-    arg_list.set(6, *magic_buf.get());
-    arg_list.set(7, *result_buf.get());
+    arg_list.set(6, *magic_buf);
+    arg_list.set(7, *result_buf);
 
     compute::range_t gws = {MAGICSIZEX, MAGICSIZEY, MAGICSIZEZ};
     compute::range_t lws = {MAGICSIZEX, MAGICSIZEY, MAGICSIZEZ};

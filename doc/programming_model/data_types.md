@@ -122,8 +122,11 @@ the floating-point environment can control:
 
 @note
   For CPU devices, the default floating-point environment is defined by
-  the C and C++ standards in the fenv.h header. Rounding mode can be
-  changed globally using the fesetround() C function.
+  the C and C++ standards in the following header:
+~~~cpp
+#include <fenv.h>
+~~~
+  Rounding mode can be changed globally using the `fesetround()` C function.
 
 @note
   Most DNN applications do not require precise computations with denormal

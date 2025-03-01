@@ -29,7 +29,7 @@
 #include "gpu/intel/jit/ir/kernel_info.hpp"
 #include "gpu/intel/jit/reorder/reorder_kernel.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 #include "gpu/intel/jit/conv/config.hpp"
 #include "gpu/intel/jit/conv/conv_kernel.hpp"
@@ -84,8 +84,7 @@ public:
                     || pd->data->pd_cfg.zp_cfg().needs_src_conv_precalc) {
                 primitive_attr_t attr;
                 if (pd->data->pd_cfg.zp_cfg().needs_src_conv_precalc) {
-                    int mask = 0;
-                    CHECK(pd->attr_.zero_points_.get(DNNL_ARG_SRC, &mask));
+                    int mask = pd->attr_.zero_points_.get_mask(DNNL_ARG_SRC);
                     attr.zero_points_.set(DNNL_ARG_SRC, mask);
                     attr.post_ops_.append_eltwise(
                             1.f, alg_kind::eltwise_linear, -1.f, 0.f);

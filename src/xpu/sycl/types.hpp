@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -101,7 +101,8 @@ struct memory_arg_t {
         if (usm_) return usm_;
         return const_cast<acc_dt *>(
                 acc_.template get_multi_ptr<::sycl::access::decorated::no>()
-                        .get());
+                        .get()
+                + acc_.get_offset());
     }
 
     bool empty() const { return empty_; }
@@ -297,30 +298,30 @@ CHECK_SYCL_KERNEL_ARG_TYPE(md_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(bfloat16_t);
 
 template <data_type_t>
-struct prec_traits;
+struct prec_traits_t;
 
 template <>
-struct prec_traits<data_type::f16> {
+struct prec_traits_t<data_type::f16> {
     using type = float16_t;
 };
 template <>
-struct prec_traits<data_type::bf16> {
+struct prec_traits_t<data_type::bf16> {
     using type = bfloat16_t;
 };
 template <>
-struct prec_traits<data_type::f32> {
+struct prec_traits_t<data_type::f32> {
     using type = float;
 };
 template <>
-struct prec_traits<data_type::s32> {
+struct prec_traits_t<data_type::s32> {
     using type = int32_t;
 };
 template <>
-struct prec_traits<data_type::s8> {
+struct prec_traits_t<data_type::s8> {
     using type = int8_t;
 };
 template <>
-struct prec_traits<data_type::u8> {
+struct prec_traits_t<data_type::u8> {
     using type = uint8_t;
 };
 

@@ -39,8 +39,8 @@ namespace impl {
 struct sdpa_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::sdpa;
 
-    typedef sdpa_pd_t base_class;
-    typedef sdpa_pd_t hint_class;
+    using base_class = sdpa_pd_t;
+    using hint_class = sdpa_pd_t;
 
     const sdpa_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -224,17 +224,17 @@ private:
     static int zp_group_size(
             const zero_points_t &zp, const memory_desc_t &desc) {
         dim_t out = utils::array_product(desc.dims, desc.ndims);
-        if (zp.has_default_groups(DNNL_ARG_WEIGHTS)) {
-            for (int idx : mask_iterator(zp.get(DNNL_ARG_WEIGHTS))) {
+        if (zp.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
+            for (int idx : mask_iterator(zp.get_mask(DNNL_ARG_WEIGHTS))) {
                 out /= desc.dims[idx];
             }
         } else {
-            auto groups = zp.get_groups(DNNL_ARG_WEIGHTS);
-            for (int idx : mask_iterator(zp.get(DNNL_ARG_WEIGHTS))) {
+            for (int idx : mask_iterator(zp.get_mask(DNNL_ARG_WEIGHTS))) {
                 if (idx < 2) {
                     out /= desc.dims[idx];
                 } else {
-                    out /= (desc.dims[idx] / groups[idx - 2]);
+                    out /= (desc.dims[idx]
+                            / zp.get_group(DNNL_ARG_WEIGHTS, idx - 2));
                 }
             }
         }

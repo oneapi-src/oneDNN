@@ -156,6 +156,9 @@ status_t ip_attr_check(const inner_product_desc_t &desc, const engine_t *engine,
             // Check sum
             VCHECK_IP_UNIMPL(po.check_sum_consistency(dst_dt, is_int8, true),
                     VERBOSE_UNSUPPORTED_POSTOP);
+
+            // Note: verbose support is inside the call.
+            CHECK(po.validate_binary_with_dst_consistency(&desc.dst_desc));
         }
     } else {
         auto bwd_attr_mask = smask_t::fpmath_mode | smask_t::accumulation_mode;

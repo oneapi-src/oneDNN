@@ -69,45 +69,6 @@ status_t rnn_create_time_scales_t::set(
     return status::success;
 }
 
-status_t zero_points_t::get(int arg, int *mask, data_type_t *dt) const {
-    if (mask) *mask = get_mask(arg);
-    if (dt) *dt = get_data_type(arg);
-    return status::success;
-}
-
-int zero_points_t::get(int arg) const {
-    return get_mask(arg);
-}
-
-status_t zero_points_t::set(int arg, int mask, int ndims, const dims_t groups,
-        data_type_t data_type) {
-    const bool supported_arg
-            = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST);
-    if (!supported_arg) return status::unimplemented;
-
-    switch (arg) {
-        case DNNL_ARG_SRC:
-            is_set_src = true;
-            mask_src = mask;
-            data_type_src = data_type;
-            group_ndims_src = ndims;
-            utils::array_copy(group_dims_src, groups, group_ndims_src);
-            break;
-        case DNNL_ARG_WEIGHTS:
-            is_set_wei = true;
-            mask_wei = mask;
-            data_type_wei = data_type;
-            group_ndims_wei = ndims;
-            utils::array_copy(group_dims_wei, groups, group_ndims_wei);
-            break;
-        case DNNL_ARG_DST:
-            is_set_dst = true;
-            mask_dst = mask;
-            break;
-    }
-    return status::success;
-}
-
 status_t dropout_t::set_default_formats(const memory_desc_t *dst_md) {
     auto is_any_or_undef = [](format_kind_t kind) {
         return one_of(kind, dnnl_format_kind_any, dnnl_format_kind_undef);
@@ -374,6 +335,26 @@ bool post_ops_t::check_sum_consistency(const data_type_t dst_dt,
             && check_sum_consistent_quantization(dst_dt, is_int8);
 }
 
+status_t post_ops_t::entry_t::validate_binary_with_dst_consistency(
+        const memory_desc_t *dst_md) const {
+    if (!is_binary()) return status::success;
+
+    VCHECK_ATTR(dst_md->ndims == binary.user_src1_desc.ndims,
+            VERBOSE_INCONSISTENT_NDIMS_WITH_VALS, "dst", "bin_po",
+            dst_md->ndims, binary.user_src1_desc.ndims);
+
+    return status::success;
+}
+
+status_t post_ops_t::validate_binary_with_dst_consistency(
+        const memory_desc_t *dst_md) const {
+    for (const auto &e : entry_) {
+        CHECK(e.validate_binary_with_dst_consistency(dst_md));
+    }
+
+    return status::success;
+}
+
 status_t primitive_attr_t::set_dropout(const memory_desc_t *user_dropout_desc) {
     if (any_null(user_dropout_desc)) return invalid_arguments;
     dropout_.user_dropout_desc_ = *user_dropout_desc;
@@ -561,9 +542,8 @@ status_t dnnl_primitive_attr_set_scales(primitive_attr_t *attr, int arg,
 
 status_t dnnl_primitive_attr_set_zero_points_mask(
         primitive_attr_t *attr, int arg, int mask) {
-    bool ok = attr && mask >= 0;
-    if (!ok) return invalid_arguments;
-
+    VCHECK_ATTR(attr, VERBOSE_NULL_ARG);
+    VCHECK_ATTR(mask >= 0, VERBOSE_BAD_PARAM, "mask");
     return attr->zero_points_.set(arg, mask);
 }
 
@@ -585,7 +565,7 @@ status_t dnnl_primitive_attr_set_zero_points(dnnl_primitive_attr_t attr,
     VCHECK_ATTR(IMPLICATION(ndims, validate_dims(ndims, group_dims)),
             VERBOSE_BAD_PARAM, "group_dims");
 
-    return attr->zero_points_.set(arg, mask, ndims, group_dims, data_type);
+    return attr->zero_points_.set(arg, mask, data_type, ndims, group_dims);
 }
 
 status_t dnnl_primitive_attr_get_rounding(
@@ -660,19 +640,20 @@ status_t dnnl_post_ops_append_sum(
 }
 
 namespace {
-bool simple_get_params_check(
+status_t simple_get_params_check(
         const post_ops_t *post_ops, int index, primitive_kind_t kind) {
-    bool ok = true && post_ops != nullptr && 0 <= index
-            && index < post_ops->len() && post_ops->entry_[index].kind == kind;
-    return ok;
+    VCHECK_ATTR(post_ops, VERBOSE_NULL_ARG);
+    VCHECK_ATTR(index >= 0, VERBOSE_BAD_PARAM, "index");
+    VCHECK_ATTR(index < post_ops->len(), VERBOSE_BAD_PARAM, "index");
+    VCHECK_ATTR(
+            post_ops->entry_[index].kind == kind, VERBOSE_BAD_PARAM, "kind");
+    return status::success;
 }
 } // namespace
 
 status_t dnnl_post_ops_get_params_sum(const post_ops_t *post_ops, int index,
         float *scale, int32_t *zero_point, data_type_t *dt) {
-    bool ok = true
-            && simple_get_params_check(post_ops, index, primitive_kind::sum);
-    if (!ok) return invalid_arguments;
+    CHECK(simple_get_params_check(post_ops, index, primitive_kind::sum));
 
     if (scale) *scale = post_ops->entry_[index].sum.scale;
     if (zero_point) *zero_point = post_ops->entry_[index].sum.zero_point;
@@ -690,15 +671,12 @@ status_t dnnl_post_ops_append_eltwise(
 
 status_t dnnl_post_ops_get_params_eltwise(const post_ops_t *post_ops, int index,
         alg_kind_t *alg, float *alpha, float *beta) {
-    bool ok = true
-            && simple_get_params_check(post_ops, index, primitive_kind::eltwise)
-            && !any_null(alpha, beta);
-    if (!ok) return invalid_arguments;
+    CHECK(simple_get_params_check(post_ops, index, primitive_kind::eltwise));
 
     const auto &e = post_ops->entry_[index].eltwise;
-    *alg = e.alg;
-    *alpha = e.alpha;
-    *beta = e.beta;
+    if (alg) *alg = e.alg;
+    if (alpha) *alpha = e.alpha;
+    if (beta) *beta = e.beta;
 
     return success;
 }
@@ -715,9 +693,8 @@ status_t dnnl_post_ops_append_dw(post_ops_t *post_ops, data_type_t wei_dt,
 status_t dnnl_post_ops_get_params_dw(const post_ops_t *post_ops, int index,
         data_type_t *wei_dt, data_type_t *bias_dt, data_type_t *dst_dt,
         dim_t *kernel, dim_t *stride, dim_t *padding) {
-
-    if (!simple_get_params_check(post_ops, index, primitive_kind::convolution))
-        return invalid_arguments;
+    CHECK(simple_get_params_check(
+            post_ops, index, primitive_kind::convolution));
 
     const auto &d = post_ops->entry_[index].depthwise_conv;
     if (wei_dt) *wei_dt = d.wei_dt;
@@ -739,8 +716,7 @@ status_t dnnl_post_ops_append_binary(post_ops_t *post_ops, alg_kind_t alg_kind,
 
 status_t dnnl_post_ops_get_params_binary(const post_ops_t *post_ops, int index,
         alg_kind_t *alg_kind, const memory_desc_t **user_src1_desc) {
-    if (!simple_get_params_check(post_ops, index, primitive_kind::binary))
-        return invalid_arguments;
+    CHECK(simple_get_params_check(post_ops, index, primitive_kind::binary));
 
     const auto &b = post_ops->entry_[index].binary;
     if (alg_kind) *alg_kind = b.alg;

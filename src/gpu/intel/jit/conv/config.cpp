@@ -27,9 +27,9 @@
 #include "gpu/intel/jit/conv/plan.hpp"
 #include "gpu/intel/jit/conv/problem.hpp"
 #include "gpu/intel/jit/conv/tiler.hpp"
+#include "gpu/intel/jit/eltwise_injector.hpp"
 #include "gpu/intel/jit/ir/gemm_schedule.hpp"
 #include "gpu/intel/jit/ir/tensor_config.hpp"
-#include "gpu/intel/jit/jit_eltwise_injector.hpp"
 
 #define VDISPATCH_CHECK(pd, engine, cond, msg, ...) \
     VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
@@ -322,6 +322,7 @@ std::string build_tag(const std::vector<int> &inner_blocks,
             char c = letters[i];
             if (c == ' ') continue;
             if (seen[i]) c = static_cast<char>(std::toupper(c));
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             tag = c + tag;
         }
     }
@@ -932,29 +933,38 @@ bool data_types_ok(
 bool zero_points_ok(const conv_problem_t &prb) {
     auto *pd = prb.conv_pd;
     auto *attr = pd->attr();
+    const auto &zp = attr->zero_points_;
 
     using namespace data_type;
     const auto input_type = (prb.is_fwd) ? pd->invariant_src_md()->data_type
                                          : pd->invariant_dst_md()->data_type;
-    int mask_wei = 0, mask_src = 0, mask_dst = 0;
-    if (attr->zero_points_.get(DNNL_ARG_WEIGHTS, &mask_wei) != status::success)
-        return false;
-    if (attr->zero_points_.get(DNNL_ARG_SRC, &mask_src) != status::success)
-        return false;
-    if (attr->zero_points_.get(DNNL_ARG_DST, &mask_dst) != status::success)
-        return false;
 
-    if (!attr->zero_points_.has_default_values(DNNL_ARG_WEIGHTS)) {
-        if (attr->zero_points_.get_data_type(DNNL_ARG_WEIGHTS) != s8)
-            return false;
+    bool ok = IMPLICATION(
+            !utils::one_of(input_type, s8, u8), zp.has_default_values());
+    if (!ok) return false;
+
+    if (!zp.has_default_values(DNNL_ARG_SRC)) {
+        int mask_src = zp.get_mask(DNNL_ARG_SRC);
+        ok = utils::one_of(mask_src, 0, (1 << 1));
+        if (!ok) return false;
+    }
+    if (!zp.has_default_values(DNNL_ARG_WEIGHTS)) {
+        int mask_wei = zp.get_mask(DNNL_ARG_WEIGHTS);
+        ok = mask_wei == 0;
+        if (!ok) return false;
+
+        if (zp.get_data_type(DNNL_ARG_WEIGHTS) != s8) return false;
         if (prb.with_groups) return false;
-        if (mask_src != 0) return false; // zp_wei implies scalar zp_src
+        // zp_wei implies scalar zp_src
+        if (zp.get_mask(DNNL_ARG_SRC) > 0) return false;
+    }
+    if (!zp.has_default_values(DNNL_ARG_DST)) {
+        int mask_dst = zp.get_mask(DNNL_ARG_DST);
+        ok = utils::one_of(mask_dst, 0, (1 << 1));
+        if (!ok) return false;
     }
 
-    return IMPLICATION(!utils::one_of(input_type, s8, u8),
-                   attr->zero_points_.has_default_values())
-            && (mask_wei == 0) && (mask_src == 0 || mask_src == 1 << 1)
-            && (mask_dst == 0 || mask_dst == 1 << 1);
+    return true;
 }
 
 bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
@@ -1008,7 +1018,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     for (int i = 0; i < attr->post_ops_.len(); i++) {
         auto &po = attr->post_ops_.entry_[i];
         if (po.is_eltwise()) {
-            if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
+            if (!eltwise_injector_f32_is_supported(po.eltwise.alg))
                 return false;
             else if (po.eltwise.alg == alg_kind::eltwise_tanh
                     && hw == ngen::HW::XeHPG

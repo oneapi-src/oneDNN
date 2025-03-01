@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -245,13 +245,12 @@ protected:
         , bias_md_(desc_.bias_desc)
         , dst_layer_md_(desc_.dst_layer_desc)
         , dst_iter_md_(desc_.dst_iter_desc)
-        , dst_iter_c_md_(desc_.dst_iter_c_desc)
-        , ws_md_() {}
+        , dst_iter_c_md_(desc_.dst_iter_c_desc) {}
 };
 
 struct rnn_fwd_pd_t : public rnn_pd_t {
-    typedef rnn_fwd_pd_t base_class;
-    typedef rnn_fwd_pd_t hint_class;
+    using base_class = rnn_fwd_pd_t;
+    using hint_class = rnn_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (arg == DNNL_ARG_SRC_LAYER) return arg_usage_t::input;
@@ -329,8 +328,8 @@ protected:
 };
 
 struct rnn_bwd_pd_t : public rnn_pd_t {
-    typedef rnn_bwd_pd_t base_class;
-    typedef rnn_fwd_pd_t hint_class;
+    using base_class = rnn_bwd_pd_t;
+    using hint_class = rnn_fwd_pd_t;
 
     arg_usage_t arg_usage(int arg) const override {
         if (utils::one_of(arg, DNNL_ARG_SRC_LAYER, DNNL_ARG_DST_LAYER,
