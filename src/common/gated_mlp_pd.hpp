@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "common/c_types_map.hpp"
-#include "common/primitive_desc.hpp"
 #include "common/gated_mlp_utils.hpp"
+#include "common/primitive_desc.hpp"
 #include "common/utils.hpp"
 
 namespace dnnl {
@@ -53,15 +53,13 @@ struct gated_mlp_pd_t : public primitive_desc_t {
     }
 
     arg_usage_t arg_usage(int arg) const override {
-        if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WTS_GATE,
-                    DNNL_ARG_WTS_UP, DNNL_ARG_WTS_DOWN,
-                    DNNL_ARG_ATTR_SCALES | DNNL_ARG_WTS_GATE,
+        if (utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WTS_GATE, DNNL_ARG_WTS_UP,
+                    DNNL_ARG_WTS_DOWN, DNNL_ARG_ATTR_SCALES | DNNL_ARG_WTS_GATE,
                     DNNL_ARG_ATTR_SCALES | DNNL_ARG_WTS_UP,
                     DNNL_ARG_ATTR_SCALES | DNNL_ARG_WTS_DOWN,
                     DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WTS_GATE,
                     DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WTS_UP,
-                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WTS_DOWN
-                    ))
+                    DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WTS_DOWN))
             return arg_usage_t::input;
 
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
@@ -102,9 +100,7 @@ struct gated_mlp_pd_t : public primitive_desc_t {
     const memory_desc_t *W_up_md() const { return &desc_.W_up_desc; }
     const memory_desc_t *W_down_md() const { return &desc_.W_down_desc; }
 
-    int n_inputs() const override {
-        return 4 + int(0 /*with_attn_mask() TODO: add scale+zp?*/);
-    }
+    int n_inputs() const override { return 4; }
     int n_outputs() const override { return 1; }
 
     /// check scales enabled for each tensor
@@ -126,41 +122,53 @@ struct gated_mlp_pd_t : public primitive_desc_t {
     /// check zero points enabled for each tensor
     /// If true, dequantize the wts_gate tensor with zero points
     bool with_wts_gate_zp() const {
-        return (!desc()->wts_gate_zero_points.has_default_values(DNNL_ARG_WEIGHTS));
+        return (!desc()->wts_gate_zero_points.has_default_values(
+                DNNL_ARG_WEIGHTS));
     }
 
     /// If true, dequantize the wts_up tensor with zero points
     bool with_wts_up_zp() const {
-        return (!desc()->wts_up_zero_points.has_default_values(DNNL_ARG_WEIGHTS));
+        return (!desc()->wts_up_zero_points.has_default_values(
+                DNNL_ARG_WEIGHTS));
     }
 
     /// If true, dequantize the wts_down tensor with zero points
     bool with_wts_down_zp() const {
-        return (!desc()->wts_down_zero_points.has_default_values(DNNL_ARG_WEIGHTS));
+        return (!desc()->wts_down_zero_points.has_default_values(
+                DNNL_ARG_WEIGHTS));
     }
-
 
     /// Scales data types for each tensor
     /// Returns the data type of the scales tensor for the wts_gate matmul
-    data_type_t wts_gate_scales_dt() const { return desc()->wts_gate_scales.get_data_type(); }
+    data_type_t wts_gate_scales_dt() const {
+        return desc()->wts_gate_scales.get_data_type();
+    }
 
     /// Returns the data type of the scales tensor for the wts_up matmul
-    data_type_t wts_up_scales_dt() const { return desc()->wts_up_scales.get_data_type(); }
+    data_type_t wts_up_scales_dt() const {
+        return desc()->wts_up_scales.get_data_type();
+    }
 
     /// Returns the data type of the scales tensor for the wts_down matmul
-    data_type_t wts_down_scales_dt() const { return desc()->wts_down_scales.get_data_type(); }
-
+    data_type_t wts_down_scales_dt() const {
+        return desc()->wts_down_scales.get_data_type();
+    }
 
     /// Zero points data types for each tensor
     /// Returns the data type of the zero points tensor for the wts_gate matmul
-    data_type_t wts_gate_zp_dt() const { return desc()->wts_gate_zero_points.get_data_type(DNNL_ARG_WEIGHTS); }
+    data_type_t wts_gate_zp_dt() const {
+        return desc()->wts_gate_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
+    }
 
     /// Returns the data type of the zero points tensor for the wts_up matmul
-    data_type_t wts_up_zp_dt() const { return desc()->wts_up_zero_points.get_data_type(DNNL_ARG_WEIGHTS); }
+    data_type_t wts_up_zp_dt() const {
+        return desc()->wts_up_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
+    }
 
     /// Returns the data type of the zero points tensor for the wts_down matmul
-    data_type_t wts_down_zp_dt() const { return desc()->wts_down_zero_points.get_data_type(DNNL_ARG_WEIGHTS); }
-
+    data_type_t wts_down_zp_dt() const {
+        return desc()->wts_down_zero_points.get_data_type(DNNL_ARG_WEIGHTS);
+    }
 
     // Returns the group size for the quantization parameters for the WTS_{up,gate} matmul
     int wts_gate_group_size() const {

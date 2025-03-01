@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,14 +28,11 @@
 namespace dnnl {
 namespace impl {
 
-//STF: TODO: add zp, scale + activation type
 static inline gated_mlp_desc_t create_gated_mlp_desc(
         const memory_desc_t *src_md, const memory_desc_t *W_gate_md,
         const memory_desc_t *W_up_md, const memory_desc_t *W_down_md,
-        const memory_desc_t *dst_md,
-        const primitive_attr_t *gate_attr,
-        const primitive_attr_t *up_attr,
-        const primitive_attr_t *down_attr) {
+        const memory_desc_t *dst_md, const primitive_attr_t *gate_attr,
+        const primitive_attr_t *up_attr, const primitive_attr_t *down_attr) {
 
     auto gated_mlp_desc = gated_mlp_desc_t();
     gated_mlp_desc.primitive_kind = primitive_kind::gated_mlp;
@@ -46,21 +43,20 @@ static inline gated_mlp_desc_t create_gated_mlp_desc(
     gated_mlp_desc.dst_desc = *dst_md;
 
     if (gate_attr) {
-        gated_mlp_desc.wts_gate_scales      = gate_attr->scales_.get(DNNL_ARG_SRC_0);
+        gated_mlp_desc.wts_gate_scales = gate_attr->scales_.get(DNNL_ARG_SRC_0);
         gated_mlp_desc.wts_gate_zero_points = gate_attr->zero_points_;
     }
     if (up_attr) {
-        gated_mlp_desc.wts_up_scales      = up_attr->scales_.get(DNNL_ARG_SRC_1);
+        gated_mlp_desc.wts_up_scales = up_attr->scales_.get(DNNL_ARG_SRC_1);
         gated_mlp_desc.wts_up_zero_points = up_attr->zero_points_;
     }
     if (down_attr) {
-        gated_mlp_desc.wts_down_scales      = down_attr->scales_.get(DNNL_ARG_SRC_2);
+        gated_mlp_desc.wts_down_scales = down_attr->scales_.get(DNNL_ARG_SRC_2);
         gated_mlp_desc.wts_down_zero_points = down_attr->zero_points_;
     }
     return gated_mlp_desc;
 }
 
-//STF: TODO: add zp, scale + activation type
 static inline status_t create_gated_mlp_pd(
         std::shared_ptr<primitive_desc_t> &gated_mlp_pd_, engine_t *engine,
         const memory_desc_t *src_md, const memory_desc_t *W_gate_md,
@@ -70,9 +66,8 @@ static inline status_t create_gated_mlp_pd(
         const primitive_attr_t *up_attr = nullptr,
         const primitive_attr_t *down_attr = nullptr) {
 
-    auto gated_mlp_desc = create_gated_mlp_desc(
-            src_md, W_gate_md, W_up_md, W_down_md, dst_md,
-            gate_attr, up_attr, down_attr);
+    auto gated_mlp_desc = create_gated_mlp_desc(src_md, W_gate_md, W_up_md,
+            W_down_md, dst_md, gate_attr, up_attr, down_attr);
 
     int ndims = dst_md->ndims;
 

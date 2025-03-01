@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,8 +33,10 @@ namespace {
 
 // TODO: figure out tiling for specific gated_mlp cases
 struct gated_mlp_config_t {
-    int unroll_m_gwu, unroll_n_gwu; // Subgroup tile sizes for src*gate and src*wts_up GEMM
-    int wg_m_gwu, wg_n_gwu; // #sg per m,n Workgroup configuration for src*gate and src*wts_up GEMM
+    int unroll_m_gwu,
+            unroll_n_gwu; // Subgroup tile sizes for src*gate and src*wts_up GEMM
+    int wg_m_gwu,
+            wg_n_gwu; // #sg per m,n Workgroup configuration for src*gate and src*wts_up GEMM
 };
 
 // TODO: pre-tuned kernel configs
@@ -58,7 +60,7 @@ struct gated_mlp_config_t {
 //gated_mlp_config_t xehpg_h32 = {16, 16, 16, 1};
 
 //gated_mlp_config_t xehpg_h32 = {8, 8, 4, 4};
-gated_mlp_config_t xehpg_h32 = { 16, 16, 2, 2 };
+gated_mlp_config_t xehpg_h32 = {16, 16, 2, 2};
 //gated_mlp_config_t xehpg_h32 = {16, 16, 16, 1}; //big K
 //gated_mlp_config_t xehpg_h32 = {32, 32, 1, 1};
 //gated_mlp_config_t xehpg_h32 = {16, 16, 32, 2};
@@ -66,7 +68,6 @@ gated_mlp_config_t xehpg_h32 = { 16, 16, 2, 2 };
 //gated_mlp_config_t xehpg_h32 = {32, 32, 1, 1};
 //gated_mlp_config_t xehpg_h32 = {32, 32, 8, 1};
 //gated_mlp_config_t xehpg_h32 = {32, 32, 16, 1};
-
 
 //gated_mlp_config_t xehpc_h32 = {16, 64, 32, 16, 4, 2, 1, 8};
 
@@ -107,8 +108,8 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
     arch_ = dev_info->gpu_arch();
     auto *d = desc();
 
-    VCONDCHECK(primitive, create, check, gated_mlp, mayiuse_microkernels(engine),
-            status::unimplemented,
+    VCONDCHECK(primitive, create, check, gated_mlp,
+            mayiuse_microkernels(engine), status::unimplemented,
             "Microkernels not supported by the OpenCL driver.");
 
     /* Retrieve pre-tuned kernel configuration */
@@ -144,7 +145,8 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
     problem.Ta_ext = jit::convert_dnnl_to_kernel_type(W_gate_md()->data_type);
     problem.Tb_ext = jit::convert_dnnl_to_kernel_type(src_md()->data_type);
     problem.Ta = problem.Tb = Type::f16;
-    problem.Tc = problem.Tc_ext = Type::f32; //TODO: return fp16? or is Tc_ext in SLM
+    problem.Tc = problem.Tc_ext
+            = Type::f32; //TODO: return fp16? or is Tc_ext in SLM
     problem.Ts = problem.Tc;
 
     auto problem_wgu = problem;
@@ -154,8 +156,8 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
     problem_wgu.C.layout = MatrixLayout::T;
 
     const memory_desc_wrapper W_gate_mdw(W_gate_md());
-    auto ldgu = static_cast<int>(
-            gemm_desc_t::get_ld(*W_gate_md()) * W_gate_mdw.data_type_size()); // todo: / elems_per_byte??
+    auto ldgu = static_cast<int>(gemm_desc_t::get_ld(*W_gate_md())
+            * W_gate_mdw.data_type_size()); // todo: / elems_per_byte??
     problem_wgu.A.setAlignment(alignmentForLD(ldgu));
     problem_wgu.B.setAlignment(64);
     problem_wgu.B.crosspack = 2;
@@ -166,29 +168,35 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
     /* Quantization configuration */
     // group configuration common for gate/up matrices
     bool wgu_common_scales = with_quantize_common(d->wts_gate_scales);
-    bool wgu_common_zp     = with_quantize_common(d->wts_gate_zero_points);
+    bool wgu_common_zp = with_quantize_common(d->wts_gate_zero_points);
 
-    if(with_wts_gate_scales() && !wgu_common_scales) {
+    if (with_wts_gate_scales() && !wgu_common_scales) {
         auto scale_dt = wts_gate_scales_dt();
-        problem_wgu.Ta_scale = jit::convert_dnnl_to_kernel_type(scale_dt); //TODO: * whatever is lda
+        problem_wgu.Ta_scale = jit::convert_dnnl_to_kernel_type(
+                scale_dt); //TODO: * whatever is lda
         //problem_wgu.A_scale.alignment = uint8_t(d->ic_sz() * types::data_type_size(scale_dt));
-        problem_wgu.A_scale.alignment = uint8_t(types::data_type_size(scale_dt));
-        problem_wgu.A_scale.layout = MatrixLayout::N; //TODO: T? or N?, data is row major //umar says always n
+        problem_wgu.A_scale.alignment
+                = uint8_t(types::data_type_size(scale_dt));
+        problem_wgu.A_scale.layout = MatrixLayout::
+                N; //TODO: T? or N?, data is row major //umar says always n
         problem_wgu.aScale2D = true;
     }
-    if(with_wts_gate_zp()) {
-       auto zp_dt = wts_gate_zp_dt();
-       problem_wgu.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
-       //problem_wgu.AO.alignment = uint8_t(d->ic_sz() * types::data_type_size(zp_dt));//TODO: * whatever is lda
-       problem_wgu.AO.alignment = uint8_t(types::data_type_size(zp_dt));//TODO: * whatever is lda
-       problem_wgu.AO.layout = MatrixLayout::N; //N?
-       problem_wgu.aoPtrDims = wgu_common_zp ? 0 : 2;
-       problem_wgu.aOffset = ABOffset::Calc;
+    if (with_wts_gate_zp()) {
+        auto zp_dt = wts_gate_zp_dt();
+        problem_wgu.Tao = jit::convert_dnnl_to_kernel_type(zp_dt);
+        //problem_wgu.AO.alignment = uint8_t(d->ic_sz() * types::data_type_size(zp_dt));//TODO: * whatever is lda
+        problem_wgu.AO.alignment = uint8_t(
+                types::data_type_size(zp_dt)); //TODO: * whatever is lda
+        problem_wgu.AO.layout = MatrixLayout::N; //N?
+        problem_wgu.aoPtrDims = wgu_common_zp ? 0 : 2;
+        problem_wgu.aOffset = ABOffset::Calc;
     }
 
     if (with_wts_gate_scales() || with_wts_gate_zp()) {
         problem_wgu.aqGroupM = 1;
-        problem_wgu.aqGroupK = (wgu_common_scales || wgu_common_zp) ? 1 : wts_gate_group_size();
+        problem_wgu.aqGroupK = (wgu_common_scales || wgu_common_zp)
+                ? 1
+                : wts_gate_group_size();
     }
 
     /* Set up transposed problem size */
@@ -200,8 +208,10 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
     std::vector<StrategyRequirement> reqs_wgu;
 
-    reqs_wgu.push_back(StrategyRequirement::UnrollM == config->unroll_m_gwu); //affects A
-    reqs_wgu.push_back(StrategyRequirement::UnrollN == config->unroll_n_gwu); //affects B
+    reqs_wgu.push_back(
+            StrategyRequirement::UnrollM == config->unroll_m_gwu); //affects A
+    reqs_wgu.push_back(
+            StrategyRequirement::UnrollN == config->unroll_n_gwu); //affects B
 
     reqs_wgu.push_back(StrategyRequirement::WGM == config->wg_m_gwu);
     reqs_wgu.push_back(StrategyRequirement::WGN == config->wg_n_gwu);
@@ -224,8 +234,8 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
                 opts_wgu, hw_info, sizes, problem_wgu, reqs_wgu);
     } catch (std::exception &e) {
         VDISPATCH_GATED_MLP(false,
-                            "gemm_gateup microkernel generation failed with message: %s",
-                            e.what());
+                "gemm_gateup microkernel generation failed with message: %s",
+                e.what());
     }
 
     return status::success;
@@ -266,17 +276,21 @@ status_t micro_gated_mlp_t::init(impl::engine_t *engine) {
     def_data_type(kernel_ctx, W_up_mdw.data_type(), "WTS_UP");
     def_data_type(kernel_ctx, W_down_mdw.data_type(), "WTS_DOWN");
 
-    def_data_type(kernel_ctx, pd()->wts_gate_scales_dt(), "WTS_GATE_ATTR_SCALES");
+    def_data_type(
+            kernel_ctx, pd()->wts_gate_scales_dt(), "WTS_GATE_ATTR_SCALES");
     def_data_type(kernel_ctx, pd()->wts_up_scales_dt(), "WTS_UP_ATTR_SCALES");
-    def_data_type(kernel_ctx, pd()->wts_down_scales_dt(), "WTS_DOWN_ATTR_SCALES");
+    def_data_type(
+            kernel_ctx, pd()->wts_down_scales_dt(), "WTS_DOWN_ATTR_SCALES");
 
     def_data_type(kernel_ctx, pd()->wts_gate_zp_dt(), "WTS_GATE_ATTR_ZP");
     def_data_type(kernel_ctx, pd()->wts_up_zp_dt(), "WTS_UP_ATTR_ZP");
     def_data_type(kernel_ctx, pd()->wts_down_zp_dt(), "WTS_DOWN_ATTR_ZP");
 
-    auto lds   = gemm_desc_t::get_ld(*pd()->src_md()) * src_mdw.data_type_size();
-    auto ldwgu = gemm_desc_t::get_ld(*pd()->W_gate_md()) * W_gate_mdw.data_type_size();
-    auto lda   = gemm_desc_t::get_ld(*pd()->dst_md()) * dst_mdw.data_type_size(); //TODO: replace w/tmp mem?
+    auto lds = gemm_desc_t::get_ld(*pd()->src_md()) * src_mdw.data_type_size();
+    auto ldwgu = gemm_desc_t::get_ld(*pd()->W_gate_md())
+            * W_gate_mdw.data_type_size();
+    auto lda = gemm_desc_t::get_ld(*pd()->dst_md())
+            * dst_mdw.data_type_size(); //TODO: replace w/tmp mem?
 
     kernel_ctx.define_int("SRC_ALIGN", jit::alignmentForLD(int(lds)));
     kernel_ctx.define_int("WGU_ALIGN", jit::alignmentForLD(int(ldwgu)));
@@ -284,23 +298,25 @@ status_t micro_gated_mlp_t::init(impl::engine_t *engine) {
 
     auto *d = pd()->desc();
 
-    int wts_gate_scales_mask = (static_cast<int>(pd()->with_wts_gate_scales()) << 1)
-        | static_cast<int>(with_quantize_common(d->wts_gate_scales));
+    int wts_gate_scales_mask
+            = (static_cast<int>(pd()->with_wts_gate_scales()) << 1)
+            | static_cast<int>(with_quantize_common(d->wts_gate_scales));
     int wts_up_scales_mask = (static_cast<int>(pd()->with_wts_up_scales()) << 1)
-        | static_cast<int>(with_quantize_common(d->wts_up_scales));
-    int wts_down_scales_mask = (static_cast<int>(pd()->with_wts_down_scales()) << 1)
-        | static_cast<int>(with_quantize_common(d->wts_down_scales));
+            | static_cast<int>(with_quantize_common(d->wts_up_scales));
+    int wts_down_scales_mask
+            = (static_cast<int>(pd()->with_wts_down_scales()) << 1)
+            | static_cast<int>(with_quantize_common(d->wts_down_scales));
 
     kernel_ctx.define_int("WTS_GATE_SCALES", wts_gate_scales_mask);
     kernel_ctx.define_int("WTS_UP_SCALES", wts_up_scales_mask);
     kernel_ctx.define_int("WTS_DOWN_SCALES", wts_down_scales_mask);
 
     int wts_gate_zp_mask = (static_cast<int>(pd()->with_wts_gate_zp()) << 1)
-        | static_cast<int>(with_quantize_common(d->wts_gate_zero_points));
-    int wts_up_zp_mask   = (static_cast<int>(pd()->with_wts_up_zp()) << 1)
-        | static_cast<int>(with_quantize_common(d->wts_up_zero_points));
+            | static_cast<int>(with_quantize_common(d->wts_gate_zero_points));
+    int wts_up_zp_mask = (static_cast<int>(pd()->with_wts_up_zp()) << 1)
+            | static_cast<int>(with_quantize_common(d->wts_up_zero_points));
     int wts_down_zp_mask = (static_cast<int>(pd()->with_wts_down_zp()) << 1)
-        | static_cast<int>(with_quantize_common(d->wts_down_zero_points));
+            | static_cast<int>(with_quantize_common(d->wts_down_zero_points));
 
     kernel_ctx.define_int("WTS_GATE_ZERO_POINTS", wts_gate_zp_mask);
     kernel_ctx.define_int("WTS_UP_ZERO_POINTS", wts_up_zp_mask);
@@ -314,38 +330,43 @@ status_t micro_gated_mlp_t::init(impl::engine_t *engine) {
             default: return 1;
         }
     };
-    kernel_ctx.define_int(
-            "WTS_GATE_ELEMENTS_PER_BYTE", elems_per_byte(W_gate_mdw.data_type()));
+    kernel_ctx.define_int("WTS_GATE_ELEMENTS_PER_BYTE",
+            elems_per_byte(W_gate_mdw.data_type()));
     kernel_ctx.define_int(
             "WTS_UP_ELEMENTS_PER_BYTE", elems_per_byte(W_up_mdw.data_type()));
-    kernel_ctx.define_int(
-            "WTS_DOWN_ELEMENTS_PER_BYTE", elems_per_byte(W_down_mdw.data_type()));
+    kernel_ctx.define_int("WTS_DOWN_ELEMENTS_PER_BYTE",
+            elems_per_byte(W_down_mdw.data_type()));
 
-    kernel_ctx.define_int(
-            "WTS_GATE_ZP_ELEMENTS_PER_BYTE", elems_per_byte(pd()->wts_gate_zp_dt()));
-    kernel_ctx.define_int(
-            "WTS_UP_ZP_ELEMENTS_PER_BYTE", elems_per_byte(pd()->wts_up_zp_dt()));
-    kernel_ctx.define_int(
-            "WTS_DOWN_ZP_ELEMENTS_PER_BYTE", elems_per_byte(pd()->wts_down_zp_dt()));
+    kernel_ctx.define_int("WTS_GATE_ZP_ELEMENTS_PER_BYTE",
+            elems_per_byte(pd()->wts_gate_zp_dt()));
+    kernel_ctx.define_int("WTS_UP_ZP_ELEMENTS_PER_BYTE",
+            elems_per_byte(pd()->wts_up_zp_dt()));
+    kernel_ctx.define_int("WTS_DOWN_ZP_ELEMENTS_PER_BYTE",
+            elems_per_byte(pd()->wts_down_zp_dt()));
 
     //TODO: add zp + scale + activation??
     //TODO: ensure zp and scales have identical group size
     if (pd()->with_wts_gate_scales() || pd()->with_wts_gate_zp())
-        kernel_ctx.define_int("WTS_GATE_GROUP_SIZE", pd()->wts_gate_group_size());
+        kernel_ctx.define_int(
+                "WTS_GATE_GROUP_SIZE", pd()->wts_gate_group_size());
     if (pd()->with_wts_up_scales() || pd()->with_wts_gate_zp())
         kernel_ctx.define_int("WTS_UP_GROUP_SIZE", pd()->wts_up_group_size());
     if (pd()->with_wts_down_scales() || pd()->with_wts_down_zp())
-        kernel_ctx.define_int("WTS_DOWN_GROUP_SIZE", pd()->wts_down_group_size());
+        kernel_ctx.define_int(
+                "WTS_DOWN_GROUP_SIZE", pd()->wts_down_group_size());
 
     kernel_ctx.define_int("SUBGROUP_SIZE", pd()->sg_size());
 
-    int tile_wgu_m = pd()->gemm_gateup().getSetting("wg_tile_m"); // partition tiles primarily across inner dim - k
+    int tile_wgu_m = pd()->gemm_gateup().getSetting(
+            "wg_tile_m"); // partition tiles primarily across inner dim - k
     int tile_wgu_n = pd()->gemm_gateup().getSetting("wg_tile_n");
 
     //TODO:  mb,oc,ic full
-    kernel_ctx.define_int("REMAINDER_SRC", d->mb_sz() % tile_wgu_n); //todo: %n instead??
+    kernel_ctx.define_int(
+            "REMAINDER_SRC", d->mb_sz() % tile_wgu_n); //todo: %n instead??
     if (lds % 4 == 0) kernel_ctx.define_int("BLOCK_SRC", 1);
-    if (lda % 4 == 0 && (d->oc_sz() % tile_wgu_m) == 0) kernel_ctx.define_int("BLOCK_DST", 1);
+    if (lda % 4 == 0 && (d->oc_sz() % tile_wgu_m) == 0)
+        kernel_ctx.define_int("BLOCK_DST", 1);
 
     /* Generate microkernel shims */
     ShimOptions shimOptions;
@@ -355,17 +376,19 @@ status_t micro_gated_mlp_t::init(impl::engine_t *engine) {
 
     //TODO: enable shim header
     //std::string header = micro::generateShim(
-                    //pd()->gemm_gateup(), HostLanguage::OpenCL_C, shimOptions);
+    //pd()->gemm_gateup(), HostLanguage::OpenCL_C, shimOptions);
     //std::cout << "shim HEADER" << std::endl;
     //std::cout << header << std::endl;
-    kernel_ctx.add_custom_header("gemm_gateup.h", micro::generateShim(
+    kernel_ctx.add_custom_header("gemm_gateup.h",
+            micro::generateShim(
                     pd()->gemm_gateup(), HostLanguage::OpenCL_C, shimOptions));
 
     if (pd()->gemm_gateup().grfMin > 128) {
         kernel_ctx.add_option("-cl-intel-256-GRF-per-thread");
     }
 
-    CHECK(create_kernel(engine, &fused_mlp_kernel_, "micro_gated_mlp", kernel_ctx));
+    CHECK(create_kernel(
+            engine, &fused_mlp_kernel_, "micro_gated_mlp", kernel_ctx));
     if (!fused_mlp_kernel_) return status::runtime_error;
 
     /*
@@ -413,28 +436,29 @@ status_t micro_gated_mlp_t::execute(const exec_ctx_t &ctx) const {
 
     auto &gemm_gateup = pd()->gemm_gateup();
 
-    auto wg_tile_OC = gemm_gateup.getSetting("wg_tile_m"); //TODO: which? OC along lda should get largest tile dim?
+    auto wg_tile_OC = gemm_gateup.getSetting(
+            "wg_tile_m"); //TODO: which? OC along lda should get largest tile dim?
     //auto wg_tile_OC = gemm_gateup.getSetting("wg_tile_n"); //TODO: which? OC along lda should get largest tile dim?
     auto wg_tile_MB = gemm_gateup.getSetting("wg_tile_n");
 
-    auto sg_per_wg  = gemm_gateup.getSetting("sg_per_wg_m")
-                    * gemm_gateup.getSetting("sg_per_wg_n");
+    auto sg_per_wg = gemm_gateup.getSetting("sg_per_wg_m")
+            * gemm_gateup.getSetting("sg_per_wg_n");
 
     std::unique_ptr<memory_storage_t> tmp_reduce;
     tmp_reduce = ctx.get_scratchpad_grantor().get_memory_storage(
             memory_tracking::names::key_gated_mlp_reduction);
 
     compute::kernel_arg_list_t arg_list;
-    arg_list.set(0,  src);
-    arg_list.set(1,  W_gate);
-    arg_list.set(2,  W_up);
-    arg_list.set(3,  W_down);
-    arg_list.set(4,  dst);
-    arg_list.set(5,  MB);
-    arg_list.set(6,  IC);
-    arg_list.set(7,  OC);
-    arg_list.set(8,  *tmp_reduce);
-    arg_list.set(9,  wts_gate_scales);
+    arg_list.set(0, src);
+    arg_list.set(1, W_gate);
+    arg_list.set(2, W_up);
+    arg_list.set(3, W_down);
+    arg_list.set(4, dst);
+    arg_list.set(5, MB);
+    arg_list.set(6, IC);
+    arg_list.set(7, OC);
+    arg_list.set(8, *tmp_reduce);
+    arg_list.set(9, wts_gate_scales);
     arg_list.set(10, wts_gate_zp);
     arg_list.set(11, wts_up_scales);
     arg_list.set(12, wts_up_zp);
@@ -452,7 +476,8 @@ status_t micro_gated_mlp_t::execute(const exec_ctx_t &ctx) const {
 
     auto nd_range = compute::nd_range_t(gws, lws);
     //printf("gws[%zu %zu %zu] lws[%zu %zu %zu] \n",gws[0], gws[1], gws[2], lws[0], lws[1], lws[2]);
-    status_t gateup_status = parallel_for(ctx, nd_range, fused_mlp_kernel_, arg_list);
+    status_t gateup_status
+            = parallel_for(ctx, nd_range, fused_mlp_kernel_, arg_list);
 
     if (gateup_status != status::success) return gateup_status;
 
