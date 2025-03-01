@@ -87,7 +87,8 @@ struct ref_matmul_t : public gpu_primitive_t {
             const bool is_f4
                     = ((utils::one_of(src_dt_, f4_e2m1, f4_e3m0)
                                || utils::everyone_is(wei_dt_, f4_e2m1, f4_e3m0))
-                            && utils::one_of(dst_dt_, f32, bf16, f16, src_dt_));
+                            && utils::one_of(dst_dt_, f32, bf16, f16, f4_e3m0,
+                                    f4_e2m1, src_dt_));
             const bool is_bf16 = src_dt_ == bf16
                     && utils::one_of(wei_dt_, bf16, s8, u8, s4, u4)
                     && utils::one_of(dst_dt_, bf16, f32);
