@@ -284,14 +284,15 @@ static inline void parallel(int nthr, const std::function<void(int, int)> &f) {
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_THREADPOOL
     using namespace dnnl::impl::threadpool_utils;
     dnnl::threadpool_interop::threadpool_iface *tp = get_active_threadpool();
-    bool async = tp->get_flags()
-        & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS;
+    bool async = tp
+            && (tp->get_flags()
+                    & dnnl::threadpool_interop::threadpool_iface::ASYNCHRONOUS);
     if (!async)
 #endif
-    if (nthr == 1) {
-        f(0, 1);
-        return;
-    }
+        if (nthr == 1) {
+            f(0, 1);
+            return;
+        }
 #if DNNL_CPU_THREADING_RUNTIME == DNNL_RUNTIME_OMP
 #pragma omp parallel num_threads(nthr)
     {
