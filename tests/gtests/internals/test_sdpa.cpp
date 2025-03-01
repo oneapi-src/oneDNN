@@ -1139,12 +1139,16 @@ sdpa_tensors_t get_descriptors(dnnl::engine &eng, const sdpa_dims_t &p) {
 
     return out;
 }
+
 class sdpa_test_t : public ::testing::TestWithParam<sdpa_dims_t> {
 public:
     void SetUp() override {
-        p = GetParam();
-        SKIP_IF_CUDA(true, "SDPA primitive tests do not support CUDA");
-        SKIP_IF_HIP(true, "SDPA primitive tests do not support HIP");
+#ifdef DNNL_SYCL_CUDA
+        GTEST_SKIP() << "SDPA primitive tests do not support CUDA";
+#endif
+#ifdef DNNL_SYCL_HIP
+        GTEST_SKIP() << "SDPA primitive tests do not support HIP";
+#endif
 #ifdef DNNL_TEST_WITH_ENGINE_PARAM
         SKIP_IF(get_test_engine_kind() != dnnl::engine::kind::gpu,
                 "This test requires GPU engine");
@@ -1155,6 +1159,7 @@ public:
         eng = dnnl::engine(engine::kind::gpu, 0);
 #endif
         strm = dnnl::stream(eng);
+        p = GetParam();
         t = get_descriptors(eng, p);
     }
 
