@@ -80,6 +80,8 @@ struct quant_entry_t : public c_compatible {
 
     int get_mask() const { return mask_; }
     data_type_t get_data_type() const { return data_type_; }
+    int get_group_ndims() const { return group_ndims_; }
+    const dims_t &get_group_dims() const { return group_dims_; }
     dim_t get_group(int d) const {
         // If groups were not requested, return `1` for convenience.
         if (group_ndims_ == default_quant_entry().group_ndims_) return 1;
