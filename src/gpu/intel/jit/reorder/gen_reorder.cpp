@@ -98,6 +98,10 @@ status_t gen_reorder_t::pd_t::init(impl::engine_t *engine,
     VDISPATCH_REORDER(IMPLICATION(src_dt == f64 || dst_dt == f64,
                               device_info->has_native(f64)),
             VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(IMPLICATION(src_dt == f64, dst_dt == f32),
+            VERBOSE_UNSUPPORTED_DT_CFG);
+    VDISPATCH_REORDER(IMPLICATION(dst_dt == f64, src_dt == f32),
+            VERBOSE_UNSUPPORTED_DT_CFG);
     using sm = dnnl_primitive_attr::skip_mask_t;
     auto skip_mask = sm::post_ops | sm::zero_points_runtime | sm::scales_runtime
             | sm::rounding_mode;
@@ -181,8 +185,7 @@ status_t gen_reorder_t::pd_t::init_kernel_info() {
             /*oc=*/1, tensor_cfg);
 
     kernel_info = std::make_shared<kernel_info_t>();
-    auto nd_range = reorder_kernel_t<>::nd_range(cfg->exec_cfg(),
-            cfg->src_layout().user(), cfg->dst_layout().user());
+    auto nd_range = cfg->nd_range();
     auto global_range = nd_range.global_range();
     constexpr int max = std::numeric_limits<int>::max();
     // This case *probably* overflowed in int32 precision.
