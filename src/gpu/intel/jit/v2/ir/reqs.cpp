@@ -73,10 +73,20 @@ public:
     }
 };
 
-expr_t simplify_expr(const expr_t &_e) {
+expr_t simplify_expr(const expr_t &_e, const prb_reqs_t *reqs) {
     expr_t a, b;
     if (is_a_mod_b_eq_0(_e, a, b)) {
-        a = simplify_expr(a);
+        auto e = _e;
+        auto vars = find_objects<const_var_t>(_e);
+        for (auto var : vars) {
+            auto pvar = pvar_t::from_var(var.as<const_var_t>());
+            if (pvar.is_undef() || !reqs) continue;
+            auto factor = reqs->max_factor(pvar);
+            if (factor <= 1) continue;
+            e = substitute(e, var, expr_t(reqs->max_factor(pvar)));
+        }
+        is_a_mod_b_eq_0(e, a, b);
+        a = simplify_expr(a, reqs);
         if (is_const(b)) return simplify_linear_mod(a, to_cpp<int>(b)) == 0;
         return a % b == 0;
     }
@@ -670,8 +680,61 @@ private:
     req_rhs_t rhs_;
 };
 
+void prb_reqs_t::add_stride_reqs(
+        const pvar_t stride, std::vector<pvar_t> vars) {
+    if (vars.size() == 0) return;
+    std::vector<req_impl_t> new_reqs;
+    for (auto &r : reqs_) {
+        auto lhs = r.impl().lhs();
+        bool mod_eq_0 = r.impl().kind() == req_kind_t::mod_eq_0;
+        bool can_replace = mod_eq_0 ? false : true;
+        dim_t factor = 1;
+        bool pvar_found = false;
+        for (auto v : vars) {
+            dim_t pvar_value;
+            if (get_value(v, pvar_value)) {
+                factor *= pvar_value;
+                continue;
+            }
+            if (lhs.has(v)) pvar_found = true;
+            if (lhs.has(v) && mod_eq_0)
+                can_replace = true;
+            else if (!lhs.has(v) && !mod_eq_0)
+                can_replace = false;
+        }
+        can_replace &= pvar_found;
+        if (can_replace) {
+            std::vector<pvar_t> new_lhs;
+            std::vector<pvar_t> v_copy(vars);
+            for (auto &lhs_v : lhs.pvars()) {
+                bool found = false;
+                int i = 0;
+                for (auto &v : v_copy) {
+                    if (v == lhs_v) {
+                        found = true;
+                        v_copy.erase(v_copy.begin() + i);
+                        break;
+                    }
+                    i++;
+                }
+                if (!found) new_lhs.push_back(lhs_v);
+            }
+            new_lhs.push_back(stride);
+            auto rhs = r.impl().rhs();
+            auto new_rhs
+                    = rhs.is_value() ? req_rhs_t(rhs.value() / factor) : rhs;
+            new_reqs.push_back(
+                    req_impl_t(r.impl().kind(), req_lhs_t(new_lhs), new_rhs));
+        }
+    }
+
+    for (auto &r : new_reqs) {
+        reqs_.push_back(req_t(r));
+    }
+}
+
 void prb_reqs_t::add(const expr_t &_e) {
-    auto e = simplify_expr(_e);
+    auto e = simplify_expr(_e, this);
     if (auto *imm = e.as_ptr<bool_imm_t>()) {
         if (imm->value) return;
         gpu_error_not_expected() << _e;
@@ -825,7 +888,8 @@ void prb_reqs_t::substitute(const pvar_map_t<dim_t> &values) {
 }
 
 bool prb_reqs_t::can_prove(const expr_t &to_prove) const {
-    auto e = simplify_expr(to_prove);
+    auto e = to_prove;
+    e = simplify_expr(e, this);
     if (auto *imm = e.as_ptr<bool_imm_t>()) { return imm->value; }
     return can_prove(req_impl_t(e));
 }
@@ -894,7 +958,8 @@ const prover_t &prover_t::instance() {
 }
 
 bool prover_t::require(const expr_t &_e) const {
-    auto e = simplify_expr(_e);
+    auto e = _e;
+    e = simplify_expr(e, parent_);
     if (auto *imm = e.as_ptr<bool_imm_t>()) return imm->value;
 
     req_impl_t ri(e);
