@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Arm Ltd. and affiliates
+* Copyright 2023, 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,29 +21,88 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
+status_t acl_layer_normalization_fwd_t::pd_t::init(engine_t *engine) {
+
+    // dir and flags
+    ACL_CHECK_SUPPORT(!is_fwd(), "ACL lnorm supports forward propagation only");
+    ACL_CHECK_SUPPORT(is_training(), "ACL supports inference only for lnorm");
+    ACL_CHECK_SUPPORT(
+            use_global_stats(), "ACL does not support global stats with lnorm");
+    ACL_CHECK_SUPPORT(use_scale() || use_shift(),
+            "ACL does not support lnorm scale and shift");
+
+    // attr-scales
+    ACL_CHECK_SUPPORT(!attr()->has_default_values(),
+            "ACL does not support scales attribute");
+
+    // tag and stat_tag
+    ACL_CHECK_SUPPORT(src_md()->ndims < 2 || src_md()->ndims > 5,
+            "src tensor must have between 2 and 5 (inclusive) "
+            "dimensions");
+
+    // msdNorm only supports lnorm for src in a channels last format.
+    // So if channels aren't last (ie. if they aren't dense),
+    // then reorder into a channels last format
+    std::string ref_implementation_guess = "simple:any";
+    if (src_md()->format_desc.blocking.strides[ndims() - 1] != 1) {
+        CHECK(memory_desc_init_by_tag(
+                src_md_, get_channels_last_format(src_md_.ndims)));
+        ref_implementation_guess = "ref:any";
+    }
+    if (dst_md_ != src_md_)
+        // Make sure dst and src share a format
+        CHECK(memory_desc_init_by_md_and_dt(
+                dst_md_, src_md_, src_md()->data_type));
+    if (!set_default_stat_md_format(src_md_)) return status::unimplemented;
+
+    const memory_desc_wrapper src_d(src_md_);
+    const memory_desc_wrapper dst_d(dst_md_);
+
+    ACL_CHECK_SUPPORT(src_d.has_zero_dim() || dst_d.has_zero_dim(),
+            "data tensor(s) must not have a zero dimension");
+
+    // data type
+    ACL_CHECK_SUPPORT(
+            src_d.data_type() != data_type::f32, "ACL Lnorm only supports F32");
+    ACL_CHECK_SUPPORT(dst_d.data_type() != src_d.data_type(),
+            "src and dst must share data types");
+
+    // Problem shape
+    int C = norm_axis(); // Channel dim size
+    int X = src_d.nelems() / C; // Non-channel dims size
+
+    ACL_CHECK_SUPPORT(!use_acl_heuristic(X, C, dnnl_get_max_threads(),
+                              is_training(), ref_implementation_guess),
+            "ACL is unoptimal in this case");
+
+    anp.data_info = arm_compute::TensorInfo(
+            arm_compute::TensorShape(C, X), 1, arm_compute::DataType::F32);
+
+    ACL_CHECK_VALID(arm_compute::NEMeanStdDevNormalizationLayer::validate(
+            &anp.data_info, &anp.data_info, desc()->layer_norm_epsilon));
+
+    return status::success;
+}
+
 status_t acl_layer_normalization_fwd_t::execute_forward(
         const exec_ctx_t &ctx) const {
 
-    // Lock here is needed because resource_mapper does not support
-    // concurrent access.
-    std::lock_guard<std::mutex> _lock {this->mtx};
-
-    // Retrieve primitive resource and configured Compute Library objects
-    auto *acl_resource
-            = ctx.get_resource_mapper()
-                      ->get<acl_layer_normalization_resource_t>(this);
-    acl_msdnorm_obj_t &acl_obj = acl_resource->get_acl_obj();
-
     auto src = CTX_IN_MEM(const float *, DNNL_ARG_SRC);
-    acl_obj.src_tensor.allocator()->import_memory(const_cast<float *>(src));
 
-    auto dst = CTX_OUT_MEM(float *, DNNL_ARG_DST);
-    acl_obj.dst_tensor.allocator()->import_memory(dst);
+    arm_compute::Tensor data_tensor;
 
-    acl_obj.msdNorm.run();
+    auto const acp = pd()->anp;
 
-    acl_obj.src_tensor.allocator()->free();
-    acl_obj.dst_tensor.allocator()->free();
+    data_tensor.allocator()->init(acp.data_info);
+
+    data_tensor.allocator()->import_memory(const_cast<float *>(src));
+
+    arm_compute::ITensorPack pack;
+    pack.add_tensor(arm_compute::TensorType::ACL_SRC_0, &data_tensor);
+
+    acl_obj.get()->msdNorm.run(pack);
+
+    data_tensor.allocator()->free();
 
     return status::success;
 }
