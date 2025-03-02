@@ -150,12 +150,17 @@ void sdp_primitive_kernel_t<quantized>::prepare_args_set(
 
 template <bool quantized>
 status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
-        exec_args_t &args, memory (&mem_storage)[16],
+        exec_args_t &args, memory (&mem_storage)[11],
         const execution_args_set_t *res) const {
-    bool ok = res->find_value_mem_map(cfg_.q_.get(), mem_storage[0])
-            && res->find_value_mem_map(cfg_.k_.get(), mem_storage[1])
-            && res->find_value_mem_map(cfg_.v_.get(), mem_storage[2])
-            && res->find_value_mem_map(cfg_.dst_.get(), mem_storage[3]);
+    bool ok = res->find_value_mem_map(cfg_.q_.get(), mem_storage[0]);
+    if (!cfg_.page_attention_enabled_) {
+        ok = ok && res->find_value_mem_map(cfg_.k_.get(), mem_storage[1])
+                && res->find_value_mem_map(cfg_.v_.get(), mem_storage[2]);
+    } else {
+        ok = ok && res->find_value_mem_map(cfg_.k_cache_.get(), mem_storage[1])
+                && res->find_value_mem_map(cfg_.v_cache_.get(), mem_storage[2]);
+    }
+    ok = ok && res->find_value_mem_map(cfg_.dst_.get(), mem_storage[3]);
 
     if (cfg_.scale_)
         ok = ok && res->find_value_mem_map(cfg_.scale_.get(), mem_storage[4]);
@@ -180,13 +185,9 @@ status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
                         cfg_.v_zero_points_.get(), mem_storage[9]);
 
     if (cfg_.page_attention_enabled_) {
-        ok = ok && res->find_value_mem_map(cfg_.k_cache_.get(), mem_storage[10])
-                && res->find_value_mem_map(cfg_.v_cache_.get(), mem_storage[11])
+        ok = ok
                 && res->find_value_mem_map(
-                        cfg_.block_table_.get(), mem_storage[12]);
-        // && res->find_value_mem_map(cfg_.block_indices_begin_.get(), mem_storage[13]);
-        // && res->find_value_mem_map(cfg_.prompt_lens_.get(), mem_storage[14])
-        // && res->find_value_mem_map(cfg_.subsequence_begins_.get(), mem_storage[15]);
+                        cfg_.block_table_.get(), mem_storage[10]);
     }
     VCONDCHECK(graph, exec, check, sdp_primitive_kernel, ok,
             status::runtime_error,
@@ -202,6 +203,14 @@ status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
     memory_arg_t mem_arg_v_scale = {mem_storage[7].get(true), true};
     memory_arg_t mem_arg_k_zero_points = {mem_storage[8].get(true), true};
     memory_arg_t mem_arg_v_zero_points = {mem_storage[9].get(true), true};
+    memory_arg_t mem_arg_prompt_lens, mem_arg_subsequence_begins,
+            mem_arg_block_table, mem_arg_block_indices_begin;
+    if (cfg_.page_attention_enabled_) {
+        mem_arg_prompt_lens = {cfg_.prompt_lens_.get(), true};
+        mem_arg_subsequence_begins = {cfg_.subsequence_begins_.get(), true};
+        mem_arg_block_table = {mem_storage[10].get(), true};
+        mem_arg_block_indices_begin = {cfg_.block_indices_begin_.get(), true};
+    }
 
     args.clear();
     args[DNNL_ARG_QUERIES] = mem_arg_q;
@@ -214,7 +223,12 @@ status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
     args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_VALUES] = mem_arg_v_scale;
     args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_KEYS] = mem_arg_k_zero_points;
     args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES] = mem_arg_v_zero_points;
-
+    if (cfg_.page_attention_enabled_) {
+        args[DNNL_ARG_PROMPT_LENS] = mem_arg_prompt_lens;
+        args[DNNL_ARG_SUBSEQUENCE_BEGINS] = mem_arg_subsequence_begins;
+        args[DNNL_ARG_BLOCK_INDICES] = mem_arg_block_table;
+        args[DNNL_ARG_BLOCK_INDICES_BEGINS] = mem_arg_block_indices_begin;
+    }
     return status::success;
 }
 
@@ -233,7 +247,7 @@ status_t sdp_primitive_kernel_t<quantized>::execute_impl(
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[16];
+    memory mem_storage[11];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));
@@ -263,7 +277,7 @@ status_t sdp_primitive_kernel_t<quantized>::sycl_execute_impl(
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[16];
+    memory mem_storage[11];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));
@@ -309,7 +323,7 @@ status_t sdp_primitive_kernel_t<quantized>::ocl_execute_impl(
     temporary_scratchpad_t scratchpad(0, p_engine_, *g_alloc_);
     prepare_args_set(res, inputs, outputs, scratchpad);
 
-    memory mem_storage[16];
+    memory mem_storage[11];
     exec_args_t args;
     CHECK(get_prim_exec_args(args, mem_storage, res));
     exec_ctx_t ctx(p_stream.get(), std::move(args));

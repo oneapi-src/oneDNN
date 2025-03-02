@@ -81,9 +81,9 @@ public:
     // // paged attention SDP pd and primitive.
     std::shared_ptr<dnnl::sdpa_micro::primitive_desc> paged_sdpa_pd_;
     std::shared_ptr<dnnl::sdpa_micro::primitive> paged_sdpa_prim_;
-    memory prompt_lens;
-    memory subsequence_begins;
-    memory block_indices_begin;
+    memory prompt_lens_;
+    memory subsequence_begins_;
+    memory block_indices_begin_;
 
 private:
     op_ptr get_post_op(const op_ptr &op) const;

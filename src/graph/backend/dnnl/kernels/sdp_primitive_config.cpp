@@ -28,6 +28,64 @@ namespace impl {
 namespace graph {
 namespace dnnl_impl {
 
+void write_to_dnnl_memory(void *handle, dnnl::memory &mem) {
+    dnnl::engine eng = mem.get_engine();
+    size_t size = mem.get_desc().get_size();
+
+    if (!handle) throw std::runtime_error("handle is nullptr.");
+
+#ifdef DNNL_WITH_SYCL
+    bool is_cpu_sycl = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
+            && eng.get_kind() == dnnl::engine::kind::cpu);
+    bool is_gpu_sycl = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
+            && eng.get_kind() == dnnl::engine::kind::gpu);
+    if (is_cpu_sycl || is_gpu_sycl) {
+        auto mkind = dnnl::sycl_interop::get_memory_kind(mem);
+        if (mkind == dnnl::sycl_interop::memory_kind::buffer) {
+            auto buffer = dnnl::sycl_interop::get_buffer<uint8_t>(mem);
+            auto dst = buffer.get_host_access();
+            uint8_t *dst_ptr = dst.get_pointer();
+            if (!dst_ptr)
+                throw std::runtime_error("get_pointer returned nullptr.");
+            for (size_t i = 0; i < size; ++i)
+                dst_ptr[i] = ((uint8_t *)handle)[i];
+        } else {
+            assert(mkind == dnnl::sycl_interop::memory_kind::usm);
+            uint8_t *dst_ptr = (uint8_t *)mem.get_data_handle();
+            if (!dst_ptr)
+                throw std::runtime_error("get_data_handle returned nullptr.");
+            if (is_cpu_sycl) {
+                for (size_t i = 0; i < size; ++i)
+                    dst_ptr[i] = ((uint8_t *)handle)[i];
+            } else {
+                auto sycl_queue
+                        = dnnl::sycl_interop::get_queue(dnnl::stream(eng));
+                sycl_queue.memcpy(dst_ptr, handle, size).wait();
+            }
+        }
+        return;
+    }
+#endif
+#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
+    if (eng.get_kind() == dnnl::engine::kind::gpu) {
+        void *mapped_ptr = mem.map_data();
+        if (mapped_ptr) std::memcpy(mapped_ptr, handle, size);
+        mem.unmap_data(mapped_ptr);
+        return;
+    }
+#endif
+
+    if (eng.get_kind() == dnnl::engine::kind::cpu) {
+        uint8_t *dst = static_cast<uint8_t *>(mem.get_data_handle());
+        if (!dst) throw std::runtime_error("get_data_handle returned nullptr.");
+        for (size_t i = 0; i < size; ++i)
+            dst[i] = ((uint8_t *)handle)[i];
+        return;
+    }
+
+    assert(!"not expected");
+}
+
 op_ptr sdp_primitive_config_t::get_post_op(const op_ptr &op) const {
     const auto out_val = op->get_output_value(0);
     const auto &consumers = out_val->get_consumers();
@@ -448,10 +506,15 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
                 md_block_indices_begin.get()));
         status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
     } else {
+        const auto seq_lens
+                = k_paged_cache_load_->get_attr<std::vector<int64_t>>(
+                        op_attr::seq_lens);
+        const auto context_len
+                = std::accumulate(seq_lens.begin(), seq_lens.end(), int64_t(0));
         paged_sdpa_pd_ = std::make_shared<dnnl::sdpa_micro::primitive_desc>(
-                p_engine, 10, md_q_pa, md_k_cache, md_v_cache, md_dst, md_mask,
-                md_prompt_lens, md_subsequence_begins, md_block_indices,
-                md_block_indices_begin);
+                p_engine, context_len, md_q_pa, md_k_cache, md_v_cache, md_dst,
+                md_mask, md_prompt_lens, md_subsequence_begins,
+                md_block_indices, md_block_indices_begin);
         paged_sdpa_prim_
                 = std::make_shared<dnnl::sdpa_micro>(*paged_sdpa_pd_.get());
     }
@@ -459,12 +522,34 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
             "could not create sdp primitive, falling back\n");
 
     // prepare memory for page attention
-    // if (page_attention_enabled_) {
-    //     write_to_dnnl_memory()
-    //     CHECK(create_memory(k_cache_, p_engine.get(), md_k));
-    //     CHECK(create_memory(v_cache_, p_engine.get(), md_v));
-    //     CHECK(create_memory(block_table_, p_engine.get(), md_block_indices));
-    // }
+    if (page_attention_enabled_) {
+        const auto seq_num = q_->get_logical_tensor().dims[0];
+        const auto q_len = q_->get_logical_tensor().dims[2];
+        // query has the same length for each seq_num
+        std::vector<int32_t> prompt_lens_data(seq_num, q_len);
+        std::vector<int32_t> subsequence_begins_data(seq_num + 1, 0);
+        // query has the same length for each subsequence
+        for (auto i = 1; i < seq_num + 1; i++) {
+            subsequence_begins_data[i] = i * q_len;
+        }
+        prompt_lens_ = dnnl::memory(md_prompt_lens, p_engine);
+        write_to_dnnl_memory(prompt_lens_data.data(), prompt_lens_);
+        subsequence_begins_ = dnnl::memory(md_subsequence_begins, p_engine);
+        write_to_dnnl_memory(
+                subsequence_begins_data.data(), subsequence_begins_);
+
+        // block_table [seq_num, max_block_num_per_seq]
+        auto block_table_lt = block_table_->get_logical_tensor();
+        const auto max_block_num_per_seq = block_table_lt.dims[1];
+        block_indices_begin_ = dnnl::memory(md_block_indices_begin, p_engine);
+        std::vector<int32_t> block_indices_begin_data(seq_num + 1, 0);
+        // block_table has the same length for each seq_num
+        for (auto i = 1; i < seq_num + 1; i++) {
+            block_indices_begin_data[i] = i * max_block_num_per_seq;
+        }
+        write_to_dnnl_memory(
+                block_indices_begin_data.data(), block_indices_begin_);
+    }
     return status;
 }
 

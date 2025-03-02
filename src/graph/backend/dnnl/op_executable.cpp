@@ -1807,9 +1807,6 @@ void paged_cache_load_executable_t ::execute(const stream &stream,
     const auto &block_table = it_block_table->second;
     const auto &output = it_dst->second;
 
-    // poc for f32
-    std::cout << "paged_cache_load_executable_t poc only support f32 "
-              << std::endl;
     auto cache_ptr = static_cast<float *>(cache.get_data_handle());
     auto output_ptr = static_cast<float *>(output.get_data_handle());
     auto block_table_ptr

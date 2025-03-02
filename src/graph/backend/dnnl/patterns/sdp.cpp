@@ -559,7 +559,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, float_pa_sdp_fusion)
                     optional_transpose_reshape(pgraph, matmul_v, 0);
                 })
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
-            return std::make_shared<larger_partition_kernel_t>();
+            return std::make_shared<sdp_base_t<>>();
         });
 DNNL_BACKEND_REGISTER_PATTERN_DEF_END
 
