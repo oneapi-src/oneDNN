@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Arm Ltd. and affiliates
+* Copyright 2023-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #ifndef CPU_AARCH64_ACL_LAYER_NORMALIZATION_HPP
 #define CPU_AARCH64_ACL_LAYER_NORMALIZATION_HPP
 
+#include "arm_compute/runtime/experimental/operators/CpuMeanStdDevNormalization.h"
 #include "cpu/aarch64/acl_utils.hpp"
 #include "cpu/cpu_layer_normalization_pd.hpp"
 
@@ -26,45 +27,15 @@ namespace cpu {
 namespace aarch64 {
 
 struct acl_msdnorm_obj_t {
-    arm_compute::NEMeanStdDevNormalizationLayer msdNorm;
-    arm_compute::Tensor src_tensor;
-    arm_compute::Tensor dst_tensor;
+    arm_compute::experimental::op::CpuMeanStdDevNormalization msdNorm;
 };
 
 struct acl_msdnorm_conf_t {
     arm_compute::TensorInfo data_info; // src and dst tensors
 };
 
-struct acl_layer_normalization_resource_t : public resource_t {
-    acl_layer_normalization_resource_t()
-        : acl_obj(utils::make_unique<acl_msdnorm_obj_t>()) {}
-
-    status_t configure(
-            const acl_msdnorm_conf_t &anp, const layer_normalization_pd_t *pd) {
-        if (!acl_obj) return status::out_of_memory;
-
-        acl_obj->src_tensor.allocator()->init(anp.data_info);
-        acl_obj->dst_tensor.allocator()->init(anp.data_info);
-
-        // clang-format off
-        acl_obj->msdNorm.configure(
-            &acl_obj->src_tensor,
-            &acl_obj->dst_tensor,
-            pd->desc()->layer_norm_epsilon);
-        // clang-format on
-
-        return status::success;
-    }
-
-    acl_msdnorm_obj_t &get_acl_obj() const { return *acl_obj; }
-
-    DNNL_DISALLOW_COPY_AND_ASSIGN(acl_layer_normalization_resource_t);
-
-private:
-    std::unique_ptr<acl_msdnorm_obj_t> acl_obj;
-}; // acl_layer_normalization_resource_t
-
 struct acl_layer_normalization_fwd_t : public primitive_t {
+    using Op = arm_compute::experimental::op::CpuMeanStdDevNormalization;
     struct pd_t : public cpu_layer_normalization_fwd_pd_t {
         using cpu_layer_normalization_fwd_pd_t::
                 cpu_layer_normalization_fwd_pd_t;
@@ -219,32 +190,19 @@ struct acl_layer_normalization_fwd_t : public primitive_t {
 
     }; // pd_t
 
-    acl_layer_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
-
-    status_t create_resource(
-            engine_t *engine, resource_mapper_t &mapper) const override {
-        if (mapper.has_resource(this)) return status::success;
-
-        auto r = utils::make_unique<acl_layer_normalization_resource_t>();
-        if (!r) return status::out_of_memory;
-
-        // Configure the resource based on information from primitive descriptor
-        CHECK(r->configure(pd()->anp, pd()));
-        mapper.add(this, std::move(r));
-
-        return status::success;
-    }
+    acl_layer_normalization_fwd_t(const pd_t *apd)
+        : primitive_t(apd), acl_obj(std::make_unique<acl_msdnorm_obj_t>()) {}
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
+    status_t init(engine_t *engine) override;
 
 private:
-    // To guard the const execute_forward, the mutex must be 'mutable'
-    mutable std::mutex mtx;
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-}; // acl_layer_normalization_fwd_t
+    std::unique_ptr<acl_msdnorm_obj_t> acl_obj;
+};
 
 } // namespace aarch64
 } // namespace cpu
