@@ -49,13 +49,6 @@ inline char as_tag(dim_idx_t idx, bool is_outer = false) {
 
 namespace gpu_utils {
 
-// Replacement implementation of std::enable_if_t from C++14, included here for
-// interoperability with C++11
-template <bool B, class T = void>
-using enable_if_t = typename std::enable_if<B, T>::type;
-template <typename T>
-using is_vector = std::is_same<T, typename std::vector<typename T::value_type>>;
-
 class error_stream_t {
 public:
     error_stream_t(const char *file, int line, const char *assert_msg)

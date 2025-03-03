@@ -21,6 +21,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "common/serialization.hpp"
 #include "gpu/gpu_batch_normalization_pd.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/intel/compute/dispatch_reusable.hpp"
@@ -29,7 +30,6 @@
 #include "gpu/intel/ocl/stream.hpp"
 #include "gpu/intel/ocl/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
-#include "gpu/intel/serialization.hpp"
 
 #include "common/experimental.hpp"
 #include "gpu/intel/ocl/bnorm/bnorm_utils.hpp"
@@ -68,13 +68,14 @@ struct nhwc_reusable_bnorm_compile_params_t {
             const nhwc_reusable_bnorm_compile_params_t &) const = default;
 #endif
 
-    serialized_t serialize() const {
-        assert_trivially_serializable(nhwc_reusable_bnorm_compile_params_t);
-        return serialized_t(*this);
+    serialization_stream_t serialize() const {
+        DNNL_ASSERT_TRIVIALLY_SERIALIZABLE(
+                nhwc_reusable_bnorm_compile_params_t);
+        return serialization_stream_t(*this);
     }
 
     static nhwc_reusable_bnorm_compile_params_t deserialize(
-            const serialized_t &s) {
+            const serialization_stream_t &s) {
         return deserializer_t(s).pop<nhwc_reusable_bnorm_compile_params_t>();
     }
 

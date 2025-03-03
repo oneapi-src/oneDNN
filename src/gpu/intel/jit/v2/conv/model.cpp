@@ -423,7 +423,7 @@ float model_set_t::time(model_kind_t kind, const problem_t &prb,
 }
 
 void model_set_t::stringify(std::ostream &out) const {
-    serialized_data_t s;
+    serialization_stream_t s;
     for (auto &m : models_) {
         s.append(m.kind());
         for (auto &c : m.coef()) {
@@ -435,7 +435,7 @@ void model_set_t::stringify(std::ostream &out) const {
 
 void model_set_t::parse(std::istream &in) {
     auto s_data = stream_parse<std::string>(in);
-    auto s = serialized_t::from_data(hex_to_data(s_data));
+    auto s = serialization_stream_t::from_data(hex_to_data(s_data));
     deserializer_t d(s);
     while (!d.empty()) {
         auto kind = d.pop<model_kind_t>();
