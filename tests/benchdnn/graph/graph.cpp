@@ -34,7 +34,7 @@ namespace {
 /// @param partitions a list of partitions
 /// @param id_to_set_any_layout a set of ids of logical tensors with any layout
 ///     type
-void set_any_layout(const graph::deserialized_graph &dg,
+void set_any_layout(const graph::deserialized_graph_t &dg,
         const std::vector<dnnl::graph::partition> &partitions,
         std::unordered_set<size_t> &id_to_set_any_layout) {
     // mapping from output tensor id to the all supported flags of
@@ -176,7 +176,7 @@ void record_queried_logical_tensors(
 /// @param alt a deserialized logical tensor to be updated
 /// @param is_input a boolean flag to indicate to search input or output lts
 int find_logical_tensor(size_t lt_id, const graph::op_ref_list_t &ops,
-        graph::deserialized_op &aop, graph::deserialized_lt &alt,
+        graph::deserialized_op_t &aop, graph::deserialized_lt &alt,
         const bool is_input) {
 
     for (const auto &op : ops) {
@@ -245,7 +245,7 @@ int make_input_tensors(std::vector<dnnl::graph::tensor> &input_ts,
         const auto &in = ins[idx];
         const auto &lt_id = in.get_id();
         graph::deserialized_lt lt;
-        graph::deserialized_op op;
+        graph::deserialized_op_t op;
         if (find_logical_tensor(lt_id, ops, op, lt, true) != OK) {
             BENCHDNN_PRINT(0,
                     "FAIL: Cannot find logical tensor with id %zu! \n", lt_id);
@@ -284,7 +284,7 @@ int make_output_tensors(std::vector<dnnl::graph::tensor> &output_ts,
         // find the op id of the output logical tensor
         const auto &out = outs[idx];
         const auto &lt_id = out.get_id();
-        graph::deserialized_op op;
+        graph::deserialized_op_t op;
         graph::deserialized_lt lt;
         if (find_logical_tensor(lt_id, ops, op, lt, false) != OK) {
             BENCHDNN_PRINT(0,
@@ -404,7 +404,7 @@ std::string case_to_str(const std::string &json_file,
 }
 
 void skip_unimplemented_ops(const dnnl::graph::partition &partition,
-        const deserialized_graph &dg, res_t *res) {
+        const deserialized_graph_t &dg, res_t *res) {
     // Unconditionally skip all unimplemented cases for Graph Compiler. They got
     // triggered when `_DNNL_DISABLE_DNNL_BACKEND=1` is utilized.
     // TODO: extend with `getenv` call if limits too much.
@@ -421,7 +421,7 @@ void skip_unimplemented_ops(const dnnl::graph::partition &partition,
     const auto &eng = get_graph_engine();
     bool is_gpu = eng.get_kind() == dnnl::engine::kind::gpu;
     // For an unsupported partition, retrieve all operation IDs, find a
-    // correspondent operation kind in a deserialized_graph and match it against
+    // correspondent operation kind in a deserialized_graph_t and match it against
     // a list of known unsupported ops.
     const std::vector<size_t> &partition_op_ids = partition.get_ops();
     for (const size_t op_id : partition_op_ids) {

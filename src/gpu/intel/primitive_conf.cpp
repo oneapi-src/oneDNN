@@ -474,7 +474,7 @@ void def_memory_desc_info(compute::kernel_ctx_t &kernel_ctx,
         const memory_desc_info_t &md_info, const char *prefix,
         bool with_punning) {
     def_data_type(kernel_ctx, md_info.data_type, prefix, with_punning);
-    kernel_ctx.register_buffer_size(md_info.size);
+    kernel_ctx.register_buffer_size(md_info);
 
     kernel_ctx.define_int(utils::format("%s_OFFSET0", prefix), md_info.offset0);
     kernel_ctx.define_int(utils::format("%s_NDIMS", prefix), md_info.ndims);
