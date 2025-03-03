@@ -75,7 +75,7 @@ jobs:
             header_dir=$(dirname "$file") 
             echo $header_dir
             echo "-------------------------"
-            grep "$header_dir" "build/compile_commands.json"
+            grep "src/cpu/x64" "build/compile_commands.json"
             echo "-------------------------"
             if [[ "$header_dir" =~ ^include || $(grep -q "$header_dir" "build/compile_commands.json") ]]; then
               echo $header_dir
