@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -148,7 +148,7 @@ status_t dnnl_ocl_interop_engine_get_cache_blob_id(
             &platform_name[0], nullptr);
     OCL_CHECK(err);
 
-    sstream.write(platform_name.data(), platform_name.size());
+    sstream.append_array(platform_name.size(), platform_name.data());
 
     // Get device name.
     auto device_name = std::string(device_name_size, '\0');
@@ -156,7 +156,7 @@ status_t dnnl_ocl_interop_engine_get_cache_blob_id(
             device, CL_DEVICE_NAME, device_name_size, &device_name[0], nullptr);
     OCL_CHECK(err);
 
-    sstream.write(device_name.data(), device_name.size());
+    sstream.append_array(device_name.size(), device_name.data());
 
     // Get driver version.
     auto driver_version = std::string(driver_version_size, '\0');
@@ -164,15 +164,15 @@ status_t dnnl_ocl_interop_engine_get_cache_blob_id(
             &driver_version[0], nullptr);
     OCL_CHECK(err);
 
-    sstream.write(driver_version.data(), driver_version.size());
+    sstream.append_array(driver_version.size(), driver_version.data());
 
     // Get oneDNN version.
-    sstream.write(&version->major);
-    sstream.write(&version->minor);
-    sstream.write(&version->patch);
+    sstream.append(version->major);
+    sstream.append(version->minor);
+    sstream.append(version->patch);
 
     // Get oneDNN hash.
-    sstream.write(version->hash, std::strlen(version->hash));
+    sstream.append_array(std::strlen(version->hash), version->hash);
 
     // Not enough buffer space for copying cache blob.
     if (id_size != sstream.get_data().size()) return status::invalid_arguments;

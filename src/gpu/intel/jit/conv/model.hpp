@@ -599,7 +599,7 @@ public:
         return ret;
     }
 
-    void serialize(serialized_data_t &s) const { s.append(buckets_); }
+    void serialize(serialization_stream_t &s) const { s.append(buckets_); }
 
     static histogram_t deserialize(deserializer_t &d) {
         histogram_t h;
@@ -732,7 +732,7 @@ public:
         std::cout << "  Nodes:      " << node_count() << std::endl;
     }
 
-    void serialize(serialized_data_t &s) const {
+    void serialize(serialization_stream_t &s) const {
         s.append(nfeatures_);
         s.append(max_depth_);
         s.append(subsamples_);
@@ -1075,12 +1075,12 @@ public:
     }
 
     int serialized_size() const {
-        serialized_data_t s;
+        serialization_stream_t s;
         serialize(s);
         return (int)s.get_data().size();
     }
 
-    void serialize(serialized_data_t &s) const {
+    void serialize(serialization_stream_t &s) const {
         s.append(learning_rate_);
         s.append(hist_);
         s.append(f0_);

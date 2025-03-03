@@ -960,15 +960,15 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
     return status::success;
 }
 
-serialized_t kernel_desc_t::serialize() const {
+serialization_stream_t kernel_desc_t::serialize() const {
     std::ostringstream oss;
     jit::stringify(oss, *this);
     auto str = oss.str();
-    return serialized_t::from_data(
+    return serialization_stream_t::from_data(
             std::vector<uint8_t>(str.begin(), str.end()));
 }
 
-kernel_desc_t kernel_desc_t::deserialize(const serialized_t &s) {
+kernel_desc_t kernel_desc_t::deserialize(const serialization_stream_t &s) {
     auto &data = s.get_data();
     std::string str(data.begin(), data.end());
     std::istringstream iss(str);

@@ -19,11 +19,11 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "common/serialization.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/kernel.hpp"
 #include "gpu/intel/ocl/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
-#include "gpu/intel/serialization.hpp"
 
 #define OFF6(i0, d0, i1, d1, i2, d2, i3, d3, i4, d4, i5, d5) \
     ((((((i0) * (d1) + (i1)) * (d2) + (i2)) * (d3) + (i3)) * (d4) + (i4)) \
@@ -172,12 +172,12 @@ struct ocl_conf_t {
 #if __cplusplus >= 202002L
     bool operator==(const ocl_conf_t &) const = default;
 #endif
-    serialized_t serialize() const {
-        assert_trivially_serializable(ocl_conf_t);
-        return serialized_t(*this);
+    serialization_stream_t serialize() const {
+        DNNL_ASSERT_TRIVIALLY_SERIALIZABLE(ocl_conf_t);
+        return serialization_stream_t(*this);
     }
 
-    static ocl_conf_t deserialize(const serialized_t &s) {
+    static ocl_conf_t deserialize(const serialization_stream_t &s) {
         ocl_conf_t t {};
         deserializer_t d(s);
         d.pop(t);

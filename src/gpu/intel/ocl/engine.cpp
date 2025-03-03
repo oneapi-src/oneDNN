@@ -418,11 +418,12 @@ status_t engine_t::serialize_device(serialization_stream_t &sstream) const {
             platform_name.size(), platform_name.data(), nullptr);
     OCL_CHECK(err);
 
-    sstream.write(platform_name.data(), platform_name.size());
-    sstream.write(device_info()->name().data(), device_info()->name().size());
-    sstream.write(&device_info()->runtime_version().major);
-    sstream.write(&device_info()->runtime_version().minor);
-    sstream.write(&device_info()->runtime_version().build);
+    sstream.append_array(platform_name.size(), platform_name.data());
+    sstream.append_array(
+            device_info()->name().size(), device_info()->name().data());
+    sstream.append(device_info()->runtime_version().major);
+    sstream.append(device_info()->runtime_version().minor);
+    sstream.append(device_info()->runtime_version().build);
 
     return status::success;
 }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/primitive.hpp"
+#include "common/serialization.hpp"
 #include "gpu/gpu_eltwise_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/serialization.hpp"
 
 namespace dnnl {
 namespace impl {

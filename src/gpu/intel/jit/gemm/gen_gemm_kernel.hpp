@@ -71,7 +71,9 @@ struct gen_gemm_kernel_desc_t {
     status_t create_generator(const compute::compute_engine_t &engine,
             compute::kernel_t &kernel) const;
 
-    serialized_t serialize() const { return serialized_t(problem_, strategy_); }
+    serialization_stream_t serialize() const {
+        return serialization_stream_t(problem_, strategy_);
+    }
     compute::gpu_arch_t arch() const { return arch_; }
 
     const kcatalog::Entry &entry() const {
