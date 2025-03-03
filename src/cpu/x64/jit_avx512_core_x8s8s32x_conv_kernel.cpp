@@ -1771,9 +1771,11 @@ status_t jit_avx512_core_x8s8s32x_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
 void jit_avx512_core_x8s8s32x_fwd_kernel::init_scratchpad(
         memory_tracking::registrar_t &scratchpad, const jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
-    const int wei_mask = attr.scales_.get_mask(DNNL_ARG_WEIGHTS);
-    const dim_t scales_count = wei_mask == 0 ? 1 : jcp.oc * jcp.ngroups;
-    dim_t count = wei_mask == 0 ? (dim_t)16 : scales_count;
+    dim_t count = 16;
+    if (!attr.scales_.has_default_values(DNNL_ARG_WEIGHTS)) {
+        const int wei_mask = attr.scales_.get_mask(DNNL_ARG_WEIGHTS);
+        if (wei_mask > 0) count = jcp.oc * jcp.ngroups;
+    }
     scratchpad.book<float>(key_conv_adjusted_scales, count);
 }
 
