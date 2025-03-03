@@ -160,6 +160,7 @@ status_t sycl_interop_gpu_kernel_t::parallel_for(impl::stream_t &stream,
                 set_scalar_arg(cgh, (int)i, arg.scalar_type(), arg.value());
             }
         }
+        check_global_range(range.global_range());
         if (range.local_range()) {
             auto sycl_nd_range = gpu::intel::sycl::to_sycl_nd_range(range);
             cgh.parallel_for(sycl_nd_range, *sycl_kernel_);
