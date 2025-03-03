@@ -38,7 +38,7 @@ extern "C" {
 /// @addtogroup dnnl_api_primitives_common
 /// @{
 
-///a Changes the primitive descriptor to point to the next available
+/// Changes the primitive descriptor to point to the next available
 /// implementation.
 ///
 /// @param primitive_desc A primitive descriptor to change.
