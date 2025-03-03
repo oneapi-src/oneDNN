@@ -53,7 +53,6 @@ jobs:
           ONEDNN_ACTION: configure
 
       - name: Check source files
-        continue-on-error: true
         run: |
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(c|cpp)$'); 
           do
@@ -65,9 +64,10 @@ jobs:
           done
           grep -i "warning:" source-check.log | sort -u
           grep -q -i "warning:" source-check.log && exit 1 || true
+          return 1
 
       - name: Check header files
-        continue-on-error: true
+        if: always()
         run: |
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(h|hpp)$'); 
           do
