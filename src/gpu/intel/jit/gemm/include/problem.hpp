@@ -265,7 +265,7 @@ struct GEMMProblem : public CommonProblem {
     std::string scalarsToString() const;
 
     /* Serialization for kernel cache. */
-    void serialize(serialized_data_t &s) const
+    void serialize(serialization_stream_t &s) const
     {
         s.append(Ta, Tb, Tc, Ts);
         s.append(Ta_ext, Tb_ext, Tc_ext);

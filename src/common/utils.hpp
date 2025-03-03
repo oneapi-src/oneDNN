@@ -111,6 +111,14 @@ struct enable_if<true, T> {
     using type = T;
 };
 
+// Replacement implementation of std::enable_if_t from C++14, included here for
+// interoperability with C++11
+template <bool B, class T = void>
+using enable_if_t = typename enable_if<B, T>::type;
+
+template <typename T>
+using is_vector = std::is_same<T, typename std::vector<typename T::value_type>>;
+
 /* analogue std::conditional */
 template <bool, typename, typename>
 struct conditional {}; // NOLINT(readability-identifier-naming)

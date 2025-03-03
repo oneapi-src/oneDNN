@@ -22,9 +22,9 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "common/serialization.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/kernel_arg_list.hpp"
-#include "gpu/intel/serialization.hpp"
 #include "gpu/intel/utils.hpp"
 
 namespace dnnl {
@@ -44,7 +44,7 @@ public:
 
     bool operator!=(const stride_t &other) const { return !operator==(other); }
 
-    size_t get_hash() const { return serialized_t::get_hash(*this); }
+    size_t get_hash() const { return serialization_stream_t::get_hash(*this); }
 
     operator dim_t() const {
         assert(is_fixed());
@@ -103,7 +103,7 @@ struct scalar_type_traits_t<stride_t> {
     static const auto type = scalar_type_t::_long;
 };
 } // namespace compute
-assert_trivially_serializable(stride_t);
+DNNL_ASSERT_TRIVIALLY_SERIALIZABLE(stride_t);
 
 inline stride_t operator*(const stride_t &a, const stride_t &b) {
     stride_t tmp = a;
@@ -143,7 +143,7 @@ struct block_t {
 #endif
     bool operator!=(const block_t &other) const { return !(*this == other); }
 
-    size_t get_hash() const { return serialized_t::get_hash(*this); }
+    size_t get_hash() const { return serialization_stream_t::get_hash(*this); }
 
     std::string str() const {
         std::ostringstream oss;
@@ -161,7 +161,7 @@ struct block_t {
     dim_t block = 1; // Block size.
     stride_t stride; // Stride between elements of the block.
 };
-assert_trivially_serializable(block_t);
+DNNL_ASSERT_TRIVIALLY_SERIALIZABLE(block_t);
 
 // Static-sized layout of blocks
 struct block_layout_t {
@@ -235,7 +235,7 @@ struct block_layout_t {
     const block_t &operator[](size_t idx) const { return blocks[idx]; }
 
     void append(const block_t &block) { blocks[num_blocks++] = block; }
-    size_t get_hash() const { return serialized_t::get_hash(*this); }
+    size_t get_hash() const { return serialization_stream_t::get_hash(*this); }
 
     block_t &operator[](size_t idx) {
         assert(idx < num_blocks);

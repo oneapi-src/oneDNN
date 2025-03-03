@@ -28,7 +28,7 @@
 // dependency between headers when it comes to inclusion of opdesc.hpp which
 // sdpa_desc_t is a part of.
 
-#include "common/serialization_stream.hpp"
+#include "common/serialization.hpp"
 #include "common/utils.hpp"
 
 #include <algorithm>

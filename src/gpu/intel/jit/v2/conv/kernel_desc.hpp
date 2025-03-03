@@ -364,8 +364,8 @@ public:
             compute::kernel_t &kernel) const;
     status_t init_primitive_plan(primitive_init_plan_t &plan,
             const problem_t &prb, convolution_pd_t *pd) const;
-    serialized_t serialize() const override;
-    static kernel_desc_t deserialize(const serialized_t &s);
+    serialization_stream_t serialize() const override;
+    static kernel_desc_t deserialize(const serialization_stream_t &s);
     static void show_help();
 };
 

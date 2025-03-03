@@ -14,13 +14,13 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "common/serialization.hpp"
+#include "common/primitive_serialization.hpp"
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
 namespace dnnl {
 namespace impl {
-namespace serialization {
+namespace primitive_serialization {
 
 status_t serialize_desc(
         serialization_stream_t &sstream, const op_desc_t *op_desc) {
@@ -603,6 +603,6 @@ void serialize_desc(serialization_stream_t &sstream, const sdpa_desc_t &desc) {
     sstream.write(&desc.causal_mask);
 }
 
-} // namespace serialization
+} // namespace primitive_serialization
 } // namespace impl
 } // namespace dnnl
