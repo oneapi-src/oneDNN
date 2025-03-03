@@ -18,10 +18,10 @@
 #define GPU_INTEL_OCL_GEMM_XE_SYSTOLIC_GEMM_COPY_KERNEL_HPP
 
 #include "common/c_types_map.hpp"
+#include "common/serialization.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/compute/kernel.hpp"
-#include "gpu/intel/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -123,9 +123,12 @@ struct xe_systolic_gemm_copy_kernel_t {
     bool operator==(const xe_systolic_gemm_copy_kernel_t &) const = default;
 #endif
 
-    serialized_t serialize() const { return serialized_t(*this); }
+    serialization_stream_t serialize() const {
+        return serialization_stream_t(*this);
+    }
 
-    static xe_systolic_gemm_copy_kernel_t deserialize(const serialized_t &s) {
+    static xe_systolic_gemm_copy_kernel_t deserialize(
+            const serialization_stream_t &s) {
         xe_systolic_gemm_copy_kernel_t t {};
         deserializer_t d(s);
         d.pop(t);

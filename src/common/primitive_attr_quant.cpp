@@ -38,10 +38,9 @@ size_t quant_entry_t::get_hash() const {
 }
 
 void quant_entry_t::serialize(serialization_stream_t &sstream) const {
-    sstream.write(&mask_);
-    sstream.write(&data_type_);
-    sstream.write(&group_ndims_);
-    if (group_ndims_ > 0) sstream.write(group_dims_, group_ndims_);
+    sstream.append(mask_);
+    sstream.append(data_type_);
+    sstream.append_array(group_ndims_, group_dims_);
 }
 
 std::string quant_entry_t::get_verbose() const {
@@ -74,8 +73,8 @@ size_t quant_entries_t::get_hash() const {
 
 void quant_entries_t::serialize(serialization_stream_t &sstream) const {
     for (const auto &e : entries_) {
-        sstream.write(&e.first);
-        e.second.serialize(sstream);
+        sstream.append(e.first);
+        sstream.append(e.second);
     }
 }
 

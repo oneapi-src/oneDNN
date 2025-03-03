@@ -26,7 +26,7 @@
 #include "gpu/intel/gpu_post_ops.hpp"
 #include "gpu/intel/jit/generator.hpp"
 #include "gpu/intel/jit/post_op_injector.hpp"
-#include "gpu/intel/serialization.hpp"
+#include "common/serialization.hpp"
 
 #include <array>
 #include <bitset>

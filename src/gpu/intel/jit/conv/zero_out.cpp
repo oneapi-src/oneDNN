@@ -69,12 +69,12 @@ status_t zero_out_kernel_desc_t::create_generator(
     return engine.create_kernel(&kernel, &ir_gen);
 }
 
-serialized_t zero_out_kernel_desc_t::serialize() const {
-    return serialized_t(regs_, simd_, dpas_);
+serialization_stream_t zero_out_kernel_desc_t::serialize() const {
+    return serialization_stream_t(regs_, simd_, dpas_);
 }
 
 zero_out_kernel_desc_t zero_out_kernel_desc_t::deserialize(
-        const serialized_t &s) {
+        const serialization_stream_t &s) {
     zero_out_kernel_desc_t desc;
     deserializer_t d(s);
     d.pop(desc.regs_);

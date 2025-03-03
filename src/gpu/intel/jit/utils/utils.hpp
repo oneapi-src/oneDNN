@@ -29,10 +29,10 @@
 #include <unordered_set>
 
 #include "common/math_utils.hpp"
+#include "common/serialization.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/logging.hpp"
-#include "gpu/intel/serialization.hpp"
 #include "gpu/intel/utils.hpp"
 #include "ngen.hpp"
 
@@ -1216,14 +1216,14 @@ inline std::vector<uint8_t> hex_to_data(const std::string &s_hex) {
 
 template <typename T>
 std::string serialize_to_hex(const T &t) {
-    serialized_data_t s;
+    serialization_stream_t s;
     s.append(t);
     return data_to_hex(s.get_data());
 }
 
 template <typename T>
 void deserialize_from_hex(T &t, const std::string &s_hex) {
-    auto s = serialized_t::from_data(hex_to_data(s_hex));
+    auto s = serialization_stream_t::from_data(hex_to_data(s_hex));
     deserializer_t d(s);
     d.pop(t);
 }
