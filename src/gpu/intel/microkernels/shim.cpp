@@ -450,6 +450,8 @@ std::string generateShim(const Package &package, HostLanguage language,
 
     /* Tie arguments to physical registers */
     int gwidth = grfWidth(package.gmdidCompat);
+    std::vector<std::string> copyNames(vargs.size());
+
     for (int i = 0; i < int(vargs.size()); i++) {
         auto &range = vargs[i].location;
         auto goffset = range.boffset % gwidth;
@@ -460,14 +462,17 @@ std::string generateShim(const Package &package, HostLanguage language,
                     "Microkernel tensor argument misaligned in registers");
 
         if (vargs[i].copy) {
-            shim << "            \".decl COPY" << i << " v_type=G type="
-                 << typeName(vargs[i].type, HostLanguage::vISA) << " num_elts="
-                 << (vargs[i].location.blen / typeSize(vargs[i].type))
+            copyNames[i] = "COPY" + std::to_string(i) + '_'
+                    + std::to_string(range.boffset) + '_'
+                    + std::to_string(range.blen);
+            shim << "            \".decl " << copyNames[i] << " v_type=G type="
+                 << typeName(vargs[i].type, HostLanguage::vISA)
+                 << " num_elts=" << (range.blen / typeSize(vargs[i].type))
                  << "\\n\"\n";
-        }
+        } else
+            copyNames[i] = '%' + std::to_string(i);
 
-        shim << "            \".implicit_PSEUDO_INPUT "
-             << (vargs[i].copy ? "COPY" : "%") << i
+        shim << "            \".implicit_PSEUDO_INPUT " << copyNames[i]
              << " offset=" << range.boffset << " size=" << range.blen
              << "\\n\"\n";
     }
@@ -483,7 +488,18 @@ std::string generateShim(const Package &package, HostLanguage language,
     if (anyCopyIn) shim << "            \"fence_sw\\n\"\n";
 
     /* Copy inputs as needed */
-    auto copyArg = [&](int i, const char *from, const char *to) {
+    enum CopyArgType { Argument, Copy, Null };
+
+    auto copyArgName = [&](CopyArgType type, int i) {
+        switch (type) {
+            case Argument: return '%' + std::to_string(i);
+            case Copy: return copyNames[i];
+            case Null: return std::string("V0");
+            default: throw std::runtime_error("Invalid argument class");
+        }
+    };
+
+    auto copyArg = [&](int i, CopyArgType from, CopyArgType to) {
         int remaining = vargs[i].location.blen;
         int tsize = typeSize(vargs[i].type);
         int offset = 0;
@@ -493,19 +509,16 @@ std::string generateShim(const Package &package, HostLanguage language,
             chunk = esize * tsize;
             int r = offset / gwidth;
             int c = (offset % gwidth) / tsize;
-            shim << "            \"mov (M1_NM, " << esize << ") ";
-            if (to)
-                shim << to << i;
-            else
-                shim << "V0";
-            shim << '(' << r << ',' << c << ")<1> " << from << i << '(' << r
-                 << ',' << c << ")<1;1,0>\\n\"\n";
+            shim << "            \"mov (M1_NM, " << esize << ") "
+                 << copyArgName(to, i) << '(' << r << ',' << c << ")<1> "
+                 << copyArgName(from, i) << '(' << r << ',' << c
+                 << ")<1;1,0>\\n\"\n";
             offset += chunk;
         }
     };
 
     for (int i = 0; i < int(vargs.size()); i++)
-        if (vargs[i].copy && vargs[i].in) copyArg(i, "%", "COPY");
+        if (vargs[i].copy && vargs[i].in) copyArg(i, Argument, Copy);
 
     /* Wrangle clobber regions. */
     struct clobber_t {
@@ -578,7 +591,8 @@ std::string generateShim(const Package &package, HostLanguage language,
 
                 clobber_t clobber;
                 clobber.location = RegisterRange(offset, chunk);
-                clobber.name = "CLOBBER" + std::to_string(clobbers.size());
+                clobber.name = "CLOBBER" + std::to_string(clobbers.size()) + '_'
+                        + std::to_string(offset) + '_' + std::to_string(chunk);
                 clobber.arg = false;
                 clobbers.push_back(std::move(clobber));
 
@@ -609,15 +623,17 @@ std::string generateShim(const Package &package, HostLanguage language,
     }
 
     /* Mark beginning of patch region */
+    const auto &clobber0Name = clobbers[0].name;
     shim << "            \"fence_sw\\n\"\n"
-            "            \"add (M1,1) CLOBBER0(0,0)<1> CLOBBER0(0,0)<0;1,0> 0x"
+            "            \"add (M1,1) "
+         << clobber0Name << "(0,0)<1> " << clobber0Name << "(0,0)<0;1,0> 0x"
          << std::hex << (sigilStart ^ options.microkernelID) << std::dec
          << ":ud\\n\"\n"
             "            \"fence_sw\\n\"\n";
 
     /* Use inputs to ensure vISA considers their values live */
     for (int i = 0; i < int(vargs.size()); i++)
-        if (vargs[i].in) copyArg(i, vargs[i].copy ? "COPY" : "%", nullptr);
+        if (vargs[i].in) copyArg(i, vargs[i].copy ? Copy : Argument, Null);
 
     /* Overwrite clobbers to ensure vISA considers their ranges live */
     for (int i = 0; i < int(clobbers.size()); i++) {
@@ -676,14 +692,15 @@ std::string generateShim(const Package &package, HostLanguage language,
 
     /* Mark end of patch region */
     shim << "            \"fence_sw\\n\"\n"
-            "            \"add (M1,1) CLOBBER0(0,0)<1> CLOBBER0(0,0)<0;1,0> 0x"
+            "            \"add (M1,1) "
+         << clobber0Name << "(0,0)<1> " << clobber0Name << "(0,0)<0;1,0> 0x"
          << std::hex << (sigilEnd ^ options.microkernelID) << std::dec
          << ":ud\\n\"\n"
             "            \"fence_sw\\n\"\n";
 
     /* Copy output arguments as needed */
     for (int i = 0; i < int(vargs.size()); i++)
-        if (vargs[i].copy && vargs[i].out) copyArg(i, "COPY", "%");
+        if (vargs[i].copy && vargs[i].out) copyArg(i, Copy, Argument);
 
     /* Protect output copies from preceding code */
     if (anyCopyOut) shim << "            \"fence_sw\\n\"\n";
