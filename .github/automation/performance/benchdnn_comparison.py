@@ -22,6 +22,7 @@ import os
 from collections import defaultdict
 from scipy.stats import ttest_ind
 import warnings
+import statistics
 
 
 def compare_two_benchdnn(file1, file2, tolerance=0.05):
@@ -53,18 +54,23 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
 
     passed = True
     failed_tests = []
+    times = {}
     for prb, r1_times in r1_samples.items():
         if prb not in r2_samples:
             warnings.warn(f"{prb} exists in {file1} but not {file2}")
+            continue
+
         r2_times = r2_samples[prb]
 
         res = ttest_ind(r2_times, r1_times, alternative='greater')
+        times[prb] = (statistics.median(r1_times), statistics.median(r2_times))
+        times_str = f" {times[prb][0]} vs {times[prb][1]}"
 
         if res.pvalue < 0.05:
-            failed_tests.append(prb)
+            failed_tests.append(prb + times_str)
             passed = False
 
-        print(prb + (" passed" if passed else " failed"))
+        print(prb + (" passed" if passed else " failed") + times_str)
 
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:

@@ -16,18 +16,18 @@
 # *******************************************************************************
 
 --reset
---sdt=f32,bf16
---ddt=f32,bf16
---attr-scales=src:per_dim_1
---stag=ab
+--sdt=f32
+--ddt=f32
 --allow-enum-tags-only=0
---dtag=Ba4b,Ba8b
+--stag=ba
+--dtag=Ab4a,Ab8a
 384x384
 
 --reset
 --sdt=f32
 --ddt=bf16
 --allow-enum-tags-only=0
+--stag=ba
 --dtag=BA8b4a,BA4b4a
 384x384
 
