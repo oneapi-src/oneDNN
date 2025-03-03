@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -126,13 +126,16 @@ namespace testing {
 class threadpool_t : public dnnl::threadpool_interop::threadpool_iface {
 private:
     std::unique_ptr<EigenThreadPool> tp_;
+    std::unique_ptr<Eigen::ThreadPoolDevice> device_;
     std::unique_ptr<ParallelLoopRunner> runner_;
 
 public:
     explicit threadpool_t(int num_threads = 0) {
         if (num_threads <= 0) num_threads = read_num_threads_from_env();
         tp_.reset(new EigenThreadPool(num_threads));
-        runner_.reset(new ParallelLoopRunner(new Eigen::ThreadPoolDevice(tp_.get(), tp_->NumThreads())));
+        device_.reset(
+                new Eigen::ThreadPoolDevice(tp_.get(), tp_->NumThreads()));
+        runner_.reset(new ParallelLoopRunner(device_.get()));
     }
     int get_num_threads() const override { return runner_->num_threads(); }
     bool get_in_parallel() const override { return runner_->is_in_runner(); }
