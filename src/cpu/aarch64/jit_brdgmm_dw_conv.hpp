@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,7 +42,7 @@ struct brdgmm_dw_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine);
         jit_brdgmm_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
-        std::vector<brgemm_t> bcps_;
+        std::vector<brgemm_desc_t> bcps_;
         std::vector<brgemm_batch_element_t> batches_;
         std::vector<int> bs_;
         size_t buffer_size_ = 0;

@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -100,7 +101,7 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init(engine_t *engine) {
         auto vK = (i_K) ? jcp_.K_tail : jcp_.K;
         const auto brg_idx = get_brg_idx(i_init, i_M, i_N, i_K);
         if (vM == 0 || vN == 0 || vK == 0) continue;
-        brgemm_t brg;
+        brgemm_desc_t brg;
         brgemm_strides_t brg_strides;
         brg_strides.stride_a = jcp_.brg_stride_a;
         brg_strides.stride_b = jcp_.brg_stride_b;

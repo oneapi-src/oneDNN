@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ struct brgemm_kernel_diff_bias_t {
 
 struct jit_brgemm_kernel_diff_bias_t : public jit_generator {
     jit_brgemm_kernel_diff_bias_t(
-            const jit_brgemm_primitive_conf_t &ajbgp, const brgemm_t &abrg)
+            const jit_brgemm_primitive_conf_t &ajbgp, const brgemm_desc_t &abrg)
         : brg_(abrg)
         , ddst_dt_(ajbgp.dst_dt)
         , bia_dt_(ajbgp.bia_dt)
@@ -68,7 +68,7 @@ struct jit_brgemm_kernel_diff_bias_t : public jit_generator {
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_diff_bias_t)
 
 private:
-    brgemm_t brg_;
+    brgemm_desc_t brg_;
     data_type_t ddst_dt_;
     data_type_t bia_dt_;
     data_type_t acc_dt_;
@@ -285,7 +285,7 @@ template <cpu_isa_t isa>
 struct jit_brgemm_kernel_post_ops : public jit_generator {
 
     jit_brgemm_kernel_post_ops(const jit_brgemm_conv_conf_t &ajcp,
-            const brgemm_t &abrg, const primitive_attr_t &aattr)
+            const brgemm_desc_t &abrg, const primitive_attr_t &aattr)
         : brg(abrg)
         , jcp(ajcp)
         , attr(aattr)
@@ -341,7 +341,7 @@ struct jit_brgemm_kernel_post_ops : public jit_generator {
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_kernel_post_ops)
 
-    brgemm_t brg;
+    brgemm_desc_t brg;
     jit_brgemm_conv_conf_t jcp;
     const primitive_attr_t &attr;
 

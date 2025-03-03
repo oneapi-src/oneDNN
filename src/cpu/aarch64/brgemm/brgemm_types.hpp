@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
 * Copyright 2023 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -183,7 +184,7 @@ struct DNNL_API brgemm_attr_t {
     const brgemm_batch_element_t *static_offsets;
 };
 
-struct brgemm_t {
+struct brgemm_desc_t {
     // Note: new added parameters must be taken into account in the brgemm
     // comparison function
     int bcast_dim = 0; // M;
@@ -289,10 +290,20 @@ struct brgemm_t {
         return sz;
     }
 
-    bool is_b_data_layout_vnni() { return true; }
+    bool is_b_data_layout_vnni() const { return false; }
 
-    bool operator==(const brgemm_t &rhs) const;
-    bool operator<(const brgemm_t &rhs) const;
+    bool are_post_ops_applicable() const {
+        // todo add post ops support
+        return false;
+        // const bool has_zero_points = !utils::everyone_is(
+        //         brgemm_broadcast_t::none, zp_type_a, zp_type_b, zp_type_c);
+        // return dt_c != dt_d || with_eltwise || with_binary || with_scales
+        //         || with_bias || with_sum || req_s8s8_compensation
+        //         || has_zero_points || with_dst_scales;
+    }
+
+    bool operator==(const brgemm_desc_t &rhs) const;
+    bool operator<(const brgemm_desc_t &rhs) const;
 };
 
 struct brgemm_kernel_params_t {
@@ -348,7 +359,7 @@ struct brgemm_kernel_t {
 };
 
 struct brgemm_kernel_common_t : public brgemm_kernel_t {
-    brgemm_kernel_common_t(const brgemm_t abrd);
+    brgemm_kernel_common_t(const brgemm_desc_t abrd);
     ~brgemm_kernel_common_t();
 
     status_t create_kernel();
@@ -362,7 +373,7 @@ private:
 };
 
 struct brdgmm_kernel_t : public brgemm_kernel_t {
-    brdgmm_kernel_t(const brgemm_t abrd);
+    brdgmm_kernel_t(const brgemm_desc_t abrd);
     ~brdgmm_kernel_t();
 
     status_t create_kernel();
@@ -377,7 +388,7 @@ private:
 
 /// @param bias Vector of bias (vector length is N)
 /// @param scales - Vector of scale factor values which represents combination
-///     scale factors for matrixes A and B. If brgemm_t::is_oc_scale = true
+///     scale factors for matrixes A and B. If brgemm_desc_t::is_oc_scale = true
 ///     vector length is N otherwise it must be broadcasted to vector of simd
 ///     width length
 /// @param binary_post_ops_rhs - Ptr to table of pointers to tensors used as rhs

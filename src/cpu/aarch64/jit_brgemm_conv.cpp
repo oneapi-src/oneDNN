@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,7 +166,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
                                  : vM;
     auto brg_idx
             = get_brg_idx(vM - 1, i_init, i_N, i_K, kd_b, kd_e, kh_b, kh_e);
-    // if brgemm_t already created then skip this iteration
+    // if brgemm_desc_t already created then skip this iteration
     if ((*brgemm_descriptors_)[brg_idx] != nullptr) return status::success;
     if (vN == 0 || vK == 0) return status::success;
 
@@ -240,7 +241,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::add_brg_descriptor(
     const auto kh_l = nstl::min(KH_BLOCK, kh_e - kh_b);
     const auto bs = kd_l * kh_l * jcp_.kw;
 
-    brgemm_t brg;
+    brgemm_desc_t brg;
     brgattr.bd_mask = bd_mask.data();
     brgattr.static_offsets = stoffs.data();
     brgemm_strides_t brg_strides;
@@ -625,7 +626,7 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_brg_kernel(int M,
 
 template <cpu_isa_t isa, bool use_inversion>
 status_t brgemm_convolution_fwd_t<isa, use_inversion>::add_po_kernel(
-        brgemm_t *bcfg, int ker_idx, bool is_init) {
+        brgemm_desc_t *bcfg, int ker_idx, bool is_init) {
     if (!bcfg) return status::success;
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;

@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2023-2024 FUJITSU LIMITED
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -981,6 +981,93 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             = bgmmc.use_buffer_c && bgmmc.nthr_k <= 1 ? bgmmc.N_blk : bgmmc.LDD;
 
     init_aux_values(bgmmc, src_d, weights_d, dst_d);
+
+    return status::success;
+}
+
+status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t M, dim_t K,
+        dim_t N, dim_t in_ld, dim_t n_blk, data_type_t in_type,
+        data_type_t out_type, format_tag_t in_tag) {
+    if (n_blk <= 0 && M <= 0) return status::invalid_arguments;
+
+    const auto vnni_granularity = data_type_vnni_granularity(out_type);
+    if (vnni_granularity <= 0) return status::invalid_arguments;
+
+    // Zero initialize the `conf` to avoid access to 'garbage' in members.
+    conf = brgemm_matmul_conf_t();
+
+    const bool with_wei_decompression = in_type != out_type
+            && utils::one_of(in_type, data_type::s8, data_type::u8,
+                    data_type::s4, data_type::u4);
+
+    const bool is_copyB = N > 0;
+    conf.isa = get_max_cpu_isa(); // Just use the best ISA possible.
+    conf.is_bf32 = false;
+    conf.batch = batch;
+    conf.src_dt = conf.wei_dt = out_type;
+    //conf.orig_src_dt = conf.orig_wei_dt = in_type;
+    // Note: will need to change `tr_a_dt_sz` for copyA in cases where src_dt != dst_dt
+    conf.a_dt_sz = conf.tr_a_dt_sz = types::data_type_size(conf.src_dt);
+    conf.N = N;
+    conf.M = M;
+    conf.K = K;
+    const dim_t copyA_K_blk = isa_num_vregs(conf.isa) / 2;
+    const dim_t copyB_K_blk = 16 * vnni_granularity;
+    conf.K_blk = is_copyB ? copyB_K_blk : copyA_K_blk;
+    conf.K_tail = conf.K % conf.K_blk;
+    if (!is_copyB) {
+        // Note: current implementation always calls the transposed kernel.
+        conf.transposed_A = true;
+        conf.M_blk = (dim_t)isa_max_vlen(conf.isa) / conf.a_dt_sz;
+        conf.M_tail = conf.M % conf.M_blk;
+        conf.copy_A_src_stride = in_ld * conf.a_dt_sz;
+        // setting LDA parameter required for plain transpose
+        conf.LDA = conf.K;
+
+        // jit_brgemm_matmul_copy_a_tranposed_impl_t::dst_stride
+        dim_t dst_stride = conf.LDA * conf.tr_a_dt_sz;
+
+        dim_t max_src_encode_stride = conf.K_blk * conf.copy_A_src_stride;
+        dim_t max_dst_encode_stride = conf.M_blk * dst_stride;
+
+        // Cannot encode EVEX compressed addresses
+        VCONDCHECK_BG(std::max(max_src_encode_stride, max_dst_encode_stride)
+                        <= std::numeric_limits<int32_t>::max(),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
+
+    } else {
+        conf.blocked_B = !utils::one_of(in_tag, ab, ba, abc, acb);
+        conf.transposed_B = utils::one_of(in_tag, ba, acb);
+        conf.with_wei_decompression = with_wei_decompression;
+        conf.wei_tag = in_tag;
+        conf.wei_n_blk = conf.N_blk = conf.LDB = n_blk;
+        conf.N_tail = conf.N % conf.N_blk;
+        conf.b_dt_sz = types::data_type_size(in_type);
+        conf.tr_b_dt_sz = types::data_type_size(conf.wei_dt);
+        conf.copy_B_wei_stride = in_ld * conf.b_dt_sz;
+        conf.N_chunk_elems = conf.N; // To match seems unneeded assert.
+        conf.s8s8_comp_b_str = utils::rnd_up(conf.N, conf.wei_n_blk);
+        conf.s8s8_comp_n_str = conf.wei_n_blk;
+
+        dim_t max_wei_encode_off = conf.K_blk * conf.copy_B_wei_stride
+                + conf.wei_n_blk * conf.b_dt_sz;
+        dim_t max_dst_encode_off
+                = (conf.K_blk * conf.LDB + conf.wei_n_blk) * conf.tr_b_dt_sz;
+
+        // Cannot encode EVEX compressed addresses
+        VCONDCHECK_BG(std::max(max_wei_encode_off, max_dst_encode_off)
+                        <= std::numeric_limits<int32_t>::max(),
+                VERBOSE_UNSUPPORTED_MEM_STRIDE);
+    }
+
+    // The following members are different from the upper level `init_conf()`
+    // call from the reorder implementation due to lacking a memory descriptor
+    // to tip on compensation.
+    // TODO: re-consider an interface change to enable these members.
+    conf.s8s8_compensation_required = false;
+    conf.src_zp_type = brgemm_broadcast_t::none;
+    conf.has_zero_point_a = false;
+    conf.has_zero_point_b = false;
 
     return status::success;
 }
