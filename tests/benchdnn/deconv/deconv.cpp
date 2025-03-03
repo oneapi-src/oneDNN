@@ -345,11 +345,14 @@ void skip_unimplemented_prb(const prb_t *prb, res_t *res) {
             prb->attr, res, dnnl_deconvolution, prb->get_dt(SRC));
     skip_unimplemented_prelu_po(prb->attr, res, dnnl_deconvolution);
 
-    // GPU supports only post ops and all but x8s8bf16 cfg
+    // GPU supports only post ops and all but x8s8bf16 and f32xf16f32 cfg
     if (is_gpu()) {
         const bool is_x8s8bf16_cfg
                 = prb->get_dt(WEI) == dnnl_s8 && prb->get_dt(DST) == dnnl_bf16;
-        const bool fwd_ok = !is_x8s8bf16_cfg;
+        const bool is_f32xf16_cfg = (prb->get_dt(WEI) == dnnl_f16
+                                            || prb->get_dt(WEI) == dnnl_bf16)
+                && prb->get_dt(SRC) == dnnl_f32;
+        const bool fwd_ok = !(is_x8s8bf16_cfg || is_f32xf16_cfg);
         if (!fwd_ok) {
             res->state = SKIPPED;
             res->reason = skip_reason::case_not_supported;
