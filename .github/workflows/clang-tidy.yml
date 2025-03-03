@@ -74,10 +74,7 @@ jobs:
             echo $file
             header_dir=$(dirname "$file") 
             echo $header_dir
-            echo "-------------------------"
-            grep "src/cpu/x64" "build/compile_commands.json"
-            echo "-------------------------"
-            if [[ "$header_dir" =~ ^include || $(grep -q "$header_dir" "build/compile_commands.json") ]]; then
+            if [[ "$header_dir" =~ ^include ]] || grep -q "$header_dir" "build/compile_commands.json"; then
               echo $header_dir
               clang-tidy -p build --header-filter='' $file | tee headers-check.log
             fi
