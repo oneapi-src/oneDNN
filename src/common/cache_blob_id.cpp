@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@
 #include "common/dnnl_thread.hpp"
 #include "common/engine.hpp"
 #include "common/primitive_desc.hpp"
+#include "common/primitive_serialization.hpp"
 #include "common/serialization.hpp"
-#include "common/serialization_stream.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -44,8 +44,8 @@ const std::vector<uint8_t> &cache_blob_id_t::get(
             && engine->runtime_kind() == runtime_kind::ocl);
 
     const auto init_id = [&]() {
-        serialization::serialize_desc(sstream_, pd->op_desc());
-        serialization::serialize_attr(sstream_, *pd->attr());
+        primitive_serialization::serialize_desc(sstream_, pd->op_desc());
+        primitive_serialization::serialize_attr(sstream_, *pd->attr());
 
         const int nthr = engine->kind() == engine_kind::gpu
                 ? 0
@@ -53,7 +53,7 @@ const std::vector<uint8_t> &cache_blob_id_t::get(
         sstream_.write(&nthr);
 
         for (const auto &md : pd->hint_mds(false /* is_hint */)) {
-            serialization::serialize_md(sstream_, md);
+            primitive_serialization::serialize_md(sstream_, md);
         }
 
         sstream_.write(&engine_kind);

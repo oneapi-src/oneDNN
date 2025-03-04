@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "common/serialization.hpp"
 #include "gpu/intel/block_structure.hpp"
 #include "gpu/intel/compute/block_manipulation.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
@@ -31,7 +32,6 @@
 #include "gpu/intel/compute/kernel_ctx.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/types_interop.h"
-#include "gpu/intel/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -260,7 +260,7 @@ struct dispatch_compile_params_t {
     uint64_t buffer_num_terms[MAX_REGISTERED_BUFFERS] = {0};
     data_type_t buffer_types[MAX_REGISTERED_BUFFERS] = {data_type::undef};
 };
-assert_trivially_serializable(dispatch_compile_params_t);
+DNNL_ASSERT_TRIVIALLY_SERIALIZABLE(dispatch_compile_params_t);
 
 class dispatch_runtime_params_t {
 public:
