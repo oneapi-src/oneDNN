@@ -573,8 +573,8 @@ public:
         compute::range_t gws = compute::range_t::empty();
         compute::range_t lws = compute::range_t::empty();
         for (int i = 0; i < into<int>(compute::range_t::max_ndims); i++) {
-            lws[i] = thread_group_grid().dim(i) * (i == 0 ? simd() : 1);
-            gws[i] = kernel_grid().dim(i) * lws[i];
+            lws[i] = thread_grid().dim(i) * (i == 0 ? simd() : 1);
+            gws[i] = thread_group_grid().dim(i) * lws[i];
         }
         return compute::nd_range_t(gws, lws);
     }
@@ -672,14 +672,14 @@ tensor_config_t get_tensor_config(
 bool is_small(const type_t &type, dim_t elems);
 int estimate_register_count(const conv_config_t &cfg);
 int default_regs(const conv_config_t &cfg);
-void init_kernel_grid(conv_config_t &cfg);
-void init_walk_order(conv_config_t &cfg);
 void init_thread_group_grid(conv_config_t &cfg);
+void init_walk_order(conv_config_t &cfg);
+void init_thread_grid(conv_config_t &cfg);
 void prepare_zp_precompute_conv(const conv_problem_t &prb, dim_t *idhw,
         dim_t *odhw, dim_t *pdhw, dim_t *ddhw);
-std::array<pvar_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg);
 std::array<pvar_tile_t, 3> get_thread_group_grid_conv_dims(
         const conv_config_t &cfg);
+std::array<pvar_tile_t, 3> get_thread_grid_conv_dims(const conv_config_t &cfg);
 
 } // namespace jit
 } // namespace intel

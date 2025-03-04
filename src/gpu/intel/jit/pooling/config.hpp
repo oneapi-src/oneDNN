@@ -220,10 +220,10 @@ public:
         const int simd = exec.simd();
         const int eu_count = exec.hw().eu_count();
 
-        //                  mb oc od oh ow kd kh kw
-        //                  [0  1][2  3  4][5  6  7]
+        //                    mb oc od oh ow kd kh kw
+        //                    [0  1][2  3  4][5  6  7]
         std::vector<dim_t> lg {1, 1, 1, 1, 1, 1, 1, 1};
-        std::vector<dim_t> tg {1, 1, 1}, kg {1, 1, 1};
+        std::vector<dim_t> thr {1, 1, 1}, tg {1, 1, 1};
 
         std::vector<dim_t> padded {
                 src.dim(0), src.dim(1), prb.od, prb.oh, prb.ow};
@@ -270,25 +270,25 @@ public:
                 oh = (oh > max_tg) ? utils::rnd_up(oh, max_tg)
                                    : utils::rnd_up_pow2(oh);
 
-            tg[2] = std::min(max_tg, ow);
-            tg[1] = (ow_pow2) ? 1 : utils::max_div(oh, max_tg / tg[2]);
+            thr[2] = std::min(max_tg, ow);
+            thr[1] = (ow_pow2) ? 1 : utils::max_div(oh, max_tg / thr[2]);
 
             // lg[2], lg[3], lg[4] are to be set here
 
-            od = utils::rnd_up(od, tg[0] * lg[2]);
-            oh = utils::rnd_up(oh, tg[1] * lg[3]);
-            ow = utils::rnd_up(ow, tg[2] * lg[4]);
+            od = utils::rnd_up(od, thr[0] * lg[2]);
+            oh = utils::rnd_up(oh, thr[1] * lg[3]);
+            ow = utils::rnd_up(ow, thr[2] * lg[4]);
 
-            kg[0] = od / (tg[0] * lg[2]);
-            kg[1] = (oh / (tg[1] * lg[3])) * (ow / (tg[2] * lg[4]));
-            kg[2] = 1;
+            tg[0] = od / (thr[0] * lg[2]);
+            tg[1] = (oh / (thr[1] * lg[3])) * (ow / (thr[2] * lg[4]));
+            tg[2] = 1;
 
             if (ow_pow2 && (mb >= 512)) { // lower TGs preferable at higher MBs
                 const dim_t low_tg = std::max(
                         dim_t(1), max_tg / (2 * utils::div_up(mb, 512)));
-                if (tg[2] / low_tg > 1) {
-                    kg[is_blocked_by_mb() ? 2 : 1] *= tg[2] / low_tg;
-                    tg[2] = low_tg;
+                if (thr[2] / low_tg > 1) {
+                    tg[is_blocked_by_mb() ? 2 : 1] *= thr[2] / low_tg;
+                    thr[2] = low_tg;
                 }
             }
             const int optimal_oc = std::max(2, 4 / src_type_size); // heuristic
@@ -402,36 +402,36 @@ public:
                     if (loss(max_tg / tgw) <= loss(ok_tgw))
                         ok_tgw = max_tg / tgw;
                 }
-                tg[2] = utils::div_up(ow, utils::div_up(ow, ok_tgw));
-                tg[1] = utils::div_up(oh, utils::div_up(oh, max_tg / ok_tgw));
+                thr[2] = utils::div_up(ow, utils::div_up(ow, ok_tgw));
+                thr[1] = utils::div_up(oh, utils::div_up(oh, max_tg / ok_tgw));
             } else {
-                tg[2] = ow;
-                tg[1] = oh;
-                tg[0] = od;
+                thr[2] = ow;
+                thr[1] = oh;
+                thr[0] = od;
             }
 
-            if ((tg[1] > 1) && (tg[2] > 1) && (tg[1] * tg[2] % 2))
-                tg[1] += (tg[1] * tg[2] > 3 * 3) ? -1 : 1;
+            if ((thr[1] > 1) && (thr[2] > 1) && (thr[1] * thr[2] % 2))
+                thr[1] += (thr[1] * thr[2] > 3 * 3) ? -1 : 1;
 
             // lg[2], lg[3], lg[4] are to be set here
 
-            od = utils::rnd_up(od, tg[0] * lg[2]);
-            oh = utils::rnd_up(oh, tg[1] * lg[3]);
-            ow = utils::rnd_up(ow, tg[2] * lg[4]);
+            od = utils::rnd_up(od, thr[0] * lg[2]);
+            oh = utils::rnd_up(oh, thr[1] * lg[3]);
+            ow = utils::rnd_up(ow, thr[2] * lg[4]);
 
-            kg[0] = od / (tg[0] * lg[2]);
-            kg[1] = oh / (tg[1] * lg[3]);
-            kg[2] = ow / (tg[2] * lg[4]);
+            tg[0] = od / (thr[0] * lg[2]);
+            tg[1] = oh / (thr[1] * lg[3]);
+            tg[2] = ow / (thr[2] * lg[4]);
 
-            if (prb.ow % (tg[2] * lg[4]) == 0) {
-                kg[2] *= kg[1];
-                kg[1] = 1;
+            if (prb.ow % (thr[2] * lg[4]) == 0) {
+                tg[2] *= tg[1];
+                tg[1] = 1;
             }
 
             const int safe_thr_count = eu_count * 7;
             const dim_t max_threads
-                    = utils::div_up(dim_t(utils::div_up(oc, simd)) * mb * tg[0]
-                                    * tg[1] * tg[2] * kg[0] * kg[1] * kg[2],
+                    = utils::div_up(dim_t(utils::div_up(oc, simd)) * mb * thr[0]
+                                    * thr[1] * thr[2] * tg[0] * tg[1] * tg[2],
                             safe_thr_count);
 
             if (is_blocked_by_mb()) {
@@ -494,22 +494,22 @@ public:
         }
         lg[1] *= simd;
         oc = utils::rnd_up(oc, lg[1]);
-        kg[0] *= utils::div_up(oc, lg[1]);
-        kg[1] *= utils::div_up(mb, lg[0]);
+        tg[0] *= utils::div_up(oc, lg[1]);
+        tg[1] *= utils::div_up(mb, lg[0]);
 
         set_dims_padded(grid_info_t(padded, ir_builder_t::local_id));
         set_loop_grid(grid_info_t(lg, ir_builder_t::local_id));
-        set_kernel_grid(grid_info_t(kg, ir_builder_t::tg_idx));
-        set_thread_group_grid(grid_info_t(tg, ir_builder_t::thr_idx));
+        set_thread_group_grid(grid_info_t(tg, ir_builder_t::tg_idx));
+        set_thread_grid(grid_info_t(thr, ir_builder_t::thr_idx));
     }
 
     compute::nd_range_t nd_range() const {
-        const auto &kg = kernel_grid();
         const auto &tg = thread_group_grid();
-        compute::range_t local(size_t(tg[0] * exec_cfg().simd()), size_t(tg[1]),
-                size_t(tg[2]));
-        compute::range_t global(size_t(kg[0]) * local[0],
-                size_t(kg[1]) * local[1], size_t(kg[2]) * local[2]);
+        const auto &thr = thread_grid();
+        compute::range_t local(size_t(thr[0] * exec_cfg().simd()),
+                size_t(thr[1]), size_t(thr[2]));
+        compute::range_t global(size_t(tg[0]) * local[0],
+                size_t(tg[1]) * local[1], size_t(tg[2]) * local[2]);
 
         return compute::nd_range_t(global, local);
     }
@@ -526,18 +526,18 @@ public:
             desc.insert(desc.size(), 22 - desc.size(), ' ');
             oss << "  " << desc << layouts[i]->user() << std::endl;
         }
-        const dim_t kg_elems = kernel_grid().elems();
         const dim_t tg_elems = thread_group_grid().elems();
+        const dim_t thr_elems = thread_grid().elems();
         //oss << blocking_brief_str();
         oss << "  Padded dimensions:    " << dims_padded() << std::endl;
         oss << "  Internal loop:        " << loop_grid() << std::endl;
-        oss << "  Thread group:         " << thread_group_grid() << std::endl;
-        oss << "  Kernel grid:          " << kernel_grid() << std::endl;
-        oss << "  Threads:              " << kg_elems * tg_elems
+        oss << "  Thread grid:          " << thread_grid() << std::endl;
+        oss << "  Thread group grid:    " << thread_group_grid() << std::endl;
+        oss << "  Threads:              " << tg_elems * thr_elems
             << " (utilization: "
-            << get_thread_utilization(exec_cfg(), kg_elems, tg_elems)
+            << get_thread_utilization(exec_cfg(), tg_elems, thr_elems)
             << "% thread, "
-            << get_wave_utilization(exec_cfg(), kg_elems, tg_elems)
+            << get_wave_utilization(exec_cfg(), tg_elems, thr_elems)
             << "% wave)" << std::endl;
         oss << "  Configuration line:   " << get_config_line() << std::endl;
         // clang-format on
@@ -547,7 +547,7 @@ public:
     int n_cuts() const { return n_cuts_; }
     bool cut() {
         const auto simd = exec_cfg().simd();
-        auto kg(kernel_grid());
+        auto tg(thread_group_grid());
         auto lg(loop_grid());
         dim_t null = 0;
 
@@ -556,15 +556,15 @@ public:
         else if (lg[6] > 1)
             cut_dim(lg[6], null, 1); // kh
         else if (lg[0] > 1)
-            cut_dim(lg[0], kg[1], 1); // mb
+            cut_dim(lg[0], tg[1], 1); // mb
         else if (lg[1] / simd > 1)
-            cut_dim(lg[1], kg[0], 2 * simd); // oc
+            cut_dim(lg[1], tg[0], 2 * simd); // oc
         else if (lg[7] > 1)
             cut_dim(lg[7], null, 1); // kw
         else
             return false;
 
-        set_kernel_grid(kg);
+        set_thread_group_grid(tg);
         set_loop_grid(lg);
         n_cuts_++;
         return true;
