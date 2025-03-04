@@ -24,7 +24,7 @@
 #include "common/stream.hpp"
 #include "gpu/gpu_concat_pd.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -50,7 +50,7 @@ struct gen9_concat_t : public gpu_primitive_t {
             using sm = primitive_attr_t::skip_mask_t;
 
             VDISPATCH_CONCAT(n_inputs() <= 16, VERBOSE_BAD_PARAM, "n_inputs");
-            VDISPATCH_CONCAT(attr()->has_default_values(sm::scales_runtime),
+            VDISPATCH_CONCAT(attr()->has_default_values(sm::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_CONCAT_SC(set_default_params(), VERBOSE_UNSUPPORTED_TAG);
             VDISPATCH_CONCAT(!memory_desc_ndims_ok(dst_md()), VERBOSE_BAD_NDIMS,

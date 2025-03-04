@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -74,8 +74,8 @@ public:
     sdp_decomp_config_t() = default;
 
     // SDP input dimension
-    dim_t batch_size, num_head_q, num_head_kv, seq_len_q, seq_len_kv,
-            size_per_head;
+    dim_t batch_size, num_head_q, num_head_kv, seq_len_q, seq_len_kv;
+    dim_t head_size_qk, head_size_v;
 
     // SDP input and output strides
     dims src1_strides, wei1_strides, wei2_strides, dst_strides,

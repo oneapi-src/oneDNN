@@ -17,7 +17,6 @@
 #include <functional>
 #include <random>
 
-#include "oneapi/dnnl/dnnl_graph.hpp"
 #include "gtest/gtest.h"
 
 #include "graph/unit/backend/dnnl/dnnl_test_common.hpp"
@@ -263,6 +262,10 @@ TEST(test_large_partition_execute, F32Resnet50Stage2Block) {
     ASSERT_EQ(g.get_num_partitions(), 1U);
     auto part = g.get_partitions()[0];
 
+    // set constant tensor cache capacity as 1GB
+    dnnl_graph_set_constant_tensor_cache_capacity(
+            static_cast<dnnl_engine_kind_t>(eng->kind()), 1024);
+
     // compile
     graph::partition_t p;
     p.init(part);
@@ -310,10 +313,6 @@ TEST(test_large_partition_execute, F32Resnet50Stage2Block) {
                 compiled_output, eng, ref_outputs_data.back());
     }
 
-    // set constant tensor cache capacity as 1GB
-    dnnl::graph::set_constant_tensor_cache_capacity(
-            static_cast<engine::kind>(eng->kind()), 1024);
-
     ASSERT_EQ(run_graph(g, inputs_ts, ref_outputs_ts, *eng, *strm),
             graph::status::success);
 
@@ -325,9 +324,11 @@ TEST(test_large_partition_execute, F32Resnet50Stage2Block) {
                       test_tensor_t::to_graph_tensor(outputs_ts)),
             graph::status::success);
     // disable constant tensor cache and then to test constant cache miss
-    dnnl::graph::set_constant_tensor_cache_capacity(
-            static_cast<engine::kind>(eng->kind()), 0);
-    ASSERT_EQ(cp.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
+    dnnl_graph_set_constant_tensor_cache_capacity(
+            static_cast<dnnl_engine_kind_t>(eng->kind()), 0);
+    graph::compiled_partition_t cp1(p);
+    ASSERT_EQ(p.compile(&cp1, inputs, outputs, eng), graph::status::success);
+    ASSERT_EQ(cp1.execute(strm, test_tensor_t::to_graph_tensor(inputs_ts),
                       test_tensor_t::to_graph_tensor(outputs_ts)),
             graph::status::success);
     strm->wait();

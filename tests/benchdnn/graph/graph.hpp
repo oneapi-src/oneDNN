@@ -42,7 +42,8 @@ struct settings_t : public base_settings_t {
 
     // ctor to save certain fields from resetting
     settings_t(const char *perf_template) : settings_t() {
-        this->perf_template = perf_template;
+        this->perf_template
+                = perf_template; // NOLINT(cppcoreguidelines-prefer-member-initializer)
     }
     std::string json_file;
     std::vector<std::map<size_t, std::string>> in_shapes_vec {{{0, "default"}}};
@@ -67,7 +68,7 @@ struct settings_t : public base_settings_t {
 
 // TODO evaluate prb_t struct
 struct prb_t {
-    prb_t(const deserialized_graph &dg, const size_t &expected_n_partition)
+    prb_t(const deserialized_graph_t &dg, const size_t &expected_n_partition)
         : dg(dg), expected_n_partition(expected_n_partition) {
 
         const auto &fpmath = dg.get_fpmath_mode();
@@ -75,7 +76,7 @@ struct prb_t {
         fpmath_mode.apply_to_int_ = str2bool(fpmath.second.c_str());
     }
 
-    deserialized_graph dg;
+    deserialized_graph_t dg;
     size_t expected_n_partition;
     graph_fpmath_mode_t fpmath_mode;
 };
@@ -89,7 +90,7 @@ std::string case_to_str(const std::string &json_file,
         const std::map<size_t, dnnl_data_type_t> &dt_map);
 
 struct perf_report_t : public base_perf_report_t {
-    perf_report_t(const std::string case_str, const char *perf_template)
+    perf_report_t(const std::string &case_str, const char *perf_template)
         : base_perf_report_t(perf_template), case_str_(case_str) {}
     void dump_desc(std::ostream &s) const override { s << case_str_; }
     void dump_desc_csv(std::ostream &s) const override { dump_desc(s); }

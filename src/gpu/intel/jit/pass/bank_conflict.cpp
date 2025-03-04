@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -82,7 +82,7 @@ public:
             bufs_.insert(src1_buf);
             bufs_.insert(src2_buf);
 
-            instructions_.push_back(obj);
+            instructions_.emplace_back(obj);
         } else if (is_load) {
             // Returns minimal 2^B so that there is x such that:
             //   x * 2^B <= a <= b < (x + 1) * 2^B

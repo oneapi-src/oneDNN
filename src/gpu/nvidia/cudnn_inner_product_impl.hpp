@@ -125,6 +125,9 @@ struct cudnn_inner_product_impl_base_t {
     bool with_relu_ = false, with_eltwise_ = false, with_sum_ = false;
     bool filter_using_spatial_format_ = false;
 
+    cudnnTensorDescriptor_t bias_f32_desc_;
+    bool with_f32_sum_ = false;
+
     virtual bool need_to_transform_filter() const {
         return filter_using_spatial_format_;
     }
@@ -146,12 +149,19 @@ struct cudnn_inner_product_impl_base_t {
     virtual status_t init(impl::engine_t * /*engine*/,
             inner_product_pd_t * /*pd*/, bool /*with_relu*/,
             bool /*with_eltwise*/, bool /*with_sum */,
-            bool /*using_fused_path_for_blocking*/)
+            bool /*using_fused_path_for_blocking*/, bool /* use_f32_sum */)
             = 0;
 
     virtual void execute(cudnnHandle_t /*handle*/,
             cublasHandle_t /*cublas_handle*/,
             const std::vector<void *> & /*args*/) const = 0;
+
+    virtual ~cudnn_inner_product_impl_base_t() {
+        for (int i = 0; i < NUM_IO; ++i) {
+            cudnnDestroyTensorDescriptor(tensor_descs_[i]);
+        }
+        if (with_f32_sum_) { cudnnDestroyTensorDescriptor(bias_f32_desc_); }
+    }
 };
 
 struct cudnn_inner_product_fwd_base_t : public cudnn_inner_product_impl_base_t {

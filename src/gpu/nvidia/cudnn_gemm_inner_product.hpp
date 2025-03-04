@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -173,7 +173,7 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             using namespace data_type;
 
             using sm_t = primitive_attr_t::skip_mask_t;
-            const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
+            const auto attr_skip_mask = sm_t::scales | sm_t::post_ops;
 
             bool with_eltwise
                     = attr()->post_ops_.find(primitive_kind::eltwise) != -1;
@@ -222,10 +222,14 @@ struct cudnn_gemm_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     && (gemm_compatible || need_reorder);
             if (!ok) return status::unimplemented;
 
+            const bool is_relaxed_acc_mode
+                    = attr()->acc_mode_ == dnnl_accumulation_mode_relaxed;
+            const bool use_f32_sum = with_sum && !is_relaxed_acc_mode;
+
             inner_product_impl_.reset(
                     new cudnn_gemm_inner_product_fwd_impl_t());
             return inner_product_impl_->init(engine, this, with_eltwise,
-                    with_eltwise, with_sum, need_reorder);
+                    with_eltwise, with_sum, need_reorder, use_f32_sum);
         }
 
         status_t set_default_params() {
@@ -289,7 +293,7 @@ struct cudnn_gemm_inner_product_bwd_data_t
                     new cudnn_gemm_inner_product_bwd_data_impl_t());
 
             return inner_product_impl_->init(
-                    engine, this, false, false, false, need_reorder);
+                    engine, this, false, false, false, need_reorder, false);
         }
 
         status_t set_default_params() {
@@ -345,7 +349,7 @@ struct cudnn_gemm_inner_product_bwd_weights_t
             inner_product_impl_.reset(
                     new cudnn_gemm_inner_product_bwd_weights_impl_t());
             return inner_product_impl_->init(
-                    engine, this, false, false, false, need_reorder);
+                    engine, this, false, false, false, need_reorder, false);
         }
 
         status_t set_default_params() {

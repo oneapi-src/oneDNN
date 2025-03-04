@@ -538,7 +538,7 @@ void BLASKernelGenerator<hw>::gemmApplyPostOps(size_t poMin, size_t poMax, const
         auto &entry = problem.postOps[i];
         switch (entry.kind()) {
             case post_op::kind_t::eltwise: {
-                using Injector = jit_eltwise_injector_f32<hw>;
+                using Injector = eltwise_injector_f32_t<hw>;
                 if (state.Tacc != Type::f32) stub();
 
                 int euCount = 0; /* only used for a DG2 W/A for conv */
@@ -573,7 +573,7 @@ void BLASKernelGenerator<hw>::gemmApplyPostOps(size_t poMin, size_t poMax, const
         }
     }
     if(problem.cStochasticRound){
-        using Injector = jit_eltwise_injector_f32<hw>;
+        using Injector = eltwise_injector_f32_t<hw>;
         int euCount = 0; /* only used for a DG2 W/A for conv */
         Injector injector{this, alg_kind::eltwise_stochastic_round, 0.0, 0.0, 1.0, 
                           euCount, GRFRange(), problem.postOpFwd};

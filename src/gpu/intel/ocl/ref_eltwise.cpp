@@ -81,10 +81,11 @@ static status_t init_kernel_ctx_common(compute::kernel_ctx_t &kernel_ctx,
     kernel_ctx.define_int(
             "USE_GWS_GET", conf.with_zero_padding || with_binary_post_ops);
 
-    def_memory_desc_info(kernel_ctx, conf.data_md_info, "DATA");
+    def_data_type(kernel_ctx, conf.data_md_info.data_type, "SRC", false);
+    def_memory_desc_info(kernel_ctx, conf.data_md_info, "DST", false);
 
     if (!conf.is_forward) {
-        def_memory_desc_info(kernel_ctx, conf.data_diff_md_info, "DIFF_DATA");
+        def_memory_desc_info(kernel_ctx, conf.data_diff_md_info, "DIFF", false);
     } else {
         kernel_ctx.define_int("IS_FWD", 1);
     }

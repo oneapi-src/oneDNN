@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@
 #include "common/utils.hpp"
 #include "gpu/gpu_resource.hpp"
 #include "gpu/intel/gpu_primitive.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 namespace dnnl {
@@ -50,7 +50,7 @@ struct ref_sdpa_t : public gpu_primitive_t {
             bool enable_ref = gpu_utils::dev_getenv("enable_ref_sdpa", false);
             VDISPATCH_SDPA(enable_ref, VERBOSE_SKIP_PRIMITIVE_IMPL);
 
-            VDISPATCH_SDPA(attr()->has_default_values(smask_t::scales_runtime),
+            VDISPATCH_SDPA(attr()->has_default_values(smask_t::scales),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_SDPA(
                     utils::everyone_is(4, qry_md()->ndims, key_md()->ndims,

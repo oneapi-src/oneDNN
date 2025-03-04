@@ -237,6 +237,7 @@ std::string layout_raw_tag_t::str() const {
     std::string x;
     for (dim_idx_t i = ndims() - 1; i >= 2; i--) {
         if (is_blocked(dim_idx::as_tag(i))) break;
+        // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
         x = dim_idx::as_tag(i) + x;
     }
     while (!x.empty()) {
@@ -655,7 +656,7 @@ layout_t layout_t::split_block(
 }
 
 template <typename T>
-struct try_div_mod {
+struct try_div_mod_t {
     static bool call(const T &a, int b, const var_range_info_t &range_info,
             T &div, T &mod) {
         if (a % b != 0) return false;
@@ -666,7 +667,7 @@ struct try_div_mod {
 };
 
 template <>
-struct try_div_mod<expr_t> {
+struct try_div_mod_t<expr_t> {
     static bool call(const expr_t &a, int b, const var_range_info_t &range_info,
             expr_t &div, expr_t &mod) {
         dim_t factor = linear_max_pow2_divisor(a);
@@ -748,7 +749,7 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
                 gpu_assert(!idx_final.has(dim));
                 T div = T();
                 T mod = T();
-                if (try_div_mod<T>::call(idxs[dim], b.int_size(),
+                if (try_div_mod_t<T>::call(idxs[dim], b.int_size(),
                             var_range_info, div, mod)) {
                     idxs[dim] = div;
                     off = mod;
@@ -854,7 +855,8 @@ std::string layout_t::blocks_str() const {
         if (b.has_const_stride() && b.int_stride() != to_int(stride)) {
             b_str.append(1, '*');
         }
-        ret = b_str + ret;
+        b_str += ret;
+        std::swap(b_str, ret);
         if (b.has_const_size() && b.has_const_stride())
             stride = b.stride * b.size;
         seen[b.dim] = true;

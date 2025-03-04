@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
-#define GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
+#ifndef GPU_INTEL_JIT_GENERATOR_BASE_HPP
+#define GPU_INTEL_JIT_GENERATOR_BASE_HPP
 
 #include <vector>
 #include <CL/cl.h>
@@ -28,15 +28,15 @@ namespace gpu {
 namespace intel {
 
 namespace ocl {
-class ocl_gpu_engine_t;
+class engine_t;
 }
 
 namespace jit {
 
-struct jit_generator_base {
-    virtual ~jit_generator_base() = default;
+struct generator_base_t {
+    virtual ~generator_base_t() = default;
     virtual const char *kernel_name() const = 0;
-    virtual xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) = 0;
+    virtual xpu::binary_t get_binary(const ocl::engine_t *engine) = 0;
 };
 
 } // namespace jit
@@ -45,4 +45,4 @@ struct jit_generator_base {
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_JIT_JIT_GENERATOR_BASE_HPP
+#endif // GPU_INTEL_JIT_GENERATOR_BASE_HPP

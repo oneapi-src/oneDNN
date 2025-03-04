@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,19 +16,21 @@
 
 #include "gpu/intel/ocl/dispatch.h"
 #include "gpu/intel/ocl/ocl_eltwise.h"
+#include "gpu/intel/ocl/ocl_io.h"
 #include "gpu/intel/ocl/ocl_post_ops.h"
 #include "gpu/intel/ocl/types_interop.h"
 
-#define DATA_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DATA, x0, x1, x2, x3, x4, x5)
+#define DATA_OFF(x0, x1, x2, x3, x4, x5) OFF_MD(DST, x0, x1, x2, x3, x4, x5)
 
 #define DIFF_DATA_OFF(x0, x1, x2, x3, x4, x5) \
-    OFF_MD(DIFF_DATA, x0, x1, x2, x3, x4, x5)
+    OFF_MD(DIFF, x0, x1, x2, x3, x4, x5)
 
 #define GWS_GET_THREAD_ID(index) (get_global_id(index) + offset.array[index])
 
 #if IS_FWD
-__kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
-        float alpha, float beta, int64x3_t offset POST_OP_ARGS) {
+__kernel void ref_eltwise_fwd(__global SRC_DATA_T *src,
+        __global DST_DATA_T *dst, float alpha, float beta,
+        int64x3_t offset POST_OP_ARGS) {
 #if USE_GWS_GET
     dim_t d0 = GWS_GET_D0();
     dim_t d1 = GWS_GET_D1();
@@ -39,9 +41,9 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 
     const dim_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
 
-    if (d0 >= DATA_D0 || d1 >= DATA_D1 || d2 >= DATA_D2 || d3 >= DATA_D3
-            || d4 >= DATA_D4 || d5 >= DATA_D5) {
-        dst[data_off] = CONVERT_DATA_T(0.f);
+    if (d0 >= DST_D0 || d1 >= DST_D1 || d2 >= DST_D2 || d3 >= DST_D3
+            || d4 >= DST_D4 || d5 >= DST_D5) {
+        write(dst + data_off, 0.f);
         return;
     }
 #else
@@ -63,28 +65,29 @@ __kernel void ref_eltwise_fwd(__global DATA_T *src, __global DATA_T *dst,
 #endif
 
 #if DT_F16 == 1
-    float tmp_s = CONVERT_FLOAT_T(src[data_off]);
+    float tmp_s = load(tmp_s, src + data_off);
 #else
-    float tmp_s = DATA_TO_REF(src[data_off]);
+    float tmp_s = load(tmp_s, src + data_off);
 #endif
     tmp_s = fwd_eltwise(tmp_s, alpha, beta, 1.0f);
 
     float dst_data;
 #if WITH_SUM
-    dst_data = convert_float(DATA_TO_REF(dst[data_off]));
+    load(dst_data, dst + data_off);
 #endif
 
     APPLY_POST_OPS_SERIAL(tmp_s, float, dst_data, float, d0, 1, d1, 1, d2, 1,
             d3, 1, d4, 1, d5, 1);
-    dst[data_off] = CONVERT_DATA_T(tmp_s);
+    write(dst + data_off, tmp_s);
 }
 
 #else // #if IS_FWD
 
-#if DT_F32 == 1 || DT_BF16 == 1 || DT_F16 == 1
+#if DT_F64 == 1 || DT_F32 == 1 || DT_BF16 == 1 || DT_F16 == 1
 
-__kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
-        __global DATA_T *diff_dst, float alpha, float beta, int64x3_t offset) {
+__kernel void ref_eltwise_bwd(__global SRC_DATA_T *src,
+        __global DIFF_DATA_T *diff_src, __global DIFF_DATA_T *diff_dst,
+        float alpha, float beta, int64x3_t offset) {
 
     dim_t d0 = GWS_GET_D0();
     dim_t d1 = GWS_GET_D1();
@@ -96,17 +99,16 @@ __kernel void ref_eltwise_bwd(__global DATA_T *src, __global DATA_T *diff_src,
     const dim_t data_off = DATA_OFF(d0, d1, d2, d3, d4, d5);
     const dim_t diff_data_off = DIFF_DATA_OFF(d0, d1, d2, d3, d4, d5);
 
-    if (d0 >= DATA_D0 || d1 >= DATA_D1 || d2 >= DATA_D2 || d3 >= DATA_D3
-            || d4 >= DATA_D4 || d5 >= DATA_D5) {
-        diff_src[diff_data_off] = CONVERT_DATA_T(0.f);
+    if (d0 >= DST_D0 || d1 >= DST_D1 || d2 >= DST_D2 || d3 >= DST_D3
+            || d4 >= DST_D4 || d5 >= DST_D5) {
+        write(diff_src + diff_data_off, 0.f);
         return;
     }
 
-    POST_OP_DATA_T tmp_dd = DATA_TO_REF(diff_dst[diff_data_off]);
-    POST_OP_DATA_T tmp_s = DATA_TO_REF(src[data_off]);
+    POST_OP_DATA_T tmp_dd = load(tmp_dd, diff_dst + diff_data_off);
+    POST_OP_DATA_T tmp_s = load(tmp_s, src + data_off);
 
-    diff_src[diff_data_off]
-            = CONVERT_DATA_T(bwd_eltwise(tmp_dd, tmp_s, alpha, beta));
+    write(diff_src + diff_data_off, bwd_eltwise(tmp_dd, tmp_s, alpha, beta));
 }
 #endif
 

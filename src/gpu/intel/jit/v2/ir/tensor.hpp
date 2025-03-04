@@ -43,7 +43,7 @@ public:
                 return;
             }
         }
-        entries_.emplace_back(entry_t {var, bound});
+        entries_.emplace_back(var, bound);
     }
 
     int bound(const expr_t &var) const {
@@ -64,7 +64,6 @@ private:
         entry_t(const expr_t &var, int bound) : var(var), bound(bound) {}
     };
 
-private:
     std::vector<entry_t> entries_;
 };
 

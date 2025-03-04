@@ -42,7 +42,7 @@ enum class hw_t {
     xehpc,
 };
 
-hw_t to_hw(const std::string &s) {
+inline hw_t to_hw(const std::string &s) {
     if (s == "xehpg") return hw_t::xehpg;
     if (s == "xehpc") return hw_t::xehpc;
     gpu_assert(false);
@@ -55,7 +55,7 @@ enum class fma_t {
     mad,
 };
 
-fma_t to_fma(const std::string &s) {
+inline fma_t to_fma(const std::string &s) {
     if (s == "mad") return fma_t::mad;
     if (s == "dpas") return fma_t::dpas;
     gpu_assert(false);
@@ -69,7 +69,7 @@ enum class prop_t {
     bwd_w,
 };
 
-prop_t to_prop(const std::string &s) {
+inline prop_t to_prop(const std::string &s) {
     if (s == "fwd") return prop_t::fwd;
     if (s == "bwd_d") return prop_t::bwd_d;
     if (s == "bwd_w") return prop_t::bwd_w;
@@ -79,8 +79,8 @@ prop_t to_prop(const std::string &s) {
 
 enum class type_t { undef, d8, d16, d32, d64 };
 
-void get_types(const std::string &type_cfg, prop_t prop, type_t &src_type,
-        type_t &dst_type) {
+inline void get_types(const std::string &type_cfg, prop_t prop,
+        type_t &src_type, type_t &dst_type) {
     const std::pair<const char *, type_t> all_types[] = {
             std::make_pair("bf16", type_t::d16),
             std::make_pair("f16", type_t::d16),
@@ -125,14 +125,16 @@ void get_types(const std::string &type_cfg, prop_t prop, type_t &src_type,
     dst_type = types[2];
 }
 
-type_t to_src_type(const std::string &type_cfg, prop_t prop = prop_t::fwd) {
+inline type_t to_src_type(
+        const std::string &type_cfg, prop_t prop = prop_t::fwd) {
     type_t src_type;
     type_t dst_type;
     get_types(type_cfg, prop, src_type, dst_type);
     return src_type;
 }
 
-type_t to_dst_type(const std::string &type_cfg, prop_t prop = prop_t::fwd) {
+inline type_t to_dst_type(
+        const std::string &type_cfg, prop_t prop = prop_t::fwd) {
     type_t src_type;
     type_t dst_type;
     get_types(type_cfg, prop, src_type, dst_type);
@@ -209,7 +211,7 @@ enum class metric_t {
     msre, // Mean squared relative error.
 };
 
-metric_t to_metric(const std::string &s) {
+inline metric_t to_metric(const std::string &s) {
     if (s == "mse") return metric_t::mse;
     if (s == "msre") return metric_t::msre;
     gpu_assert(false);
@@ -224,7 +226,7 @@ enum class score_t {
     mape, // Mean absolute percentage error.
 };
 
-score_t to_score(const std::string &s) {
+inline score_t to_score(const std::string &s) {
     if (s == "r2") return score_t::r2;
     if (s == "mae") return score_t::mae;
     if (s == "mape") return score_t::mape;
@@ -609,7 +611,8 @@ private:
     vec2d<float> buckets_;
 };
 
-float r2_score(const std::vector<float> &y, const std::vector<float> &y_pred) {
+inline float r2_score(
+        const std::vector<float> &y, const std::vector<float> &y_pred) {
     float u = 0;
     float v = 0;
     float y_mean = 0;
@@ -624,7 +627,8 @@ float r2_score(const std::vector<float> &y, const std::vector<float> &y_pred) {
     return 1 - u / v;
 }
 
-float mae_score(const std::vector<float> &y, const std::vector<float> &y_pred) {
+inline float mae_score(
+        const std::vector<float> &y, const std::vector<float> &y_pred) {
     int n = (int)y.size();
     float err = 0;
     for (int i = 0; i < n; i++) {
@@ -633,7 +637,7 @@ float mae_score(const std::vector<float> &y, const std::vector<float> &y_pred) {
     return -err / n;
 }
 
-float mape_score(
+inline float mape_score(
         const std::vector<float> &y, const std::vector<float> &y_pred) {
     float eps = std::numeric_limits<float>::epsilon();
     int n = (int)y.size();
@@ -644,8 +648,8 @@ float mape_score(
     return -err / n;
 }
 
-float score(const std::vector<float> &y, const std::vector<float> &y_pred,
-        score_t score) {
+inline float score(const std::vector<float> &y,
+        const std::vector<float> &y_pred, score_t score) {
     switch (score) {
         case score_t::r2: return r2_score(y, y_pred);
         case score_t::mae: return mae_score(y, y_pred);
@@ -1025,7 +1029,7 @@ public:
     }
 
     float score(const vec2d<float> &X, const vec1d<float> &y, score_t score,
-            int max_trees = std::numeric_limits<int>::max()) {
+            int max_trees = std::numeric_limits<int>::max()) const {
         auto y_pred = predict(X, max_trees);
         return model::score(y, y_pred, score);
     }
@@ -1045,6 +1049,7 @@ public:
         }
         using entry_t = std::pair<std::string, float>;
         std::vector<entry_t> ret;
+        ret.reserve(feature_count());
         for (int i = 0; i < feature_count(); i++) {
             ret.emplace_back(feature_names[i], fi[i]);
         }
@@ -1056,7 +1061,7 @@ public:
     }
 
     void print_info(const std::vector<const char *> &feature_names,
-            const std::string prefix = "") const {
+            const std::string &prefix = "") const {
         std::cout << prefix << "Gradient boost regressor" << std::endl;
         std::cout << prefix << "  Features:   " << feature_count() << std::endl;
         std::cout << prefix << "  Trees:      " << tree_count() << std::endl;

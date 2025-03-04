@@ -31,6 +31,7 @@
 #include "gpu/intel/jit/codegen/register_scope.hpp"
 #include "gpu/intel/jit/codegen/reorder.hpp"
 #include "gpu/intel/jit/emulation.hpp"
+#include "gpu/intel/jit/generator.hpp"
 #include "gpu/intel/jit/ir/ir.hpp"
 #include "gpu/intel/jit/ir/ir_builder.hpp"
 #include "gpu/intel/jit/ir/kernel_desc.hpp"
@@ -38,8 +39,7 @@
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/ir/walk_order.hpp"
-#include "gpu/intel/jit/jit_generator.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 #include "ngen/ngen_register_allocator.hpp"
 #include "xpu/utils.hpp"
 
@@ -50,13 +50,13 @@ namespace intel {
 namespace jit {
 
 template <template <ngen::HW> class KernelT>
-struct ir_generator_t : public jit_generator_base {
+struct ir_generator_t : public generator_base_t {
     ir_generator_t(const kernel_desc_base_t &kernel_desc)
         : kernel_name_(kernel_desc.kernel_name()), kernel_desc_(kernel_desc) {}
 
     const char *kernel_name() const override { return kernel_name_.c_str(); }
 
-    xpu::binary_t get_binary(const ocl::ocl_gpu_engine_t *engine) override {
+    xpu::binary_t get_binary(const ocl::engine_t *engine) override {
         try {
 #define CASE(hw) \
     case ngen::HW::hw: { \
@@ -181,7 +181,7 @@ template <ngen::HW hw>
 class ir_to_ngen_t;
 
 template <ngen::HW hw>
-class ir_kernel_t : public jit_generator<hw> {
+class ir_kernel_t : public generator_t<hw> {
 public:
     NGEN_FORWARD_OPENCL(hw);
 
@@ -191,7 +191,7 @@ public:
 
     ir_kernel_t(const kernel_desc_base_t &desc, const impl::engine_t *engine,
             const debug_config_t &debug_config)
-        : jit_generator<hw>(debug_config)
+        : generator_t<hw>(debug_config)
         , kernel_name_(desc.kernel_name())
         , exec_cfg_(desc.exec_cfg(engine))
         , local_range_(desc.local_range())
@@ -207,7 +207,7 @@ public:
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
             const compute::range_t &local_range, bool require_dpas,
             const debug_config_t &debug_config)
-        : jit_generator<hw>(debug_config)
+        : generator_t<hw>(debug_config)
         , kernel_name_(kernel_name)
         , exec_cfg_(exec_cfg)
         , local_range_(local_range)
@@ -305,15 +305,20 @@ public:
         // Bind grid indices.
         int r0_sub_idxs[] = {1, 6, 7};
         for (int i = 0; i < 3; i++) {
-            auto tmp = ra_.template alloc_sub<int32_t>();
-            mov(1, tmp, r0.ud(r0_sub_idxs[i]));
-            expr_binding.bind(ir_builder_t::tg_idxs()[i], tmp);
+            auto tg_idx = alloc_mgr.find_let(ir_builder_t::tg_idx(i), true);
+            if (!tg_idx.is_empty()) {
+                auto tmp = ra_.template alloc_sub<int32_t>();
+                mov(1, tmp, r0.ud(r0_sub_idxs[i]));
+                expr_binding.bind(tg_idx, tmp);
+            }
         }
 
         // Bind local IDs.
         for (int i = 0; i < 3; i++) {
-            expr_binding.bind(
-                    ir_builder_t::local_ids()[i], getLocalID(i).uw(0));
+            auto local_id = alloc_mgr.find_let(ir_builder_t::local_id(i), true);
+            if (!local_id.is_empty()) {
+                expr_binding.bind(local_id, getLocalID(i).uw(0));
+            }
         }
 
         // Bind arguments.

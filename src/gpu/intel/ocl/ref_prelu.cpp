@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/ocl/ref_prelu.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {

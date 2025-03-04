@@ -50,8 +50,6 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
                               const GEMMProblem &problem_, const std::vector<StrategyRequirement> &reqs_,
                               void (*strategyAdjuster)(GEMMStrategy &strategy))
 {
-    kcatalog::Catalog catalog;
-
     bool localA = protocol.options().localA;
     bool localB = protocol.options().localB;
     bool beta1 = protocol.options().addToC;
@@ -118,12 +116,14 @@ Package selectGEMMMicrokernel(GEMMProtocol protocol, HWInformation hwInfo, SizeP
     if (localA && localB)
         stub("Unsupported protocol");
 
-    if (localA)
-        catalog = CatalogLMR;
-    else if (localB)
-        catalog = CatalogMLR;
-    else
-        catalog = CatalogMMR;
+    kcatalog::Catalog catalog = [&] () {
+        if (localA)
+            return kcatalog::Catalog(CatalogLMR);
+        else if (localB)
+            return kcatalog::Catalog(CatalogMLR);
+        else
+            return kcatalog::Catalog(CatalogMMR);
+    }();
 
     /* Call kernel selector */
     EvaluateAuxOutput auxParams;

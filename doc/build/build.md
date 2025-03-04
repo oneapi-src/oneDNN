@@ -51,7 +51,7 @@ cmake .. <extra build options>
 
 - Build the library
 ~~~sh
-make -j
+make -j$(nproc)
 ~~~
 
 #### Intel oneAPI DPC++/C++ Compiler with SYCL runtime
@@ -86,7 +86,7 @@ it is installed in a custom location.
 
 - Build the library
 ~~~sh
-make -j
+make -j$(nproc)
 ~~~
 
 #### GCC targeting AArch64 on x64 host
@@ -106,7 +106,7 @@ cmake .. \
 
 - Build the library
 ~~~sh
-make -j
+make -j$(nproc)
 ~~~
 
 #### GCC with Arm Compute Library (ACL) on AArch64 host
@@ -123,7 +123,7 @@ cmake .. \
 
 - Build the library
 ~~~sh
-make -j
+make -j$(nproc)
 ~~~
 
 ### Windows

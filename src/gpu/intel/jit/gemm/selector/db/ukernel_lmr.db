@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 /*@kcatalog@*/
-auto _CATALOG_ = kcatalog::toFlatCatalog({
+auto _CATALOG_ = kcatalog::toArray({
 {{'F', "ugemm", {"H", "H", "S"}, {"A2#16,64", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {1, 8, 1}, "xzIB"}, "lB16x2 am32+m32@64 rB sys wg 2x4 vav grf256", {16, (LoopType) 255, 256, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 2048}, {8192, 8192, 2048}, {32, 32, 32}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {128, 8, 4}, {false, true, false}}, {'W', 1, {1024}}},
 {{'F', "ugemm", {"H", "H", "S"}, {"T", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {4, 8, 1}, "xzIB"}, "lS16x2 am32+m32@64 rB sys wg 2x4 vav grf256", {16, (LoopType) 255, 256, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {8192, 8192, 1024}, {8192, 8192, 1024}, {32, 32, 32}, {2, 4, 1}, 1, (WGType) 1, 257, 0, 0, {4, 8, 4}, {false, true, false}}, {'W', 1, {1024}}}
 });

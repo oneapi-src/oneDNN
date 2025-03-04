@@ -94,13 +94,20 @@ The implementation supports both forward and backward directions.
 * Supported formats: `NCDHW`, `NDHWC`, `NCHW`, `NHWC`, `NCW`, `NWC`, `NC`, `N`
 * Supported data types: `f32`, `bf16`, `f16`, `s32`, `s8`, `u8`
 
+## Group Normalization
+* Supported Direction: forward data and forward inference.
+* Supported data types: All possible data combinations listed in the oneDNN specification are supported.
+* Support Data layouts: All data layouts are supported.
+
+
 ## Inner Product
 
-The implementation supports the forward direction only.
+The implementation supports both forward and backward directions.
 
 * Supported formats: All plain formats are supported.
-* Supported data types: All possible data combinations listed in the oneDNN specification are supported.
-* Supported post-ops: All the post operations as mentioned in the specification are supported.
+* Supported data types: All possible data combinations as listed in the specification are supported.
+* Supported post-ops: All post-ops mentioned in the specification are supported.
+Note: The backward pass does not support post-ops. You should not use post-ops in the forward pass during training.
 
 ## Layer Normalization
 

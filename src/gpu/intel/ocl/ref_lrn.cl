@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/ocl/dispatch.h"
+#include "gpu/intel/ocl/ocl_io.h"
 #include "gpu/intel/ocl/ocl_types.h"
 
 #if IS_FWD == 1
@@ -39,9 +40,8 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
     for (int j = 0; j < LOCAL_SIZE; j++) {
         const int z_idx = (j + ic - PADDING);
         bool zero = (z_idx < 0 || z_idx >= IC);
-        DEF_ACC_DATA_T val = zero
-                ? 0.0f
-                : TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, id, ih, iw)]);
+        DEF_ACC_DATA_T val = 0;
+        if (!zero) load(&val, src + SRC_OFF(mb, z_idx, id, ih, iw));
         sum += val * val;
     }
 #else
@@ -60,8 +60,7 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
     for (int k = d_start; k < d_end; ++k) {
         for (int j = h_start; j < h_end; ++j) {
             for (int i = w_start; i < w_end; ++i) {
-                DEF_ACC_DATA_T val
-                        = TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, ic, k, j, i)]);
+                DEF_ACC_DATA_T val = load(val, src + SRC_OFF(mb, ic, k, j, i));
                 sum += val * val;
             }
         }
@@ -75,12 +74,12 @@ __kernel void ref_lrn_fwd(__global const DATA_T *src,
     const DEF_ACC_DATA_T normalization_factor
             = native_powr(base, (DEF_ACC_DATA_T)(-LRN_BETA));
 
-    const DEF_ACC_DATA_T val = TO_DEF_ACC_DATA_T(src[src_index]);
+    const DEF_ACC_DATA_T val = load(val, src + src_index);
     const DEF_ACC_DATA_T normres = val * normalization_factor;
 #if IS_TRAINING == 1
     ws[dst_index] = base;
 #endif
-    dst[dst_index] = TO_DATA_T(normres);
+    write(dst + dst_index, normres);
 }
 #endif
 
@@ -106,13 +105,12 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
         bool zero = (z_idx < 0 || z_idx >= IC);
         if (!zero) {
             DEF_ACC_DATA_T val
-                    = TO_DEF_ACC_DATA_T(src[SRC_OFF(mb, z_idx, id, ih, iw)]);
-            DEF_ACC_DATA_T omega = ws[SRC_OFF(mb, z_idx, id, ih, iw)];
+                    = load(val, src + SRC_OFF(mb, z_idx, id, ih, iw));
+            DEF_ACC_DATA_T omega
+                    = load(omega, ws + SRC_OFF(mb, z_idx, id, ih, iw));
             DEF_ACC_DATA_T tmp = (DEF_ACC_DATA_T)1.0f
                     / native_powr(omega, (DEF_ACC_DATA_T)LRN_BETA + 1);
-            B += tmp * val
-                    * TO_DEF_ACC_DATA_T(
-                            diff_dst[DST_OFF(mb, z_idx, id, ih, iw)]);
+            B += tmp * val * load(B, diff_dst + DST_OFF(mb, z_idx, id, ih, iw));
         }
     }
 #else
@@ -130,21 +128,20 @@ __kernel void ref_lrn_bwd(__global const DATA_T *src,
         for (int j = h_start; j < h_end; ++j) {
             for (int i = w_start; i < w_end; ++i) {
                 int data_off = SRC_OFF(mb, ic, k, j, i);
-                DEF_ACC_DATA_T val = TO_DEF_ACC_DATA_T(src[data_off]);
+                DEF_ACC_DATA_T val = load(val, src + data_off);
                 DEF_ACC_DATA_T omega = ws[data_off];
                 DEF_ACC_DATA_T tmp = (DEF_ACC_DATA_T)1.0f
                         / native_powr(omega, (DEF_ACC_DATA_T)(LRN_BETA + 1));
-                B += tmp * val * TO_DEF_ACC_DATA_T(diff_dst[data_off]);
+                B += tmp * val * load(B, diff_dst + data_off);
             }
         }
     }
 #endif
-    const DEF_ACC_DATA_T A
-            = native_powr(ws[src_index], (DEF_ACC_DATA_T)-LRN_BETA)
-            * TO_DEF_ACC_DATA_T(diff_dst[dst_index]);
+    DEF_ACC_DATA_T A = native_powr(ws[src_index], (DEF_ACC_DATA_T)-LRN_BETA)
+            * load(A, diff_dst + dst_index);
 
-    diff_src[src_index] = TO_DATA_T(A
-            - TO_DEF_ACC_DATA_T(src[src_index]) * 2 * (DEF_ACC_DATA_T)LRN_ALPHA
-                    * (DEF_ACC_DATA_T)LRN_BETA * num_elements_div * B);
+    A -= load(A, src + src_index) * 2 * (DEF_ACC_DATA_T)LRN_ALPHA
+            * (DEF_ACC_DATA_T)LRN_BETA * num_elements_div * B;
+    write(diff_src + src_index, A);
 }
 #endif

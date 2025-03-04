@@ -65,6 +65,7 @@ struct MatchParams : public MatchParamsBase
     MatchParams(ngen::HW hw, bool systolicAvailable, bool isIntegrated, const GEMMProblem &problem)
             : MatchParamsBase(hw, systolicAvailable, isIntegrated, problem) {}
 
+    // NOLINTNEXTLINE(bugprone-copy-constructor-init)
     MatchParams(const MatchParams &other) { *this = other; }
     MatchParams &operator=(const MatchParams &other) {
         static_cast<MatchParamsBase &>(*this) = other;

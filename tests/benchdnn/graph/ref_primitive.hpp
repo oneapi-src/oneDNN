@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ public:
 template <typename prb_t>
 class prb_wrapper_t : public prb_wrapper_base_t {
 public:
-    prb_wrapper_t(const std::shared_ptr<prb_t> prb) { prb_ = prb; }
+    prb_wrapper_t(const std::shared_ptr<prb_t> prb) : prb_(prb) {}
     // get raw pointer of prb object
     const prb_t *get() const { return prb_.get(); }
 
@@ -61,7 +61,7 @@ inline const prb_t *prb_wrapper_base_t::get() const {
 class ref_primitive_t {
 public:
     ref_primitive_t() = default;
-    ref_primitive_t(const deserialized_op &op);
+    ref_primitive_t(const deserialized_op_t &op);
 
     int init_prb(res_t *res);
     // By default, the reference primitives are created with f32 data type.
@@ -99,7 +99,7 @@ public:
 private:
     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(ref_primitive_t);
 
-    deserialized_op op_;
+    deserialized_op_t op_;
     ::dnnl::graph::op::kind kind_;
     dnnl_driver_t driver_;
     bool is_special_backward_op_;

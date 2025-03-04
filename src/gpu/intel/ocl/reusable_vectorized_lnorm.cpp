@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@
 #include "gpu/intel/compute/kernel_arg_list.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/ocl/lnorm_utils.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
 #include "gpu/intel/ocl/reusable_lnorm.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 #include <vector>

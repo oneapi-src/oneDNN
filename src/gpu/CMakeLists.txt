@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2020-2024 Intel Corporation
+# Copyright 2020-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,11 +27,11 @@ set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
 add_subdirectory(generic)
 
 if(DNNL_GPU_VENDOR STREQUAL "INTEL")
-    add_definitions_with_host_compiler(-DNGEN_CPP11)
-    add_definitions_with_host_compiler(-DNGEN_SAFE)
-    add_definitions_with_host_compiler(-DNGEN_NEO_INTERFACE)
-    add_definitions_with_host_compiler(-DNGEN_NO_OP_NAMES)
-    add_definitions_with_host_compiler(-DNGEN_WINDOWS_COMPAT)
+    set(ONEDNN_NGEN_DIR "${PROJECT_SOURCE_DIR}/third_party/ngen" CACHE PATH "Path to nGEN source code")
+    add_definitions_with_host_compiler(-DNGEN_CONFIG)
+    include_directories_with_host_compiler(${CMAKE_CURRENT_SOURCE_DIR}/intel/jit/ngen/)
+    include_directories_with_host_compiler(${ONEDNN_NGEN_DIR})
+
     add_subdirectory(intel)
 endif()
 

@@ -21,7 +21,7 @@
 #include "gpu/intel/jit/codegen/register_scope.hpp"
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
-#include "ngen/ngen.hpp"
+#include "ngen.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -127,7 +127,6 @@ public:
                 break;
             default: gpu_error_not_expected() << send_.type;
         }
-        return;
     }
 
 private:
@@ -154,7 +153,6 @@ private:
             const ngen::RegData &addr, const ngen::RegData &data) {
         atomic_helper_t<DataSpecT>::call(
                 host, ngen::AtomicOp::cmpwr, mod, dst, spec, base, addr, data);
-        return;
     }
 
     template <typename GeneratorT>

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include "gpu/intel/ocl/reduction/reusable_ref_reduction.hpp"
 
 #ifdef DNNL_DEV_MODE
-#include "gpu/intel/jit/jit_reduction.hpp"
+#include "gpu/intel/jit/reduction.hpp"
 #endif
 
 #endif
@@ -49,7 +49,7 @@ namespace {
 
 // clang-format off
 constexpr impl_list_item_t impl_list[] = REG_REDUCTION_P({
-        GPU_INSTANCE_INTEL_DEVMODE(intel::jit::jit_reduction_t)
+        GPU_INSTANCE_INTEL_DEVMODE(intel::jit::reduction_t)
         GPU_INSTANCE_INTEL(intel::ocl::atomic_reduction_t)
         GPU_INSTANCE_INTEL(intel::ocl::combined_reduction_t)
         GPU_INSTANCE_INTEL(intel::ocl::ref_reduction_t)

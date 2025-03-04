@@ -215,6 +215,14 @@ limitations when using Nvidia backend for eltwise primitive:
 The inner product primitives is an implementation of matrix multiplication plus
 bias activation. There are two implementation of inner product in cuDNN backend.
 
+With `sum` post-op, the accumulation mode attribute affects the behavior as
+follows:
+- `relaxed`: Uses GEMM’s beta parameter for a fused and optimized sum post-op
+  but may reduce output precision for large `f16` inputs.
+- `strict` (default): Converts GEMM output to `f32`, performs `sum` post-op as a
+  separate operation, then converts it back to the original type. This attribute
+  provides better output precision but reduced performance.
+
 #### Using GEMM
 
 The default backend for inner product is the gemm backend using `cublasGemmEx`

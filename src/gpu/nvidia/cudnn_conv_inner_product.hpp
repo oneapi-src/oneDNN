@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2020 Codeplay Software Limited
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -65,7 +65,7 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
             using namespace prop_kind;
             using sm_t = primitive_attr_t::skip_mask_t;
 
-            const auto attr_skip_mask = sm_t::scales_runtime | sm_t::post_ops;
+            const auto attr_skip_mask = sm_t::scales | sm_t::post_ops;
             // Flag for checking if the fused routine can be used for the
             // blocked format case. If set to true, that implies ReLU and
             // blocking are used.
@@ -91,7 +91,8 @@ struct cudnn_conv_inner_product_fwd_t : public cudnn_inner_product_fwd_t {
                     new cudnn_conv_inner_product_fwd_impl_t());
 
             auto st = inner_product_impl_->init(engine, this, with_relu(),
-                    with_eltwise(), with_sum(), use_fused_path_for_blocking);
+                    with_eltwise(), with_sum(), use_fused_path_for_blocking,
+                    false);
             return st;
         }
         bool with_eltwise() const {
@@ -250,7 +251,7 @@ struct cudnn_conv_inner_product_bwd_data_t
                     new cudnn_conv_inner_product_bwd_data_impl_t());
 
             return inner_product_impl_->init(
-                    engine, this, false, false, false, false);
+                    engine, this, false, false, false, false, false);
         }
 
         status_t set_default_params() {
@@ -341,7 +342,7 @@ struct cudnn_conv_inner_product_bwd_weights_t
                     new cudnn_conv_inner_product_bwd_weights_impl_t());
 
             return inner_product_impl_->init(
-                    engine, this, false, false, false, false);
+                    engine, this, false, false, false, false, false);
         }
 
         status_t set_default_params() {

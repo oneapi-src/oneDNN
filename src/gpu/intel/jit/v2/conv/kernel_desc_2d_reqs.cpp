@@ -46,13 +46,27 @@ struct stride_t {
         return *this;
     }
 
-    expr_t to_expr() const {
-        if (is_zero()) return expr_t(0);
-        if (is_one()) return expr_t(1);
-        expr_t ret = pvars[0].var();
+    template <typename BinaryFunc>
+    expr_t binary_expr(dim_t rhs, const BinaryFunc &func) const {
+        if (is_zero()) return func(0, rhs);
+        if (is_one()) return func(1, rhs);
+        expr_t lhs = pvars[0].var();
         for (size_t i = 1; i < pvars.size(); i++)
-            ret *= pvars[i].var();
-        return ret;
+            lhs *= pvars[i].var();
+        return func(lhs, ir_utils::safe_div(rhs, factor));
+    }
+
+    expr_t mod(dim_t rhs) const {
+        return binary_expr(
+                rhs, [](const expr_t &a, const expr_t &b) { return a % b; });
+    }
+    expr_t ge(dim_t rhs) const {
+        return binary_expr(
+                rhs, [](const expr_t &a, const expr_t &b) { return a >= b; });
+    }
+    expr_t le(dim_t rhs) const {
+        return binary_expr(
+                rhs, [](const expr_t &a, const expr_t &b) { return a <= b; });
     }
 
     void intersect(const stride_t &other) {
@@ -158,8 +172,9 @@ void generate_2d_reqs(const kernel_desc_t &desc, tensor_kind_t tensor_kind,
     int base_align = block_2d_base_alignment(desc.hw_desc);
     auto W = params.w_dim.var();
     auto H = params.h_dim.var();
-    auto P = strides.at(params.h_dim).to_expr();
-    if (!is_one(params.y_stride)) P *= params.y_stride;
+    auto P = strides.at(params.h_dim);
+    if (!is_one(params.y_stride))
+        P.pvars.push_back(pvar_t::from_var(params.y_stride));
     reqs.add_no_simplify(W >= safe_div(block_2d_min_dim(), type_size));
     reqs.add_no_simplify(W <= safe_div(block_2d_max_dim(), type_size));
     reqs.add_no_simplify(W % block_2d_w_alignment(type_size) == 0);
@@ -169,12 +184,12 @@ void generate_2d_reqs(const kernel_desc_t &desc, tensor_kind_t tensor_kind,
         reqs.add_no_simplify(H % params.y_stride == 0);
         reqs.add_no_simplify(H / params.y_stride <= block_2d_max_dim());
     }
-    reqs.add_no_simplify(P >= safe_div(block_2d_min_dim(), type_size));
-    reqs.add_no_simplify(P <= safe_div(block_2d_max_dim(), type_size));
+    reqs.add_no_simplify(P.ge(safe_div(block_2d_min_dim(), type_size)));
+    reqs.add_no_simplify(P.le(safe_div(block_2d_max_dim(), type_size)));
     reqs.add_no_simplify(
-            P % safe_div(block_2d_pitch_alignment(desc.hw_desc), type_size)
+            P.mod(safe_div(block_2d_pitch_alignment(desc.hw_desc), type_size))
             == 0);
-    reqs.add_no_simplify(params.base_stride.to_expr() % base_align == 0);
+    reqs.add_no_simplify(params.base_stride.mod(base_align) == 0);
     if ((is_fwd || is_bwd_w) && params.h_dim == pvars::iw) {
         reqs.add_no_simplify((params.y_stride == 1) | (pvars::pw.var() == 0));
         reqs.add_no_simplify((params.y_stride == 1) | (pvars::kw.var() == 1));

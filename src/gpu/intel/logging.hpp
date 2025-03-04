@@ -22,6 +22,7 @@
 #include <string>
 
 #include "common/utils.hpp"
+#include "common/verbose.hpp"
 #include "gpu/intel/utils.hpp"
 
 namespace dnnl {

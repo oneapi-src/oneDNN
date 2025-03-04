@@ -45,6 +45,7 @@ enum class grf_usage_label_t {
 
 inline std::vector<grf_usage_label_t> all_grf_usage_labels() {
     std::vector<grf_usage_label_t> ret;
+    ret.reserve(static_cast<size_t>(grf_usage_label_t::_last));
     for (int i = 0; i < (int)grf_usage_label_t::_last; i++) {
         ret.push_back((grf_usage_label_t)i);
     }

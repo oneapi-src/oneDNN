@@ -96,10 +96,10 @@ sdpa_config_t xehpc_h128_s64 = {16, 32, 32, 32, 4, 2, 4, 2};
 sdpa_config_t xehpc_h128_s32 = {16, 16, 16, 16, 8, 2, 8, 2};
 sdpa_config_t xehpc_h128_2nd = {32, 32, 32, 16, 8, 1, 4, 2};
 
-sdpa_config_t xehpc_q_h128 = {16, 64, 16, 32, 16, 2, 8, 4};
+sdpa_config_t xehpc_q_h128 = {16, 64, 32, 16, 16, 2, 4, 8};
 sdpa_config_t xehpc_q_h128_s64 = {16, 16, 32, 16, 4, 4, 4, 4};
 sdpa_config_t xehpc_q_h128_s32 = {16, 16, 32, 16, 4, 2, 4, 2};
-sdpa_config_t xehpc_q_h128_2nd = {32, 16, 32, 16, 4, 1, 4, 1};
+sdpa_config_t xehpc_q_h128_2nd = {16, 16, 16, 16, 8, 1, 8, 1};
 sdpa_config_t xehpc_q_h128_s32_2nd = {16, 32, 32, 16, 8, 1, 4, 2};
 
 sdpa_config_t xehpc_h256 = {16, 32, 32, 32, 8, 4, 8, 4};
@@ -254,6 +254,21 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     }
 
     if (!config) return status::unimplemented;
+
+    VDISPATCH_SDPA(config->unroll_n_kq * config->wg_n_kq
+                            == config->unroll_n_vs * config->wg_n_vs
+                    && config->unroll_n_kq % config->unroll_n_vs == 0,
+            "[CONFIG] The config KQ work_group tile N(%d) axis must equal "
+            "VS work_group tile N(%d) axis and KQ subgroup tile N(%d) axis "
+            "must be divisible by VS subgroup tile N(%d) axis",
+            config->unroll_n_kq * config->wg_n_kq,
+            config->unroll_n_vs * config->wg_n_vs, config->unroll_n_kq,
+            config->unroll_n_vs);
+
+    VDISPATCH_SDPA(config->unroll_m_vs * config->wg_m_vs >= d->head_size(),
+            "[CONFIG] The config work_group tile M(%d) axis must be "
+            "greater than or equal to head size(%ld)",
+            config->unroll_m_vs * config->wg_m_vs, d->head_size());
 
     /* Get device information */
     HWInformation hw_info;

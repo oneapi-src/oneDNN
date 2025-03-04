@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "gpu/intel/ocl/ocl_gpu_device_info.hpp"
-#include "gpu/intel/ocl/ocl_gpu_engine.hpp"
-#include "gpu/intel/ocl/ocl_gpu_hw_info.hpp"
+#include "gpu/intel/ocl/device_info.hpp"
+#include "gpu/intel/ocl/engine.hpp"
+#include "gpu/intel/ocl/hw_info.hpp"
 
 #include <CL/cl_ext.h>
 
@@ -26,9 +26,9 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-status_t ocl_gpu_device_info_t::init_arch(impl::engine_t *engine) {
+status_t device_info_t::init_arch(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
-    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
+    auto device = utils::downcast<const engine_t *>(engine)->device();
 
     // skip other vendors
     const cl_uint intel_vendor_id = 0x8086;
@@ -68,9 +68,9 @@ status_t ocl_gpu_device_info_t::init_arch(impl::engine_t *engine) {
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_device_name(impl::engine_t *engine) {
+status_t device_info_t::init_device_name(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
-    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
+    auto device = utils::downcast<const engine_t *>(engine)->device();
 
     size_t param_size = 0;
     err = clGetDeviceInfo(device, CL_DEVICE_NAME, 0, nullptr, &param_size);
@@ -84,15 +84,15 @@ status_t ocl_gpu_device_info_t::init_device_name(impl::engine_t *engine) {
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_runtime_version(impl::engine_t *engine) {
-    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
+status_t device_info_t::init_runtime_version(impl::engine_t *engine) {
+    auto device = utils::downcast<const engine_t *>(engine)->device();
     runtime_version_ = get_driver_version(device);
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_extensions(impl::engine_t *engine) {
+status_t device_info_t::init_extensions(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
-    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
+    auto device = utils::downcast<const engine_t *>(engine)->device();
 
     // query device for extensions
     size_t param_size = 0;
@@ -122,9 +122,9 @@ status_t ocl_gpu_device_info_t::init_extensions(impl::engine_t *engine) {
     return status::success;
 }
 
-status_t ocl_gpu_device_info_t::init_attributes(impl::engine_t *engine) {
+status_t device_info_t::init_attributes(impl::engine_t *engine) {
     cl_int err = CL_SUCCESS;
-    auto device = utils::downcast<const ocl_gpu_engine_t *>(engine)->device();
+    auto device = utils::downcast<const engine_t *>(engine)->device();
 
     CHECK(get_ocl_device_eu_count(device, gpu_arch_, &eu_count_));
 
@@ -168,7 +168,7 @@ status_t ocl_gpu_device_info_t::init_attributes(impl::engine_t *engine) {
     return status::success;
 }
 
-std::string ocl_gpu_device_info_t::get_cl_ext_options() const {
+std::string device_info_t::get_cl_ext_options() const {
     using namespace compute;
 
     std::string opts;

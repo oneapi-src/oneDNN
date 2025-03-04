@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2025 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,31 +14,28 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_GPU_HW_INFO_HPP
-#define GPU_INTEL_OCL_OCL_GPU_HW_INFO_HPP
+#include "gpu/intel/jit/generator.hpp"
 
-#include <CL/cl.h>
-
-#include "common/c_types_map.hpp"
-#include "gpu/intel/compute/device_info.hpp"
+#include "gpu/intel/jit/utils/utils.hpp"
+#include "ngen_register_decl.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace gpu {
 namespace intel {
-namespace ocl {
+namespace jit {
 
-xpu::runtime_version_t get_driver_version(cl_device_id device);
+void check_kernel_size(const std::string &kernel_name, size_t kernel_size,
+        size_t icache_size) {
+    if (kernel_size > icache_size) {
+        gpu_warning() << kernel_name
+                      << " larger than icache, kernel: " << kernel_size
+                      << " bytes, icache: " << icache_size << " bytes";
+    }
+}
 
-status_t init_gpu_hw_info(impl::engine_t *engine, cl_device_id device,
-        cl_context context, uint32_t &ip_version, compute::gpu_arch_t &gpu_arch,
-        int &gpu_product_family, int &stepping_id, uint64_t &native_extensions,
-        bool &mayiuse_systolic, bool &mayiuse_ngen_kernels);
-
-} // namespace ocl
+} // namespace jit
 } // namespace intel
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
-
-#endif // GPU_INTEL_OCL_OCL_GPU_HW_INFO_HPP

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 *******************************************************************************/
 
 /*@kcatalog@*/
-auto _CATALOG_ = kcatalog::toFlatCatalog({
+auto _CATALOG_ = kcatalog::toArray({
 {{'C', "ugemm", {"B", "B", "S"}, {"N", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {1, 1, 1}, ""}, "ab4 as8 rb l4 ca1 wg 2x8 int", {8, (LoopType) 0, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {4096, 4096, 2048}, {4096, 4096, 2048}, {32, 16, 8}, {2, 8, 1}, 1, (WGType) 1, 1, 2048, 0, {2, 2, 4}, {true, true, false}}, {'W', 1, {512}}},
 {{'C', "ugemm", {"B", "B", "S"}, {"N", "T", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {1, 1, 1}, ""}, "ab2 ab8 rb l4 cab1 wg 4x4 int", {8, (LoopType) 0, 128, {(LoopType) 0, (LoopType) 1, (LoopType) 255}, {4096, 4096, 2048}, {4096, 4096, 2048}, {32, 16, 8}, {4, 4, 1}, 1, (WGType) 1, 1, 6144, 0, {2, 2, 4}, {true, true, false}}, {'W', 1, {512}}},
 {{'C', "ugemm", {"B", "B", "S"}, {"T", "N", "N"}}, {-1, -1, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {-1, -1, -1}, {1, 1, 1}, ""}, "as8x2 ab16/8 rb l4 cb1 wg 8x2 vnc nmk", {8, (LoopType) 1, 128, {(LoopType) 1, (LoopType) 0, (LoopType) 255}, {4096, 4096, 2048}, {4096, 4096, 2048}, {16, 16, 16}, {8, 2, 1}, 1, (WGType) 1, 1, 2048, 0, {2, 2, 4}, {true, true, false}}, {'W', 1, {256}}},

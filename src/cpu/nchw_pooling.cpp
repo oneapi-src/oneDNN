@@ -92,6 +92,10 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
         const auto src_off = IW * IH * ID * C * mb + IW * IH * ID * c;
         const auto *src_loc = &src[src_off];
 
+        data_t d_val = d[0];
+        dim_t kd_max = 0;
+        dim_t kh_max = 0;
+        dim_t kw_max = 0;
         for_(dim_t kd = 0; kd < KD; ++kd)
         for_(dim_t kh = 0; kh < KH; ++kh)
         for (dim_t kw = 0; kw < KW; ++kw) {
@@ -104,10 +108,17 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
 
             const auto src_off_loc = IW * IH * id + IW * ih + iw;
             const auto &s = src_loc[src_off_loc];
-            if (s > d[0]) {
-                d[0] = s;
-                set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
+            if (s > d_val) {
+                d_val = s;
+                kd_max = kd;
+                kh_max = kh;
+                kw_max = kw;
             }
+        }
+
+        if (d_val > d[0]) {
+            d[0] = d_val;
+            set_ws(mb, c, od, oh, ow, kd_max * KH * KW + kh_max * KW + kw_max);
         }
     };
 
@@ -285,6 +296,10 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
         const auto src_off = IW * IH * ID * C * mb + IW * IH * ID * c;
         const auto *src_loc = &cvt_wsp[src_off];
 
+        float d_val = d[0];
+        dim_t kd_max = 0;
+        dim_t kh_max = 0;
+        dim_t kw_max = 0;
         for_(dim_t kd = 0; kd < KD; ++kd)
         for_(dim_t kh = 0; kh < KH; ++kh)
         for (dim_t kw = 0; kw < KW; ++kw) {
@@ -297,10 +312,17 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
 
             const auto src_off_loc = IW * IH * id + IW * ih + iw;
             const auto &s = src_loc[src_off_loc];
-            if (s > d[0]) {
-                d[0] = s;
-                set_ws(mb, c, od, oh, ow, kd * KH * KW + kh * KW + kw);
+            if (s > d_val) {
+                d_val = s;
+                kd_max = kd;
+                kh_max = kh;
+                kw_max = kw;
             }
+        }
+
+        if (d_val > d[0]) {
+            d[0] = d_val;
+            set_ws(mb, c, od, oh, ow, kd_max * KH * KW + kh_max * KW + kw_max);
         }
     };
 
@@ -491,7 +513,7 @@ status_t nchw_pooling_bwd_t<data_type::f32>::execute_backward(
         diff_src[diff_src_offset] += d[0];
     };
 
-    auto ker_avg = [=](const data_t *d, dim_t mb, dim_t c, dim_t od, dim_t oh,
+    auto ker_avg = [=](data_t d, dim_t mb, dim_t c, dim_t od, dim_t oh,
                            dim_t ow) {
         dim_t id_start = apply_offset(od * SD, padF);
         dim_t ih_start = apply_offset(oh * SH, padT);
@@ -511,7 +533,7 @@ status_t nchw_pooling_bwd_t<data_type::f32>::execute_backward(
             size_t diff_src_offset = (size_t)mb * C * ID * IH * IW
                     + (size_t)c * ID * IH * IW + (size_t)id * IH * IW
                     + (size_t)ih * IW + (size_t)iw;
-            diff_src[diff_src_offset] += d[0] / num_summands;
+            diff_src[diff_src_offset] += d / num_summands;
         }
     };
 
@@ -549,7 +571,7 @@ status_t nchw_pooling_bwd_t<data_type::f32>::execute_backward(
                 size_t diff_dst_offset = diff_dst_offset_b
                         + (size_t)od * OH * OW + (size_t)oh * OW;
                 for (dim_t ow = ow_start; ow < ow_end; ++ow) {
-                    const data_t *d = &diff_dst[diff_dst_offset + ow];
+                    data_t d = diff_dst[diff_dst_offset + ow];
                     ker_avg(d, mb, c, od, oh, ow);
                 }
             }
@@ -643,8 +665,8 @@ status_t nchw_pooling_bwd_t<d_type>::execute_backward(
         diff_src[diff_src_offset] += d[0];
     };
 
-    auto ker_avg = [=](const float *d, float *diff_src, dim_t mb, dim_t c,
-                           dim_t od, dim_t oh, dim_t ow) {
+    auto ker_avg = [=](float d, float *diff_src, dim_t mb, dim_t c, dim_t od,
+                           dim_t oh, dim_t ow) {
         auto id_start = apply_offset(od * SD, padF);
         auto ih_start = apply_offset(oh * SH, padT);
         auto iw_start = apply_offset(ow * SW, padL);
@@ -662,7 +684,7 @@ status_t nchw_pooling_bwd_t<d_type>::execute_backward(
         for (dim_t iw = iw_start; iw < iw_end; ++iw) {
             size_t diff_src_offset
                     = (size_t)id * IH * IW + (size_t)ih * IW + (size_t)iw;
-            diff_src[diff_src_offset] += d[0] / num_summands;
+            diff_src[diff_src_offset] += d / num_summands;
         }
     };
 
@@ -739,8 +761,7 @@ status_t nchw_pooling_bwd_t<d_type>::execute_backward(
                         size_t diff_dst_offset = (size_t)c * OD * OH * OW
                                 + (size_t)od * OH * OW + (size_t)oh * OW;
                         for (dim_t ow = ow_start; ow < ow_end; ++ow) {
-                            const float *d
-                                    = &diff_dst_fp32[diff_dst_offset + ow];
+                            float d = diff_dst_fp32[diff_dst_offset + ow];
                             ker_avg(d, &diff_src_fp32[c * ID * IH * IW], mb,
                                     cb * c_blk + c, od, oh, ow);
                         }

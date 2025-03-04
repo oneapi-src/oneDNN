@@ -117,7 +117,7 @@ class idiv_fixup_mutator_t : public ir_mutator_t {
 public:
     idiv_fixup_mutator_t(var_manager_t &var_mgr) : var_mgr_(var_mgr) {}
 
-    object_t _mutate(const binary_op_t &_obj) {
+    object_t _mutate(const binary_op_t &_obj) override {
         auto new_obj = ir_mutator_t::_mutate(_obj);
         auto &obj = new_obj.as<binary_op_t>();
         bool is_var_idivmod
@@ -303,13 +303,13 @@ public:
         }
     }
 
-    const expr_t mem_buf(const std::string &name) const {
+    expr_t mem_buf(const std::string &name) const {
         if (entries_.count(name) == 0) return expr_t();
         auto &e = entries_.at(name);
         return e.mem_buf;
     }
 
-    const expr_t reg_buf(const std::string &name) const {
+    expr_t reg_buf(const std::string &name) const {
         if (entries_.count(name) == 0) return expr_t();
         auto &e = entries_.at(name);
         return e.reg_buf;
@@ -340,7 +340,7 @@ public:
                 build_x2r(s.x2r);
                 if (s.x2r.tensor_kind == tensor_kind_t::b) {
                     uint32_t mask = (1 << 1) | (1 << 2);
-                    auto &b_buf = buf_info_.reg_buf("b");
+                    const auto &b_buf = buf_info_.reg_buf("b");
                     if (!s.x2r.bias_layout.is_empty()) {
                         reduce(s.x2r.layout, s.x2r.bias_layout, b_buf,
                                 buf_info_.reg_buf("bias"), mask);
@@ -352,8 +352,8 @@ public:
 
 private:
     void build_x2r(const x2r_plan_t &plan) {
-        auto &mem_buf = buf_info_.mem_buf(to_string(plan.tensor_kind));
-        auto &reg_buf = buf_info_.reg_buf(to_string(plan.tensor_kind));
+        const auto &mem_buf = buf_info_.mem_buf(to_string(plan.tensor_kind));
+        const auto &reg_buf = buf_info_.reg_buf(to_string(plan.tensor_kind));
         auto load_buf
                 = load(plan.load, mem_buf, (plan.reorder ? expr_t() : reg_buf));
         if (plan.reorder) reorder(plan.reorder, load_buf, reg_buf);
@@ -363,9 +363,9 @@ private:
         auto &a_layout = fma.a_layout;
         auto &b_layout = fma.b_layout;
         auto &c_layout = fma.c_layout;
-        auto &a_buf = buf_info_.reg_buf("a");
-        auto &b_buf = buf_info_.reg_buf("b");
-        auto &c_buf = buf_info_.reg_buf("c");
+        const auto &a_buf = buf_info_.reg_buf("a");
+        const auto &b_buf = buf_info_.reg_buf("b");
+        const auto &c_buf = buf_info_.reg_buf("c");
 
         for (auto &d : a_layout.dims())
             gpu_assert(fma.inst_tile.has(d)) << d;
@@ -696,7 +696,7 @@ private:
         auto &slm_reduce = plan_.slm_reduce;
         if (!slm_reduce) return;
 
-        auto &c_buf = buf_info_.reg_buf("c");
+        const auto &c_buf = buf_info_.reg_buf("c");
         auto c_tmp_buf = alloc("c_reduce", slm_reduce.load.reg_layout().size());
         auto c_slm_buf = alloc("slm", slm_reduce.slm_usage_bytes());
         store(slm_reduce.store, c_slm_buf, c_buf);
@@ -709,8 +709,8 @@ private:
     void build_c_store() {
         auto &store_plan = plan_.store;
         auto &c_layout = plan_.c_reg_layout;
-        auto &c_mem_buf = buf_info_.mem_buf("c");
-        auto &c_reg_buf = buf_info_.reg_buf("c");
+        const auto &c_mem_buf = buf_info_.mem_buf("c");
+        const auto &c_reg_buf = buf_info_.reg_buf("c");
         for_each(c_layout.int_dim_sizes(), store_plan.tile,
                 [&](const pvar_coord_t<dim_t> &coord) {
                     epilogue_tile_builder_t builder(*this, buf_info_, desc_,
@@ -724,8 +724,8 @@ private:
     void build_bias_reduce_store() {
         if (plan_.bias_layout.is_empty()) return;
         auto &store_plan = plan_.store;
-        auto &bias_red_mem_buf = buf_info_.mem_buf("bias");
-        auto &bias_red_reg_buf = buf_info_.reg_buf("bias");
+        const auto &bias_red_mem_buf = buf_info_.mem_buf("bias");
+        const auto &bias_red_reg_buf = buf_info_.reg_buf("bias");
         expr_t tmp_buf;
         if (store_plan.bias_reorder)
             tmp_buf = alloc("bias_tmp", store_plan.bias_reorder.dst.size());
@@ -763,7 +763,7 @@ public:
                     = const_var_t::make(type_t::s32(), "sk_iters_per_tg");
             sk_params.iters_per_tile
                     = const_var_t::make(type_t::s32(), "sk_iters_per_tile");
-            sk_params.tg_idx = jit::ir_builder_t::tg_idxs()[0];
+            sk_params.tg_idx = plan_.tg_grid.index_var(0);
 
             auto iter = alloc_var(type_t::s32(), "sk_iter");
             iter = sk_params.tg_idx * sk_params.iters_per_tg;
@@ -915,7 +915,8 @@ private:
 
     void emit_thread_index_let() {
         for (int i = 0; i < 3; i++) {
-            auto value = jit::ir_builder_t::local_ids()[i];
+            auto value = var_t::make(
+                    type_t::u16(), jit::ir_builder_t::local_id(i));
             if (i == 0) value /= plan_.desc.simd;
             auto thr_idx = plan_.thr_grid.index_var(i);
             let(thr_idx, cast(value, thr_idx.type()));

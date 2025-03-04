@@ -646,13 +646,13 @@ public:
         gemm_loop_ = to_gemm(cfg.loop_dims().get(), prb);
     }
 
-    dim_t iter_dim(pvar_t d) const { return gemm_iter_.get(d, 1); }
+    dim_t iter_dim(const pvar_t &d) const { return gemm_iter_.get(d, 1); }
 
-    dim_t thread_group_dim(pvar_t d) const {
+    dim_t thread_group_dim(const pvar_t &d) const {
         return gemm_thread_group_.get(d, 1);
     }
 
-    dim_t loop_dim(pvar_t d) const { return gemm_loop_.get(d, 1); }
+    dim_t loop_dim(const pvar_t &d) const { return gemm_loop_.get(d, 1); }
 
 private:
     pvar_tile_t gemm_iter_;

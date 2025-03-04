@@ -14,15 +14,15 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP
-#define GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP
+#ifndef GPU_INTEL_OCL_DEVICE_INFO_HPP
+#define GPU_INTEL_OCL_DEVICE_INFO_HPP
 
 #include <string>
 #include <vector>
 #include <CL/cl.h>
 
 #include "gpu/intel/compute/device_info.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -30,7 +30,7 @@ namespace gpu {
 namespace intel {
 namespace ocl {
 
-class ocl_gpu_device_info_t : public compute::device_info_t {
+class device_info_t : public compute::device_info_t {
 public:
     std::string get_cl_ext_options() const;
 
@@ -48,4 +48,4 @@ protected:
 } // namespace impl
 } // namespace dnnl
 
-#endif // GPU_INTEL_OCL_OCL_GPU_DEVICE_INFO_HPP
+#endif // GPU_INTEL_OCL_DEVICE_INFO_HPP

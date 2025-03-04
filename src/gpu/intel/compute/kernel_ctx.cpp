@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,5 +14,22 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl_config.h"
-#include "ngen_register_decl.hpp"
+#include "gpu/intel/compute/kernel_ctx.hpp"
+#include "gpu/intel/primitive_conf.hpp"
+
+namespace dnnl {
+namespace impl {
+namespace gpu {
+namespace intel {
+namespace compute {
+
+void kernel_ctx_t::register_buffer_size(const memory_desc_info_t &mdi) {
+    register_buffer_size(
+            mdi.size + mdi.offset0 * types::data_type_size(mdi.data_type));
+}
+
+} // namespace compute
+} // namespace intel
+} // namespace gpu
+} // namespace impl
+} // namespace dnnl

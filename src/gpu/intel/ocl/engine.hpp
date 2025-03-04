@@ -14,14 +14,14 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GPU_INTEL_OCL_OCL_GPU_ENGINE_HPP
-#define GPU_INTEL_OCL_OCL_GPU_ENGINE_HPP
+#ifndef GPU_INTEL_OCL_ENGINE_HPP
+#define GPU_INTEL_OCL_ENGINE_HPP
 
 #include "common/c_types_map.hpp"
 #include "common/utils.hpp"
 #include "gpu/gpu_impl_list.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
-#include "gpu/intel/ocl/ocl_utils.hpp"
+#include "gpu/intel/ocl/utils.hpp"
 #include "xpu/ocl/engine_impl.hpp"
 #include "xpu/utils.hpp"
 
@@ -35,9 +35,9 @@ status_t engine_create(impl::engine_t **engine, engine_kind_t engine_kind,
         cl_device_id dev, cl_context ctx, size_t index,
         const std::vector<uint8_t> &cache_blob);
 
-class ocl_gpu_engine_t : public compute::compute_engine_t {
+class engine_t : public compute::compute_engine_t {
 public:
-    ocl_gpu_engine_t(cl_device_id adevice, cl_context acontext, size_t index)
+    engine_t(cl_device_id adevice, cl_context acontext, size_t index)
         : compute::compute_engine_t(
                 new xpu::ocl::engine_impl_t(adevice, acontext, index)) {}
 
@@ -56,7 +56,7 @@ public:
             const std::vector<const char *> &kernel_names) const override;
 
     status_t create_kernel(compute::kernel_t *kernel,
-            jit::jit_generator_base *jitter) const override;
+            jit::generator_base_t *jitter) const override;
 
     status_t create_kernels(std::vector<compute::kernel_t> *kernels,
             const std::vector<const char *> &kernel_names,
@@ -109,14 +109,14 @@ public:
 
 protected:
     const xpu::ocl::engine_impl_t *impl() const {
-        return (const xpu::ocl::engine_impl_t *)engine_t::impl();
+        return (const xpu::ocl::engine_impl_t *)gpu::engine_t::impl();
     }
 
     status_t build_program_from_source(xpu::ocl::wrapper_t<cl_program> &program,
             compute::program_src_t &src, const char *code_string,
             const compute::kernel_ctx_t &kernel_ctx) const;
 
-    ~ocl_gpu_engine_t() override = default;
+    ~engine_t() override = default;
 
     status_t init_device_info() override;
     status_t init_device_info(const std::vector<uint8_t> &cache_blob) override;

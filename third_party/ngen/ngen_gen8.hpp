@@ -18,6 +18,10 @@
  * Do not #include this file directly; ngen uses it internally.
  */
 
+#ifndef NGEN_GEN8_HPP
+#define NGEN_GEN8_HPP
+
+namespace NGEN_NAMESPACE {
 // Gen8-11 binary encoding implementation.
 
 // 25 bits of data common between src0 and src1.
@@ -605,3 +609,6 @@ static inline constexpr14 Align16Operand extToAlign16(const ExtendedReg &reg)
 {
     return Align16Operand::createWithMME(reg.getBase(), reg.getMMENum());
 }
+
+}
+#endif

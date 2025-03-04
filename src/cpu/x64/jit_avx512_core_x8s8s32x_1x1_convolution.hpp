@@ -73,9 +73,9 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
             VDISPATCH_CONV(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "");
 
             VDISPATCH_CONV(
-                    attr()->has_default_values(smask_t::scales_runtime
-                                    | smask_t::zero_points_runtime
-                                    | smask_t::post_ops | smask_t::sum_dt,
+                    attr()->has_default_values(smask_t::scales
+                                    | smask_t::zero_points | smask_t::post_ops
+                                    | smask_t::sum_dt,
                             dst_md(0)->data_type),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_CONV(attr()->scales_.has_default_values({DNNL_ARG_SRC,
@@ -154,9 +154,6 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
                     && attr_post_op_dw_inputs() > 1)
                 return arg_usage_t::input;
 
-            if (arg == (DNNL_ARG_ATTR_POST_OP_DW | DNNL_ARG_ATTR_OUTPUT_SCALES)
-                    && jcp_.with_dw_conv)
-                return arg_usage_t::input;
             return convolution_fwd_pd_t::arg_usage(arg);
         }
 
@@ -314,7 +311,7 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
 
     // Note: In case of fused depthwise convolution, the final output data type
     // after fusion may not be same as for dst.
-    typedef typename prec_traits_t<data_type::s32>::type acc_data_t;
+    using acc_data_t = typename prec_traits_t<data_type::s32>::type;
 
     status_t init(engine_t *engine) override {
         CHECK(safe_ptr_assign(kernel_,

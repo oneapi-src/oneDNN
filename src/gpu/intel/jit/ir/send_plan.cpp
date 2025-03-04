@@ -47,9 +47,18 @@ public:
     virtual bool can_split(int factor) const = 0;
     virtual void set_split(int factor) = 0;
     virtual int split_factor() const = 0;
-    virtual int estimate_regs(bool with_buffer = true, bool with_headers = true,
-            bool reuse_headers = false) const = 0;
+    virtual int estimate_regs(
+            bool with_buffer, bool with_headers, bool reuse_headers) const = 0;
     virtual std::string str(const std::string &tag) const = 0;
+
+    int estimate_regs(bool with_buffer, bool with_headers) const {
+        return estimate_regs(
+                with_buffer, with_headers, /*reuse_headers=*/false);
+    }
+    int estimate_regs(bool with_buffer) const {
+        return estimate_regs(with_buffer, /*with_headers=*/true);
+    }
+    int estimate_regs() const { return estimate_regs(/*with_buffer=*/true); }
 };
 
 send_op_t to_2d(send_op_t op) {
@@ -1965,7 +1974,7 @@ public:
         if (!is_2d()) send_params_.hint_2d.enable = false;
     }
 
-    std::string str(const std::string &tag = "send_plan") const override {
+    std::string str(const std::string &tag) const override {
         std::ostringstream oss;
         oss << tag << ":" << std::endl;
         oss << "  base = " << addr_base_ << std::endl;
@@ -1984,6 +1993,7 @@ public:
         }
         return oss.str();
     }
+    std::string str() const { return str("send_plan"); }
 
     stmt_t create_stmt(const expr_t &mem_buf, const expr_t &reg_buf,
             int subtile_idx, const expr_t &pattern) const override {
@@ -2077,8 +2087,8 @@ public:
 
     int split_factor() const override { return split_factor_; }
 
-    int estimate_regs(bool with_buffer = true, bool with_headers = true,
-            bool reuse_headers = false) const override {
+    int estimate_regs(bool with_buffer, bool with_headers,
+            bool reuse_headers) const override {
         int header_size = 0;
         for (auto &g : send_groups_) {
             int g_header_size = 0;
@@ -2313,8 +2323,8 @@ public:
 
     int split_factor() const override { return split_factor_; }
 
-    int estimate_regs(bool with_buffer = true, bool with_headers = true,
-            bool reuse_headers = false) const override {
+    int estimate_regs(bool with_buffer, bool with_headers,
+            bool reuse_headers) const override {
         auto calls = find_objects<func_call_t>(access_.stmt());
         int header_size = 0;
         for (auto &c : calls) {

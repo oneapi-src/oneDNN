@@ -27,9 +27,9 @@
 #include "gpu/intel/jit/conv/plan.hpp"
 #include "gpu/intel/jit/conv/problem.hpp"
 #include "gpu/intel/jit/conv/tiler.hpp"
+#include "gpu/intel/jit/eltwise_injector.hpp"
 #include "gpu/intel/jit/ir/gemm_schedule.hpp"
 #include "gpu/intel/jit/ir/tensor_config.hpp"
-#include "gpu/intel/jit/jit_eltwise_injector.hpp"
 
 #define VDISPATCH_CHECK(pd, engine, cond, msg, ...) \
     VCONDCHECK(primitive, create, dispatch, convolution, (cond), \
@@ -322,6 +322,7 @@ std::string build_tag(const std::vector<int> &inner_blocks,
             char c = letters[i];
             if (c == ' ') continue;
             if (seen[i]) c = static_cast<char>(std::toupper(c));
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             tag = c + tag;
         }
     }
@@ -976,10 +977,8 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     using sm = primitive_attr_t::skip_mask_t;
     auto attr_skip_mask = sm::fpmath_mode | sm::accumulation_mode;
     if (prb.is_fwd || prb.is_bwd_d) {
-        attr_skip_mask |= sm::post_ops | sm::sum_dt | sm::zero_points_runtime
-                | sm::zero_points_runtime_data_type | sm::scales_runtime
-                | sm::rounding_mode | sm::scales_runtime_groups
-                | sm::scales_runtime_data_type;
+        attr_skip_mask |= sm::post_ops | sm::sum_dt | sm::zero_points_data_type
+                | sm::rounding_mode | sm::scales_groups | sm::scales_data_type;
         if (!attr->has_default_values(attr_skip_mask)) return false;
     } else {
         if (!attr->has_default_values(attr_skip_mask)) return false;
@@ -1017,7 +1016,7 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
     for (int i = 0; i < attr->post_ops_.len(); i++) {
         auto &po = attr->post_ops_.entry_[i];
         if (po.is_eltwise()) {
-            if (!jit_eltwise_injector_f32_is_supported(po.eltwise.alg))
+            if (!eltwise_injector_f32_is_supported(po.eltwise.alg))
                 return false;
             else if (po.eltwise.alg == alg_kind::eltwise_tanh
                     && hw == ngen::HW::XeHPG

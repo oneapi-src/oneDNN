@@ -26,9 +26,8 @@ namespace jit {
 #include "selector/db/kernel.db"
 #undef _CATALOG_
 
-const kcatalog::Catalog &catalog() {
-    static const kcatalog::Catalog c = gemm_catalog;
-    return c;
+kcatalog::Catalog catalog() {
+    return gemm_catalog;
 };
 
 } // namespace jit

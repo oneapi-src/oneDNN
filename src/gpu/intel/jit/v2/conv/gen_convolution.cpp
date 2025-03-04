@@ -80,7 +80,7 @@ bool has_large_buffers(const convolution_pd_t *pd) {
     auto is_large = [](const memory_desc_t &md) {
         memory_desc_wrapper mdw(md);
         gpu_assert(!mdw.format_any());
-        return mdw.size() > std::numeric_limits<int32_t>::max();
+        return mdw.size() > size_t(std::numeric_limits<int32_t>::max());
     };
     if (is_large(*pd->invariant_src_md())) return true;
     if (is_large(*pd->invariant_wei_md())) return true;

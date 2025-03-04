@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -212,8 +212,10 @@ protected:
 
     std::vector<param_t *> get_all_params(bool do_sort = false) {
         auto *this_const = const_cast<const container_config_t *>(this);
+        const auto &all_params = this_const->get_all_params(do_sort);
         std::vector<param_t *> ret;
-        for (auto *p : this_const->get_all_params(do_sort)) {
+        ret.reserve(all_params.size());
+        for (auto *p : all_params) {
             ret.push_back(const_cast<param_t *>(p));
         }
         return ret;
@@ -221,6 +223,7 @@ protected:
 
     std::vector<const param_t *> get_all_params(bool do_sort = false) const {
         std::vector<const param_t *> ret;
+        ret.reserve(get_params_.size());
         for (auto &gp : get_params_)
             ret.push_back(gp(this));
         if (do_sort) {

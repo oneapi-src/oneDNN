@@ -686,7 +686,7 @@ public:
             } else {
                 entries.back().append(s);
             }
-            while (entries.size() >= 1) {
+            while (!entries.empty()) {
                 auto &last = entries.back();
                 if (last.let_stmt.is_empty()) break;
                 int end = let_scope_ends.at(last.let_stmt);
