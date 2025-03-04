@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -118,13 +118,10 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
     // These are rough estimates of the latency (relative) of access to various
     // cache levels. This is enough for an estimation of data access cost.
     // TODO: Improve memory access estimates
-    static constexpr float L1_k = 1.f;
-    static constexpr float L2_k = 3.f;
-    static constexpr float L3_k = 15.f;
-    // TODO: At the moment, we are primarily evaluating the fit of the data into
-    // the L1/L2. Need to take into account the difference between the L3 and
-    // memory.
-    static constexpr float mem_k = 15.f;
+    static float L1_k;
+    static float L2_k;
+    static float L3_k;
+    static float mem_k;
     static constexpr int bench_iterations = 1;
 
     int sp, sp_block, nb_sp;
@@ -172,11 +169,22 @@ struct brg_blocking_t : public jit_brgemm_conv_conf_t {
         return (k > 1.f) ? (k - 1 + eff) / k : eff * koeff;
     }
 
-    static int estimate_ur(int oc_block) {
-        const auto est_ur = (oc_block == 64)
-                ? 6
-                : ((oc_block == 48) ? 9 : ((oc_block == 32) ? 14 : 28));
-        return est_ur;
+    static int estimate_ur(cpu_isa_t isa, int oc_block) {
+        if (one_of(isa, avx2, avx2_vnni, avx2_vnni_2)) {
+            switch (oc_block) {
+                case 32: return 3;
+                case 24: return 4;
+                case 16: return 6;
+                default: return 14;
+            }
+        } else {
+            switch (oc_block) {
+                case 64: return 6;
+                case 48: return 9;
+                case 32: return 14;
+                default: return 28;
+            }
+        }
     }
 
     int inp_w(int out_w, int ker_w) const {
@@ -378,6 +386,10 @@ status_t pick_tags(jit_brgemm_conv_conf_t &jcp, memory_desc_t &src_md,
 
 unsigned brg_blocking_t::L1;
 unsigned brg_blocking_t::L2;
+float brg_blocking_t::L1_k;
+float brg_blocking_t::L2_k;
+float brg_blocking_t::L3_k;
+float brg_blocking_t::mem_k;
 
 float brg_blocking_t::io_k(dim_t src, dim_t wei, dim_t dst, float n, float pk,
         bool is_broadcast, bool is_shared) const {
@@ -460,8 +472,8 @@ void brg_blocking_t::select_ic_block() {
         }
     } else {
         const auto est_ur = sp_block > 0
-                ? nstl::min(sp_block, estimate_ur(oc_block))
-                : estimate_ur(oc_block);
+                ? nstl::min(sp_block, estimate_ur(isa, oc_block))
+                : estimate_ur(isa, oc_block);
         const auto inp_ur = is_os_blocking ? est_ur : inp_w(est_ur, kw_block);
 
         if (kw_block > 1) {
@@ -729,6 +741,7 @@ bool brg_blocking_t::fast_check_oc_block() const {
 }
 
 float brg_blocking_t::est_eff() {
+    const auto jcp = *this;
     const auto ocblock = oc_block / acc_simd_w;
 
     const auto brgemm_microkernel_eff
@@ -761,28 +774,18 @@ float brg_blocking_t::est_eff() {
             dim_t thr_job = 0;
             int start {0}, end {0};
             balance211(work_amount, nthr, ithr, start, end);
-            int n {0}, g {0}, ocb {0}, odp {0}, ohp {0}, spb {0};
-            if (loop_order == loop_ndhwgc)
-                nd_iterator_init(start, n, mb, odp, od, ohp, oh, spb, nb_sp, g,
-                        ngroups, ocb, nb_oc);
-            else if (loop_order == loop_ngcdhw)
-                nd_iterator_init(start, n, mb, g, ngroups, ocb, nb_oc, odp, od,
-                        ohp, oh, spb, nb_sp);
+            int n {0}, g {0}, ocb {0}, odb {0}, ohb {0}, owb {0};
+            BRGEMM_CONV_ITERATOR_INIT;
 
             for (auto work = start; work < end; work++) {
                 const int ocp = ocb * oc_block;
                 const auto oc_sz = nstl::min(oc - ocp, oc_block);
                 int sp_sz = 0;
-                const int spp = spb * sp_block;
+                const int spp = owb * sp_block;
                 sp_sz = nstl::min(sp - spp, sp_block);
                 thr_job += sp_sz * oc_sz;
 
-                if (loop_order == loop_ndhwgc)
-                    nd_iterator_step(n, mb, odp, od, ohp, oh, spb, nb_sp, g,
-                            ngroups, ocb, nb_oc);
-                else if (loop_order == loop_ngcdhw)
-                    nd_iterator_step(n, mb, g, ngroups, ocb, nb_oc, odp, od,
-                            ohp, oh, spb, nb_sp);
+                BRGEMM_CONV_ITERATOR_STEP;
             }
             thr_jobs[ithr] = thr_job;
         }
@@ -1591,8 +1594,26 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         memory_desc_t &bias_md, primitive_attr_t &attr, int nthreads) {
     using namespace prop_kind;
 
-    brg_blocking_t::L1 = platform::get_per_core_cache_size(1);
+    // take L1 as 7/8 of the real size for L1
+    brg_blocking_t::L1 = (platform::get_per_core_cache_size(1) * 7) / 8;
     brg_blocking_t::L2 = platform::get_per_core_cache_size(2);
+    // here is hard-coded L2 size for avx2 performance cores
+    // TODO: get L2 size from the platform
+    if (one_of(isa, avx2, avx2_vnni, avx2_vnni_2))
+        brg_blocking_t::L2 = 2 * 1024 * 1024;
+    // take L2 as 3/4 of the real size for L2
+    brg_blocking_t::L2 = (brg_blocking_t::L2 * 3) / 4;
+
+    // These are rough estimates of the latency (relative) of access to various
+    // cache levels. This is enough for an estimation of data access cost.
+    // TODO: Improve memory access estimates
+    brg_blocking_t::L1_k = 1.f;
+    brg_blocking_t::L2_k = 2.3f;
+    brg_blocking_t::L3_k = 17.f;
+    // TODO: At the moment, we are primarily evaluating the fit of the data into
+    // the L1/L2. Need to take into account the difference between the L3 and
+    // memory.
+    brg_blocking_t::mem_k = 17.f;
 
     const memory_desc_wrapper src_d(&src_md);
     const memory_desc_wrapper weights_d(&weights_md);
@@ -1925,12 +1946,17 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     using namespace data_type;
     // ======================= blocking =================================
 
-    auto bcast_amount
-            = static_cast<size_t>(jcp.id) * jcp.ih * jcp.iw * jcp.src_dsz;
+    auto bcast_amount = static_cast<size_t>(jcp.id) * jcp.ih * jcp.iw
+            * jcp.src_dsz * jcp.ic;
     auto wei_amount = static_cast<size_t>(jcp.oc) * jcp.kd * jcp.kh * jcp.kw
-            * jcp.wei_dsz;
+            * jcp.wei_dsz * jcp.ic;
 
-    jcp.loop_order = (bcast_amount < wei_amount) ? loop_ngcdhw : loop_ndhwgc;
+    jcp.loop_order
+            = (one_of(isa, avx2, avx2_vnni, avx2_vnni_2) && jcp.mb > jcp.nthr
+                      && bcast_amount > brg_blocking_t::L2
+                      && wei_amount > brg_blocking_t::L2)
+            ? loop_gcndhw
+            : ((bcast_amount < wei_amount) ? loop_ngcdhw : loop_ndhwgc);
 
     const int min_oc_block = jcp.acc_simd_w;
 
@@ -1946,6 +1972,13 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         const bool small_amx_job = est_amx_job < 64 || jcp.oc < 256;
         auto start_ocb
                 = (is_amx(isa) && jcp.is_os_blocking && small_amx_job) ? 2 : 4;
+        if (one_of(isa, avx2, avx2_vnni, avx2_vnni_2)
+                && jcp.loop_order == loop_gcndhw)
+            start_ocb = 2;
+        if (one_of(isa, avx2, avx2_vnni, avx2_vnni_2)
+                && jcp.oh * jcp.ow >= 150 * 150)
+            start_ocb = 2;
+
         start_ocb = nstl::min(div_up(jcp.oc, jcp.acc_simd_w), start_ocb);
 
         auto finish_ocb = 1;
@@ -2198,7 +2231,6 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 #endif
 
     // ============ end blocking ===========================================
-
     jcp.brg_type
             = (jcp.use_uker && one_of(jcp.exec_type, exec_base, exec_trans))
             ? brgemm_static_offs
