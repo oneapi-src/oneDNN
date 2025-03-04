@@ -104,6 +104,8 @@ struct quant_entry_t : public c_compatible {
 
     void serialize(serialization_stream_t &sstream) const;
 
+    static quant_entry_t deserialize(deserializer_t &d);
+
     std::string get_verbose() const;
 
 private:
@@ -208,6 +210,8 @@ struct scales_t : public c_compatible {
     size_t get_hash() const;
 
     void serialize(serialization_stream_t &sstream) const;
+
+    static scales_t deserialize(deserializer_t &d);
 
     std::string get_verbose() const;
 
