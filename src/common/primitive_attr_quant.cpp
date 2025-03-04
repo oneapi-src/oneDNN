@@ -38,10 +38,19 @@ size_t quant_entry_t::get_hash() const {
 }
 
 void quant_entry_t::serialize(serialization_stream_t &sstream) const {
-    sstream.write(&mask_);
-    sstream.write(&data_type_);
-    sstream.write(&group_ndims_);
-    if (group_ndims_ > 0) sstream.write(group_dims_, group_ndims_);
+    sstream.append(mask_);
+    sstream.append(data_type_);
+    sstream.append_array(group_ndims_, group_dims_);
+}
+
+quant_entry_t quant_entry_t::deserialize(deserializer_t &d) {
+    quant_entry_t e;
+    d.pop(e.mask_);
+    d.pop(e.data_type_);
+    size_t group_ndims;
+    d.pop_array(group_ndims, e.group_dims_);
+    e.group_ndims_ = static_cast<int>(group_ndims);
+    return e;
 }
 
 std::string quant_entry_t::get_verbose() const {
@@ -73,10 +82,21 @@ size_t scales_t::get_hash() const {
 }
 
 void scales_t::serialize(serialization_stream_t &sstream) const {
+    sstream.append(scales_.size());
     for (const auto &e : scales_) {
         sstream.write(&e.first);
         e.second.serialize(sstream);
     }
+}
+
+scales_t scales_t::deserialize(deserializer_t &d) {
+    scales_t scales;
+    size_t size = d.pop<size_t>();
+    for (size_t i = 0; i < size; i++) {
+        int arg = d.pop<int>();
+        scales.scales_[arg] = d.pop<quant_entry_t>();
+    }
+    return scales;
 }
 
 std::string scales_t::get_verbose() const {

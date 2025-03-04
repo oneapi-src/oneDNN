@@ -124,6 +124,14 @@ struct serialization_stream_t {
 
     template <typename T,
             utils::enable_if_t<is_trivially_serialized<T>::value, bool> = true>
+    void append_array(size_t size, const T *ptr) {
+        append(size);
+        const auto *p = reinterpret_cast<const uint8_t *>(ptr);
+        data_.insert(data_.end(), p, p + size);
+    }
+
+    template <typename T,
+            utils::enable_if_t<is_trivially_serialized<T>::value, bool> = true>
     T get(size_t idx) const {
         T t {};
         if (data_.size() < idx + sizeof(T)) {
@@ -132,6 +140,14 @@ struct serialization_stream_t {
         }
         std::memcpy(&t, &data_[idx], sizeof(T));
         return t;
+    }
+
+    void get(size_t idx, size_t size, uint8_t *ptr) const {
+        if (data_.size() < idx + size) {
+            assert(!"unexpected");
+            return;
+        }
+        std::memcpy(ptr, &data_[idx], size);
     }
 
     size_t get_hash() const { return hash_range(data_.data(), data_.size()); };
@@ -260,8 +276,19 @@ struct deserializer_t {
         }
     }
 
+    template <typename T,
+            utils::enable_if_t<
+                    serialization_stream_t::is_trivially_serialized<T>::value,
+                    bool> = true>
+    void pop_array(size_t &size, T *ptr) {
+        pop(size);
+        s.get(idx, sizeof(T) * size, reinterpret_cast<uint8_t *>(ptr));
+        idx += sizeof(T) * size;
+    }
+
     bool empty() const { return idx >= s.get_data().size(); }
 
+private:
     size_t idx;
     const serialization_stream_t &s;
 };
