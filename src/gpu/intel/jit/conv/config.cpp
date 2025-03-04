@@ -450,8 +450,8 @@ struct goi_block_t {
     }
 
     static goi_block_t get_default_blocking(type_t type, int vec_size,
-            fma_kind_t fma_kind, bool is_bwd_d, dim_t g, dim_t o, dim_t i,
-            bool ab_transpose) {
+            fma_kind_t fma_kind, bool is_fwd, bool is_bwd_d, dim_t g, dim_t o,
+            dim_t i, bool ab_transpose) {
         dim_t x = o;
         dim_t y = i;
         int g_block = 1;
@@ -469,23 +469,21 @@ struct goi_block_t {
             std::swap(x_block, y_block);
             std::swap(x_block_outer, y_block_outer);
         }
-        get_default_blocking(type, vec_size, fma_kind, is_bwd_d, g, x, y,
-                g_block, *x_block, *y_block, *y_block_outer, ab_transpose);
+        get_default_blocking(type, vec_size, fma_kind, is_fwd, is_bwd_d, g, x,
+                y, g_block, *x_block, *y_block, *y_block_outer, ab_transpose);
         return goi_block_t(fma_kind, is_dw(g, o, i), is_bwd_d, g_block, o_block,
                 i_block, o_block_outer, i_block_outer);
     }
 
     static void get_default_blocking(type_t type, int vec_size,
-            fma_kind_t fma_kind, bool is_bwd_d, dim_t g, dim_t x, dim_t y,
-            int &g_block, int &x_block, int &y_block, int &y_block_outer,
-            bool ab_transpose = false) {
+            fma_kind_t fma_kind, bool is_fwd, bool is_bwd_d, dim_t g, dim_t x,
+            dim_t y, int &g_block, int &x_block, int &y_block,
+            int &y_block_outer, bool ab_transpose = false) {
         if (is_dw(g, x, y)) {
             g_block = vec_size;
         } else if (fma_kind == fma_kind_t::mad) {
-            x_block = (ab_transpose && is_bwd_d)
-                    ? into<int>(utils::rnd_up_pow2(x))
-                    : vec_size;
-            y_block = get_default_block(fma_kind, type, y);
+            x_block = (ab_transpose && (is_fwd || is_bwd_d)) ? 1 : vec_size;
+            y_block = (x_block == 1 ? 1 : get_default_block(fma_kind, type, y));
         } else {
             int packed_dword_elems = 4 / type.size();
             x_block = ab_transpose ? into<int>(utils::rnd_up_pow2(x))
@@ -618,8 +616,8 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
             dst_compute_type, prb.is_dw, prb.mb, prb.oc, prb.g,
             /*is_output=*/prb.is_fwd);
     auto wei_blk = goi_block_t::get_default_blocking(wei_compute_type,
-            cfg.vec_size(), cfg.fma_kind(), prb.is_bwd_d, prb.g, prb.oc, prb.ic,
-            prb.ab_swap_transpose);
+            cfg.vec_size(), cfg.fma_kind(), prb.is_fwd, prb.is_bwd_d, prb.g,
+            prb.oc, prb.ic, prb.ab_swap_transpose);
 
     src_tag = src_blk.tag();
     wei_tag = wei_blk.tag();
@@ -1034,9 +1032,14 @@ bool post_ops_ok(const conv_problem_t &prb, const hw_t &hw) {
 }
 
 bool should_use_mad(const conv_problem_t &prb) {
-    bool small_ic_oc = prb.ic < 3 && prb.oc < 3 && prb.mb < 8;
-    bool grouped_small_ic_oc = prb.ic < 4 && prb.oc < 4 && prb.g > 1;
-    return prb.is_dw || small_ic_oc || grouped_small_ic_oc;
+    if (prb.is_dw) return true;
+    if (prb.is_bwd_w) return false;
+    dim_t kw_xc = prb.kw * (prb.is_fwd ? prb.ic : prb.oc);
+    bool small_ic_oc = (prb.oc <= 3 && prb.ic <= 3 && kw_xc <= 10)
+            || (prb.oc <= 2 && prb.ic <= 2);
+    bool small_mb_ic_oc = prb.mb < 8 && small_ic_oc;
+    bool grouped_small_ic_oc = prb.g > 1 && small_ic_oc;
+    return small_mb_ic_oc || grouped_small_ic_oc;
 }
 
 status_t init_fma_kind(
