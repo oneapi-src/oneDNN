@@ -51,6 +51,21 @@ enum class message_kind_t {
     scattered,
 };
 
+dim_t max_strided_bytes(
+        const hw_t &hw, const type_t &src_type, const type_t &dst_type) {
+    // These conversions use an additional temporary buffer
+    const bool use_smaller_buffer
+            = utils::one_of(true, src_type.is_fp8(), dst_type.is_fp8())
+            || (src_type.is_x32() && (dst_type.is_bf16() || dst_type.is_f16()))
+            || (src_type.is_f16() && dst_type.is_bf16());
+    // Assume 12 work registers and the rest are used for buffers
+    const int buf_regs = use_smaller_buffer ? 38 : 58;
+    //                                        ~^   ^~
+    //                            (128 - 12) / 3   (128 - 12) / 2
+    // TODO: This should be adjusted when post-ops are present.
+    return buf_regs * hw.grf_size();
+}
+
 dim_t reorder_ir_builder_t::count_block_messages(
         const exec_config_t &exec_cfg, dim_t inner_bytes, dim_t iterations) {
     const auto max_block_owords = exec_cfg.grf_size() / 2;
@@ -271,9 +286,11 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
             | filter(mappable_tiles)
             | transform(add_pseudo_dimension(padded_dst));
     auto tiles = merge(a_tiles, b_tiles, take_smaller) | transform(merge_tiles);
+    auto max_layout_bytes
+            = max_strided_bytes(exec_cfg.hw(), src.type(), dst.type());
     for (auto tile : tiles) {
         if (tile.elems() > max_thr_tile_elems) break;
-        if (get_grf_layout_size(tile) > max_thr_tile_bytes) continue;
+        if (get_grf_layout_size(tile) > max_layout_bytes) continue;
         candidate_tiles.push_back(tile);
     }
     gpu_assert(!candidate_tiles.empty());
