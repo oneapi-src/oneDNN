@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -309,13 +309,16 @@ int parse_last_argument();
 // Function returns a substring of a given string @p `s`, using @p `start_pos`
 // to start a search from this index in string and @p `delim` as a stop symbol
 // and sets a @p `start_pos` to the next symbol after `delim` or to `npos`.
+// `allow_dangling` skips a check for dangling symbol at the end of the string
+// as some inputs ending on a `delim` in rare cases are legit.
 // E.g. 1) s=apple:juice, start_pos=0, delim=':'
 //         get_substr -> apple && start_pos -> 6
 //      2) s=apple:juice, start_pos=6, delim=':'
 //         get_substr -> juice && start_pos -> npos
 //      3) s=apple:juice, start_pos=0, delim=';'
 //         get_substr -> apple:juice && start_pos -> npos
-std::string get_substr(const std::string &s, size_t &start_pos, char delim);
+std::string get_substr(const std::string &s, size_t &start_pos, char delim,
+        bool allow_dangling = false);
 
 } // namespace parser
 

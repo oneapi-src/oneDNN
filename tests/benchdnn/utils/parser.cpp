@@ -103,13 +103,6 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
                 = attr_t::post_ops_t::str2kind(get_substr(subs, subs_pos, ':'));
         if (kind == attr_t::post_ops_t::kind_t::KIND_TOTAL) SAFE_V(FAIL);
 
-#define CATCH_DANGLING_SYMBOL \
-    if (subs_pos >= subs.size()) { \
-        BENCHDNN_PRINT(0, "%s \'%s\'\n", \
-                "Error: dangling symbol at the end of input", subs.c_str()); \
-        SAFE_V(FAIL); \
-    }
-
         v.entry.emplace_back(kind);
         if (subs_pos == std::string::npos) {
             if (kind != attr_t::post_ops_t::kind_t::DW) continue;
@@ -119,19 +112,16 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
                     "and 'p' values.");
             SAFE_V(FAIL);
         }
-        CATCH_DANGLING_SYMBOL;
 
         auto &e = v.entry.back();
         if (e.is_sum_kind()) {
             e.sum.scale
                     = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
             if (subs_pos == std::string::npos) continue;
-            CATCH_DANGLING_SYMBOL;
 
             auto zp_str = get_substr(subs, subs_pos, ':');
             e.sum.zero_point = parser_utils::stoll_safe(zp_str);
             if (subs_pos == std::string::npos) continue;
-            CATCH_DANGLING_SYMBOL;
 
             const auto dt_str = get_substr(subs, subs_pos, ':');
             e.sum.dt = str2dt(dt_str.c_str());
@@ -209,7 +199,6 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
             e.eltwise.alpha
                     = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
             if (subs_pos == std::string::npos) continue;
-            CATCH_DANGLING_SYMBOL;
 
             e.eltwise.beta
                     = parser_utils::stof_safe(get_substr(subs, subs_pos, ':'));
@@ -224,7 +213,6 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
                 SAFE_V(FAIL);
             }
             if (subs_pos == std::string::npos) continue;
-            CATCH_DANGLING_SYMBOL;
 
             const auto mask_input_str = get_substr(subs, subs_pos, ':');
             // Check if `mask_input_str` consists of only digits.
@@ -254,7 +242,6 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
                 e.binary.mask_input = mask_input_t::policy;
             }
             if (subs_pos == std::string::npos) continue;
-            CATCH_DANGLING_SYMBOL;
 
             const auto tag_str = get_substr(subs, subs_pos, ':');
             e.binary.tag = tag_str;
@@ -274,7 +261,6 @@ attr_t::post_ops_t parse_attr_post_ops_func(const std::string &s) {
             }
         }
         if (subs_pos == std::string::npos) continue;
-        CATCH_DANGLING_SYMBOL;
     }
 
     return v;
@@ -296,22 +282,9 @@ attr_t::fpmath_mode_t parse_attr_fpmath_mode_func(const std::string &s) {
     auto subs = get_substr(s, start_pos, ':');
     v.mode = str2fpmath_mode(subs.c_str());
     if (start_pos == std::string::npos) return v;
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                "Error: dangling symbol at the end of input", s.c_str());
-        SAFE_V(FAIL);
-    }
 
-    if (start_pos != std::string::npos) {
-        subs = get_substr(s, start_pos, '\0');
-        v.apply_to_int = str2bool(subs.c_str());
-
-        if (start_pos != std::string::npos) {
-            BENCHDNN_PRINT(0, "%s \'%s\'\n",
-                    "Error: dangling symbol at the end of input", s.c_str());
-            SAFE_V(FAIL);
-        }
-    }
+    subs = get_substr(s, start_pos, '\0');
+    v.apply_to_int = str2bool(subs.c_str());
 
     return v;
 }
@@ -341,7 +314,6 @@ attr_t::rounding_mode_t parse_attr_rounding_mode_func(const std::string &s) {
 }
 
 attr_t::dropout_t parse_attr_dropout_func(const std::string &s) {
-    const char *err = "Error: dangling symbol at the end of input";
     attr_t::dropout_t v;
     if (s.empty()) return v;
 
@@ -353,35 +325,16 @@ attr_t::dropout_t parse_attr_dropout_func(const std::string &s) {
         SAFE_V(FAIL);
     }
     if (start_pos == std::string::npos) return v;
-    if (start_pos >= s.size()) {
-        BENCHDNN_PRINT(0, "%s \'%s\'\n", err, s.c_str());
+
+    subs = get_substr(s, start_pos, ':');
+    v.seed = stoll_safe(subs);
+    if (start_pos == std::string::npos) return v;
+
+    v.tag = get_substr(s, start_pos, '\0');
+    if (check_tag(v.tag) != OK) {
+        BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: dropout mask tag",
+                v.tag.c_str(), "is not recognized.");
         SAFE_V(FAIL);
-    }
-
-    if (start_pos != std::string::npos) {
-        subs = get_substr(s, start_pos, ':');
-        v.seed = stoll_safe(subs);
-
-        if (start_pos == std::string::npos) return v;
-        if (start_pos >= s.size()) {
-            BENCHDNN_PRINT(0, "%s \'%s\'\n", err, s.c_str());
-            SAFE_V(FAIL);
-        }
-
-        if (start_pos != std::string::npos) {
-            v.tag = get_substr(s, start_pos, '\0');
-
-            if (check_tag(v.tag) != OK) {
-                BENCHDNN_PRINT(0, "%s \'%s\' %s\n", "Error: dropout mask tag",
-                        v.tag.c_str(), "is not recognized.");
-                SAFE_V(FAIL);
-            }
-
-            if (start_pos != std::string::npos) {
-                BENCHDNN_PRINT(0, "%s \'%s\'\n", err, s.c_str());
-                SAFE_V(FAIL);
-            }
-        }
     }
 
     return v;
@@ -1557,10 +1510,16 @@ int parse_last_argument() {
     return OK;
 }
 
-std::string get_substr(const std::string &s, size_t &start_pos, char delim) {
+std::string get_substr(const std::string &s, size_t &start_pos, char delim,
+        bool allow_dangling) {
     auto end_pos = s.find_first_of(delim, start_pos);
     auto sub = s.substr(start_pos, end_pos - start_pos);
     start_pos = end_pos + (end_pos != eol);
+    if (!allow_dangling && start_pos == s.size()) {
+        BENCHDNN_PRINT(0, "%s \'%s\'\n",
+                "Error: dangling symbol at the end of input", s.c_str());
+        SAFE_V(FAIL);
+    }
     return sub;
 }
 
