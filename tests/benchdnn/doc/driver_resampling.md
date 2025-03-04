@@ -18,7 +18,7 @@ where *resampling-knobs* are:
  - `--alg={nearest [default], linear}` -- resampling algorithm.
             `nearest` or `resampling_nearest` is dnnl_resampling_nearest;
             `linear` or `resampling_nearest` is dnnl_resampling_linear;
-            Refer to [resampling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_resampling.html)
+            Refer to [resampling primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_resampling.html)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
