@@ -52,7 +52,6 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
     for k, v in r2:
         r2_samples[k].append(float(v[:-1]))
 
-    passed = True
     failed_tests = []
     times = {}
     for prb, r1_times in r1_samples.items():
@@ -66,6 +65,7 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
         times[prb] = (statistics.median(r1_times), statistics.median(r2_times))
         times_str = f" {times[prb][0]} vs {times[prb][1]}"
 
+        passed = True
         if res.pvalue < 0.05:
             failed_tests.append(prb + times_str)
             passed = False
@@ -76,7 +76,7 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
             print(f"pass={passed}", file=f)
 
-    if passed:
+    if not failed_tests:
         print("Regression tests passed")
     else:
         message = "\n----The following regression tests failed:----\n" + \
