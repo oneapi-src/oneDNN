@@ -230,6 +230,7 @@ enum {
     key_eltwise_src,
     key_fusion_forward_scratchpad,
     key_fusion_inout_buffer,
+    key_gated_mlp_reduction,
     key_gemm_asm_tmp_buffer,
     key_gemm_tmp_buffer,
     key_gemm_blocked_a,
