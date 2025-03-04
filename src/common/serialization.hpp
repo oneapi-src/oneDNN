@@ -73,20 +73,16 @@ struct serialization_stream_t {
     };
 #endif
 
-    template <typename T>
+    template <typename T, typename = void>
     struct has_serialize_t {
-        using yes_t = uint8_t;
-        using no_t = uint16_t;
+        static const bool value = false;
+    };
 
-        template <typename U>
-        static yes_t test(utils::enable_if_t<
-                std::is_same<decltype(&U::serialize),
-                        void (U::*)(serialization_stream_t &) const>::value,
-                bool>);
-        template <typename U>
-        static no_t test(...);
-
-        static const bool value = (sizeof(test<T>(0)) == sizeof(yes_t));
+    template <typename T>
+    struct has_serialize_t<T,
+            decltype(std::declval<T>().serialize(
+                    std::declval<serialization_stream_t &>()))> {
+        static const bool value = true;
     };
 
     // Append helper function for structures with the member function
