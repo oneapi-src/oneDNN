@@ -1,6 +1,6 @@
 #ifndef NGEN_ASM_HPP
 #define NGEN_ASM_HPP
-#if NGEN_ASM
+#ifdef NGEN_ASM
 
 #include "ngen_config.hpp"
 
