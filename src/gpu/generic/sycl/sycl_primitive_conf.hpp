@@ -515,6 +515,20 @@ inline outer_strides_getter_t get_outer_strides(const memory_desc_wrapper &md) {
     return {md};
 }
 
+struct sycl_group_norm_conf_t {
+    xpu::sycl::md_t src_desc;
+    xpu::sycl::md_t dst_desc;
+    bool use_global_stats;
+    int32_t num_groups;
+    int32_t num_channels_per_group;
+    bool use_scale;
+    bool use_shift;
+    bool src_scaling;
+    bool dst_scaling;
+    float eta;
+    sycl_post_ops_t post_ops;
+};
+
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
@@ -535,6 +549,8 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_simple_reduction_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_reduction_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_rnn_copy_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_rnn_bias_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_group_norm_conf_t);
+
 } // namespace sycl
 } // namespace generic
 } // namespace gpu

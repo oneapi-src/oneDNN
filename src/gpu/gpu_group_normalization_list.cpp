@@ -20,6 +20,10 @@
 #include "gpu/intel/ocl/ref_group_normalization.hpp"
 #endif
 
+#ifdef GENERIC_SYCL_KERNELS_ENABLED
+#include "gpu/generic/sycl/ref_group_normalization.hpp"
+#endif
+
 namespace dnnl {
 namespace impl {
 namespace gpu {
@@ -32,6 +36,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>>
 impl_list_map REG_GNORM_P({
     {{forward}, {
         GPU_INSTANCE_INTEL(intel::ocl::ref_group_normalization_fwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_group_normalization_fwd_t)
         nullptr,
         }
     },
