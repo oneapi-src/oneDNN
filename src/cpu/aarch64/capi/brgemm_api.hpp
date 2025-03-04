@@ -17,12 +17,14 @@
 #ifndef CPU_AARCH64_CAPI_BRGEMM_API_HPP
 #define CPU_AARCH64_CAPI_BRGEMM_API_HPP
 
+#ifdef DNNL_EXPERIMENTAL_UKERNEL
 #include "cpu/aarch64/brgemm/brgemm_types.hpp"
-#include "cpu/aarch64/capi/capi.hpp"
 #include "cpu/aarch64/matmul/brgemm_matmul_copy_utils.hpp"
 #include "cpu/aarch64/matmul/brgemm_matmul_utils.hpp"
 
-#ifdef DNNL_EXPERIMENTAL_UKERNEL
+#include "cpu/aarch64/capi/capi.hpp"
+#include "cpu/aarch64/kleidiai/kai_types.hpp"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -76,6 +78,10 @@ struct dnnl_brgemm : public dnnl::impl::c_compatible {
 
     dnnl::impl::status_t finalize();
 
+    static dnnl::impl::status_t get_A_pack_type(
+            dnnl::impl::cpu::aarch64::capi::pack_type_t *pack_type,
+            dnnl::impl::data_type_t dt_a, dnnl::impl::data_type_t dt_b);
+
     static dnnl::impl::status_t get_B_pack_type(
             dnnl::impl::cpu::aarch64::capi::pack_type_t *pack_type,
             dnnl::impl::data_type_t dt_a, dnnl::impl::data_type_t dt_b);
@@ -115,7 +121,6 @@ private:
     dnnl::impl::status_t create_verbose_info();
     std::string verbose_info_;
 };
-
 #endif
 
 #endif

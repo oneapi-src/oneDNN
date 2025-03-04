@@ -308,11 +308,62 @@ struct kernel_args_t {
 #endif
     size_t scratchpad_size_;
     bool generate_skip_accumulation_;
+    bool is_kleidi_ = false;
 
     // Input members
     const prb_t *prb_;
     res_t *res_;
 };
+
+int init_transform(kernel_args_t &kernel_args) {
+#if defined(DNNL_EXPERIMENTAL_UKERNEL)
+    const prb_t *prb = kernel_args.prb_;
+    res_t *res = kernel_args.res_;
+
+    dnnl_status_t st = dnnl_success;
+
+    if (kernel_args.need_pack_) {
+        if (kernel_args.is_kleidi_) {
+            auto &transform = kernel_args.transform_;
+            dnnl_pack_type_t in_pack_type
+                    = (dnnl_pack_type_t)kernel_args.need_pack_;
+            dnnl_data_type_t out_data_type = dnnl_data_type_t::dnnl_f32;
+
+            st = dnnl_transform_create(&transform, prb->k, prb->n, in_pack_type,
+                    prb->n, prb->n, prb->wei_dt(), out_data_type);
+            SAFE(check_dnnl_status(st, prb, res), WARN);
+            if (res->state == SKIPPED) return OK;
+
+            DNN_SAFE(dnnl_transform_generate(transform), WARN);
+        } else {
+            // Create a memory desc based on user inputs and query strides to use
+            // them in a pack routine.
+            const dnnl_dims_t wei_dims = {prb->k * prb->batch_size, prb->n};
+            auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims,
+                    prb->wei_dt(), prb->wtag, prb->strides[STRIDES_WEI]);
+            const auto &wei_strides = query_md_strides(wei_md);
+            assert(query_md_ndims(wei_md) == 2);
+
+            auto &transform = kernel_args.transform_;
+            // Choose `no_trans` for cases when K = 1 as less memory is required.
+            auto in_pack_type = wei_strides[1] > wei_strides[0]
+                    ? dnnl_pack_type_trans
+                    : dnnl_pack_type_no_trans;
+            // One of strides implicitly equals to `1`.
+            auto in_ld = MAX2(wei_strides[0], wei_strides[1]);
+            st = dnnl_transform_create(&transform, prb->k * prb->batch_size,
+                    prb->n, in_pack_type, in_ld, prb->get_ldb(), prb->wei_dt(),
+                    prb->wei_dt());
+            SAFE(check_dnnl_status(st, prb, res), WARN);
+            if (res->state == SKIPPED) return OK;
+
+            DNN_SAFE(dnnl_transform_generate(transform), WARN);
+        }
+    }
+#endif
+    return OK;
+}
+
 
 int init_kernel(kernel_args_t &kernel_args) {
     const prb_t *prb = kernel_args.prb_;
@@ -436,37 +487,16 @@ int init_kernel(kernel_args_t &kernel_args) {
     DNN_SAFE(dnnl_brgemm_get_B_pack_type(
                      &pack_type, prb->src_dt(), prb->wei_dt()),
             WARN);
-    kernel_args.need_pack_ = pack_type == dnnl_pack_type_pack32;
+
+    kernel_args.need_pack_ = pack_type != dnnl_pack_type_undef
+            ? pack_type
+            : dnnl_pack_type_undef;
+    kernel_args.is_kleidi_ = pack_type == dnnl_pack_type_kai_pack_f32;
 
     DNN_SAFE(dnnl_brgemm_generate(brgemm), WARN);
     DNN_SAFE(dnnl_brgemm_get_scratchpad_size(
                      brgemm, &kernel_args.scratchpad_size_),
             WARN);
-
-    if (kernel_args.need_pack_) {
-        // Create a memory desc based on user inputs and query strides to use
-        // them in a pack routine.
-        const dnnl_dims_t wei_dims = {prb->k * prb->batch_size, prb->n};
-        auto wei_md = dnn_mem_t::init_md(prb->ndims, wei_dims, prb->wei_dt(),
-                prb->wtag, prb->strides[STRIDES_WEI]);
-        const auto &wei_strides = query_md_strides(wei_md);
-        assert(query_md_ndims(wei_md) == 2);
-
-        auto &transform = kernel_args.transform_;
-        // Choose `no_trans` for cases when K = 1 as less memory is required.
-        auto in_pack_type = wei_strides[1] > wei_strides[0]
-                ? dnnl_pack_type_trans
-                : dnnl_pack_type_no_trans;
-        // One of strides implicitly equals to `1`.
-        auto in_ld = MAX2(wei_strides[0], wei_strides[1]);
-        st = dnnl_transform_create(&transform, prb->k * prb->batch_size, prb->n,
-                in_pack_type, in_ld, prb->get_ldb(), prb->wei_dt(),
-                prb->wei_dt());
-        SAFE(check_dnnl_status(st, prb, res), WARN);
-        if (res->state == SKIPPED) return OK;
-
-        DNN_SAFE(dnnl_transform_generate(transform), WARN);
-    }
 
     // Unneeded from API perspective, it's needed for reference.
     kernel_args.generate_skip_accumulation_ = false;
@@ -549,10 +579,19 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
 #else
 
 #ifdef brg_aarch64
-    // currently failing for AArch64. TODO.
+#ifdef DNNL_AARCH64_USE_KAI
+    if (!(prb->src_dt() == dnnl_f32 && prb->wei_dt() == dnnl_f32
+                && prb->dst_dt() == dnnl_f32)) {
+        res->state = SKIPPED;
+        res->reason = skip_reason::case_not_supported;
+        return;
+    }
+#else
+    // Currently failing for AArch64 if not KleidiAI F32. TODO: investigate.
     res->state = SKIPPED;
     res->reason = skip_reason::case_not_supported;
     return;
+#endif
 #endif
 
     if (!prb->attr.is_def()) {
@@ -581,7 +620,12 @@ void skip_invalid_prb(const prb_t *prb, res_t *res) {
     }
 
     const bool ldb_ok = prb->get_ldb() == 16 || prb->get_ldb() == 32
-            || prb->get_ldb() == 48 || prb->get_ldb() == 64;
+            || prb->get_ldb() == 48 || prb->get_ldb() == 64
+#ifdef DNNL_AARCH64_USE_KAI
+            || (prb->src_dt() == dnnl_f32 && prb->wei_dt() == dnnl_f32
+                    && prb->dst_dt() == dnnl_f32)
+#endif
+            ;
     if (!ldb_ok) {
         BENCHDNN_PRINT(2, "%s\n",
                 "Unsupported leading B dimension. Only 16, 32, 48, and 64 are "
@@ -775,6 +819,17 @@ void init_memory_args(
     dims_t wei_packed_strides = {prb->get_ldb(), 1};
     auto wei_packed_md = dnn_mem_t::init_md(
             prb->ndims, wei_packed_dims, prb->wei_dt(), "", wei_packed_strides);
+
+    if (kernel_args.is_kleidi_) {
+        size_t size = 0;
+        dnnl_transform_get_output_size(kernel_args.transform_, &size);
+        const dnnl_dims_t wei_packed_dims = {(long)size};
+        dims_t wei_packed_strides = {(int64_t)size};
+        int ndims_w_packed = size ? 1 : 0;
+        dnnl_data_type_t pack_data_type = dnnl_data_type_t::dnnl_f32;
+        wei_packed_md = dnn_mem_t::init_md(ndims_w_packed, wei_packed_dims,
+                pack_data_type, "", wei_packed_strides);
+    }
 #endif
 
     dnnl_dim_t scratchpad_size
@@ -1140,6 +1195,7 @@ int doit(const prb_t *prb, res_t *res) {
 
     kernel_args_t kernel_args(prb, res);
     SAFE(init_kernel(kernel_args), WARN);
+    SAFE(init_transform(kernel_args), WARN);
     if (res->state == SKIPPED) return OK;
     if (bench_mode == bench_mode_t::init) return res->state = INITIALIZED, OK;
 
@@ -1263,19 +1319,15 @@ int doit(const prb_t *prb, res_t *res) {
             ? (char *)mem_map.at(DNNL_ARG_SCRATCHPAD)
             : nullptr;
 
-    if (kernel_args.need_pack_) {
-        DNN_SAFE(dnnl_transform_execute(transform, wei_ptr, wei_packed_ptr),
-                WARN);
-    } else {
-        const auto &wei_dt = mem_map.at(DNNL_ARG_WEIGHTS);
-        auto &wei_packed_dt = mem_map.at(DNNL_ARG_WEIGHTS_1);
-        SAFE(wei_packed_dt.reorder(wei_dt), WARN);
-    }
-
     std::vector<dnnl_dim_t> offsets(2 * prb->batch_size);
     for (dnnl_dim_t i = 0; i < prb->batch_size; i++) {
-        offsets[2 * i + 0] = i * prb->get_src_batch_offset();
-        offsets[2 * i + 1] = i * prb->get_wei_batch_offset();
+        if (kernel_args.is_kleidi_) {
+            offsets[2 * i + 0] = -1;
+            offsets[2 * i + 1] = -1;
+        } else {
+            offsets[2 * i + 0] = i * prb->get_src_batch_offset();
+            offsets[2 * i + 1] = i * prb->get_wei_batch_offset();
+        }
     }
 
     dnnl_ukernel_attr_params_t attr_params_ptr;
@@ -1299,6 +1351,21 @@ int doit(const prb_t *prb, res_t *res) {
             WARN);
     DNN_SAFE(dnnl_ukernel_attr_params_set_D_scales(attr_params, dst_scales_ptr),
             WARN);
+
+    if (kernel_args.need_pack_) {
+        if (kernel_args.is_kleidi_) {
+            DNN_SAFE(dnnl_transform_execute_attr_params(
+                             transform, attr_params, wei_ptr, wei_packed_ptr),
+                    WARN);
+        } else {
+            DNN_SAFE(dnnl_transform_execute(transform, wei_ptr, wei_packed_ptr),
+                    WARN);
+        }
+    } else {
+        const auto &wei_dt = mem_map.at(DNNL_ARG_WEIGHTS);
+        auto &wei_packed_dt = mem_map.at(DNNL_ARG_WEIGHTS_1);
+        SAFE(wei_packed_dt.reorder(wei_dt), WARN);
+    }
 #endif
 
     SAFE(init_hw_config(kernel_args), WARN);

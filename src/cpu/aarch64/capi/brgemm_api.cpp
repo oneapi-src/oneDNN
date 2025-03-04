@@ -30,6 +30,10 @@
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
 
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+#include "cpu/aarch64/kleidiai/kai.hpp"
+#endif
+
 using namespace dnnl::impl;
 using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::status;
@@ -77,36 +81,42 @@ status_t brgemm_t::set_scales(int mask, int arg) {
 
 status_t brgemm_t::finalize() {
     brgemm_batch_kind_t batch_kind = brgemm_batch_kind_t::brgemm_offs;
-
     auto status = brgemm_desc_init(&brgemm_desc_, cpu_isa_t::isa_undef,
             batch_kind, a_dt_, b_dt_, /* transA = */ false,
-            /* trans_B = */ false, brgemm_row_major, /* alpha = */ 1.f, beta_,
-            lda_, ldb_, ldc_, M_, N_, K_,
+            /* trans_B = */ false, brgemm_row_major,
+            /* alpha = */ 1.f, beta_, lda_, ldb_, ldc_, M_, N_, K_,
             /* strides = */ nullptr);
     if (status != status::success) {
         VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_init failed");
     }
 
-    memory_desc_t D_md;
-    dims_t dims {M_, N_};
-    dims_t strides {ldc_, 1};
-    status = memory_desc_init_by_strides(
-            D_md, /* ndims = */ 2, dims, d_dt_, strides);
-    if (status != status::success) {
-        VCHECK_BRGEMM_STATUS(status, false, "D_md creation failed");
+    if (!brgemm_desc_.is_kai) {
+        memory_desc_t D_md;
+        dims_t dims {M_, N_};
+        dims_t strides {ldc_, 1};
+        status = memory_desc_init_by_strides(
+                D_md, /* ndims = */ 2, dims, d_dt_, strides);
+        if (status != status::success) {
+            VCHECK_BRGEMM_STATUS(status, false, "D_md creation failed");
+        }
+
+        // This one is not used anywhere in implementation, but, maybe, could be
+        // used in the future in fpmath mode if users would like to override the
+        // default accumulation data type.
+        UNUSED(c_dt_);
+
+        status = brgemm_desc_set_postops(
+                &brgemm_desc_, &attr_, &D_md, ldd_, data_type::undef);
+        if (status != status::success) {
+            VCHECK_BRGEMM_STATUS(
+                    status, false, "brgemm_desc_set_postops failed");
+        }
+    } else {
+        // We compute full K when KleidiAI is used. The tiling
+        // is oriented towards M and N and the ukernel handles K blocking
+        // internally (int4 groupwise has block_length(BL) = 32).
+        brgemm_desc_.K *= batch_size_;
     }
-
-    // This one is not used anywhere in implementation, but, maybe, could be
-    // used in the future in fpmath mode if users would like to override the
-    // default accumulation data type.
-    UNUSED(c_dt_);
-
-    status = brgemm_desc_set_postops(
-            &brgemm_desc_, &attr_, &D_md, ldd_, data_type::undef);
-    if (status != status::success) {
-        VCHECK_BRGEMM_STATUS(status, false, "brgemm_desc_set_postops failed");
-    }
-
     brgemm_attr_t brgemm_attr;
     brgemm_attr.max_bs = batch_size_;
 
@@ -127,25 +137,64 @@ status_t brgemm_t::finalize() {
     return status::success;
 }
 
+status_t brgemm_t::get_A_pack_type(
+        pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
+
+    brgemm_desc_t brg {};
+    brg.dt_a = dt_a;
+    brg.dt_b = dt_b;
+    CHECK(init_kernel_datatype(&brg, dt_a, dt_b));
+
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+    brg.is_kai = (brg.is_f32 || brg.is_int4);
+#endif
+
+    if (brg.is_kai) {
+        if (brg.is_int4) {
+            *pack_type = pack_type::kai_pack_int4;
+        } else {
+            *pack_type = pack_type::no_trans;
+        }
+    }
+    return status::success;
+}
+
 status_t brgemm_t::get_B_pack_type(
-    pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
+        pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
     // Use a descriptor to obtain the ISA to have compatible values when the
     // user creates an object.
     brgemm_desc_t brg {};
     brg.dt_a = dt_a;
     brg.dt_b = dt_b;
     CHECK(init_kernel_datatype(&brg, dt_a, dt_b));
-    brgemm_utils::set_isa_impl(&brg);
-    if (brg.isa_impl == cpu_isa_t::isa_undef) {
-        VCHECK_BRGEMM_STATUS(
-                status::unimplemented, false, "get_B_pack_type failed");
+
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+    brg.is_kai = (brg.is_f32 || brg.is_int4);
+#endif
+
+    if (brg.is_kai) {
+        if (brg.is_int4) {
+            *pack_type = pack_type::kai_pack_int4;
+        } else if (brg.is_f32) {
+            *pack_type = pack_type::kai_pack_f32;
+        } else {
+            *pack_type = pack_type::no_trans;
+        }
+    } else {
+        brgemm_utils::set_isa_impl(&brg);
+        if (brg.isa_impl == cpu_isa_t::isa_undef) {
+            VCHECK_BRGEMM_STATUS(
+                    status::unimplemented, false, "get_B_pack_type failed");
+        }
+        *pack_type = pack_type::no_trans;
     }
-    *pack_type = pack_type::no_trans;
     return status::success;
 }
 
 size_t brgemm_t::get_scratchpad_size() const {
     return brgemm_desc_.get_wsp_buffer_size();
+
+    return status::success;
 }
 
 bool brgemm_t::is_execute_postops_valid() const {
@@ -178,12 +227,14 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
 
     if (get_verbose(verbose_t::exec_profile, component_t::ukernel)) {
         double start_ms = get_msec();
+
         brgemm_kernel_execute(brgemm_kernel_, batch_size, A_ptr, B_ptr,
                 v_batch_element.data(), C_ptr, scratchpad_ptr);
         double duration_ms = get_msec() - start_ms;
 
         std::stringstream ss;
-        ss << "cpu,brgemm,,undef," << verbose_info_;
+        ss << "cpu,brgemm,," << brgemm_kernel_->to_string() << ","
+           << verbose_info_;
         VPROF(start_ms, ukernel, exec, VERBOSE_profile, ss.str().c_str(),
                 duration_ms);
     } else {
@@ -291,7 +342,8 @@ status_t brgemm_t::execute(const void *A_ptr, const void *B_ptr,
         double duration_ms = get_msec() - start_ms;
 
         std::stringstream ss;
-        ss << "cpu,brgemm,,undef," << verbose_info_;
+        ss << "cpu,brgemm,," << brgemm_kernel_->to_string() << ","
+           << verbose_info_;
         VPROF(start_ms, ukernel, exec, VERBOSE_profile, ss.str().c_str(),
                 duration_ms);
     } else {
@@ -400,9 +452,16 @@ status_t dnnl_brgemm_finalize(brgemm_t *brgemm) {
     return status::success;
 }
 
+status_t dnnl_brgemm_get_A_pack_type(
+        dnnl_pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
+    CHECK(brgemm_t::get_A_pack_type(pack_type, dt_a, dt_b));
+    return status::success;
+}
+
 status_t dnnl_brgemm_get_B_pack_type(
         dnnl_pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
-    if (pack_type) { return brgemm_t::get_B_pack_type(pack_type, dt_a, dt_b); }
+
+    CHECK(brgemm_t::get_B_pack_type(pack_type, dt_a, dt_b));
     return status::success;
 }
 
@@ -414,11 +473,11 @@ status_t dnnl_brgemm_get_scratchpad_size(const brgemm_t *brgemm, size_t *size) {
 }
 
 status_t dnnl_brgemm_is_execute_postops_valid(
-    const brgemm_t *brgemm, int *valid) {
-if (brgemm == nullptr) return invalid_arguments;
+        const brgemm_t *brgemm, int *valid) {
+    if (brgemm == nullptr) return invalid_arguments;
 
-if (valid) *valid = static_cast<int>(brgemm->is_execute_postops_valid());
-return status::success;
+    if (valid) *valid = static_cast<int>(brgemm->is_execute_postops_valid());
+    return status::success;
 }
 
 status_t dnnl_brgemm_set_hw_context(const brgemm_t *brgemm) {

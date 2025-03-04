@@ -44,6 +44,9 @@ typedef enum {
     dnnl_pack_type_trans,
     /// Packed by 32 bits along K dimension layout.
     dnnl_pack_type_pack32,
+    /// Packing for KleidiAI kernels
+    dnnl_pack_type_kai_pack_int4 = 4,
+    dnnl_pack_type_kai_pack_f32 = 5,
 } dnnl_pack_type_t;
 
 /// @struct dnnl_ukernel_attr_params

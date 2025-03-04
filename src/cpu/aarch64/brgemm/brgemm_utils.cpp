@@ -44,7 +44,8 @@ enum {
 impl::data_type_t get_accum_datatype(brgemm_desc_t *brg) {
     // this assert should check if 'init_kernel_datatype()' was previously
     // called.
-    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
+    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16
+            || brg->is_int4);
     return brg->is_int8 ? data_type::s32 : data_type::f32;
 }
 
@@ -57,7 +58,11 @@ status_t init_kernel_datatype(
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
     brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
-    if (!(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16))
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+    brg->is_int4 = (dt_a == data_type::s8) && (dt_b == data_type::s4);
+#endif
+    if (!(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16
+                || brg->is_int4))
         return status::unimplemented;
     return status::success;
 }
@@ -301,13 +306,18 @@ status_t init_brgemm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
         dim_t LDA, dim_t LDB, dim_t LDC, dim_t M, dim_t N, dim_t K,
         const brgemm_strides_t *strides, bool is_bf32) {
 
-    init_common_conf(brg, type, alpha, beta, strides);
-
     brg->layout = layout;
 
     brg->dt_a = brg->is_row_major() ? dt_a : dt_b;
     brg->dt_b = brg->is_row_major() ? dt_b : dt_a;
     CHECK(init_kernel_datatype(brg, brg->dt_a, brg->dt_b));
+
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+    brg->is_kai = (brg->is_f32 || brg->is_int4);
+    type = brgemm_batch_kind_t::brgemm_offs;
+#endif
+
+    init_common_conf(brg, type, alpha, beta, strides);
 
     brg->dt_c = get_accum_datatype(brg);
     brg->dt_d = brg->dt_c;
@@ -319,7 +329,7 @@ status_t init_brgemm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
     brg->isa_user = isa;
-    CHECK(set_isa_impl(brg));
+    if (!brg->is_kai) CHECK(set_isa_impl(brg));
     brg->is_bf32 = false;
 
     brg->has_int8_vnni = true;
@@ -340,6 +350,10 @@ status_t init_brgemm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
             = (brg->is_row_major()) ? static_cast<int>(N) : static_cast<int>(M);
     brg->reduce_dim = static_cast<int>(K);
 
+    brg->M = M;
+    brg->N = N;
+    brg->K = K;
+
     brg->bd_block2 = 0;
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
@@ -348,7 +362,7 @@ status_t init_brgemm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
     brg->ld_step
             = is_b_in_vnni_format ? data_type_vnni_granularity(brg->dt_b) : 1;
 
-    const bool has_no_vnni_compute_instruction = false;
+    const bool has_no_vnni_compute_instruction = brg->is_kai;
     brg->rd_step = has_no_vnni_compute_instruction
             ? 1
             : data_type_vnni_granularity(brg->dt_b);

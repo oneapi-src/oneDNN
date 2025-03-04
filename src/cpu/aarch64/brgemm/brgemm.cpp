@@ -179,11 +179,11 @@ status_t brgemm_desc_init(brgemm_desc_t *brg, cpu_isa_t isa,
                                            : (LDA < M || LDB < K || LDC < M);
     if (ldx_check) return status::invalid_arguments;
 
-    if (utils::everyone_is(
-                false, brg->is_int8, brg->is_bf16, brg->is_f32, brg->is_f16))
+    if (utils::everyone_is(false, brg->is_int8, brg->is_bf16, brg->is_f32,
+                brg->is_f16, brg->is_int4))
         return status::unimplemented;
 
-    CHECK(brgemm_blocking(brg));
+    if (!brg->is_kai) { CHECK(brgemm_blocking(brg)); }
 
     return status::success;
 }
@@ -439,14 +439,31 @@ status_t brgemm_kernel_create(
         brgemm_kernel_t **brg_kernel, const brgemm_desc_t &brg) {
     if (!brg_kernel) return status::invalid_arguments;
     *brg_kernel = nullptr;
-
-    if (brg.is_dgmm) {
-        CHECK(safe_ptr_assign<brgemm_kernel_t>(
-                *brg_kernel, new brdgmm_kernel_t(brg)));
-    } else {
-        CHECK(safe_ptr_assign<brgemm_kernel_t>(
-                *brg_kernel, new brgemm_kernel_common_t(brg)));
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+    if (brg.is_kai) {
+        if (brg.is_int4) {
+            if ((brg.BL % 32 == 0) && (brg.K % brg.BL == 0))
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                        *brg_kernel, new kai_f32_qa8dxp_qs4c32p_kernel_t(brg)));
+            else
+                CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                        *brg_kernel, new kai_f32_qa8dxp_qs4cxp_kernel_t(brg)));
+        } else if (brg.is_f32) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                    *brg_kernel, new kai_f32_f32_f32p_kernel_t(brg)));
+        }
     }
+#endif
+    if (*brg_kernel == nullptr) {
+        if (brg.is_dgmm) {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                    *brg_kernel, new brdgmm_kernel_t(brg)));
+        } else {
+            CHECK(safe_ptr_assign<brgemm_kernel_t>(
+                    *brg_kernel, new brgemm_kernel_common_t(brg)));
+        }
+    }
+
     if (!(*brg_kernel)) return status::unimplemented;
     return (*brg_kernel)->create_kernel();
 }
