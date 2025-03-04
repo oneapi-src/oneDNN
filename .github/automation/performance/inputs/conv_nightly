@@ -21,5 +21,4 @@
 --dt=f32
 --alg=auto
 --dir=FWD_D,FWD_B
---attr-post-ops=,relu
 --batch=shapes_resnet_50

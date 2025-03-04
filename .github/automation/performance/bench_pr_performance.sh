@@ -19,16 +19,36 @@
 
 # Usage: bash bench_pr_performance.sh {baseline_benchdnn_executable} {benchdnn_executable} {baseline_results_file} {new_results_file}
 
+IFS=$'\n' # Prevents shuffling from using spaces as delimiters
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+
+TESTS=(
+        "$1 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $3"
+        "$2 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $4"
+        "$1 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $3"
+        "$2 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $4"
+        "ONEDNN_DEFAULT_FPMATH_MODE=BF16 $1 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $3"
+        "ONEDNN_DEFAULT_FPMATH_MODE=BF16 $2 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $4"
+        "ONEDNN_DEFAULT_FPMATH_MODE=BF16 $1 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $3"
+        "ONEDNN_DEFAULT_FPMATH_MODE=BF16 $2 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $4"
+        "$1 --eltwise --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/eltwise >> $3"
+        "$2 --eltwise --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/eltwise >> $4"
+        "$1 --reorder --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/reorder >> $3"
+        "$2 --reorder --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/reorder >> $4"
+    )
 
 for i in {1..5}
 do
-    $1 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $3
-    $2 --matmul --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/matmul >> $4
-    $1 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $3
-    $2 --conv --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/conv >> $4
-    $1 --eltwise --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/eltwise >> $3
-    $2 --eltwise --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/eltwise >> $4
-    $1 --reorder --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/reorder >> $3
-    $2 --reorder --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/reorder >> $4
+    echo "Testing loop ${i} / 5..."
+
+    TESTS=( $(shuf -e "${TESTS[@]}") )
+
+    for test in "${TESTS[@]}"
+    do
+        echo "Starting ${test}"
+        SECONDS=0
+        eval $test
+        duration=$SECONDS
+        echo "Completed in $((duration / 60)):$((duration % 60))"
+    done
 done
