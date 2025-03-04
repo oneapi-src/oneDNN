@@ -20,9 +20,11 @@
 #include <map>
 #include "acl_post_ops.hpp"
 #include "acl_utils.hpp"
-#include "arm_compute/runtime/experimental/operators/CpuDepthwiseConv2d.h"
 #include "cpu/cpu_convolution_pd.hpp"
-#include <type_traits>
+#include "cpu/cpu_primitive.hpp"
+
+#include "arm_compute/runtime/experimental/operators/CpuGemmConv2d.h"
+
 namespace dnnl {
 namespace impl {
 namespace cpu {
@@ -48,6 +50,8 @@ struct acl_conv_conf_t {
     // algorithm can be set to algorithm::convolution_auto and later on we need to
     // skip fixed-format protocol as ACL Winograd does not support it.
     bool alg_winograd;
+    // currently, only CpuGemmConv2d has the static quantization update interface.
+    bool is_quantized;
     arm_compute::TensorInfo src_tensor_info;
     arm_compute::TensorInfo wei_tensor_info;
     arm_compute::TensorInfo bia_tensor_info;
@@ -79,11 +83,13 @@ status_t init_conf_wino(acl_conv_conf_t &acp, memory_desc_t &src_md,
 using conv_key_t = decltype(memory_tracking::names::key_gemm_tmp_buffer);
 
 template <typename op_t, typename post_ops_t>
-status_t init_scratchpad(op_t &conv, memory_tracking::registrar_t &scratchpad,
+status_t init_scratchpad(const op_t &conv,
+        memory_tracking::registrar_t &scratchpad,
         const std::map<int, conv_key_t> &conv_keys, engine_t *engine,
         post_ops_t &post_ops, dnnl::impl::post_ops_t &attr_post_ops,
         arm_compute::ActivationLayerInfo &act_info, bool &use_dst_acc_for_sum,
-        const dnnl::impl::memory_desc_t &dst_md) {
+        const dnnl::impl::memory_desc_t &dst_md,
+        const dnnl::impl::memory_desc_t &bias_md, const bool is_quantized) {
 
     // Book temp mem.
     const auto aux_mem_req = conv.workspace();
@@ -104,6 +110,12 @@ status_t init_scratchpad(op_t &conv, memory_tracking::registrar_t &scratchpad,
                 dst_d.data_type_size());
     }
 
+    if (is_quantized && bias_md.format_kind != format_kind::undef) {
+        const memory_desc_wrapper bias_d(&bias_md);
+        scratchpad.book(memory_tracking::names::key_conv_bias_s32_convert,
+                bias_d.nelems(), bias_d.data_type_size());
+    }
+
     return status::success;
 }
 
@@ -111,7 +123,7 @@ template <typename conv_obj_t, typename conv_pd_t, typename src_data_t,
         typename wei_data_t = src_data_t, typename dst_data_t = src_data_t,
         typename bia_data_t = src_data_t>
 status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
-        conv_obj_t *acl_conv_obj, const conv_pd_t *pd,
+        conv_obj_t *acl_conv_obj, const conv_pd_t *pd_,
         const std::map<int, conv_key_t> &conv_keys) {
 
     auto src_base = CTX_IN_MEM(const src_data_t *, DNNL_ARG_SRC);
@@ -124,15 +136,48 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
     arm_compute::Tensor bia_tensor = nullptr;
     arm_compute::Tensor dst_tensor;
 
-    auto const acp = pd->acp_;
+    auto const acp = pd_->acp_;
     src_tensor.allocator()->init(acp.src_tensor_info);
     wei_tensor.allocator()->init(acp.wei_tensor_info);
     dst_tensor.allocator()->init(acp.dst_tensor_info);
 
+    const auto scratchpad = ctx.get_scratchpad_grantor();
+
+    if (acp.is_quantized) {
+        // DEFINE_(ARG|ZERO)... demands 'pd' as a function
+        auto pd = [pd_] { return pd_; };
+
+        DEFINE_ARG_SCALES_BUFFER(src_scale, DNNL_ARG_SRC);
+        DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
+        DEFINE_ARG_SCALES_BUFFER(wei_scale, DNNL_ARG_WEIGHTS);
+        DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
+        DEFINE_ARG_SCALES_BUFFER(dst_scale, DNNL_ARG_DST);
+        DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);
+
+        // s8s8s8 uses D = Sx*Sy*(XY + X*zy + Y*zx + zx*zy) and u8s8u8 uses D = Sx*Sy*(XW - X*zw - W*zx + zx*zw)
+        if (dst_tensor.info()->data_type() == arm_compute::DataType::QASYMM8) {
+            src_tensor.info()->set_quantization_info(
+                    arm_compute::QuantizationInfo(
+                            *src_scale, -src_zero_point, true));
+            wei_tensor.info()->set_quantization_info(
+                    arm_compute::QuantizationInfo(
+                            *wei_scale, -wei_zero_point, true));
+        } else {
+            src_tensor.info()->set_quantization_info(
+                    arm_compute::QuantizationInfo(
+                            *src_scale, src_zero_point, true));
+            wei_tensor.info()->set_quantization_info(
+                    arm_compute::QuantizationInfo(
+                            *wei_scale, wei_zero_point, true));
+        }
+
+        // for efficiency reasons, OneDNN saves the inverse of the destination
+        dst_tensor.info()->set_quantization_info(arm_compute::QuantizationInfo(
+                1.0 / (*dst_scale), dst_zero_point, true));
+    }
+
     src_tensor.allocator()->import_memory(const_cast<src_data_t *>(src_base));
     wei_tensor.allocator()->import_memory(const_cast<wei_data_t *>(wei_base));
-
-    const auto scratchpad = ctx.get_scratchpad_grantor();
 
     // If we have an unfused sum post op, put the result in a scratchpad tensor.
     // Result will be summed to the dst during acl_post_ops.execute
@@ -142,10 +187,30 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
     dst_tensor.allocator()->import_memory(dst_base);
 
     if (acp.with_bias) {
-        auto bia_base = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
-        bia_tensor.allocator()->init(acp.bia_tensor_info);
-        bia_tensor.allocator()->import_memory(
-                const_cast<bia_data_t *>(bia_base));
+        if (acp.is_quantized) {
+            auto bia_s32_base = scratchpad.get<uint32_t>(
+                    memory_tracking::names::key_conv_bias_s32_convert);
+            auto bia_f32_base = CTX_IN_MEM(const float32_t *, DNNL_ARG_BIAS);
+            auto src_scale
+                    = src_tensor.info()->quantization_info().uniform().scale;
+            auto wei_scale
+                    = wei_tensor.info()->quantization_info().uniform().scale;
+            const float bias_scale = 1 / (src_scale * wei_scale);
+            const int num_elements
+                    = acp.bia_tensor_info.total_size() / sizeof(float32_t);
+            parallel_nd(num_elements, [&](dim_t e) {
+                const auto b
+                        = int32_t(std::round(bia_f32_base[e] * bias_scale));
+                bia_s32_base[e] = b;
+            });
+            bia_tensor.allocator()->init(acp.bia_tensor_info);
+            bia_tensor.allocator()->import_memory(bia_s32_base);
+        } else {
+            auto bia_base = CTX_IN_MEM(const bia_data_t *, DNNL_ARG_BIAS);
+            bia_tensor.allocator()->init(acp.bia_tensor_info);
+            bia_tensor.allocator()->import_memory(
+                    const_cast<bia_data_t *>(bia_base));
+        }
     }
 
     // Constness of the weight tensor matters for depthwise conv in ACL.
@@ -176,10 +241,17 @@ status_t execute_forward_conv_acl(const exec_ctx_t &ctx,
         }
     }
 
+    if (acp.is_quantized) {
+        arm_compute::experimental::op::CpuGemmConv2d *conv
+                = dynamic_cast<arm_compute::experimental::op::CpuGemmConv2d *>(
+                        &acl_conv_obj->conv);
+        if (conv) conv->update_quantization_parameters(pack);
+    }
+
     acl_conv_obj->conv.run(pack);
 
     void *dst = dst_tensor.buffer();
-    pd->post_ops.execute(ctx, dst);
+    pd_->post_ops.execute(ctx, dst);
 
     return status::success;
 }

@@ -119,7 +119,7 @@ status_t acl_indirect_gemm_convolution_fwd_t::pd_t::init(engine_t *engine) {
     auto scratchpad = scratchpad_registry().registrar();
     return init_scratchpad(conv, scratchpad, indirect_conv_keys, engine,
             post_ops, attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum,
-            dst_md_);
+            dst_md_, bias_md_, false);
 }
 
 } // namespace aarch64

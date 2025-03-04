@@ -676,6 +676,7 @@ const std::map<pk_dt_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map()
             nullptr,
         }},
         {{forward, u8, s8, u8}, {
+            CPU_INSTANCE_AARCH64_ACL(acl_gemm_convolution_fwd_t<u8, s8, u8, s32>)
             CPU_INSTANCE_AVX512(brdgmm_dw_convolution_fwd_t)
             CPU_INSTANCE_X64(ip_convolution_fwd_t)
             CPU_INSTANCE_AMX(brgemm_1x1_convolution_fwd_t<avx512_core_amx>)

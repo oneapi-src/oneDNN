@@ -42,6 +42,8 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
                 "gemm:acl", acl_gemm_convolution_fwd_t, USE_GLOBAL_SCRATCHPAD);
 
         status_t init(engine_t *engine);
+        bool output_scales_mask_ok() const;
+        bool zero_points_ok() const;
 
         acl_conv_conf_t acp_ = utils::zero<decltype(acp_)>();
         acl_post_ops_t post_ops;
