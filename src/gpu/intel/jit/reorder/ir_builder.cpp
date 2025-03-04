@@ -46,6 +46,11 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
+enum class message_kind_t {
+    block,
+    scattered,
+};
+
 dim_t reorder_ir_builder_t::count_block_messages(
         const exec_config_t &exec_cfg, dim_t inner_bytes, dim_t iterations) {
     const auto max_block_owords = exec_cfg.grf_size() / 2;
@@ -69,14 +74,9 @@ dim_t reorder_ir_builder_t::count_block_messages(
 }
 
 dim_t reorder_ir_builder_t::count_scattered_messages(
-        const exec_config_t &exec_cfg, dim_t inner_bytes, dim_t iterations) {
+        const exec_config_t &exec_cfg, dim_t inner_bytes, dim_t iterations,
+        int item_size) {
     const auto max_block_items = exec_cfg.grf_size() / 2;
-    int item_size = 8;
-
-    // Find the largest uint size we can use
-    for (; item_size > 1; item_size >>= 1) {
-        if (inner_bytes % item_size == 0) break;
-    }
 
     dim_t block_items = max_block_items / 2;
     auto inner_items = (iterations * inner_bytes) / item_size;
@@ -92,15 +92,30 @@ dim_t reorder_ir_builder_t::count_scattered_messages(
     return messages;
 }
 
-dim_t reorder_ir_builder_t::message_latency(
-        const exec_config_t &exec_cfg, const layout_t &l, const tensor_t &t) {
-    const auto grf_size = exec_cfg.grf_size();
-    const int scattered_message_penalty = 4;
-    bool can_use_block_messages = true;
-    std::vector<dim_t> outer = t.dims();
-    dim_t inner_elems = 1;
+struct message_info_t {
+    message_info_t() = default;
+    message_info_t(message_kind_t kind, dim_t inner_bytes, dim_t iterations,
+            int item_size)
+        : kind(kind)
+        , inner_bytes(inner_bytes)
+        , iterations(iterations)
+        , item_size(item_size) {}
 
-    for (auto &blk : l.blocks()) {
+    message_kind_t kind = message_kind_t::block;
+    dim_t inner_bytes = 0;
+    dim_t iterations = 0;
+    int item_size = 16;
+};
+
+message_info_t estimate_message_info(
+        const hw_t &hw, const layout_t &layout, const tensor_t &tile) {
+    const auto grf_size = hw.grf_size();
+    bool can_use_block_messages = true;
+    std::vector<dim_t> outer = tile.dims();
+    dim_t inner_elems = 1;
+    int item_size = 16;
+
+    for (auto &blk : layout.blocks()) {
         auto block = blk.block;
         auto dim_idx = blk.dim_idx;
         if (block == 1) continue;
@@ -111,23 +126,39 @@ dim_t reorder_ir_builder_t::message_latency(
             }
             break;
         }
-
         can_use_block_messages &= (outer[dim_idx] % block == 0);
         inner_elems *= block;
         outer[dim_idx] = utils::div_up(outer[dim_idx], block);
     }
 
-    auto type_size = l.type().scalar().size();
-    auto inner_bytes = inner_elems * type_size;
+    auto inner_bytes = utils::div_up(
+            layout.type().with_elems(8).size() * inner_elems, 8);
     auto iterations = tensor_t(outer).elems();
     can_use_block_messages &= (inner_bytes % 16 == 0);
     can_use_block_messages &= (iterations == 1 || inner_bytes % grf_size == 0);
 
-    if (inner_bytes == 0 || iterations == 0) return 0;
+    if (inner_bytes == 0 || iterations == 0) return {};
 
-    return can_use_block_messages
-            ? count_block_messages(exec_cfg, inner_bytes, iterations)
-            : count_scattered_messages(exec_cfg, inner_bytes, iterations)
+    auto message_kind = can_use_block_messages ? message_kind_t::block
+                                               : message_kind_t::scattered;
+    if (!can_use_block_messages)
+        // Find the largest unit size we can use
+        for (item_size = 8; item_size > 1; item_size >>= 1) {
+            if (inner_bytes % item_size == 0) break;
+        }
+    return {message_kind, inner_bytes, iterations, item_size};
+}
+
+dim_t reorder_ir_builder_t::message_latency(
+        const exec_config_t &exec_cfg, const layout_t &l, const tensor_t &t) {
+    constexpr int scattered_message_penalty = 4;
+    message_info_t info = estimate_message_info(exec_cfg.hw(), l, t);
+    if (info.inner_bytes == 0 || info.iterations == 0) return 0;
+
+    return info.kind == message_kind_t::block
+            ? count_block_messages(exec_cfg, info.inner_bytes, info.iterations)
+            : count_scattered_messages(exec_cfg, info.inner_bytes,
+                      info.iterations, info.item_size)
                     * scattered_message_penalty;
 }
 
@@ -216,6 +247,19 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
         return a.elems() < b.elems();
     };
 
+    auto get_grf_layout_size = [&](const tensor_t &tile) {
+        auto elems = tile.elems();
+        dim_t grf_layout_size = 0;
+        for (const auto &l : {src, dst}) {
+            auto info = estimate_message_info(exec_cfg.hw(), l, tile);
+            int elem_size = std::max(info.item_size, 4);
+            int elem_packing = info.item_size / l.type().size();
+            auto layout_size = elem_size * elems / elem_packing;
+            if (layout_size > grf_layout_size) grf_layout_size = layout_size;
+        }
+        return grf_layout_size;
+    };
+
     // Incrementally increase subtiles in src and dst. The goal is to find the
     // maximum src/dst tiles so that the final combined tile covers dense
     // regions as big as possible in src/dst layouts.
@@ -229,6 +273,7 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
     auto tiles = merge(a_tiles, b_tiles, take_smaller) | transform(merge_tiles);
     for (auto tile : tiles) {
         if (tile.elems() > max_thr_tile_elems) break;
+        if (get_grf_layout_size(tile) > max_thr_tile_bytes) continue;
         candidate_tiles.push_back(tile);
     }
     gpu_assert(!candidate_tiles.empty());
