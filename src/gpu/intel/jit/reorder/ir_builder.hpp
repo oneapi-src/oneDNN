@@ -85,8 +85,8 @@ private:
 
     static dim_t count_block_messages(
             const exec_config_t &exec_cfg, dim_t bytes, dim_t iterations);
-    static dim_t count_scattered_messages(
-            const exec_config_t &exec_cfg, dim_t bytes, dim_t iterations);
+    static dim_t count_scattered_messages(const exec_config_t &exec_cfg,
+            dim_t bytes, dim_t iterations, int item_size);
     static dim_t message_latency(const exec_config_t &exec_cfg,
             const layout_t &l, const tensor_t &t);
 
