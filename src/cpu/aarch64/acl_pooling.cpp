@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Arm Ltd. and affiliates
+* Copyright 2022-2023, 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,33 +21,69 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
+status_t acl_pooling_fwd_t::init(engine_t *engine) {
+    auto asp = pd()->asp_;
+
+    auto op = std::make_unique<arm_compute::experimental::op::CpuPooling>();
+
+    pooling_op_ = std::move(op);
+
+    // Configure pooling operation when workspace tensor is used, mem allocation happens
+    if (asp.use_ws) {
+        pooling_op_->configure(
+                &asp.src_info, &asp.dst_info, asp.pool_info, &asp.ws_info);
+    }
+    // Configure pooling operation when workspace tensor is not used, mem allocation happens
+    else {
+        pooling_op_->configure(
+                &asp.src_info, &asp.dst_info, asp.pool_info, nullptr);
+    }
+
+    return status::success;
+}
+
 status_t acl_pooling_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
-    // Lock here is needed because resource_mapper does not support
-    // concurrent access.
-    std::lock_guard<std::mutex> _lock {this->mtx};
     status_t status = status::success;
-    auto src_base = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
-    auto dst_base = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+
+    auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
+    auto dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+
     void *ws_base;
 
-    // Retrieve primitive resource and configured Compute Library objects
-    auto *acl_resource
-            = ctx.get_resource_mapper()->get<acl_pooling_resource_t>(this);
-    acl_pooling_obj_t &acl_obj = acl_resource->get_acl_obj();
+    auto asp = pd()->asp_;
 
-    if (acl_obj.use_ws) ws_base = CTX_OUT_MEM(void *, DNNL_ARG_WORKSPACE);
+    arm_compute::Tensor src_tensor;
+    arm_compute::Tensor dst_tensor;
 
-    // import_memory() and free() methods do not allocate/free any additional
-    // memory, only acquire/release pointers.
-    acl_obj.src_tensor.allocator()->import_memory(const_cast<void *>(src_base));
-    acl_obj.dst_tensor.allocator()->import_memory(dst_base);
-    if (acl_obj.use_ws) acl_obj.ws_tensor.allocator()->import_memory(ws_base);
+    src_tensor.allocator()->init(asp.src_info);
+    src_tensor.allocator()->import_memory(const_cast<void *>(src));
+    dst_tensor.allocator()->init(asp.dst_info);
+    dst_tensor.allocator()->import_memory(dst);
 
-    acl_obj.pool.run();
+    arm_compute::Tensor scratch_tensor;
+    void *scratchpad_base = ctx.get_scratchpad_grantor().get<void>(
+            memory_tracking::names::key_pool_reduction);
+    scratch_tensor.allocator()->init(arm_compute::TensorInfo(
+            asp.dst_info.tensor_shape(), 1, arm_compute::DataType::F32));
+    scratch_tensor.allocator()->import_memory(scratchpad_base);
 
-    acl_obj.src_tensor.allocator()->free();
-    acl_obj.dst_tensor.allocator()->free();
-    if (acl_obj.use_ws) acl_obj.ws_tensor.allocator()->free();
+    arm_compute::Tensor ws_tensor;
+
+    if (asp.use_ws) {
+        ws_base = CTX_OUT_MEM(void *, DNNL_ARG_WORKSPACE);
+        ws_tensor.allocator()->init(asp.ws_info);
+        ws_tensor.allocator()->import_memory(ws_base);
+    }
+    //for scratchpad based tensor
+    arm_compute::ITensorPack run_pack {
+            {arm_compute::TensorType::ACL_SRC_0, &src_tensor},
+            {arm_compute::TensorType::ACL_DST_0, &dst_tensor},
+            {arm_compute::TensorType::ACL_INT_0, &scratch_tensor}};
+
+    if (asp.use_ws) {
+        run_pack.add_tensor(arm_compute::TensorType::ACL_DST_1, &ws_tensor);
+    }
+    pooling_op_->run(run_pack);
 
     return status;
 }
