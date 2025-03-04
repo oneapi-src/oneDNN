@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,9 +28,10 @@
 
 void sync() {
     // For async threadpool that behave in order, we add a sync
-    dnnl::impl::counting_barrier_t b(1);
-    dnnl::impl::parallel(1, [&b](int,int){b.notify();});
-    b.wait();
+    // dnnl::impl::counting_barrier_t b(1);
+    // dnnl::impl::parallel(1, [&b](int,int){b.notify();});
+    // b.wait();
+    dnnl::testing::get_threadpool()->wait();
 }
 
 // Note: no need in deactivation as `scoped_activation` object will deactivate
