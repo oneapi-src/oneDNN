@@ -104,6 +104,8 @@ struct quant_entry_t : public c_compatible {
 
     void serialize(serialization_stream_t &sstream) const;
 
+    static quant_entry_t deserialize(deserializer_t &d);
+
     std::string get_verbose() const;
 
 private:
@@ -253,6 +255,8 @@ struct scales_t : public quant_entries_t {
         return quant_entries_t::has_default_data_type(arg);
     }
 
+    static scales_t deserialize(deserializer_t &d);
+
 private:
     static constexpr data_type_t default_data_type_ = data_type::f32;
 
@@ -299,6 +303,8 @@ struct zero_points_t : public quant_entries_t {
     bool has_default_data_type(int arg) const {
         return quant_entries_t::has_default_data_type(arg);
     }
+
+    static zero_points_t deserialize(deserializer_t &d);
 
 private:
     static constexpr data_type_t default_data_type_ = data_type::s32;

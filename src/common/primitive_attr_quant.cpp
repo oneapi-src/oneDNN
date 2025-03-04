@@ -43,6 +43,16 @@ void quant_entry_t::serialize(serialization_stream_t &sstream) const {
     sstream.append_array(group_ndims_, group_dims_);
 }
 
+quant_entry_t quant_entry_t::deserialize(deserializer_t &d) {
+    quant_entry_t e;
+    d.pop(e.mask_);
+    d.pop(e.data_type_);
+    size_t group_ndims;
+    d.pop_array(group_ndims, e.group_dims_);
+    e.group_ndims_ = static_cast<int>(group_ndims);
+    return e;
+}
+
 std::string quant_entry_t::get_verbose() const {
     std::string s;
     s.append(std::to_string(mask_));
@@ -72,10 +82,22 @@ size_t quant_entries_t::get_hash() const {
 }
 
 void quant_entries_t::serialize(serialization_stream_t &sstream) const {
+    sstream.append(entries_.size());
     for (const auto &e : entries_) {
         sstream.append(e.first);
         sstream.append(e.second);
     }
+}
+
+template <typename T>
+T deserialize_entries(deserializer_t &d) {
+    T entries;
+    size_t size = d.pop<size_t>();
+    for (size_t i = 0; i < size; i++) {
+        int arg = d.pop<int>();
+        entries.set(arg, d.pop<quant_entry_t>());
+    }
+    return entries;
 }
 
 std::string quant_entries_t::get_verbose() const {
@@ -94,6 +116,14 @@ std::string quant_entries_t::get_verbose() const {
         delim = attr_delim;
     }
     return s;
+}
+
+scales_t scales_t::deserialize(deserializer_t &d) {
+    return deserialize_entries<scales_t>(d);
+}
+
+zero_points_t zero_points_t::deserialize(deserializer_t &d) {
+    return deserialize_entries<zero_points_t>(d);
 }
 
 } // namespace impl
