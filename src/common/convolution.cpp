@@ -175,7 +175,7 @@ status_t conv_attr_check(const convolution_desc_t &desc, const engine_t *engine,
         const bool enable_quantization = is_int8 || is_fp8;
         if (enable_quantization)
             fwd_attr_mask |= smask_t::zero_points_data_type
-                    | smask_t::scales_groups | smask_t::scales_data_type;
+                    | smask_t::scales_data_type;
 
         VCHECK_CONV_UNIMPL(attr->has_default_values(fwd_attr_mask, dst_dt),
                 VERBOSE_UNSUPPORTED_ATTR);
