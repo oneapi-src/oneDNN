@@ -128,7 +128,7 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
             = arm_compute::TensorInfo(arm_compute::TensorShape(N(), K()), 1,
                     arm_compute::DataType::QASYMM8_SIGNED,
                     arm_compute::QuantizationInfo(1.0, 0, true));
-    almc_.wei_tensor_info.set_are_values_constant(false);
+    almc_.wei_tensor_info.set_are_values_constant(true);
 
     almc_.bia_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(), 1, arm_compute::DataType::F32);
