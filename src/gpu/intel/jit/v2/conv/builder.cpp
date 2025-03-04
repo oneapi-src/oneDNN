@@ -763,7 +763,7 @@ public:
                     = const_var_t::make(type_t::s32(), "sk_iters_per_tg");
             sk_params.iters_per_tile
                     = const_var_t::make(type_t::s32(), "sk_iters_per_tile");
-            sk_params.tg_idx = jit::ir_builder_t::tg_idxs()[0];
+            sk_params.tg_idx = plan_.tg_grid.index_var(0);
 
             auto iter = alloc_var(type_t::s32(), "sk_iter");
             iter = sk_params.tg_idx * sk_params.iters_per_tg;
@@ -915,7 +915,8 @@ private:
 
     void emit_thread_index_let() {
         for (int i = 0; i < 3; i++) {
-            auto value = jit::ir_builder_t::local_ids()[i];
+            auto value = var_t::make(
+                    type_t::u16(), jit::ir_builder_t::local_id(i));
             if (i == 0) value /= plan_.desc.simd;
             auto thr_idx = plan_.thr_grid.index_var(i);
             let(thr_idx, cast(value, thr_idx.type()));
