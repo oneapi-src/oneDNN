@@ -1,12 +1,50 @@
---reset
---dir=FWD_D,BWD_D,BWD_W
---dt=bf16
---stag=axb
---dtag=axb
---wtag=xba
-
---impl=jit
---batch=shapes_large_conv
-
---impl=ref
---batch=shapes_large_conv
+--reset --dir=BWD_W --dt=f64:f64:f64 --stag=axb --dtag=axb mb2ic2oc2iw86368893ow86368893kw1
+--reset --dir=FWD_D --dt=s8:s8:u8  mb46940ic59oc580iw143ow142kw2
+--reset --dir=FWD_D --dt=u8:s8:s8 --stag=axb --dtag=axb mb2520098ic36oc79iw35ow35kw1
+--reset --dir=FWD_D --dt=u8:s8:s8 --stag=axb --dtag=axb mb471ic277oc30iw49872ow49872kw2
+--reset --dir=BWD_D --dt=f32:f32:f32 --stag=axb --dtag=axb mb27ic6867oc371593iw6ow6kw1
+--reset --dir=FWD_D --dt=f16:f16:f16 --stag=axb --dtag=axb mb1ic88oc2iw13798453ow13798453kw2
+--reset --dir=FWD_D --dt=u8:s8:s32 --stag=axb --dtag=axb mb2ic2oc25538372iw28ow28kw1
+--reset --dir=FWD_D --dt=u8:s8:s8  mb3098141ic7oc650iw3ow2kw2
+--reset --dir=BWD_D --dt=f32:f32:f32  mb1193ic2oc22iw21210ow21209kw2
+--reset --dir=BWD_W --dt=bf16:bf16:bf16  mb1482ic25oc11iw94550ow94550kw2
+--reset --dir=FWD_D --dt=f32:f32:f32  mb643ic57oc4767iw647ow646kw2
+--reset --dir=BWD_W --dt=f32:f32:f32  mb2ic7688oc135342iw3ow3kw1
+--reset --dir=BWD_W --dt=bf16:bf16:bf16  mb101503ic52oc83iw171ow171kw2
+--reset --dir=FWD_D --dt=u8:s8:u8 --stag=axb --dtag=axb mb10282384ic51oc1iw7ow6kw3
+--reset --dir=FWD_D --dt=u8:s8:s32  mb44ic621oc7iw223152ow223152kw2
+--reset --dir=BWD_D --dt=f16:f16:f16 --stag=axb --dtag=axb mb2ic7302634oc136iw49ow48kw2
+--reset --dir=FWD_D --dt=f64:f64:f64 --stag=axb --dtag=axb mb3ic16523oc446iw13281ow13280kw2
+--reset --dir=BWD_W --dt=f64:f64:f64 --stag=axb --dtag=axb mb2ic378670oc1011iw1171ow1171kw1
+--reset --dir=FWD_D --dt=u8:s8:u8 --stag=axb --dtag=axb mb2ic10063832oc82iw78ow77kw2
+--reset --dir=BWD_D --dt=f16:f16:f16 --stag=axb --dtag=axb mb147101ic1oc568iw13ow13kw1
+--reset --dir=BWD_W --dt=f32:f32:f32  mb4ic42oc223iw1610431ow1610431kw1
+--reset --dir=FWD_D --dt=u8:s8:u8  mb71849ic40oc55iw437ow436kw2
+--reset --dir=BWD_W --dt=bf16:bf16:bf16 --stag=axb --dtag=axb mb2653ic581oc10iw2442ow2442kw1
+--reset --dir=FWD_D --dt=u8:s8:u8 --stag=axb --dtag=axb mb16ic14oc824604iw596ow595kw2
+--reset --dir=FWD_D --dt=f16:f16:f16 --stag=axb --dtag=axb mb733ic24oc155247iw14ow14kw2
+--reset --dir=FWD_D --dt=f64:f64:f64  mb4ic3257oc872iw52011ow52011kw1
+--reset --dir=BWD_W --dt=f16:f16:f16 --stag=axb --dtag=axb mb35ic36oc2080803iw44ow44kw2
+--reset --dir=FWD_D --dt=u8:s8:s32  mb12417ic9oc48232iw2ow2kw1
+--reset --dir=FWD_D --dt=f64:f64:f64  mb49556ic4346oc1063iw1ow1kw1
+--reset --dir=FWD_D --dt=s8:s8:s8  mb2740ic13oc16iw33161ow33160kw2
+--reset --dir=FWD_D --dt=s8:s8:u8 --stag=axb --dtag=axb mb212615ic4oc378iw107ow107kw1
+--reset --dir=BWD_W --dt=f16:f16:f16 --stag=axb --dtag=axb mb2ic3oc181309iw7471ow7471kw1
+--reset --dir=FWD_D --dt=u8:s8:s32  mb2ic51oc1520023iw376ow376kw1
+--reset --dir=BWD_D --dt=f16:f16:f16  mb2624ic4oc1387iw661ow660kw2
+--reset --dir=FWD_D --dt=u8:s8:u8 --stag=axb --dtag=axb mb8742ic1oc433iw707ow706kw3
+--reset --dir=FWD_D --dt=u8:s8:s8 --stag=axb --dtag=axb mb15ic12376743oc60iw12ow12kw1
+--reset --dir=BWD_D --dt=bf16:bf16:bf16 --stag=axb --dtag=axb mb10ic58oc11iw3011534ow3011534kw2
+--reset --dir=BWD_D --dt=bf16:bf16:bf16  mb48ic42oc16iw506333ow506333kw1
+--reset --dir=BWD_D --dt=f16:f16:f16 --stag=axb --dtag=axb mb1131ic196oc2iw10497ow10497kw1
+--reset --dir=FWD_D --dt=s8:s8:s32 --stag=axb --dtag=axb mb32ic131607oc3iw744ow744kw1
+--reset --dir=FWD_D --dt=u8:s8:s32  mb948ic5oc10672iw124ow124kw1
+--reset --dir=FWD_D --dt=u8:s8:s32  mb23995ic32313oc3iw4ow4kw1
+--reset --dir=BWD_D --dt=f64:f64:f64  mb84ic5546oc3iw2381ow2380kw3
+--reset --dir=FWD_D --dt=u8:s8:u8  mb1109ic21oc6iw135375ow135374kw2
+--reset --dir=BWD_D --dt=f32:f32:f32  mb2432ic258oc431iw1168ow1168kw2
+--reset --dir=FWD_D --dt=f64:f64:f64 --stag=axb --dtag=axb mb56ic38651oc1iw274ow273kw2
+--reset --dir=BWD_D --dt=f16:f16:f16 --stag=axb --dtag=axb mb1795ic17394oc181iw40ow40kw1
+--reset --dir=BWD_D --dt=f64:f64:f64 --stag=axb --dtag=axb mb24272ic837oc34iw17ow17kw2
+--reset --dir=BWD_D --dt=f64:f64:f64  mb76516ic1348oc145iw4ow4kw1
+--reset --dir=BWD_W --dt=f16:f16:f16  mb2ic7291oc6iw250399ow250399kw1
