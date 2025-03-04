@@ -193,4 +193,4 @@ The implementation supports forward propagation and vanilla RNN cell kind.
 
 * Supported formats: `ldigo`, `ldgoi`
 * Supported data types: `f32`, `bf16`, `f16`, `s8`, `u8`
-* Supported direction: `left2right`
+* Supported direction: `left2right`, `right2left`, `concat`, `sum`
