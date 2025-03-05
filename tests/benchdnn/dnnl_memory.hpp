@@ -115,6 +115,11 @@ struct dnn_mem_t {
     const dnnl_dims_t &inner_blks() const;
     const dnnl_dims_t &inner_idxs() const;
 
+    // Sparse memories require special handling for `no_ref_memory` modifier
+    // because of indirect access. Thus, filling should apply to metadata and
+    // it must be meaningful. It implies unconditional mapping.
+    bool is_sparse_md() const;
+
     size_t sizeof_dt() const;
 
     template <typename T>
@@ -215,6 +220,8 @@ private:
 };
 
 using dnn_mem_map_t = std::unordered_map<int, dnn_mem_t>;
+
+bool has_sparse_md(const dnn_mem_map_t &dnn_mem_map);
 
 dnnl_memory_desc_t clone_md(const_dnnl_memory_desc_t md);
 
