@@ -102,5 +102,5 @@ if __name__ == '__main__':
     #DebugPrint("subparser")
     setup_matmul_subparser(subparsers)
     args = parser.parse_args()
-    #DebugPrint(f"args: {args}")
+    DebugPrint(f"args: {args}")
     args.subprogram_main(args)

@@ -72,6 +72,7 @@ class Layouts:
 class Types:
     class Type:
         def __init__(self, type_str):
+            DebugPrint(f"type_str = {type_str}")
             s = type_str.split("(")
             self.A, self.B, self.C = s[0].split(":")
             if len(s) < 2:
