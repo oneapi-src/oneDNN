@@ -91,9 +91,9 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     std::vector<float> conv1_bias(product(conv1_bias_tz));
     //[Allocate buffers]
 
-    /// Create memory that describes data layout in the buffers. This example uses
-    /// tag::nchw (batch-channels-height-width) for input data and tag::oihw
-    /// for weights.
+    /// Create memory that describes data layout in the buffers. This example
+    /// uses dnnl::memory::format_tag::nchw (batch-channels-height-width)
+    /// for input data and dnnl::memory::format_tag::oihw for weights.
     /// @snippet cnn_inference_f32.cpp Create user memory
     //[Create user memory]
     auto user_src_memory = memory({{conv1_src_tz}, dt::f32, tag::nchw}, eng);
@@ -106,12 +106,13 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     write_to_dnnl_memory(conv1_bias.data(), conv1_user_bias_memory);
     //[Create user memory]
 
-    /// Create memory descriptors with layout tag::any. The `any` format enables
-    /// the convolution primitive to choose the data format that will result in
-    /// best performance based on its input parameters (convolution kernel
-    /// sizes, strides, padding, and so on). If the resulting format is different
-    /// from `nchw`, the user data must be transformed to the format required for
-    /// the convolution (as explained below).
+    /// Create memory descriptors with layout dnnl::memory::format_tag::any.
+    /// The `any` format enables the convolution primitive to choose the data
+    /// format that will result in best performance based on its input
+    /// parameters (convolution kernel sizes, strides, padding, and so on).
+    /// If the resulting format is different from `nchw`, the user data must be
+    /// transformed to the format required for the convolution (as explained
+    /// below).
     /// @snippet cnn_inference_f32.cpp Create convolution memory descriptors
     //[Create convolution memory descriptors]
     auto conv1_src_md = memory::desc({conv1_src_tz}, dt::f32, tag::any);
@@ -136,9 +137,9 @@ void simple_net(engine::kind engine_kind, int times = 100) {
             conv1_strides, conv1_padding, conv1_padding);
     //[Create convolution primitive descriptor]
 
-    /// Check whether data and weights formats required by convolution is different
-    /// from the user format. In case it is different change the layout using
-    /// reorder primitive.
+    /// Check whether data and weights formats required by convolution is
+    /// different from the user format. In case it is different change the
+    /// layout using reorder primitive.
     /// @snippet cnn_inference_f32.cpp Reorder data and weights
     //[Reorder data and weights]
     auto conv1_src_memory = user_src_memory;
@@ -180,7 +181,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     /// Create the relu primitive. For better performance, keep the input data
     /// format for ReLU (as well as for other operation primitives until another
     /// convolution or inner product is encountered) the same as the one chosen
-    /// for convolution. Also note that ReLU is done in-place by using conv1 memory.
+    /// for convolution. Also note that ReLU is done in-place by using conv1
+    /// memory.
     /// @snippet cnn_inference_f32.cpp Create relu primitive
     //[Create relu primitive]
     auto relu1_prim_desc
@@ -227,8 +229,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     auto pool1_dst_md = memory::desc({pool1_dst_tz}, dt::f32, tag::any);
 
     /// For training execution, pooling requires a private workspace memory
-    /// to perform the backward pass. However, pooling should not use 'workspace'
-    /// for inference, because this is detrimental to performance.
+    /// to perform the backward pass. However, pooling should not use
+    /// 'workspace' for inference, because this is detrimental to performance.
     /// @snippet cnn_inference_f32.cpp Create pooling primitive
     ///
     /// The example continues to create more layers according
