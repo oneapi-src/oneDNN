@@ -205,6 +205,14 @@ size_t dnn_mem_t::size() const {
     return dnnl_memory_desc_get_size(md_);
 }
 
+bool dnn_mem_t::is_sparse_md() const {
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    return query_md_sparse_encoding(md_) != dnnl_sparse_encoding_undef;
+#else
+    return false;
+#endif
+}
+
 size_t dnn_mem_t::sizeof_dt() const {
     return dnnl_data_type_size(dt());
 }
@@ -905,7 +913,18 @@ int dnn_mem_t::initialize(
     SAFE(initialize_memory_create(handle_info), CRIT);
 
     if (handle_info.is_allocate()) {
-        if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) map();
+        // Memory objects consisting of several buffers can rely on indirect
+        // data access through metadata (e.g., sparse memory objects).
+        // Filling metadata buffers with random values can lead to accessing an
+        // address location not controlled by the process. Thus, such metadata
+        // buffers must be always properly filled according to the driver rules.
+        // Filling buffers requires them to be mapped.
+        // To save code on updating every case separately, update the logic in
+        // this common place.
+        const bool mem_has_indirect_access = is_sparse_md();
+        if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)
+                || mem_has_indirect_access)
+            map();
 
         const int nhandles = query_md_num_handles(md_);
         for (int i = 0; i < nhandles; i++) {
@@ -1214,6 +1233,14 @@ dnnl_dim_t md_off_v(
     }
 
     return phys_offset;
+}
+
+bool has_sparse_md(const dnn_mem_map_t &dnn_mem_map) {
+    for (const auto &e : dnn_mem_map) {
+        const auto &m = e.second;
+        if (m.is_sparse_md()) return true;
+    }
+    return false;
 }
 
 dnnl_memory_desc_t clone_md(const_dnnl_memory_desc_t md) {
