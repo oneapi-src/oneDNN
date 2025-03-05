@@ -44,6 +44,15 @@ endif()
 
 add_subdirectory(gemm)
 
+if(DNNL_DEV_MODE)
+    foreach(dir codegen conv ir pass reorder utils v2)
+        file(GLOB_RECURSE conv_sources ${CMAKE_CURRENT_SOURCE_DIR}/${dir}/*.cpp)
+        foreach(f ${conv_sources})
+            set_source_files_properties(${f} PROPERTIES COMPILE_FLAGS "-O0 -g -U_FORTIFY_SOURCE")
+        endforeach()
+    endforeach()
+endif()
+
 set(OBJ_LIB ${LIB_PACKAGE_NAME}_gpu_intel_jit)
 add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS

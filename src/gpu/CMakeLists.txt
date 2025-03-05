@@ -24,6 +24,8 @@ add_library(${OBJ_LIB} OBJECT ${SOURCES})
 set_property(GLOBAL APPEND PROPERTY DNNL_LIB_DEPS
     $<TARGET_OBJECTS:${OBJ_LIB}>)
 
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/gpu_convolution_list.cpp PROPERTIES COMPILE_FLAGS "-O0 -g -U_FORTIFY_SOURCE")
+
 add_subdirectory(generic)
 
 if(DNNL_GPU_VENDOR STREQUAL "INTEL")
