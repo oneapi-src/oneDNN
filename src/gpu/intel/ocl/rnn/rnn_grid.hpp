@@ -146,6 +146,7 @@ private:
     compute::nd_range_t get_nd_range(std::vector<dim_t> gws) const {
         // Try to schedule one local thread per eu
         int subgroup_size = pd()->ocl_conf.subgroup_size;
+		printf("subgroup size: %d\n", subgroup_size);
         int lws_max = pd()->max_eus_per_wg * subgroup_size;
         std::vector<dim_t> lws;
         lws.reserve(gws.size());

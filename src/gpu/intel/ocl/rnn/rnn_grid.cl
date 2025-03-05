@@ -1146,6 +1146,8 @@ simple_rnn_cell_fwd(__global const WEI_LAYER_DATA_T *wei_layer_,
                            .tm_scales = tm_scales,
                            .tm_cscale = tm_cscale}};
 
+#elif CELL_KIND == LBR_GRU
+
 #endif
 
         cell_common(wei_layer, wei_iter, cell_layer, cell_iter, gates, states,
