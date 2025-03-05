@@ -60,9 +60,11 @@ struct matmul_pd_t : public primitive_desc_t {
         const bool input = utils::one_of(arg, DNNL_ARG_SRC, DNNL_ARG_WEIGHTS);
         if (input) return arg_usage_t::input;
 
-        if (arg == DNNL_ARG_BIAS && with_bias()) return arg_usage_t::input;
+        if (arg == DNNL_ARG_BIAS)
+            return with_bias() ? arg_usage_t::input : arg_usage_t::unused;
 
-        if (arg == DNNL_ARG_REDUCE && with_reduce()) return arg_usage_t::output;
+        if (arg == DNNL_ARG_REDUCE)
+            return with_reduce() ? arg_usage_t::output : arg_usage_t::unused;
         if (arg == DNNL_ARG_DST) return arg_usage_t::output;
 
         return primitive_desc_t::arg_usage(arg);
