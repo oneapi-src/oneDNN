@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,9 +41,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 void inner_product_example(dnnl::engine::kind engine_kind) {
 
@@ -89,9 +86,12 @@ void inner_product_example(dnnl::engine::kind engine_kind) {
 
     // Create memory descriptors and memory objects for src and dst. In this
     // example, NCHW layout is assumed.
-    auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
-    auto bias_md = memory::desc(bias_dims, dt::f32, tag::a);
-    auto dst_md = memory::desc(dst_dims, dt::f32, tag::nc);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::nchw);
+    auto bias_md = memory::desc(
+            bias_dims, memory::data_type::f32, memory::format_tag::a);
+    auto dst_md = memory::desc(
+            dst_dims, memory::data_type::f32, memory::format_tag::nc);
 
     auto src_mem = memory(src_md, engine);
     auto bias_mem = memory(bias_md, engine);
@@ -99,7 +99,9 @@ void inner_product_example(dnnl::engine::kind engine_kind) {
 
     // Create memory object for user's layout for weights. In this example, OIHW
     // is assumed.
-    auto user_weights_mem = memory({weights_dims, dt::f32, tag::oihw}, engine);
+    auto user_weights_mem = memory(
+            {weights_dims, memory::data_type::f32, memory::format_tag::oihw},
+            engine);
 
     // Write data to memory object's handles.
     write_to_dnnl_memory(src_data.data(), src_mem);
@@ -110,8 +112,8 @@ void inner_product_example(dnnl::engine::kind engine_kind) {
     // the inner product primitive to choose the memory layout for an optimized
     // primitive implementation, and this format may differ from the one
     // provided by the user.
-    auto inner_product_weights_md
-            = memory::desc(weights_dims, dt::f32, tag::any);
+    auto inner_product_weights_md = memory::desc(
+            weights_dims, memory::data_type::f32, memory::format_tag::any);
 
     // Create primitive post-ops (ReLU).
     const float alpha = 0.f;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,9 +41,6 @@
 
 using namespace dnnl;
 
-using tag = memory::format_tag;
-using dt = memory::data_type;
-
 void sum_example(dnnl::engine::kind engine_kind) {
 
     // Create execution dnnl::engine.
@@ -84,7 +81,8 @@ void sum_example(dnnl::engine::kind engine_kind) {
     std::vector<memory> src_mem;
 
     for (int n = 0; n < num_src; ++n) {
-        auto md = memory::desc(src_dims, dt::f32, tag::nchw);
+        auto md = memory::desc(
+                src_dims, memory::data_type::f32, memory::format_tag::nchw);
         auto mem = memory(md, engine);
 
         // Write data to memory object's handle.

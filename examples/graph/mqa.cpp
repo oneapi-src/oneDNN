@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@
 #include "graph_example_utils.hpp"
 
 using namespace dnnl;
-using tag = memory::format_tag;
 
 using namespace dnnl::graph;
 using layout_type = logical_tensor::layout_type;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,9 +41,6 @@
 
 using namespace dnnl;
 
-using tag = memory::format_tag;
-using dt = memory::data_type;
-
 void matmul_example(dnnl::engine::kind engine_kind) {
 
     // Create execution dnnl::engine.
@@ -84,10 +81,14 @@ void matmul_example(dnnl::engine::kind engine_kind) {
 
     // Create memory descriptors and memory objects for src, weights, bias, and
     // dst.
-    auto src_md = memory::desc(src_dims, dt::f32, tag::abc);
-    auto weights_md = memory::desc(weights_dims, dt::f32, tag::abc);
-    auto bias_md = memory::desc(bias_dims, dt::f32, tag::abc);
-    auto dst_md = memory::desc(dst_dims, dt::f32, tag::abc);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::abc);
+    auto weights_md = memory::desc(
+            weights_dims, memory::data_type::f32, memory::format_tag::abc);
+    auto bias_md = memory::desc(
+            bias_dims, memory::data_type::f32, memory::format_tag::abc);
+    auto dst_md = memory::desc(
+            dst_dims, memory::data_type::f32, memory::format_tag::abc);
 
     auto src_mem = memory(src_md, engine);
     auto weights_mem = memory(weights_md, engine);

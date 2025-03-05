@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -68,9 +68,6 @@ const int common_n_layers = 1;
 const int lstm_n_gates = 4;
 
 void simple_net(engine::kind engine_kind) {
-    using tag = memory::format_tag;
-    using dt = memory::data_type;
-
     auto eng = engine(engine_kind, 0);
     stream s(eng);
 
@@ -173,14 +170,14 @@ void simple_net(engine::kind engine_kind) {
 
     // Create auxiliary f32 memory descriptor
     // based on user- supplied dimensions and layout.
-    auto formatted_md
-            = [=](const memory::dims &dimensions, memory::format_tag layout) {
-                  return memory::desc {{dimensions}, dt::f32, layout};
-              };
+    auto formatted_md = [=](const memory::dims &dimensions,
+                                memory::format_tag layout) {
+        return memory::desc {{dimensions}, memory::data_type::f32, layout};
+    };
     // Create auxiliary generic f32 memory descriptor
     // based on supplied dimensions, with format_tag::any.
     auto generic_md = [=](const memory::dims &dimensions) {
-        return formatted_md(dimensions, tag::any);
+        return formatted_md(dimensions, memory::format_tag::any);
     };
 
     //
@@ -203,8 +200,9 @@ void simple_net(engine::kind engine_kind) {
 
     // Memory for the user allocated memory
     // Suppose user data is in tnc format.
-    auto net_src_memory
-            = dnnl::memory({{net_src_dims}, dt::f32, tag::tnc}, eng);
+    auto net_src_memory = dnnl::memory(
+            {{net_src_dims}, memory::data_type::f32, memory::format_tag::tnc},
+            eng);
     write_to_dnnl_memory(net_src.data(), net_src_memory);
     // src_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memories in larger memory.
@@ -222,34 +220,44 @@ void simple_net(engine::kind engine_kind) {
     // primitive prefers it in a different format.
     std::vector<float> user_common_weights_layer(
             tz_volume(common_weights_layer_dims), 1.0f);
-    auto user_common_weights_layer_memory = dnnl::memory(
-            {common_weights_layer_dims, dt::f32, tag::ldigo}, eng);
+    auto user_common_weights_layer_memory
+            = dnnl::memory({common_weights_layer_dims, memory::data_type::f32,
+                                   memory::format_tag::ldigo},
+                    eng);
     write_to_dnnl_memory(
             user_common_weights_layer.data(), user_common_weights_layer_memory);
 
     std::vector<float> user_common_weights_iter(
             tz_volume(common_weights_iter_dims), 1.0f);
-    auto user_common_weights_iter_memory = dnnl::memory(
-            {{common_weights_iter_dims}, dt::f32, tag::ldigo}, eng);
+    auto user_common_weights_iter_memory
+            = dnnl::memory({{common_weights_iter_dims}, memory::data_type::f32,
+                                   memory::format_tag::ldigo},
+                    eng);
     write_to_dnnl_memory(
             user_common_weights_layer.data(), user_common_weights_iter_memory);
 
     std::vector<float> user_common_bias(tz_volume(common_bias_dims), 1.0f);
     auto user_common_bias_memory
-            = dnnl::memory({{common_bias_dims}, dt::f32, tag::ldgo}, eng);
+            = dnnl::memory({{common_bias_dims}, memory::data_type::f32,
+                                   memory::format_tag::ldgo},
+                    eng);
     write_to_dnnl_memory(user_common_bias.data(), user_common_bias_memory);
 
     std::vector<float> user_leftmost_dst_layer(
             tz_volume(leftmost_dst_layer_dims), 1.0f);
     auto user_leftmost_dst_layer_memory
-            = dnnl::memory({{leftmost_dst_layer_dims}, dt::f32, tag::tnc}, eng);
+            = dnnl::memory({{leftmost_dst_layer_dims}, memory::data_type::f32,
+                                   memory::format_tag::tnc},
+                    eng);
     write_to_dnnl_memory(
             user_leftmost_dst_layer.data(), user_leftmost_dst_layer_memory);
 
     std::vector<float> user_rightmost_dst_layer(
             tz_volume(rightmost_dst_layer_dims), 1.0f);
-    auto user_rightmost_dst_layer_memory = dnnl::memory(
-            {{rightmost_dst_layer_dims}, dt::f32, tag::tnc}, eng);
+    auto user_rightmost_dst_layer_memory
+            = dnnl::memory({{rightmost_dst_layer_dims}, memory::data_type::f32,
+                                   memory::format_tag::tnc},
+                    eng);
     write_to_dnnl_memory(
             user_rightmost_dst_layer.data(), user_rightmost_dst_layer_memory);
 
@@ -265,7 +273,8 @@ void simple_net(engine::kind engine_kind) {
             generic_md(common_weights_layer_dims), // weights_layer_desc
             generic_md(common_weights_iter_dims), // weights_iter_desc
             generic_md(common_bias_dims), // bias_desc
-            formatted_md(leftmost_dst_layer_dims, tag::tnc), // dst_layer_desc
+            formatted_md(leftmost_dst_layer_dims,
+                    memory::format_tag::tnc), // dst_layer_desc
             generic_md(leftmost_dst_iter_dims), // dst_iter_desc
             generic_md(leftmost_dst_iter_c_dims) // dst_iter_c_desc
     );
@@ -304,7 +313,8 @@ void simple_net(engine::kind engine_kind) {
             generic_md(common_weights_layer_dims), // weights_layer_desc
             generic_md(common_weights_iter_dims), // weights_iter_desc
             generic_md(common_bias_dims), // bias_desc
-            formatted_md(rightmost_dst_layer_dims, tag::tnc), // dst_layer_desc
+            formatted_md(rightmost_dst_layer_dims,
+                    memory::format_tag::tnc), // dst_layer_desc
             memory::desc(), // dst_iter_desc
             memory::desc() // dst_iter_c_desc
     );
@@ -410,8 +420,8 @@ void simple_net(engine::kind engine_kind) {
 
     // User-provided memory for backward by data output
     std::vector<float> net_diff_src(tz_volume(net_src_dims), 1.0f);
-    auto net_diff_src_memory
-            = dnnl::memory(formatted_md(net_src_dims, tag::tnc), eng);
+    auto net_diff_src_memory = dnnl::memory(
+            formatted_md(net_src_dims, memory::format_tag::tnc), eng);
     write_to_dnnl_memory(net_diff_src.data(), net_diff_src_memory);
 
     // diff_src follows the same layout we have for net_src
@@ -429,13 +439,14 @@ void simple_net(engine::kind engine_kind) {
     std::vector<float> user_common_diff_weights_layer(
             tz_volume(common_weights_layer_dims), 1.0f);
     auto user_common_diff_weights_layer_memory = dnnl::memory(
-            formatted_md(common_weights_layer_dims, tag::ldigo), eng);
+            formatted_md(common_weights_layer_dims, memory::format_tag::ldigo),
+            eng);
     write_to_dnnl_memory(user_common_diff_weights_layer.data(),
             user_common_diff_weights_layer_memory);
 
     std::vector<float> user_common_diff_bias(tz_volume(common_bias_dims), 1.0f);
-    auto user_common_diff_bias_memory
-            = dnnl::memory(formatted_md(common_bias_dims, tag::ldgo), eng);
+    auto user_common_diff_bias_memory = dnnl::memory(
+            formatted_md(common_bias_dims, memory::format_tag::ldgo), eng);
     write_to_dnnl_memory(
             user_common_diff_bias.data(), user_common_diff_bias_memory);
 
@@ -448,8 +459,8 @@ void simple_net(engine::kind engine_kind) {
     };
     // Suppose user data is in tnc format.
     std::vector<float> net_diff_dst(tz_volume(net_diff_dst_dims), 1.0f);
-    auto net_diff_dst_memory
-            = dnnl::memory(formatted_md(net_diff_dst_dims, tag::tnc), eng);
+    auto net_diff_dst_memory = dnnl::memory(
+            formatted_md(net_diff_dst_dims, memory::format_tag::tnc), eng);
     write_to_dnnl_memory(net_diff_dst.data(), net_diff_dst_memory);
     // diff_dst_layer memory of the leftmost and rightmost RNN primitives
     // are accessed through the respective sub-memory in larger memory.
@@ -474,7 +485,8 @@ void simple_net(engine::kind engine_kind) {
             generic_md(common_weights_layer_dims), // weights_layer_desc
             generic_md(common_weights_iter_dims), // weights_iter_desc
             generic_md(common_bias_dims), // bias_desc
-            formatted_md(leftmost_dst_layer_dims, tag::tnc), // dst_layer_desc
+            formatted_md(leftmost_dst_layer_dims,
+                    memory::format_tag::tnc), // dst_layer_desc
             generic_md(leftmost_dst_iter_dims), // dst_iter_desc
             generic_md(leftmost_dst_iter_c_dims), // dst_iter_c_desc
             user_leftmost_diff_src_layer_md, // diff_src_layer_desc
@@ -519,7 +531,8 @@ void simple_net(engine::kind engine_kind) {
             generic_md(common_weights_layer_dims), // weights_layer_desc
             generic_md(common_weights_iter_dims), // weights_iter_desc
             generic_md(common_bias_dims), // bias_desc
-            formatted_md(rightmost_dst_layer_dims, tag::tnc), // dst_layer_desc
+            formatted_md(rightmost_dst_layer_dims,
+                    memory::format_tag::tnc), // dst_layer_desc
             memory::desc(), // dst_iter_desc
             memory::desc(), // dst_iter_c_desc
             user_rightmost_diff_src_layer_md, // diff_src_layer_desc

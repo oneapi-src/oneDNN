@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,9 +42,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 void deconvolution_example(dnnl::engine::kind engine_kind) {
 
@@ -111,20 +108,30 @@ void deconvolution_example(dnnl::engine::kind engine_kind) {
 
     // Create memory objects for tensor data (src, weights, dst). In this
     // example, NCHW layout is assumed for src and dst, and OIHW for weights.
-    auto user_src_mem = memory({src_dims, dt::f32, tag::nchw}, engine);
-    auto user_weights_mem = memory({weights_dims, dt::f32, tag::oihw}, engine);
-    auto user_dst_mem = memory({dst_dims, dt::f32, tag::nchw}, engine);
+    auto user_src_mem = memory(
+            {src_dims, memory::data_type::f32, memory::format_tag::nchw},
+            engine);
+    auto user_weights_mem = memory(
+            {weights_dims, memory::data_type::f32, memory::format_tag::oihw},
+            engine);
+    auto user_dst_mem = memory(
+            {dst_dims, memory::data_type::f32, memory::format_tag::nchw},
+            engine);
 
     // Create memory descriptors with format_tag::any for the primitive. This
     // enables the deconvolution primitive to choose memory layouts for an
     // optimized primitive implementation, and these layouts may differ from the
     // ones provided by the user.
-    auto deconv_src_md = memory::desc(src_dims, dt::f32, tag::any);
-    auto deconv_weights_md = memory::desc(weights_dims, dt::f32, tag::any);
-    auto deconv_dst_md = memory::desc(dst_dims, dt::f32, tag::any);
+    auto deconv_src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::any);
+    auto deconv_weights_md = memory::desc(
+            weights_dims, memory::data_type::f32, memory::format_tag::any);
+    auto deconv_dst_md = memory::desc(
+            dst_dims, memory::data_type::f32, memory::format_tag::any);
 
     // Create memory descriptor and memory object for input bias.
-    auto user_bias_md = memory::desc(bias_dims, dt::f32, tag::a);
+    auto user_bias_md = memory::desc(
+            bias_dims, memory::data_type::f32, memory::format_tag::a);
     auto user_bias_mem = memory(user_bias_md, engine);
 
     // Write data to memory object's handle.
