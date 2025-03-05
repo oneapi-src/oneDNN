@@ -173,8 +173,7 @@ struct gen_gemm_t : public gpu_gemm_t {
                                                 d->b_type(), f8_e5m2, f8_e4m3))
                                 || (utils::one_of(d->a_type(), f4_e2m1, f4_e3m0)
                                         && utils::one_of(
-                                                d->b_type(), f4_e2m1, f4_e3m0)))
-                                && d->c_type() != f4_e3m0,
+                                                d->b_type(), f4_e2m1, f4_e3m0))),
                         VERBOSE_INCONSISTENT_DT, "a", "b");
                 VDISPATCH_GEMM(utils::one_of(d->acc_type, d->a_type(), f32),
                         VERBOSE_UNSUPPORTED_DT);
