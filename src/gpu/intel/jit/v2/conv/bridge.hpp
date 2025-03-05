@@ -58,6 +58,52 @@ inline pvar_tile_t to_shape(const convolution_pd_t *pd) {
     shape[pvars::pd] = pd->padFront();
     shape[pvars::ph] = pd->padT();
     shape[pvars::pw] = pd->padL();
+    memory_desc_wrapper mdw_src(pd->invariant_src_md());
+    memory_desc_wrapper mdw_wei(pd->invariant_wei_md());
+    memory_desc_wrapper mdw_dst(pd->invariant_dst_md());
+
+    bool src_strided = (mdw_src.is_plain() && !mdw_src.is_dense());
+    bool wei_strided = (mdw_wei.is_plain() && !mdw_wei.is_dense());
+    bool dst_strided = (mdw_dst.is_plain() && !mdw_dst.is_dense());
+    auto set_stride = [&](const memory_desc_t *md, int index,
+                              int non_spatial_ndims = 2) -> dim_t {
+        if (pd->ndims() >= index) {
+            index = index > non_spatial_ndims
+                    ? pd->ndims() - (index - non_spatial_ndims)
+                    : index - 1;
+            if (md->dims[index] == 1) return 0;
+            return md->format_desc.blocking.strides[index];
+        }
+        return 0;
+    };
+    if (src_strided) {
+        shape[pvars::src_mb_stride] = set_stride(pd->invariant_src_md(), 1);
+        shape[pvars::src_ic_stride] = set_stride(pd->invariant_src_md(), 2);
+        shape[pvars::src_g_stride]
+                = shape[pvars::src_ic_stride] * shape[pvars::ic];
+        shape[pvars::src_id_stride] = set_stride(pd->invariant_src_md(), 5);
+        shape[pvars::src_ih_stride] = set_stride(pd->invariant_src_md(), 4);
+        shape[pvars::src_iw_stride] = set_stride(pd->invariant_src_md(), 3);
+    }
+    if (wei_strided) {
+        shape[pvars::wei_g_stride] = pd->with_groups()
+                ? set_stride(pd->invariant_wei_md(), 1, 3)
+                : 0;
+        shape[pvars::wei_oc_stride] = set_stride(pd->invariant_wei_md(), 2, 3);
+        shape[pvars::wei_ic_stride] = set_stride(pd->invariant_wei_md(), 3, 3);
+        shape[pvars::wei_kd_stride] = set_stride(pd->invariant_wei_md(), 6, 3);
+        shape[pvars::wei_kh_stride] = set_stride(pd->invariant_wei_md(), 5, 3);
+        shape[pvars::wei_kw_stride] = set_stride(pd->invariant_wei_md(), 4, 3);
+    }
+    if (dst_strided) {
+        shape[pvars::dst_mb_stride] = set_stride(pd->invariant_dst_md(), 1);
+        shape[pvars::dst_oc_stride] = set_stride(pd->invariant_dst_md(), 2);
+        shape[pvars::dst_g_stride]
+                = shape[pvars::dst_oc_stride] * shape[pvars::oc];
+        shape[pvars::dst_od_stride] = set_stride(pd->invariant_dst_md(), 5);
+        shape[pvars::dst_oh_stride] = set_stride(pd->invariant_dst_md(), 4);
+        shape[pvars::dst_ow_stride] = set_stride(pd->invariant_dst_md(), 3);
+    }
     return shape;
 }
 

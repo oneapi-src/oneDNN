@@ -284,16 +284,21 @@ public:
     layout_tag_t() = default;
 
     layout_tag_t(const layout_desc_t &desc, const type_t &type,
-            const layout_raw_tag_t &raw_tag)
-        : desc_(desc), type_(type), raw_tag_(raw_tag) {}
-    layout_tag_t(const type_t &type, const std::string &str_tag)
-        : layout_tag_t({}, type, layout_raw_tag_t(str_tag)) {}
+            const layout_raw_tag_t &raw_tag, const bool is_strided = false)
+        : desc_(desc)
+        , type_(type)
+        , raw_tag_(raw_tag)
+        , is_strided_(is_strided) {}
+    layout_tag_t(const type_t &type, const std::string &str_tag,
+            const bool is_strided = false)
+        : layout_tag_t({}, type, layout_raw_tag_t(str_tag), is_strided) {}
     layout_tag_t(const layout_desc_t &desc, const type_t &type,
-            const std::string &str_tag)
-        : layout_tag_t(desc, type, layout_raw_tag_t(str_tag)) {}
+            const std::string &str_tag, const bool is_strided = false)
+        : layout_tag_t(desc, type, layout_raw_tag_t(str_tag), is_strided) {}
 
     bool is_empty() const { return raw_tag_.is_empty(); }
     bool is_any() const { return raw_tag_.is_any(); }
+    bool is_strided() const { return is_strided_; }
     const layout_desc_t &desc() const { return desc_; }
     const type_t &type() const { return type_; }
     const layout_raw_tag_t &raw_tag() const { return raw_tag_; }
@@ -318,21 +323,25 @@ public:
         jit::stringify(out, raw_tag_);
         out << ":";
         jit::stringify(out, type_);
+        out << ":";
+        jit::stringify(out, is_strided_);
     }
 
     void parse(std::istream &in) {
         desc_ = layout_desc_t();
         auto s = stream_parse<std::string>(in);
         auto parts = gpu_utils::split(s, ":");
-        gpu_assert(parts.size() == 2);
+        gpu_assert(parts.size() == 3);
         jit::parse(parts[0], raw_tag_);
         jit::parse(parts[1], type_);
+        jit::parse(parts[2], is_strided_);
     }
 
 private:
     layout_desc_t desc_;
     type_t type_;
     layout_raw_tag_t raw_tag_;
+    bool is_strided_ = false;
 };
 
 class layout_t {
