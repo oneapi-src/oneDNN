@@ -159,6 +159,11 @@ struct matmul_inner_product_bwd_data_t : public primitive_t {
                     init_matmul_params(engine), "init_matmul_params");
             init_scratchpad();
 
+            using namespace format_tag;
+            if (memory_desc_wrapper(weights_md())
+                            .matches_one_of_tag(ba, bca, bcda, acdeb, bcdea))
+                return status::unimplemented;
+
             return status::success;
         }
 
@@ -234,6 +239,11 @@ struct matmul_inner_product_bwd_weights_t : public primitive_t {
             VDISPATCH_INNER_PRODUCT_SC(
                     init_matmul_params(engine), "init_matmul_params");
             init_scratchpad();
+
+            using namespace format_tag;
+            if (memory_desc_wrapper(diff_weights_md())
+                            .matches_one_of_tag(ba, bca, bcda, acdeb, bcdea))
+                return status::unimplemented;
 
             return status::success;
         }

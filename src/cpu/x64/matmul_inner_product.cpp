@@ -92,10 +92,15 @@ static bool check_training_formats(const memory_desc_wrapper &src_d,
 
     if (!bias_d.is_zero()) ok = ok && bias_d.matches_tag(x);
 
-    ok = ok && IMPLICATION(src_d.matches_tag(ab), wei_d.matches_tag(ab))
-            && IMPLICATION(src_d.matches_tag(acb), wei_d.matches_tag(acb))
-            && IMPLICATION(src_d.matches_tag(acdb), wei_d.matches_tag(acdb))
-            && IMPLICATION(src_d.matches_tag(acdeb), wei_d.matches_tag(acdeb));
+    ok = ok
+            && IMPLICATION(
+                    src_d.matches_tag(ab), wei_d.matches_one_of_tag(ab, ba))
+            && IMPLICATION(
+                    src_d.matches_tag(acb), wei_d.matches_one_of_tag(acb, bca))
+            && IMPLICATION(
+                    src_d.matches_tag(acdb), wei_d.matches_one_of_tag(bcda))
+            && IMPLICATION(
+                    src_d.matches_tag(acdeb), wei_d.matches_one_of_tag(bcdea));
 
     ok = ok && src_d.is_dense() && wei_d.is_dense() && dst_d.is_dense();
     return ok;
@@ -127,6 +132,7 @@ status_t set_training_formats(memory_desc_t *src_md, memory_desc_t *wei_md,
 int matmul_inner_product_fwd_t::pd_t::get_k_blk(format_tag_t tag) const {
     using namespace format_tag;
     switch (tag) {
+        case ab:
         case ba: return 0;
         case BA8a8b:
         case BA8a24b: return 8;
@@ -171,6 +177,7 @@ status_t matmul_inner_product_fwd_t::pd_t::init_matmul_params(
 
     // clang-format off
     static const std::map<format_tag_t, std::vector<format_tag_t>> mm_wei_to_ip_wei = {
+        { ab, {ba, bca, bcda, bcdea}},
         { ba, {ab, acb, acdb, acdeb}},
         { BA8a8b, {AB8b8a, AcB8b8a, AcdB8b8a, AcdeB8b8a}},
         { BA8a24b, {AB8b24a, AcB8b24a, AcdB8b24a, AcdeB8b24a}},
