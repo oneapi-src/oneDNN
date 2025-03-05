@@ -684,10 +684,13 @@ DNNL_GRAPH_OP_SCHEMA(MatMul, 1,
                 .set_input(0, "src", "T")
                 .set_input(1, "weights", "T")
                 .set_input(2, "bias", "T")
-                .set_output(0, "dst", "T")
+                .set_output(0, "dst", "T1")
                 .set_type_constraints(
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints(
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_matmul_output_shape)
+                .set_op_def_constraint_function(check_matmul_dtype)
                 .SET_MATMUL_COMMON_ATTRS)
 
 DNNL_GRAPH_OP_SCHEMA(Maximum, 1,
