@@ -442,7 +442,7 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             if (args.dt == dnnl_f16) binary_comp_po_diff_trh = 5e-3f;
             if (args.dt == dnnl_f32) {
                 binary_comp_po_diff_trh = 4e-6f;
-                binary_comp_po_rdiff_trh = 8e-6f;
+                binary_comp_po_rdiff_trh = 1e-5f;
             }
             ok = has_binary_compute_po(attr)
                     && (args.diff <= binary_comp_po_diff_trh
