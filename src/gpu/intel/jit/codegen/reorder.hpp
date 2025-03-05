@@ -241,9 +241,7 @@ void emit_reorder_1d_tile(ngen::HW hw, GeneratorT *host,
     ngen::DataType dst_type = dst.type();
     // Replace (float -> float) by (int -> int) as word/dword moves have less
     // restrictions.
-    if (src_type == dst_type
-            && utils::one_of(src_type, ngen::DataType::bf, ngen::DataType::hf,
-                    ngen::DataType::f, ngen::DataType::df)) {
+    if (src_type == dst_type && to_ir(src_type).is_fp()) {
         int factor = (src_type == ngen::DataType::df ? 2 : 1);
         if (factor == 1 || (src_stride == 1 && dst_stride == 1)) {
             src_type
