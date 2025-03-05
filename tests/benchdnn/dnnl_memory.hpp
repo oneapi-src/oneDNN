@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -115,6 +115,11 @@ struct dnn_mem_t {
     const dnnl_dims_t &inner_blks() const;
     const dnnl_dims_t &inner_idxs() const;
 
+    // Sparse memories require special handling for `no_ref_memory` modifier
+    // because of indirect access. Thus, filling should apply to metadata and
+    // it must be meaningful. It implies unconditional mapping.
+    bool is_sparse_md() const;
+
     size_t sizeof_dt() const;
 
     template <typename T>
@@ -150,7 +155,7 @@ struct dnn_mem_t {
 
     void map() const;
     void unmap() const;
-    void memset(int value, size_t size) const;
+    void memset(int value, size_t size, int buffer_index) const;
 
     static dnn_mem_t create_from_host_ptr(
             const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr);
@@ -215,6 +220,8 @@ private:
 };
 
 using dnn_mem_map_t = std::unordered_map<int, dnn_mem_t>;
+
+bool has_sparse_md(const dnn_mem_map_t &dnn_mem_map);
 
 dnnl_memory_desc_t clone_md(const_dnnl_memory_desc_t md);
 
