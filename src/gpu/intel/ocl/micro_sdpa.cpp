@@ -96,9 +96,8 @@ sdpa_config_t xehpc_h128_s64 = {16, 32, 32, 32, 4, 2, 4, 2};
 sdpa_config_t xehpc_h128_s32 = {16, 16, 16, 16, 8, 2, 8, 2};
 sdpa_config_t xehpc_h128_2nd = {32, 32, 32, 16, 8, 1, 4, 2};
 
-sdpa_config_t xehpc_q_h128 = {16, 64, 32, 16, 16, 2, 4, 8};
-sdpa_config_t xehpc_q_h128_s64 = {16, 16, 32, 16, 4, 4, 4, 4};
-sdpa_config_t xehpc_q_h128_s32 = {16, 16, 32, 16, 4, 2, 4, 2};
+sdpa_config_t xehpc_q_h128 = {32, 32, 16, 32, 8, 2, 8, 2};
+sdpa_config_t xehpc_q_h128_s512 = {16, 64, 16, 32, 16, 1, 8, 2};
 sdpa_config_t xehpc_q_h128_2nd = {16, 16, 16, 16, 8, 1, 8, 1};
 sdpa_config_t xehpc_q_h128_s32_2nd = {16, 32, 32, 16, 8, 1, 4, 2};
 
@@ -176,8 +175,7 @@ sdpa_config_t *choose_config_xehpc(
                 if (seq <= 32) return &xehpc_q_h128_s32_2nd;
                 return &xehpc_q_h128_2nd;
             }
-            if (seq <= 32) return &xehpc_q_h128_s32;
-            if (seq <= 64) return &xehpc_q_h128_s64;
+            if (seq <= 512) return &xehpc_q_h128_s512;
             return &xehpc_q_h128;
         }
         if (thin_q) return &xehpc_h128_2nd;
