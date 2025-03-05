@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@
 #include "graph_example_utils.hpp"
 
 using namespace dnnl;
-using tag = memory::format_tag;
 
 using namespace dnnl::graph;
 using layout_type = logical_tensor::layout_type;
@@ -109,11 +108,11 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     // scaled_score = score / scale
     // masked_score = scaled_score + mask
     // All combined in a single matmul primitive.
-    auto query_md = memory::desc(q_sz, dt, tag::abcd);
-    auto key_md = memory::desc(k_sz, dt, tag::abdc);
-    auto score_md = memory::desc(score_sz, dt, tag::abcd);
-    auto scale_md = memory::desc(scale_sz, dt, tag::abcd);
-    auto mask_md = memory::desc(mask_sz, dt, tag::abcd);
+    auto query_md = memory::desc(q_sz, dt, memory::format_tag::abcd);
+    auto key_md = memory::desc(k_sz, dt, memory::format_tag::abdc);
+    auto score_md = memory::desc(score_sz, dt, memory::format_tag::abcd);
+    auto scale_md = memory::desc(scale_sz, dt, memory::format_tag::abcd);
+    auto mask_md = memory::desc(mask_sz, dt, memory::format_tag::abcd);
 
     primitive_attr bmm1_attr;
     bmm1_attr.set_scratchpad_mode(scratchpad_mode::user);
@@ -135,8 +134,8 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     auto softmax_prim = softmax_forward(softmax_pd);
 
     // attention_output = attention_probs x value
-    auto value_md = memory::desc(v_sz, dt, tag::abcd);
-    auto output_md = memory::desc(q_sz, dt, tag::abcd);
+    auto value_md = memory::desc(v_sz, dt, memory::format_tag::abcd);
+    auto output_md = memory::desc(q_sz, dt, memory::format_tag::abcd);
     primitive_attr bmm2_attr;
     bmm2_attr.set_scratchpad_mode(scratchpad_mode::user);
     auto bmm2_pd = matmul::primitive_desc(
@@ -180,7 +179,7 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     }
     auto scratchpad_md
             = memory::desc({static_cast<memory::dim>(max_scratchpad_size)},
-                    memory::data_type::u8, tag::a);
+                    memory::data_type::u8, memory::format_tag::a);
 
     // allocate intermediate memory
     auto m_score = memory(score_md, eng);

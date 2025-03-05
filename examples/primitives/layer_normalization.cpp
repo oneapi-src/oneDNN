@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,9 +42,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 void layer_normalization_example(dnnl::engine::kind engine_kind) {
 
@@ -89,9 +86,12 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
     });
 
     // Create src memory descriptor and memory objects.
-    auto src_md = memory::desc(src_dims, dt::f32, tag::tnc);
-    auto dst_md = memory::desc(src_dims, dt::f32, tag::tnc);
-    auto scaleshift_md = memory::desc(scaleshift_dims, dt::f32, tag::x);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::tnc);
+    auto dst_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::tnc);
+    auto scaleshift_md = memory::desc(
+            scaleshift_dims, memory::data_type::f32, memory::format_tag::x);
 
     auto src_mem = memory(src_md, engine);
     auto scale_mem = memory(scaleshift_md, engine);
@@ -105,7 +105,8 @@ void layer_normalization_example(dnnl::engine::kind engine_kind) {
     // Create primitive descriptor.
     const float epsilon = 1.e-10f;
     auto lnorm_pd = layer_normalization_forward::primitive_desc(engine,
-            prop_kind::forward_training, src_md, dst_md, dt::f32, epsilon,
+            prop_kind::forward_training, src_md, dst_md, memory::data_type::f32,
+            epsilon,
             normalization_flags::use_scale | normalization_flags::use_shift);
 
     // Use the memory descriptors from the primitive to create memory objects

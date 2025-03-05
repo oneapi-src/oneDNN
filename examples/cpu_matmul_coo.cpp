@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,9 +35,6 @@
 #include "example_utils.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 bool check_result(dnnl::memory dst_mem) {
     // clang-format off
@@ -76,9 +73,12 @@ void sparse_matmul() {
 
     // Create a memory descriptor for COO format by providing information
     // about number of non-zero entries and data types of metadata.
-    const auto src_coo_md = memory::desc::coo({M, K}, dt::f32, nnz, dt::s32);
-    const auto wei_md = memory::desc({K, N}, dt::f32, tag::oi);
-    const auto dst_md = memory::desc({M, N}, dt::f32, tag::nc);
+    const auto src_coo_md = memory::desc::coo(
+            {M, K}, memory::data_type::f32, nnz, memory::data_type::s32);
+    const auto wei_md = memory::desc(
+            {K, N}, memory::data_type::f32, memory::format_tag::oi);
+    const auto dst_md = memory::desc(
+            {M, N}, memory::data_type::f32, memory::format_tag::nc);
 
     // This memory is created for the given values and metadata of COO format.
     memory src_coo_mem(src_coo_md, engine,
