@@ -86,7 +86,7 @@ conv_kernel_t<hw>::conv_kernel_t(const conv_config_t &cfg,
 #endif
 
     // Generate assembly from IR.
-    convert_ir_to_ngen<hw>(
+    convert_ir_to_ngen<ir_kernel_t<hw>>(
             body, this, &cfg_.plan().gemm_schedule.kernel_grid_walk_order());
     profile.stop("Generate Assembly");
 

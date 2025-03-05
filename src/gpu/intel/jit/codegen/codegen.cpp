@@ -51,15 +51,17 @@ inline ngen::ConditionModifier cmp_op_to_ngen(op_kind_t op_kind) {
 }
 
 // Lowers IR to nGEN.
-template <ngen::HW hw>
+template <typename ngen_generator_t>
 class ir_to_ngen_t : public ir_visitor_t {
 public:
-    ir_to_ngen_t(ir_kernel_t<hw> *host, const expr_binding_t &expr_binding)
+    static constexpr auto hw = ngen_generator_t::hw;
+
+    ir_to_ngen_t(ngen_generator_t *host, const expr_binding_t &expr_binding)
         : host_(host)
         , expr_binding_(expr_binding)
         , simd_size_(host->getSIMD())
-        , eu_count_(host->exec_cfg_.hw().eu_count())
-        , with_atomic_fp64_(host->exec_cfg_.hw().has_fp64_atomic_support()) {}
+        , eu_count_(host->exec_cfg().hw().eu_count())
+        , with_atomic_fp64_(host->exec_cfg().hw().has_fp64_atomic_support()) {}
 
     ~ir_to_ngen_t() override
 #ifdef DNNL_DEV_MODE
@@ -157,17 +159,16 @@ public:
             // If all channels are disabled for writing, quick return.
             if (all_of(mask, expr_t(false))) {
                 if (send_func.is_load() || send_func.is_load_2d()) {
-                    auto reg_buf_op = ir_to_ngen_t<hw>::eval(
-                            send_t::arg_reg_buf(args), scope);
-                    auto pattern_op = ir_to_ngen_t<hw>::eval(
-                            send_t::arg_fill_pattern(args), scope);
+                    auto reg_buf_op = eval(send_t::arg_reg_buf(args), scope);
+                    auto pattern_op
+                            = eval(send_t::arg_fill_pattern(args), scope);
                     fill_buf(reg_buf_op, send_func.payload_size(), pattern_op);
                 }
                 return;
             }
             // If all channels are enabled, do not use mask.
             if (all_of(mask, expr_t(true))) mask = expr_t();
-            auto arg_ops = ir_to_ngen_t<hw>::eval(args, scope);
+            auto arg_ops = eval(args, scope);
             send(scope, func.as<send_t>(), arg_ops, obj.attr);
         } else if (func.is<reorder_t>()) {
             auto arg_ops = eval(obj.args, scope);
@@ -788,7 +789,7 @@ protected:
     }
 
 private:
-    ir_kernel_t<hw> *host_;
+    ngen_generator_t *host_;
     expr_binding_t expr_binding_;
     int simd_size_;
     int eu_count_;
@@ -1557,18 +1558,17 @@ private:
     object_eq_map_t<expr_t, type_t> int_up_converts_;
 };
 
-template <ngen::HW hw>
-void convert_ir_to_ngen(const stmt_t &body, ir_kernel_t<hw> *host,
-
+template <typename ngen_generator_t>
+void convert_ir_to_ngen(const stmt_t &body, ngen_generator_t *host,
         const walk_order_t *kernel_grid_walk_order) {
-    expr_binding_t expr_binding(hw);
+    expr_binding_t expr_binding(host->getHardware());
     host->generate_prologue();
     host->bind_external_vars(body, expr_binding);
     if (kernel_grid_walk_order)
         host->bind_kernel_grid_walk_order(
                 *kernel_grid_walk_order, expr_binding);
 
-    ir_to_ngen_t<hw> visitor(host, expr_binding);
+    ir_to_ngen_t<ngen_generator_t> visitor(host, expr_binding);
     visitor.visit(body);
 
     host->generate_epilogue();

@@ -60,7 +60,7 @@ kernel_t<hw>::kernel_t(
     setup_interface(body);
 
     // Generate assembly from IR.
-    convert_ir_to_ngen<hw>(body, this);
+    convert_ir_to_ngen<ir_kernel_t<hw>>(body, this);
 }
 
 } // namespace conv

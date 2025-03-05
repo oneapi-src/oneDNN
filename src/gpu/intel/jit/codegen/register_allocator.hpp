@@ -34,13 +34,7 @@ public:
     // Based on nGEN limitation where subregisters are allocated in dword chunks.
     static const int granularity = 4;
 
-    reg_allocator_t(ngen::HW hw, const std::string &kernel_name_) : ra(hw) {
-#ifdef DNNL_DEV_MODE
-        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-        kernel_name = kernel_name_;
-#endif
-        MAYBE_UNUSED(kernel_name_);
-    }
+    reg_allocator_t(ngen::HW hw) : ra(hw) {}
     ~reg_allocator_t()
 #ifdef DNNL_DEV_MODE
     {
@@ -155,7 +149,6 @@ protected:
 #ifdef DNNL_DEV_MODE
     int peak_regs = 0;
     bool is_speculate = false;
-    std::string kernel_name;
 #endif
 
 private:

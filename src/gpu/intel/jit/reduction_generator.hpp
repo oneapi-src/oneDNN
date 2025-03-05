@@ -43,8 +43,8 @@ protected:
 public:
     reduction_generator_t(const compute::device_info_t &device_info,
             alg_kind_t alg, dim_t stride, dim_t iters, int nregs)
-        : emulated_generator_t<hw>(device_info, "ngen_jit_reduction",
-                {GENERATOR_NAME, GENERATOR_LINE}) {
+        : emulated_generator_t<hw>(
+                device_info, {GENERATOR_NAME, GENERATOR_LINE}) {
         constexpr auto GlobalPtr = ngen::ExternalArgumentType::GlobalPtr;
 
         // Number of dst elements computed per thread

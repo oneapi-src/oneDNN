@@ -26,9 +26,8 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-template <ngen::HW hw>
-void convert_ir_to_ngen(const stmt_t &body, ir_kernel_t<hw> *host,
-
+template <typename ngen_generator_t>
+void convert_ir_to_ngen(const stmt_t &body, ngen_generator_t *host,
         const walk_order_t *kernel_grid_walk_order = nullptr);
 
 REG_GEN9_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,

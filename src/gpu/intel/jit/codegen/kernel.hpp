@@ -177,104 +177,53 @@ private:
 template <ngen::HW hw>
 class expr_evaluator_t;
 
-template <ngen::HW hw>
+template <typename ngen_generator_t>
 class ir_to_ngen_t;
 
-template <ngen::HW hw>
-class ir_kernel_t : public generator_t<hw> {
+template <typename ngen_generator_t>
+class ir_kernel_base_t : public ngen_generator_t {
 public:
-    NGEN_FORWARD_OPENCL(hw);
+    static constexpr auto hw = ngen_generator_t::getHardware();
 
-    friend class expr_evaluator_t<hw>;
-    friend class ir_to_ngen_t<hw>;
-    friend class send_impl_t;
+    NGEN_FORWARD_NAMESPACE(ngen_generator_t)
 
-    ir_kernel_t(const kernel_desc_base_t &desc, const impl::engine_t *engine,
-            const debug_config_t &debug_config)
-        : generator_t<hw>(debug_config)
-        , kernel_name_(desc.kernel_name())
+    template <typename... ngen_generator_args>
+    ir_kernel_base_t(const kernel_desc_base_t &desc,
+            const impl::engine_t *engine, ngen_generator_args... args)
+        : ngen_generator_t(std::forward<ngen_generator_args>(args)...)
         , exec_cfg_(desc.exec_cfg(engine))
-        , local_range_(desc.local_range())
-        , require_dpas_(desc.with_dpas())
-        , regs_(exec_cfg_.regs())
-        , ra_(hw, desc.kernel_name())
+        , ra_(hw)
         , emu_strategy(hw, exec_cfg_.hw().stepping_id()) {
         desc.init_kernel_iface(kernel_iface_);
-        setStepping(exec_cfg_.hw().stepping_id());
-        ra_.setRegisterCount(regs_);
+        ra_.setRegisterCount(exec_cfg_.regs());
     }
 
-    ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
-            const compute::range_t &local_range, bool require_dpas,
-            const debug_config_t &debug_config)
-        : generator_t<hw>(debug_config)
-        , kernel_name_(kernel_name)
+    template <typename... ngen_generator_args>
+    ir_kernel_base_t(const exec_config_t &exec_cfg, ngen_generator_args... args)
+        : ngen_generator_t(std::forward<ngen_generator_args>(args)...)
         , exec_cfg_(exec_cfg)
-        , local_range_(local_range)
-        , require_dpas_(require_dpas)
-        , regs_(exec_cfg.regs())
-        , ra_(hw, kernel_name)
+        , ra_(hw)
         , emu_strategy(hw, exec_cfg.hw().stepping_id()) {
-        setStepping(exec_cfg.hw().stepping_id());
-        ra_.setRegisterCount(regs_);
+        ngen_generator_t::setStepping(exec_cfg.hw().stepping_id());
+        ra_.setRegisterCount(exec_cfg_.regs());
     }
 
-    const exec_config_t &exec_cfg() { return exec_cfg_; }
     const kernel_iface_t &kernel_iface() const { return kernel_iface_; }
-    void set_kernel_iface(const kernel_iface_t &kernel_iface) {
-        kernel_iface_ = kernel_iface;
-    }
-
-    void setup_interface(const stmt_t &kernel_body = stmt_t()) {
-        externalName(kernel_name_);
-        requireLocalID(3);
-        requireLocalSize();
-        requireGRF(regs_);
-        requireSIMD(exec_cfg_.simd());
-        requireBarrier();
-        if (require_dpas_) requireDPAS();
-        if (has_send_atomics(kernel_body)) requireGlobalAtomics();
-
-        for (int i = 0; i < kernel_iface_.nargs(); i++) {
-            auto &name = kernel_iface_.arg_name(i);
-            auto &type = kernel_iface_.arg_type(i);
-            if (type.is_ptr()) {
-                newArgument(name, ngen::ExternalArgumentType::GlobalPtr,
-                        ngen::GlobalAccessType::Stateless);
-            } else {
-                newArgument(name, to_ngen(type));
-            }
-        }
-
-        if (!kernel_body.is_empty() && local_range_) {
-            int slm_size = alloc_manager_t(kernel_body)
-                                   .total_size(alloc_kind_t::slm);
-            int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
-                    convert_ngen_arch_to_dnnl(hw), thread_group_size(),
-                    regs_ > 128);
-            if (slm_size > max_slm_size) {
-                // TODO: Use status code for this check.
-                gpu_except_not_implemented("SLM size limit is exceeded.");
-            }
-            requireSLM(slm_size);
-        }
-
-        finalizeInterface();
-    }
+    const exec_config_t &exec_cfg() const { return exec_cfg_; }
 
     void generate_prologue() {
-        setDefaultNoMask();
-        setDefaultAutoSWSB(true);
+        ngen_generator_t::setDefaultNoMask();
+        ngen_generator_t::setDefaultAutoSWSB(true);
 
-        prologue();
+        ngen_generator_t::prologue();
 
         // Claim registers.
-        ra_.claim(r0);
+        ra_.claim(ngen_generator_t::r0);
         for (int i = 0; i < 3; i++)
-            ra_.claim(getLocalID(i));
+            ra_.claim(ngen_generator_t::getLocalID(i));
 
         for (int i = 0; i < kernel_iface_.nargs(); i++) {
-            ra_.claim(getArgument(kernel_iface_.arg_name(i)));
+            ra_.claim(ngen_generator_t::getArgument(kernel_iface_.arg_name(i)));
         }
 
         if (emu_strategy.emulate64) {
@@ -282,12 +231,12 @@ public:
             emu_state.temp[1] = ra_.alloc();
         }
         // Enable IEEE f32 -> s32 rounding and f64/f32/f16 denormals.
-        or_(1, cr0, cr0, uint16_t(0x14C0));
+        or_(1, ngen_generator_t::cr0, ngen_generator_t::cr0, uint16_t(0x14C0));
 
         // Allocate and initialize signal header for future use.
         if (require_signal_header_) {
             signal_header_ = ra_.alloc();
-            barrierheader(signal_header_);
+            ngen_generator_t::barrierheader(signal_header_);
         }
     }
 
@@ -301,7 +250,7 @@ public:
             auto tg_idx = alloc_mgr.find_let(ir_builder_t::tg_idx(i), true);
             if (!tg_idx.is_empty()) {
                 auto tmp = ra_.template alloc_sub<int32_t>();
-                mov(1, tmp, r0.ud(r0_sub_idxs[i]));
+                mov(1, tmp, ngen_generator_t::r0.ud(r0_sub_idxs[i]));
                 expr_binding.bind(tg_idx, tmp);
             }
         }
@@ -310,7 +259,8 @@ public:
         for (int i = 0; i < 3; i++) {
             auto local_id = alloc_mgr.find_let(ir_builder_t::local_id(i), true);
             if (!local_id.is_empty()) {
-                expr_binding.bind(local_id, getLocalID(i).uw(0));
+                expr_binding.bind(
+                        local_id, ngen_generator_t::getLocalID(i).uw(0));
             }
         }
 
@@ -327,7 +277,7 @@ public:
                 }
                 gpu_assert(alloc_buf.is_same(arg_var));
             }
-            expr_binding.bind(arg_var, getArgument(name));
+            expr_binding.bind(arg_var, ngen_generator_t::getArgument(name));
         }
 
         // Bind SLM buffer (SLM loads/stores use 0-based offsets).
@@ -466,7 +416,7 @@ public:
     }
 
     void generate_epilogue() {
-        epilogue();
+        ngen_generator_t::epilogue();
         pad_kernel();
     }
 
@@ -737,10 +687,10 @@ public:
             auto src0_rd = r_spill(s0, div_esize, s0_spill);
             auto src1_rd = r_spill(s1, div_esize, s1_spill);
             // Enable mask as fdiv_ieee relies on masked if/endif flow.
-            setDefaultNoMask(false);
+            ngen_generator_t::setDefaultNoMask(false);
             fdiv_ieee(div_mod, f0[0], dst_rd(), src0_rd(), src1_rd(), zero, one,
                     tmp);
-            setDefaultNoMask(true);
+            ngen_generator_t::setDefaultNoMask(true);
         }
 
         ra_.safeRelease(one);
@@ -1082,7 +1032,7 @@ protected:
         // read - whether operand is to be used as input (needs pre-copy)
         // write - whether operand is to be used as output (needs post-copy)
         // force_copy - always copy the region (even if it's aligned)
-        spiller_t(ir_kernel_t<hw> *host, const ngen::RegData &rd, int esize,
+        spiller_t(ir_kernel_base_t *host, const ngen::RegData &rd, int esize,
                 bool read, bool write, bool force_copy)
             : host_(host), rd_(rd), esize_(esize), read_(read), write_(write) {
             if (rd.getOffset() == 0 && !force_copy) return;
@@ -1127,7 +1077,7 @@ protected:
             return ret;
         }
 
-        ir_kernel_t<hw> *host_ = nullptr;
+        ir_kernel_base_t *host_ = nullptr;
         ngen::RegData rd_;
         int esize_;
         bool read_ = false;
@@ -1167,15 +1117,6 @@ protected:
         return false;
     }
 
-    int thread_group_size() const {
-        gpu_assert(local_range_);
-        int local_size = 1;
-        for (int i = 0; i < (int)local_range_.ndims(); i++) {
-            local_size *= (int)local_range_[i];
-        }
-        return ir_utils::safe_divide(local_size, exec_cfg_.simd());
-    }
-
     static ngen::RegData fixup_ternary_rgn(const ngen::RegData &r) {
         ngen::RegData retn = r;
         return ((retn.getHS() == 1) && (retn.getVS() == retn.getWidth()))
@@ -1184,17 +1125,94 @@ protected:
     }
 
     kernel_iface_t kernel_iface_;
-    std::string kernel_name_;
     exec_config_t exec_cfg_;
-    compute::range_t local_range_;
-    bool require_dpas_;
     bool require_signal_header_ = false;
-    int regs_;
     reg_allocator_t ra_;
     ngen::GRF signal_header_;
 
     EmulationStrategy emu_strategy;
     EmulationState emu_state;
+};
+
+template <ngen::HW hw>
+class ir_kernel_t : public ir_kernel_base_t<generator_t<hw>> {
+public:
+    using base = ir_kernel_base_t<generator_t<hw>>;
+    friend class expr_evaluator_t<hw>;
+    friend class ir_to_ngen_t<ir_kernel_t>;
+    friend class send_impl_t;
+
+    NGEN_FORWARD_ELF(hw)
+
+    ir_kernel_t(const kernel_desc_base_t &desc, const impl::engine_t *engine,
+            const debug_config_t &debug_config)
+        : base(desc, engine, debug_config)
+        , kernel_name_(desc.kernel_name())
+        , require_dpas_(desc.with_dpas())
+        , local_range_(desc.local_range()) {}
+
+    ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
+            const compute::range_t &local_range, bool require_dpas,
+            const debug_config_t &debug_config)
+        : base(exec_cfg, debug_config)
+        , kernel_name_(kernel_name)
+        , require_dpas_(require_dpas)
+        , local_range_(local_range) {}
+
+    void set_kernel_iface(const kernel_iface_t &kernel_iface) {
+        base::kernel_iface_ = kernel_iface;
+    }
+
+    void setup_interface(const stmt_t &kernel_body = stmt_t()) {
+        externalName(kernel_name_);
+        requireLocalID(3);
+        requireLocalSize();
+        requireGRF(base::exec_cfg().regs());
+        requireSIMD(base::exec_cfg().simd());
+        requireBarrier();
+        if (require_dpas_) requireDPAS();
+        if (has_send_atomics(kernel_body)) requireGlobalAtomics();
+
+        for (int i = 0; i < base::kernel_iface().nargs(); i++) {
+            auto &name = base::kernel_iface().arg_name(i);
+            auto &type = base::kernel_iface().arg_type(i);
+            if (type.is_ptr()) {
+                newArgument(name, ngen::ExternalArgumentType::GlobalPtr,
+                        ngen::GlobalAccessType::Stateless);
+            } else {
+                newArgument(name, to_ngen(type));
+            }
+        }
+
+        if (!kernel_body.is_empty() && local_range_) {
+            int slm_size = alloc_manager_t(kernel_body)
+                                   .total_size(alloc_kind_t::slm);
+            int max_slm_size = compute::device_info_t::max_slm_size_per_tg(
+                    convert_ngen_arch_to_dnnl(hw), thread_group_size(),
+                    base::exec_cfg().regs() > 128);
+            if (slm_size > max_slm_size) {
+                // TODO: Use status code for this check.
+                gpu_except_not_implemented("SLM size limit is exceeded.");
+            }
+            requireSLM(slm_size);
+        }
+
+        finalizeInterface();
+    }
+
+    int thread_group_size() const {
+        gpu_assert(local_range_);
+        int local_size = 1;
+        for (int i = 0; i < (int)local_range_.ndims(); i++) {
+            local_size *= (int)local_range_[i];
+        }
+        return ir_utils::safe_divide(local_size, base::exec_cfg_.simd());
+    }
+
+private:
+    std::string kernel_name_;
+    bool require_dpas_;
+    compute::range_t local_range_;
 };
 
 #define IR_KERNEL_EMULATION_FORWARD(hw) \
