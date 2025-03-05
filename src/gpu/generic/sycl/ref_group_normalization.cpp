@@ -39,7 +39,7 @@ status_t ref_group_normalization_fwd_t::pd_t::init(impl::engine_t *engine) {
             "sycl post op initialization returns false");
 
     const primitive_attr_t::skip_mask_t attr_mask
-            = primitive_attr_t::skip_mask_t::scales_runtime
+            = primitive_attr_t::skip_mask_t::scales
             | primitive_attr_t::skip_mask_t::post_ops;
     VDISPATCH_GNORM(
             attr()->has_default_values(attr_mask), VERBOSE_UNSUPPORTED_ATTR);
