@@ -215,6 +215,14 @@ if(DNNL_LIBRARY_TYPE STREQUAL "STATIC")
     target_link_libraries_install(${LIB_PACKAGE_NAME} "${EXTRA_STATIC_LIBS}")
 endif()
 
+foreach(object_library IN LISTS LIB_DEPS)
+    string(REPLACE "$<TARGET_OBJECTS:" "" object_library "${object_library}")
+    string(REPLACE ">" "" object_library "${object_library}")
+
+    # explicitly set compile PDB name as with Ninja, all targets have the same pdb name like vc<vc_ver>.pdb
+    set_target_properties(${object_library} PROPERTIES COMPILE_PDB_NAME ${object_library})
+endforeach()
+
 set(LIB_EXPORT_NAME "${LIB_PACKAGE_NAME}-targets")
 install(TARGETS ${LIB_PACKAGE_NAME}
     EXPORT "${LIB_EXPORT_NAME}"
