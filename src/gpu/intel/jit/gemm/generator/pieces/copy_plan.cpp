@@ -680,6 +680,9 @@ void CopyPlan::planTypeConversions()
         } else if (isFP4(st)) {
             copyThrough(i, DataType::hf);
             rerun = true;
+        } else if ((isB(st) || isW(st)) && isInt4(dt)) {
+            planBToI4(i);
+            rerun = true;
         } else if (st == DataType::u4 && dt == DataType::hf) {
             copyThrough(i, DataType::uw);
             rerun = true;
@@ -905,7 +908,7 @@ void CopyPlan::planEmulatedHFToF4E2M1(CopyInstruction &i)
     if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
     int simd = i.simd;
 
-    auto ie = splitMultiple<14>(i);
+    auto ie = splitMultiple<11>(i);
     auto tmp = newTemp(DataType::ud, simd, 1);
     auto tmp2 = newTemp(DataType::ud, simd, 1);
 
@@ -1003,56 +1006,115 @@ void CopyPlan::planEmulatedHFToF4E2M1(CopyInstruction &i)
     ie[8]->ctrl = 0xCA;
 
     // Pack into byte.
-    ie[9]->op = Opcode::and_;
+
+    ie[9]->op = Opcode::shr;
     ie[9]->simd = simd;
     ie[9]->dst = tmp2;
     ie[9]->dst.type = DataType::uw;
     ie[9]->src0 = tmp2;
     ie[9]->src0.type = DataType::uw;
-    ie[9]->src1 = Immediate(0x00f0);
+    ie[9]->src1 = Immediate::uw(4);
 
-    ie[10]->op = Opcode::shr;
-    ie[10]->simd = simd/2;
-    ie[10]->dst = tmp2;
-    ie[10]->dst.type = DataType::uw;
-    ie[10]->dst.stride = 2;
+    ie[10]->op = Opcode::mov;
+    ie[10]->simd = simd;
+    ie[10]->dst = ddst;
+    ie[10]->dst.type = DataType::u4;
     ie[10]->src0 = tmp2;
     ie[10]->src0.type = DataType::uw;
-    ie[10]->src0.stride = 2;
-    ie[10]->src1 = Immediate::uw(4);
 
-    ie[11]->op = Opcode::or_;
-    ie[11]->simd = simd/2;
-    ie[11]->dst = tmp2;
-    ie[11]->dst.type = DataType::uw;
-    ie[11]->src0 = tmp2;
-    ie[11]->src0.offset = 1;
-    ie[11]->src0.type = DataType::uw;
-    ie[11]->src0.stride = 2;
-    ie[11]->src1 = tmp2;
-    ie[11]->src1.type = DataType::uw;
-    ie[11]->src1.stride = 2;
+}
 
-    ie[12]->op = Opcode::mov;
-    ie[12]->simd = simd/2;
-    ie[12]->dst = tmp2;
-    ie[12]->dst.stride = 1;
-    ie[12]->dst.type = DataType::ub;
-    ie[12]->src0 = tmp2;
-    ie[12]->src0.stride = 2;
-    ie[12]->src0.type = DataType::ub;
+void CopyPlan::planBToI4(CopyInstruction &i)
+{
+    if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
+    int simd = i.simd;
 
-    ie[13]->op = Opcode::mov;
-    ie[13]->simd = simd/2;
-    ie[13]->dst = ddst;
+    auto ie = splitMultiple<6>(i);
+    auto tmp = newTemp(DataType::uw, simd, 1);
+
+    auto ddst = CopyOperand(i.dst);
+    auto invSrc = CopyOperand(i.src0);
+    auto ssrc = CopyOperand(i.src0);
+    bool sUw = ssrc.type == DataType::uw;
+    bool sUb = ssrc.type == DataType::ub;
+    bool tempSrc = ((ssrc.stride > 1 && ssrc.type == DataType::uw) || (ssrc.stride == 1 && ssrc.type == DataType::ub));
+    if ((!sUw && !sUb)) stub();
+    invSrc.inv = true;
+    int idx = 0;
+
+    if(tempSrc){
+        ie[idx]->op = Opcode::mov;
+        ie[idx]->dst = ssrc;
+        ie[idx]->dst.type = DataType::ub;
+        ie[idx]->dst.stride = 2;
+        ie[idx]->src0 = ssrc;
+        if(sUw){
+           ie[idx]->src0.type = DataType::ub;
+           ie[idx]->src0.stride = ie[idx]->src0.stride * 2;
+        }
+    }else{
+        ie[idx]->invalidate();
+    }
+    ++idx;
+
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = tmp;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = ssrc;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.stride = 2;
+    ++idx;
+
+    ie[idx]->op = Opcode::shl;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = ssrc;
+    ie[idx]->dst.offset = 0;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->src0 = ssrc;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.offset = 1;
+    ie[idx]->src0.stride = 2;
+    ie[idx]->src1 = Immediate::uw(0x4);
+    ++idx;
+
+    ie[idx]->op = Opcode::or_;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = tmp;
+    ie[idx]->dst.type = DataType::uw;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = tmp;
+    ie[idx]->src0.type = DataType::uw;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src1 = ssrc;
+    ie[idx]->src1.type = DataType::uw;
+    ie[idx]->src1.stride = 1;
+    ++idx;
+
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = tmp;
+    ie[idx]->dst.type = DataType::ub;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = tmp;
+    ie[idx]->src0.stride = 2;
+    ie[idx]->src0.type = DataType::ub;
+    ++idx;
+
+    ie[idx]->op = Opcode::mov;
+    ie[idx]->simd = simd/2;
+    ie[idx]->dst = ddst;
+    ie[idx]->dst.type = DataType::ub;
     if (ddst.inVS != 0)
-        ie[13]->dst.stride = ddst.inVS / ddst.inW;
-    ie[13]->dst.type = DataType::ub;
-    if (ie[13]->dst.offset != 0)
-        ie[13]->dst.offset /= 2;
-    ie[13]->src0 = tmp2;
-    ie[13]->src0.type = DataType::ub;
-
+        ie[idx]->dst.stride = ddst.inVS / ddst.inW;
+    if (ie[idx]->dst.offset != 0)
+            ie[idx]->dst.offset /= 2;
+    ie[idx]->src0 = tmp;
+    ie[idx]->src0.stride = 1;
+    ie[idx]->src0.type = DataType::ub;
+    ++idx;
 }
 
 // Emulated f->bf or hf->bf8 sequence.
@@ -1618,65 +1680,14 @@ void CopyPlan::planEmulatedHFToE3M0(CopyInstruction &i)
 
     // Pack.
     ie[idx]->op = Opcode::mov;
-    ie[idx]->simd = simd/2;
-    ie[idx]->dst = x;
-    ie[idx]->dst.type = DataType::uw;
-    ie[idx]->dst.stride = 1;
-    ie[idx]->src0 = bits;
-    ie[idx]->src0.type = DataType::uw;
-    ie[idx]->src0.stride = 2;
-    ++idx;
-
-    ie[idx]->op = Opcode::shl;
-    ie[idx]->simd = simd/2;
-    ie[idx]->dst = bits;
-    ie[idx]->dst.offset = 0;
-    ie[idx]->dst.stride = 1;
-    ie[idx]->dst.type = DataType::uw;
-    ie[idx]->src0 = bits;
-    ie[idx]->src0.type = DataType::uw;
-    ie[idx]->src0.offset = 1;
-    ie[idx]->src0.stride = 2;
-    ie[idx]->src1 = Immediate::uw(0x4);
-    ++idx;
-
-    ie[idx]->op = Opcode::or_;
-    ie[idx]->simd = simd/2;
-    ie[idx]->dst = x;
-    ie[idx]->dst.type = DataType::uw;
-    ie[idx]->dst.stride = 1;
-    ie[idx]->src0 = x;
-    ie[idx]->src0.type = DataType::uw;
-    ie[idx]->src0.stride = 1;
-    ie[idx]->src1 = bits;
-    ie[idx]->src1.type = DataType::uw;
-    ie[idx]->src1.stride = 1;
-    ++idx;
-
-    ie[idx]->op = Opcode::mov;
-    ie[idx]->simd = simd/2;
-    ie[idx]->dst = x;
-    ie[idx]->dst.type = DataType::ub;
-    ie[idx]->dst.stride = 1;
-    ie[idx]->src0 = x;
-    ie[idx]->src0.stride = 2;
-    ie[idx]->src0.type = DataType::ub;
-    ++idx;
-
-    ie[idx]->op = Opcode::mov;
-    ie[idx]->simd = simd/2;
+    ie[idx]->simd = simd;
     ie[idx]->dst = y;
-    ie[idx]->dst.type = DataType::ub;
-    if (y.inVS != 0)
-        ie[idx]->dst.stride = y.inVS / y.inW;
-    if (ie[idx]->dst.offset != 0)
-            ie[idx]->dst.offset /= 2;
-    ie[idx]->src0 = x;
+    ie[idx]->dst.type = DataType::u4;
+    ie[idx]->dst.stride = 1;
+    ie[idx]->src0 = bits;
+    ie[idx]->src0.type = DataType::uw;
     ie[idx]->src0.stride = 1;
-    ie[idx]->src0.type = DataType::ub;
     ++idx;
-
-    //sharedAlloced=true;
 
 }
 
