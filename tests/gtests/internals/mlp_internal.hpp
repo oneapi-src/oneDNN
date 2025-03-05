@@ -45,7 +45,8 @@ dnnl_status_t DNNL_API gmlp_primitive_desc_create(
         const_dnnl_memory_desc_t src_desc, const_dnnl_memory_desc_t W_gate_desc,
         const_dnnl_memory_desc_t W_up_desc,
         const_dnnl_memory_desc_t W_down_desc, const_dnnl_memory_desc_t dst_desc,
-        const_dnnl_primitive_attr_t attr, const_dnnl_primitive_attr_t gate_attr,
+        dnnl_alg_kind_t activation, const_dnnl_primitive_attr_t attr,
+        const_dnnl_primitive_attr_t gate_attr,
         const_dnnl_primitive_attr_t up_attr,
         const_dnnl_primitive_attr_t down_attr);
 
@@ -69,18 +70,18 @@ struct gmlp : public dnnl::primitive {
         primitive_desc(const engine &aengine, const memory::desc &src_desc,
                 const memory::desc &W_gate_desc, const memory::desc &W_up_desc,
                 const memory::desc &W_down_desc,
-                const memory::desc &output_desc,
+                const memory::desc &output_desc, const alg_kind_t &activation,
                 const primitive_attr &attr = default_attr(),
                 const primitive_attr &gate_attr = default_attr(),
                 const primitive_attr &up_attr = default_attr(),
                 const primitive_attr &down_attr = default_attr()) {
 
             dnnl_primitive_desc_t pd = nullptr;
-            dnnl_status_t status
-                    = gmlp_primitive_desc_create(&pd, aengine.get(),
-                            src_desc.get(), W_gate_desc.get(), W_up_desc.get(),
-                            W_down_desc.get(), output_desc.get(), attr.get(),
-                            gate_attr.get(), up_attr.get(), down_attr.get());
+            dnnl_status_t status = gmlp_primitive_desc_create(&pd,
+                    aengine.get(), src_desc.get(), W_gate_desc.get(),
+                    W_up_desc.get(), W_down_desc.get(), output_desc.get(),
+                    activation, attr.get(), gate_attr.get(), up_attr.get(),
+                    down_attr.get());
 
             dnnl::error::wrap_c_api(status,
                     "could not create a primitive descriptor for a gmlp "

@@ -52,6 +52,7 @@ struct micro_gated_mlp_t : public gpu_primitive_t {
 
         status_t init(impl::engine_t *engine) {
             using namespace data_type;
+            using namespace alg_kind;
             VDISPATCH_GATED_MLP(utils::everyone_is(2, src_md()->ndims,
                                         W_gate_md()->ndims, W_up_md()->ndims,
                                         W_down_md()->ndims, dst_md()->ndims),
@@ -69,6 +70,10 @@ struct micro_gated_mlp_t : public gpu_primitive_t {
             //VDISPATCH_GATED_MLP(utils::everyone_is(W_gate_md()->data_type,
             //W_up_md()->data_type, W_down_md()->data_type),
             //VERBOSE_UNSUPPORTED_DT);
+
+            VDISPATCH_GATED_MLP(utils::one_of(desc()->activation, eltwise_swish,
+                                        eltwise_gelu_erf, eltwise_gelu_tanh),
+                    VERBOSE_BAD_ALGORITHM);
 
             VDISPATCH_GATED_MLP(set_default_formats() == status::success,
                     VERBOSE_UNSUPPORTED_TAG);

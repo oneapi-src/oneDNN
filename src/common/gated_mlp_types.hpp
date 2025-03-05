@@ -43,7 +43,8 @@ struct gated_mlp_desc_t : public op_desc_t {
     memory_desc_t W_down_desc; /* weights for final FC out */
     memory_desc_t dst_desc;
 
-    //TODO: add enum for type of activation, swish relu sigmoid...
+    alg_kind_t activation;
+
     quant_entry_t wts_gate_scales;
     quant_entry_t wts_up_scales;
     quant_entry_t wts_down_scales;

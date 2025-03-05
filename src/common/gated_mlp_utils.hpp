@@ -31,8 +31,9 @@ namespace impl {
 static inline gated_mlp_desc_t create_gated_mlp_desc(
         const memory_desc_t *src_md, const memory_desc_t *W_gate_md,
         const memory_desc_t *W_up_md, const memory_desc_t *W_down_md,
-        const memory_desc_t *dst_md, const primitive_attr_t *gate_attr,
-        const primitive_attr_t *up_attr, const primitive_attr_t *down_attr) {
+        const memory_desc_t *dst_md, const alg_kind_t activation,
+        const primitive_attr_t *gate_attr, const primitive_attr_t *up_attr,
+        const primitive_attr_t *down_attr) {
 
     auto gated_mlp_desc = gated_mlp_desc_t();
     gated_mlp_desc.primitive_kind = primitive_kind::gated_mlp;
@@ -41,6 +42,8 @@ static inline gated_mlp_desc_t create_gated_mlp_desc(
     gated_mlp_desc.W_up_desc = *W_up_md;
     gated_mlp_desc.W_down_desc = *W_down_md;
     gated_mlp_desc.dst_desc = *dst_md;
+
+    gated_mlp_desc.activation = activation;
 
     if (gate_attr) {
         gated_mlp_desc.wts_gate_scales = gate_attr->scales_.get(DNNL_ARG_SRC_0);
@@ -61,13 +64,14 @@ static inline status_t create_gated_mlp_pd(
         std::shared_ptr<primitive_desc_t> &gated_mlp_pd_, engine_t *engine,
         const memory_desc_t *src_md, const memory_desc_t *W_gate_md,
         const memory_desc_t *W_up_md, const memory_desc_t *W_down_md,
-        const memory_desc_t *dst_md, const primitive_attr_t *attr,
+        const memory_desc_t *dst_md, const alg_kind_t activation,
+        const primitive_attr_t *attr,
         const primitive_attr_t *gate_attr = nullptr,
         const primitive_attr_t *up_attr = nullptr,
         const primitive_attr_t *down_attr = nullptr) {
 
     auto gated_mlp_desc = create_gated_mlp_desc(src_md, W_gate_md, W_up_md,
-            W_down_md, dst_md, gate_attr, up_attr, down_attr);
+            W_down_md, dst_md, activation, gate_attr, up_attr, down_attr);
 
     int ndims = dst_md->ndims;
 

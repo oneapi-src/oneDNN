@@ -762,6 +762,7 @@ size_t get_desc_hash(const gated_mlp_desc_t &desc) {
     seed = hash_combine(seed, get_md_hash(desc.W_up_desc));
     seed = hash_combine(seed, get_md_hash(desc.W_down_desc));
     seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, static_cast<size_t>(desc.activation));
     seed = hash_combine(seed, desc.wts_gate_scales.get_hash());
     seed = hash_combine(seed, desc.wts_gate_zero_points.get_hash());
     seed = hash_combine(seed, desc.wts_up_scales.get_hash());

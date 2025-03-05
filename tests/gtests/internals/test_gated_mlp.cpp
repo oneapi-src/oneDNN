@@ -57,6 +57,8 @@ struct mlp_dims_t {
     memory::data_type wd_zp_dt;
 
     quantize_type qtype;
+
+    dnnl_alg_kind_t activation;
 };
 
 struct gmlp_tensors {
@@ -72,6 +74,22 @@ struct gmlp_tensors {
     dnnl::primitive_attr gateup_attr_quantized, down_attr_quantized;
     memory::dims wgu_groups, wd_groups;
 };
+
+std::ostream &operator<<(std::ostream &ss, const dnnl_alg_kind_t &act) {
+    switch (act) {
+        case dnnl_alg_kind_t::dnnl_eltwise_gelu_erf:
+            ss << "_activation_gelu_erf";
+            break;
+        case dnnl_alg_kind_t::dnnl_eltwise_gelu_tanh:
+            ss << "_activation_gelu_tanh";
+            break;
+        case dnnl_alg_kind_t::dnnl_eltwise_swish:
+            ss << "_activation_swish";
+            break;
+        default: ss << "_activation_unknown"; break;
+    }
+    return ss;
+}
 
 std::ostream &operator<<(std::ostream &ss, const mlp_dims_t &p) {
     ss << "mb_" << p.mb;
@@ -98,6 +116,7 @@ std::ostream &operator<<(std::ostream &ss, const mlp_dims_t &p) {
     if (p.wgu_wt != mdt::f16 || p.wd_wt != mdt::f16) {
         ss << "_qtype_" << p.qtype;
     }
+    ss << p.activation;
     return ss;
 }
 
@@ -556,7 +575,14 @@ void bench_gated_mlp_primitives(std::vector<T> &res, double &avg_time,
     primitive_attr bmm1_attr;
     //bmm1_attr.set_scratchpad_mode(scratchpad_mode::user); // TODO: needed? no threading in this example...
     post_ops bmm1_po;
-    bmm1_po.append_eltwise(algorithm::eltwise_swish, 1.f, 1.f);
+    if (p.activation == dnnl_eltwise_swish) {
+        bmm1_po.append_eltwise(algorithm::eltwise_swish, 1.f, 1.f);
+    } else if (p.activation == dnnl_eltwise_gelu_erf) {
+        bmm1_po.append_eltwise(algorithm::eltwise_gelu_erf, 0.f, 0.f);
+    } else if (p.activation == dnnl_eltwise_gelu_tanh) {
+        bmm1_po.append_eltwise(algorithm::eltwise_gelu_tanh, 0.f, 0.f);
+    }
+
     bmm1_po.append_binary(algorithm::binary_mul, m_FC_up.get_desc());
     bmm1_attr.set_post_ops(bmm1_po);
 
@@ -825,15 +851,21 @@ void bench_gated_mlp_internal(std::vector<T> &res, double &avg_time,
         default: break;
     }
 
+    //dnnl_alg_kind_t activation = dnnl_alg_kind_t::dnnl_eltwise_swish;
+    //dnnl_alg_kind_t activation = dnnl_alg_kind_t::dnnl_eltwise_gelu_erf;
+    //dnnl_alg_kind_t activation = dnnl_alg_kind_t::dnnl_eltwise_gelu_tanh;
+    //dnnl_alg_kind_t activation = dnnl_alg_kind_t::dnnl_eltwise_exp; //shouldfail
+    dnnl_alg_kind_t activation = p.activation;
+
     auto gmlp_pd = [&]() {
         if (p.do_quantize) {
             //TODO: W_up_md_quant
             return gmlp::primitive_desc(eng, O_proj_md, m_W_gate_quant_md,
-                    m_W_up_quant_md, W_down_md, FC_gate_md_t, gmlp_attr,
-                    gate_attr, up_attr);
+                    m_W_up_quant_md, W_down_md, FC_gate_md_t, activation,
+                    gmlp_attr, gate_attr, up_attr);
         } else {
             return gmlp::primitive_desc(eng, O_proj_md, W_gate_md, W_up_md,
-                    W_down_md, FC_gate_md_t, gmlp_attr);
+                    W_down_md, FC_gate_md_t, activation, gmlp_attr);
         }
     }();
 
@@ -1129,269 +1161,288 @@ INSTANTIATE_TEST_SUITE_P(VEC,
                          1, 1, // gateup, wd group size
                      mdt::f16, mdt::f16, mdt::f16, // dt wgateup
                      mdt::f16, mdt::f16, mdt::f16, // dt wd
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  3584,   18944,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  3584,   4864,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  3584,   14336,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  3584,   27392,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  896,   18944,    false, // mb ic oc quant?  //TODO: 896 failing?
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  896,   4864,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  896,   14336,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  896,   27392,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  4096,   18944,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  4096,   4864,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  4096,   14336,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1024,  4096,   27392,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
 
              // B==1
              mlp_dims_t{1,  3584,   18944,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  3584,   4864,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  3584,   14336,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  3584,   27392,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  896,   18944,    false, // mb ic oc quant?  //TODO: 896 failing?
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  896,   4864,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  896,   14336,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  896,   27392,    false,
                          1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  4096,   18944,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  4096,   4864,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  4096,   14336,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
              mlp_dims_t{1,  4096,   27392,    false, 1, 1,
                      mdt::f16, mdt::f16, mdt::f16,
                      mdt::f16, mdt::f16, mdt::f16,
-                     quantize_type::per_token},
+                     quantize_type::per_token, dnnl_eltwise_swish},
 
        // B = 1024, quantized w=u8
             mlp_dims_t{32,  32,   32,   true, 8, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  3584,   18944,   true, 8, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  896,   4864,   true, 8, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   14336,   true, 8, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   27392,   true, 8, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
 
             mlp_dims_t{1024,  3584,   18944,   true, 128, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  896,   4864,   true, 128, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   14336,   true, 128, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   27392,   true, 128, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
 
         // B = 1024, quantized w=s8
             mlp_dims_t{32,  32,   32,   true, 8, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  3584,   18944,   true, 8, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  896,   4864,   true, 8, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   14336,   true, 8, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   27392,   true, 8, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
 
             mlp_dims_t{1024,  3584,   18944,   true, 128, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  896,   4864,   true, 128, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   14336,   true, 128, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   27392,   true, 128, 1,
                     mdt::s8, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
 
         // B = 1024, quantized w=u4
             mlp_dims_t{32,  32,   32,   true, 16, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  3584,   18944,   true, 8, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::u4, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  896,   4864,   true, 8, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::u4, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   14336,   true, 8, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::u4, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   27392,   true, 8, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::u4, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
 
             //group size must be 8,16,32??? ;cannot work for 128 && u4
             mlp_dims_t{1024,  3584,   18944,   true, 32, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::u4, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  896,   4864,   true, 32, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::u4, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   14336,   true, 32, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::u4, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   27392,   true, 32, 1,
                     mdt::u4, mdt::f16, mdt::u8,
                     mdt::u4, mdt::f16, mdt::u8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
 
             //additional 4bit quant
             mlp_dims_t{32,  32,   32,   true, 16, 1,
                     mdt::s4, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{32,  32,   32,   true, 16, 1,
                     mdt::u4, mdt::f16, mdt::s8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             mlp_dims_t{32,  32,   32,   true, 16, 1,
                     mdt::s4, mdt::f16, mdt::u8,
                     mdt::s8, mdt::f16, mdt::s8,
-                    quantize_type::per_token_with_groups},
+                    quantize_type::per_token_with_groups, dnnl_eltwise_swish},
             // per tensor
             mlp_dims_t{1024,  3584,   18944,   true, 1, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_tensor},
+                    quantize_type::per_tensor, dnnl_eltwise_swish},
             mlp_dims_t{1024,  896,   4864,   true, 1, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_tensor},
+                    quantize_type::per_tensor, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   14336,   true, 1, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_tensor},
+                    quantize_type::per_tensor, dnnl_eltwise_swish},
             mlp_dims_t{1024,  4096,   27392,   true, 1, 1,
                     mdt::u8, mdt::f16, mdt::u8,
                     mdt::u8, mdt::f16, mdt::u8,
-                    quantize_type::per_tensor}
+                    quantize_type::per_tensor, dnnl_eltwise_swish},
+            // activation
+             mlp_dims_t{32,  32,   32,    false, // mb ic oc quant?
+                         1, 1, // gateup, wd group size
+                     mdt::f16, mdt::f16, mdt::f16, // dt wgateup
+                     mdt::f16, mdt::f16, mdt::f16, // dt wd
+                     quantize_type::per_token, dnnl_eltwise_gelu_tanh},
+             mlp_dims_t{32,  32,   32,    false, // mb ic oc quant?
+                         1, 1, // gateup, wd group size
+                     mdt::f16, mdt::f16, mdt::f16, // dt wgateup
+                     mdt::f16, mdt::f16, mdt::f16, // dt wd
+                     quantize_type::per_token, dnnl_eltwise_gelu_erf},
+            mlp_dims_t{32,  32,   32,   true, 16, 1,
+                    mdt::s4, mdt::f16, mdt::s8,
+                    mdt::s8, mdt::f16, mdt::s8,
+                    quantize_type::per_token_with_groups, dnnl_eltwise_gelu_tanh},
+            mlp_dims_t{32,  32,   32,   true, 16, 1,
+                    mdt::u4, mdt::f16, mdt::s8,
+                    mdt::s8, mdt::f16, mdt::s8,
+                    quantize_type::per_token_with_groups, dnnl_eltwise_gelu_erf}
     //,
     ), &PrintToString);

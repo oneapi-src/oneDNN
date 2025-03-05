@@ -84,7 +84,30 @@ DECLARE_2D_TILE_LOAD_PACKED_VEC(wgu_tile_type, SRC_DATA_T, VEC_TYPE2,
 
 #define binary_add(x, y) ((x) + (y))
 #define binary_mul(x, y) ((x) * (y))
-#define unary_swish(x) ((x) / (1.f + exp(-1.f * (x)))) //TODO: match ACC type
+
+#ifdef ACTIVATION_SWISH
+
+#define unary_activation(x) \
+    ((x) / (1.f + exp(-1.f * (x)))) //TODO: match ACC type
+
+#elif defined ACTIVATION_GELU_ERF
+
+#define sqrt_2_over_2 0.707106769084930419921875f
+#define unary_activation(x) (0.5f * (x) * (1.f + erf((x)*sqrt_2_over_2)))
+
+#elif defined ACTIVATION_GELU_TANH
+
+#define sqrt_2_over_pi 0.79788458347320556640625f
+#define fitting_const 0.044715f
+#define unary_activation(x) \
+    (0.5f * (x) \
+            * (1.f \
+                    + tanh(sqrt_2_over_pi * (x) \
+                            * (1 + fitting_const * (x) * (x)))))
+
+#else
+#error "Unknown activation function defined"
+#endif
 
 // TMP tile type for half output
 DECLARE_2D_TILE(s_tile_type_half, half, SUBGROUP_SIZE, ugemm_wgu_sg_tile_m, 1,
@@ -312,7 +335,7 @@ micro_gated_mlp(const __global SRC_DATA_T *src,
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    tile_elementwise(S_WG_tile, unary_swish); // for gate + swish
+    tile_elementwise(S_WG_tile, unary_activation); // for gate + swish
     tile_binary(S_WU_tile, S_WG_tile, binary_mul); // for gate + swish
 
     s_tile_type_half S_tile_half;

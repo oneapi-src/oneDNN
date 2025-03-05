@@ -243,6 +243,7 @@ status_t micro_gated_mlp_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
 status_t micro_gated_mlp_t::init(impl::engine_t *engine) {
     using namespace micro;
+    using namespace alg_kind;
 
     compute::kernel_ctx_t kernel_ctx;
 
@@ -297,6 +298,17 @@ status_t micro_gated_mlp_t::init(impl::engine_t *engine) {
     kernel_ctx.define_int("DST_ALIGN", jit::alignmentForLD(int(lda)));
 
     auto *d = pd()->desc();
+
+    switch (d->activation) {
+        case (eltwise_gelu_erf):
+            kernel_ctx.define_int("ACTIVATION_GELU_ERF", 1);
+            break;
+        case (eltwise_gelu_tanh):
+            kernel_ctx.define_int("ACTIVATION_GELU_TANH", 1);
+            break;
+        case (eltwise_swish):
+        default: kernel_ctx.define_int("ACTIVATION_SWISH", 1);
+    }
 
     int wts_gate_scales_mask
             = (static_cast<int>(pd()->with_wts_gate_scales()) << 1)
