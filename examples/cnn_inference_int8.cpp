@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,9 +33,6 @@
 using namespace dnnl;
 
 void simple_net_int8(engine::kind engine_kind) {
-    using tag = memory::format_tag;
-    using dt = memory::data_type;
-
     auto eng = engine(engine_kind, 0);
     stream s(eng);
 
@@ -89,12 +86,18 @@ void simple_net_int8(engine::kind engine_kind) {
     /// The user data will be in its original 32-bit floating point format.
     /// @snippet cnn_inference_int8.cpp Allocate buffers
     //[Allocate buffers]
-    auto user_src_memory = memory({{conv_src_tz}, dt::f32, tag::nchw}, eng);
+    auto user_src_memory = memory(
+            {{conv_src_tz}, memory::data_type::f32, memory::format_tag::nchw},
+            eng);
     write_to_dnnl_memory(user_src.data(), user_src_memory);
     auto user_weights_memory
-            = memory({{conv_weights_tz}, dt::f32, tag::oihw}, eng);
+            = memory({{conv_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::oihw},
+                    eng);
     write_to_dnnl_memory(conv_weights.data(), user_weights_memory);
-    auto user_bias_memory = memory({{conv_bias_tz}, dt::f32, tag::x}, eng);
+    auto user_bias_memory = memory(
+            {{conv_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(conv_bias.data(), user_bias_memory);
     //[Allocate buffers]
 
@@ -112,10 +115,14 @@ void simple_net_int8(engine::kind engine_kind) {
     ///  > Bias does not support quantization.
     /// @snippet cnn_inference_int8.cpp Create convolution memory descriptors
     //[Create convolution memory descriptors]
-    auto conv_src_md = memory::desc({conv_src_tz}, dt::u8, tag::any);
-    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::f32, tag::any);
-    auto conv_weights_md = memory::desc({conv_weights_tz}, dt::s8, tag::any);
-    auto conv_dst_md = memory::desc({conv_dst_tz}, dt::u8, tag::any);
+    auto conv_src_md = memory::desc(
+            {conv_src_tz}, memory::data_type::u8, memory::format_tag::any);
+    auto conv_bias_md = memory::desc(
+            {conv_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv_weights_md = memory::desc(
+            {conv_weights_tz}, memory::data_type::s8, memory::format_tag::any);
+    auto conv_dst_md = memory::desc(
+            {conv_dst_tz}, memory::data_type::u8, memory::format_tag::any);
     //[Create convolution memory descriptors]
 
     /// Configuring int8-specific parameters in an int8 primitive is done
@@ -129,7 +136,8 @@ void simple_net_int8(engine::kind engine_kind) {
     conv_attr.set_scales_mask(DNNL_ARG_DST, dst_mask);
 
     // Prepare dst scales
-    auto dst_scale_md = memory::desc({1}, dt::f32, tag::x);
+    auto dst_scale_md
+            = memory::desc({1}, memory::data_type::f32, memory::format_tag::x);
     auto dst_scale_memory = memory(dst_scale_md, eng);
     write_to_dnnl_memory(dst_scales.data(), dst_scale_memory);
     //[Configure scaling]
@@ -194,7 +202,8 @@ void simple_net_int8(engine::kind engine_kind) {
     auto conv_src_memory = memory(conv_prim_desc.src_desc(), eng);
     primitive_attr src_attr;
     src_attr.set_scales_mask(DNNL_ARG_DST, src_mask);
-    auto src_scale_md = memory::desc({1}, dt::f32, tag::x);
+    auto src_scale_md
+            = memory::desc({1}, memory::data_type::f32, memory::format_tag::x);
     auto src_scale_memory = memory(src_scale_md, eng);
     write_to_dnnl_memory(src_scales.data(), src_scale_memory);
     auto src_reorder_pd
@@ -208,7 +217,8 @@ void simple_net_int8(engine::kind engine_kind) {
     auto conv_weights_memory = memory(conv_prim_desc.weights_desc(), eng);
     primitive_attr weight_attr;
     weight_attr.set_scales_mask(DNNL_ARG_DST, weight_mask);
-    auto wei_scale_md = memory::desc({1}, dt::f32, tag::x);
+    auto wei_scale_md
+            = memory::desc({1}, memory::data_type::f32, memory::format_tag::x);
     auto wei_scale_memory = memory(wei_scale_md, eng);
     write_to_dnnl_memory(weight_scales.data(), wei_scale_memory);
     auto weight_reorder_pd
@@ -251,7 +261,9 @@ void simple_net_int8(engine::kind engine_kind) {
     /// computation output data.
     /// @snippet cnn_inference_int8.cpp Dequantize the result
     ///[Dequantize the result]
-    auto user_dst_memory = memory({{conv_dst_tz}, dt::f32, tag::nchw}, eng);
+    auto user_dst_memory = memory(
+            {{conv_dst_tz}, memory::data_type::f32, memory::format_tag::nchw},
+            eng);
     write_to_dnnl_memory(user_dst.data(), user_dst_memory);
     primitive_attr dst_attr;
     dst_attr.set_scales_mask(DNNL_ARG_SRC, dst_mask);

@@ -219,14 +219,13 @@ const engine &eng() {
 // - X_int_m -- prepared oneDNN memory that would hold quantized values
 void quantize(const std::vector<float> &X_f32, float scale_X, int32_t zp_X,
         memory &X_int_m) {
-    using dt = memory::data_type;
-
     stream s(eng());
 
     memory::desc x_int_md = X_int_m.get_desc();
     const auto &dims = x_int_md.get_dims();
 
-    memory::desc x_f32_md({dims[0], dims[1]}, dt::f32, {dims[1], 1});
+    memory::desc x_f32_md(
+            {dims[0], dims[1]}, memory::data_type::f32, {dims[1], 1});
     memory X_f32_m(x_f32_md, eng(), (void *)X_f32.data());
 
     primitive_attr q10n_attr;
@@ -235,8 +234,8 @@ void quantize(const std::vector<float> &X_f32, float scale_X, int32_t zp_X,
 
     reorder::primitive_desc q10n_pd(
             eng(), x_f32_md, eng(), x_int_md, q10n_attr);
-    memory dst_scale_X_m({{1}, dt::f32, {1}}, eng(), &scale_X);
-    memory zp_X_m({{1}, dt::s32, {1}}, eng(), &zp_X);
+    memory dst_scale_X_m({{1}, memory::data_type::f32, {1}}, eng(), &scale_X);
+    memory zp_X_m({{1}, memory::data_type::s32, {1}}, eng(), &zp_X);
     reorder(q10n_pd).execute(s,
             {{DNNL_ARG_SRC, X_f32_m}, {DNNL_ARG_DST, X_int_m},
                     {DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST, dst_scale_X_m},

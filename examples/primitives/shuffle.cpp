@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,9 +41,6 @@
 
 using namespace dnnl;
 
-using tag = memory::format_tag;
-using dt = memory::data_type;
-
 void shuffle_example(dnnl::engine::kind engine_kind) {
 
     // Create execution dnnl::engine.
@@ -76,11 +73,15 @@ void shuffle_example(dnnl::engine::kind engine_kind) {
     const int group_size = 4;
 
     // Create memory descriptor and memory objects for src and dst.
-    auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
-    auto dst_md = memory::desc(src_dims, dt::f32, tag::nchw);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::nchw);
+    auto dst_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::nchw);
     auto src_mem = memory(src_md, engine);
 
-    auto dst_mem = memory({src_dims, dt::f32, tag::abcd}, engine);
+    auto dst_mem = memory(
+            {src_dims, memory::data_type::f32, memory::format_tag::abcd},
+            engine);
 
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), src_mem);

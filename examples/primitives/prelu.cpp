@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,9 +38,6 @@
 
 using namespace dnnl;
 
-using tag = memory::format_tag;
-using dt = memory::data_type;
-
 void prelu_example(dnnl::engine::kind engine_kind) {
 
     // Create execution dnnl::engine.
@@ -78,18 +75,27 @@ void prelu_example(dnnl::engine::kind engine_kind) {
 
     // Create memory objects for tensor data (src, weights, dst). In this
     // example, NCHW layout is assumed for src, weights and dst.
-    auto user_src_mem = memory({src_dims, dt::f32, tag::nchw}, engine);
-    auto user_weights_mem = memory({weights_dims, dt::f32, tag::nchw}, engine);
-    auto user_dst_mem = memory({dst_dims, dt::f32, tag::nchw}, engine);
+    auto user_src_mem = memory(
+            {src_dims, memory::data_type::f32, memory::format_tag::nchw},
+            engine);
+    auto user_weights_mem = memory(
+            {weights_dims, memory::data_type::f32, memory::format_tag::nchw},
+            engine);
+    auto user_dst_mem = memory(
+            {dst_dims, memory::data_type::f32, memory::format_tag::nchw},
+            engine);
 
     // Create memory descriptors for the primitive. Src tag is set
     // to match src memory object. Setting weights tag to format_tag::any
     // enables the PReLU primitive to choose memory layout for an optimized
     // primitive implementation, and that layout may differ from the one
     // provided by the user.
-    auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
-    auto weights_md = memory::desc(weights_dims, dt::f32, tag::any);
-    auto dst_md = memory::desc(src_dims, dt::f32, tag::any);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::nchw);
+    auto weights_md = memory::desc(
+            weights_dims, memory::data_type::f32, memory::format_tag::any);
+    auto dst_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::any);
 
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_data.data(), user_src_mem);

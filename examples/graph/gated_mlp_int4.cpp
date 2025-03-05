@@ -29,7 +29,6 @@
 #include "graph_example_utils.hpp"
 
 using namespace dnnl;
-using tag = memory::format_tag;
 
 using namespace dnnl::graph;
 using data_type = logical_tensor::data_type;

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -42,9 +42,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 void group_normalization_example(engine::kind engine_kind) {
     // Create execution dnnl::engine.
@@ -93,9 +90,12 @@ void group_normalization_example(engine::kind engine_kind) {
     });
 
     // Create src and scale/shift memory descriptors and memory objects.
-    auto src_md = memory::desc(src_dims, dt::f32, tag::ncdhw);
-    auto dst_md = memory::desc(src_dims, dt::f32, tag::ncdhw);
-    auto scaleshift_md = memory::desc(scaleshift_dims, dt::f32, tag::x);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::ncdhw);
+    auto dst_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::ncdhw);
+    auto scaleshift_md = memory::desc(
+            scaleshift_dims, memory::data_type::f32, memory::format_tag::x);
 
     auto src_mem = memory(src_md, engine);
     auto scale_mem = memory(scaleshift_md, engine);
