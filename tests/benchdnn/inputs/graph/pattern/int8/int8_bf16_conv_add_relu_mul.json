@@ -1,7 +1,17 @@
 {
-  "version": "3.0.0",
+  "version": "3.8.0",
   "engine_kind": "cpu",
   "fpmath_mode": "strict",
+  "fpmath_mode_apply_to_int": "false",
+  "input_ports": [
+    0,
+    3,
+    10,
+    14
+  ],
+  "output_ports": [
+    15
+  ],
   "graph": [
     {
       "id": 0,
@@ -234,10 +244,6 @@
       "name": "CONV",
       "kind": "Convolution",
       "attrs": {
-        "weights_format": {
-          "type": "string",
-          "value": "OIX"
-        },
         "auto_pad": {
           "type": "string",
           "value": "None"
@@ -255,6 +261,10 @@
             0,
             0
           ]
+        },
+        "weights_format": {
+          "type": "string",
+          "value": "OIX"
         },
         "pads_begin": {
           "type": "s64[]",
@@ -335,119 +345,6 @@
           ],
           "layout_type": "strided",
           "property_type": "undef"
-        }
-      ]
-    },
-    {
-      "id": 5,
-      "name": "DEQUANTIZE_ADD",
-      "kind": "Dequantize",
-      "attrs": {
-        "axis": {
-          "type": "s64",
-          "value": 1
-        },
-        "qtype": {
-          "type": "string",
-          "value": "per_tensor"
-        },
-        "zps": {
-          "type": "s64[]",
-          "value": [
-            0
-          ]
-        },
-        "scales": {
-          "type": "f32[]",
-          "value": [
-            1
-          ]
-        }
-      },
-      "inputs": [
-        {
-          "id": 8,
-          "dtype": "s8",
-          "shape": [
-            50,
-            64,
-            56,
-            56
-          ],
-          "stride": [
-            200704,
-            3136,
-            56,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "constant"
-        }
-      ],
-      "outputs": [
-        {
-          "id": 9,
-          "dtype": "f32",
-          "shape": [
-            50,
-            64,
-            56,
-            56
-          ],
-          "stride": [
-            200704,
-            3136,
-            56,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "constant"
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "name": "TYPECAST_ADD",
-      "kind": "TypeCast",
-      "attrs": {},
-      "inputs": [
-        {
-          "id": 9,
-          "dtype": "f32",
-          "shape": [
-            50,
-            64,
-            56,
-            56
-          ],
-          "stride": [
-            200704,
-            3136,
-            56,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "constant"
-        }
-      ],
-      "outputs": [
-        {
-          "id": 10,
-          "dtype": "bf16",
-          "shape": [
-            50,
-            64,
-            56,
-            56
-          ],
-          "stride": [
-            200704,
-            3136,
-            56,
-            1
-          ],
-          "layout_type": "strided",
-          "property_type": "constant"
         }
       ]
     },
@@ -541,7 +438,7 @@
             56,
             1
           ],
-          "layout_type": "undef",
+          "layout_type": "strided",
           "property_type": "undef"
         }
       ],
@@ -561,7 +458,7 @@
             56,
             1
           ],
-          "layout_type": "undef",
+          "layout_type": "strided",
           "property_type": "undef"
         }
       ]
