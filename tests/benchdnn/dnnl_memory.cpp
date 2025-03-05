@@ -478,12 +478,17 @@ void dnn_mem_t::unmap() const {
     }
 }
 
-void dnn_mem_t::memset(int value, size_t size) const {
+void dnn_mem_t::memset(int value, size_t size, int buffer_index) const {
     bool is_opencl = is_opencl_engine(engine_);
     bool is_sycl = is_sycl_engine(engine_);
     auto mem = m_padded_ ? m_padded_ : m_;
     void *mem_handle;
+#ifdef DNNL_EXPERIMENTAL_SPARSE
+    DNN_SAFE_V(dnnl_memory_get_data_handle_v2(mem, &mem_handle, buffer_index));
+#else
     DNN_SAFE_V(dnnl_memory_get_data_handle(mem, &mem_handle));
+#endif
+
     if (is_opencl) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
         stream_t stream(engine_);
@@ -921,7 +926,7 @@ int dnn_mem_t::initialize(
                                 != default_cold_cache_input()
                                            .cold_cache_mode_) {
                     // Fill memory directly with 0x3F3F3F3F (0.747059f) number.
-                    this->memset(dnnl_mem_default_perf_test_value, sz);
+                    this->memset(dnnl_mem_default_perf_test_value, sz, i);
                 } else {
                     // Fill memory with a magic number (NAN for fp data types)
                     // to catch possible uninitialized access.
