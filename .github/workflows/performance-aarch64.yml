@@ -153,12 +153,17 @@ jobs:
         shell: bash
         run: |
           OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_nightly_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
+          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_fast_math_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base_fast.txt new_fast.txt
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Compare performance test results
         id: performance-test
-        run: python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base.txt new.txt
+        run: |
+          echo "16 threads:"
+          python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base.txt new.txt
+          echo "fast math:"
+          python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base_fast.txt new_fast.txt
 
 
   #* This job adds a check named "Nightly Performance AArch64" that represents overall
