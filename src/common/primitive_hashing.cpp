@@ -83,6 +83,7 @@ bool key_t::operator==(const key_t &rhs) const {
             break;
             CASE(deconvolution)
             CASE(eltwise)
+            CASE(gated_mlp)
             CASE(gemm)
             CASE(group_normalization)
             CASE(inner_product)
@@ -748,6 +749,27 @@ size_t get_desc_hash(const sdpa_desc_t &desc) {
     seed = hash_combine(seed, desc.kv_head_number);
     seed = hash_combine(seed, desc.causal_mask);
     // Combined hash for sdpa desc
+    return seed;
+}
+
+size_t get_desc_hash(const gated_mlp_desc_t &desc) {
+    size_t seed = 0;
+    // Kinds
+    seed = hash_combine(seed, static_cast<size_t>(desc.primitive_kind));
+    // Memory descriptors
+    seed = hash_combine(seed, get_md_hash(desc.src_desc));
+    seed = hash_combine(seed, get_md_hash(desc.W_gate_desc));
+    seed = hash_combine(seed, get_md_hash(desc.W_up_desc));
+    seed = hash_combine(seed, get_md_hash(desc.W_down_desc));
+    seed = hash_combine(seed, get_md_hash(desc.dst_desc));
+    seed = hash_combine(seed, static_cast<size_t>(desc.activation));
+    seed = hash_combine(seed, desc.wts_gate_scales.get_hash());
+    seed = hash_combine(seed, desc.wts_gate_zero_points.get_hash());
+    seed = hash_combine(seed, desc.wts_up_scales.get_hash());
+    seed = hash_combine(seed, desc.wts_up_zero_points.get_hash());
+    seed = hash_combine(seed, desc.wts_down_scales.get_hash());
+    seed = hash_combine(seed, desc.wts_down_zero_points.get_hash());
+    // Combined hash for gated_mlp desc
     return seed;
 }
 

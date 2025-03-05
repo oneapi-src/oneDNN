@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "common/engine.hpp"
+#include "common/gated_mlp_types.hpp"
 #include "common/impl_list_item.hpp"
 #include "common/impl_registration.hpp"
 #include "common/sdpa_types.hpp"
@@ -170,6 +171,7 @@ DECLARE_IMPL_LIST(binary);
 DECLARE_IMPL_LIST(convolution);
 DECLARE_IMPL_LIST(deconvolution);
 DECLARE_IMPL_LIST(eltwise);
+DECLARE_IMPL_LIST(gated_mlp);
 DECLARE_IMPL_LIST(gemm);
 DECLARE_IMPL_LIST(group_normalization);
 DECLARE_IMPL_LIST(inner_product);

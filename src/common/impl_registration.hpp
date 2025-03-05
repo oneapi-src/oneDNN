@@ -96,6 +96,13 @@
     {}
 #endif
 
+#if BUILD_PRIMITIVE_ALL || BUILD_GATED_MLP
+#define REG_GATED_MLP_P(...) __VA_ARGS__
+#else
+#define REG_GATED_MLP_P(...) \
+    { nullptr }
+#endif
+
 #if BUILD_PRIMITIVE_ALL || BUILD_GROUP_NORMALIZATION
 #define REG_GNORM_P(...) __VA_ARGS__
 #else

@@ -1774,6 +1774,7 @@ const char *dnnl_prim_kind2str(dnnl_primitive_kind_t v) {
     if (v == dnnl_group_normalization) return "group_normalization";
     if (v == dnnl_primitive_kind_max) return "primitive_kind_max";
     if (v == dnnl::impl::primitive_kind::sdpa) return "sdpa";
+    if (v == dnnl::impl::primitive_kind::gated_mlp) return "gated_mlp";
     assert(!"unknown prim_kind");
     return "unknown prim_kind";
 }

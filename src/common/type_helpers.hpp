@@ -26,6 +26,7 @@
 #include "bit_cast.hpp"
 #include "c_types_map.hpp"
 #include "dnnl_traits.hpp"
+#include "gated_mlp_types.hpp"
 #include "gemm_types.hpp"
 #include "memory_desc.hpp"
 #include "nstl.hpp"
@@ -985,6 +986,23 @@ inline bool operator==(const sdpa_desc_t &lhs, const sdpa_desc_t &rhs) {
             && COMPARE_DESC_MEMBERS(invert_scale)
             && COMPARE_DESC_MEMBERS(kv_head_number)
             && COMPARE_DESC_MEMBERS(causal_mask);
+    return ret;
+}
+
+inline bool operator==(const gated_mlp_desc_t &lhs, const gated_mlp_desc_t &rhs) {
+    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
+            && COMPARE_DESC_MEMBERS(src_desc)
+            && COMPARE_DESC_MEMBERS(W_gate_desc)
+            && COMPARE_DESC_MEMBERS(W_up_desc)
+            && COMPARE_DESC_MEMBERS(W_down_desc)
+            && COMPARE_DESC_MEMBERS(dst_desc)
+            && COMPARE_DESC_MEMBERS(activation)
+            && COMPARE_DESC_MEMBERS(wts_gate_scales)
+            && COMPARE_DESC_MEMBERS(wts_gate_zero_points)
+            && COMPARE_DESC_MEMBERS(wts_up_scales)
+            && COMPARE_DESC_MEMBERS(wts_up_zero_points)
+            && COMPARE_DESC_MEMBERS(wts_down_scales)
+            && COMPARE_DESC_MEMBERS(wts_down_zero_points);
     return ret;
 }
 

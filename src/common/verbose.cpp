@@ -1749,6 +1749,9 @@ void pd_info_t::init(engine_t *engine, const primitive_desc_t *pd) {
             case primitive_kind::zero_pad:
               str_ = "zero_pad, unknown info";
               break;
+            case primitive_kind::gated_mlp:
+              str_ = "gated_mlp, unknown info";
+              break;
             default:
               str_ = "unknown primitive info";
               assert(!"unknown primitive kind");

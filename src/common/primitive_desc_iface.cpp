@@ -39,9 +39,9 @@ status_t primitive_desc_create(primitive_desc_iface_t **primitive_desc_iface,
 
     const bool known_primitive_kind = utils::one_of(op_desc->primitive_kind,
             batch_normalization, binary, convolution, deconvolution, eltwise,
-            gemm, group_normalization, inner_product, layer_normalization, lrn,
-            matmul, pooling, prelu, reduction, resampling, rnn, sdpa, shuffle,
-            softmax);
+            gated_mlp, gemm, group_normalization, inner_product,
+            layer_normalization, lrn, matmul, pooling, prelu, reduction,
+            resampling, rnn, sdpa, shuffle, softmax);
     if (!known_primitive_kind) return invalid_arguments;
 
     auto pd_iface = utils::make_unique<primitive_desc_iface_t>(engine, op_desc,
