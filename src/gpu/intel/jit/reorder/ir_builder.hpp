@@ -48,8 +48,6 @@ public:
         build();
     }
 
-    const grid_info_t &kernel_grid() const { return kernel_grid_; }
-
     static void compute_blocks(const exec_config_t &exec_cfg,
             const layout_t &src, const layout_t &dst,
             std::vector<int> &iter_blocks, std::vector<int> &loop_blocks,
@@ -63,8 +61,8 @@ public:
     static void compute_grid(const layout_t &src, const layout_t &dst,
             const std::vector<int> &iter_blocks,
             const std::vector<int> &loop_blocks,
-            const std::vector<int> &tg_blocks, grid_info_t &kernel_grid,
-            grid_info_t &tg_grid, std::vector<dim_idx_t> *dim2grid = nullptr);
+            const std::vector<int> &tg_blocks, grid_info_t &tg_grid,
+            grid_info_t &thr_grid, std::vector<dim_idx_t> *dim2grid = nullptr);
 
     static compute::nd_range_t nd_range(
             const exec_config_t &exec_cfg, layout_t src, layout_t dst);
@@ -90,8 +88,8 @@ private:
     static dim_t message_latency(const exec_config_t &exec_cfg,
             const layout_t &l, const tensor_t &t);
 
-    grid_info_t kernel_grid_;
     grid_info_t tg_grid_;
+    grid_info_t thr_grid_;
     layout_t src_layout_;
     layout_t dst_layout_;
     const reorder_config_t &cfg_;
