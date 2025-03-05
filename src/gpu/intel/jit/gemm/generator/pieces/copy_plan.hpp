@@ -190,6 +190,7 @@ protected:
     void planEarlyInt4Upconversions();
     void planEmulatedHalveFloat(CopyInstruction &i);
     void planSmallUWToHF(CopyInstruction &i);
+    void planUBToU4(CopyInstruction &i);
     void planBToHF(CopyInstruction &i);
     void planS4ToHF(CopyInstruction &i);
     void planEmulatedE3M0ToHF(CopyInstruction &i);
