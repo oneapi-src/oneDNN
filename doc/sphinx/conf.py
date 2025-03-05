@@ -137,7 +137,7 @@ html_static_path = ['_static']
 
 html_theme_options = {
     "repository_url": "https://github.com/uxlfoundation/oneDNN",
-    "repository_branch": "master",
+    "repository_branch": "main",
     "use_repository_button": True,
     "use_download_button": False
 }

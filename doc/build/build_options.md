@@ -303,7 +303,7 @@ $ cmake -DONEDNN_BLAS_VENDOR=ARMPL ..
 
 Additional options available for development/debug purposes. These options are
 subject to change without notice, see
-[`cmake/options.cmake`](https://github.com/uxlfoundation/oneDNN/blob/master/cmake/options.cmake)
+[`cmake/options.cmake`](https://github.com/uxlfoundation/oneDNN/blob/main/cmake/options.cmake)
 for details.
 
 ## GPU Options

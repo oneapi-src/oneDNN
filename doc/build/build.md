@@ -3,7 +3,7 @@ Build from Source {#dev_guide_build}
 
 ## Download the Source Code
 
-Download [oneDNN source code](https://github.com/uxlfoundation/oneDNN/archive/master.zip)
+Download [oneDNN source code](https://github.com/uxlfoundation/oneDNN/archive/main.zip)
 or clone [the repository](https://github.com/uxlfoundation/oneDNN.git).
 
 ~~~sh
