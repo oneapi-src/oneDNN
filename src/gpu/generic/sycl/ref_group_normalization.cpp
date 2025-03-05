@@ -111,4 +111,64 @@ status_t ref_group_normalization_fwd_t::execute(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
+status_t ref_group_normalization_bwd_t::pd_t::init(impl::engine_t *engine) {
+    using namespace data_type;
+    VDISPATCH_GNORM(set_default_formats_common(), VERBOSE_UNSUPPORTED_TAG);
+    VDISPATCH_GNORM(!is_fwd(), VERBOSE_BAD_PROPKIND);
+    VDISPATCH_GNORM(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+    auto src_mdw = memory_desc_wrapper(arg_md(DNNL_ARG_SRC));
+    auto diff_src_mdw = memory_desc_wrapper(arg_md(DNNL_ARG_DIFF_SRC));
+    auto diff_dst_mdw = memory_desc_wrapper(arg_md(DNNL_ARG_DIFF_DST));
+    VDISPATCH_GNORM(utils::one_of(src_mdw.data_type(), f32, bf16, f16),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_GNORM(utils::one_of(diff_src_mdw.data_type(), f32, bf16, f16),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_GNORM(utils::one_of(diff_dst_mdw.data_type(), f32, bf16, f16),
+            VERBOSE_UNSUPPORTED_DT);
+
+    auto device = utils::downcast<const impl::xpu::sycl::engine_impl_t *>(
+            engine->impl())
+                          ->device();
+
+    dim_t num_channels = src_mdw.dims()[1];
+    // To avoid using excess registers error
+    auto local_range = std::max(std::size_t(64),
+            device.get_info<::sycl::info::device::max_work_group_size>() / 8);
+    launch_range = ::sycl::nd_range<1>(
+            {static_cast<std::size_t>(num_channels) * local_range},
+            {local_range});
+
+    conf_ = sycl_gnorm_bwd_conf_t();
+    conf_.src_desc = xpu::sycl::md_t(arg_md(DNNL_ARG_SRC));
+    conf_.diff_src_desc = xpu::sycl::md_t(arg_md(DNNL_ARG_DIFF_SRC));
+    conf_.diff_dst_desc = xpu::sycl::md_t(arg_md(DNNL_ARG_DIFF_DST));
+    conf_.num_groups = desc()->groups;
+    conf_.num_channels_per_group = src_mdw.dims()[1] / desc()->groups;
+    conf_.scale_diff_required = use_scale();
+    conf_.bias_diff_required = use_shift();
+    conf_.used_global_stats = stats_is_src();
+    conf_.eta = desc()->group_norm_epsilon;
+    return status::success;
+}
+
+status_t ref_group_normalization_bwd_t::init(impl::engine_t *engine) {
+    auto kid = ::sycl::get_kernel_id<group_norm_bwd_t>();
+    CHECK(create_kernel(engine, kid, &kernel_));
+    return status::success;
+}
+
+status_t ref_group_normalization_bwd_t::execute(const exec_ctx_t &ctx) const {
+    auto &conf_ = pd()->conf_;
+    auto launch_range = pd()->launch_range;
+
+    parallel_for(ctx, kernel_, [&](::sycl::handler &cgh) {
+        ::sycl::local_accessor<float, 1> local_memory(
+                launch_range.get_local_range()[0], cgh);
+        cgh.parallel_for(
+                launch_range, group_norm_bwd_t(conf_, local_memory, cgh, ctx));
+    });
+    return status::success;
+}
+
 } // namespace dnnl::impl::gpu::generic::sycl
