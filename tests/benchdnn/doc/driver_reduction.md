@@ -16,7 +16,7 @@ where *reduction-knobs* are:
  - `--dtag={any [default], ...}` -- physical dst memory layout.
             Refer to [tags](knobs_tag.md) for details.
  - `--alg={sum [default], ...}` -- algorithm for reduction operations.
-            Refer to [reduction primitive](https://oneapi-src.github.io/oneDNN/dev_guide_reduction.html)
+            Refer to [reduction primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_reduction.html)
             for details.
  - `--p=FLOAT` -- float value corresponding to algorithm operation.
             Refer to ``Floating point arguments`` below.

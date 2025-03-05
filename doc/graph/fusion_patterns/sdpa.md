@@ -135,12 +135,12 @@ platforms follow the general description in @ref dev_guide_data_types.
 ## Example
 
 oneDNN provides an [SDPA
-example](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph/sdpa.cpp)
+example](https://github.com/uxlfoundation/oneDNN/tree/main/examples/graph/sdpa.cpp)
 demonstrating how to construct a typical floating-point SDPA pattern with oneDNN
 Graph API on CPU and GPU with different runtimes.
 
 oneDNN also provides a [MQA (Multi-Query Attention)
-example](https://github.com/oneapi-src/oneDNN/tree/main/examples/graph/mqa.cpp) [3]
+example](https://github.com/uxlfoundation/oneDNN/tree/main/examples/graph/mqa.cpp) [3]
 demonstrating how to construct a floating-point MQA pattern with the same
 pattern structure as in the SDPA example but different head number in Key and
 Value tensors. In MQA, the head number of Key and Value is always one.
@@ -149,6 +149,6 @@ Value tensors. In MQA, the head number of Key and Value is always one.
 
 [1] Attention is all you need, https://arxiv.org/abs/1706.03762v7
 
-[2] oneDNN Graph API documentation, https://oneapi-src.github.io/oneDNN/graph_extension.html
+[2] oneDNN Graph API documentation, https://uxlfoundation.github.io/oneDNN/graph_extension.html
 
 [3] Fast Transformer Decoding: One Write-Head is All You Need, https://arxiv.org/abs/1911.02150

@@ -16,7 +16,7 @@ where *lrn-knobs* are:
  - `--alg={ACROSS [default], WITHIN}` -- lrn algorithm.
             `ACROSS` is dnnl_lrn_across_channels;
             `WITHIN` is dnnl_lrn_within_channel;
-            Refer to [LRN primitive](https://oneapi-src.github.io/oneDNN/dev_guide_lrn.html)
+            Refer to [LRN primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_lrn.html)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual
@@ -36,7 +36,7 @@ size value and accepts integer X values. The default is `5`. `alphaF` stands for
 LRN alpha scale and accepts float F values. The default is `1.f / 8192`. `betaF`
 stands for LRN beta power and accepts float F values. The default is `0.75f`.
 `kF` stands for LRN k shift and accept float F values. The default is `1.f`.
-Refer to [LRN primitive](https://oneapi-src.github.io/oneDNN/dev_guide_lrn.html)
+Refer to [LRN primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_lrn.html)
 for details.
 
 ## Essence of Testing
