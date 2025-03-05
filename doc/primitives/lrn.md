@@ -14,7 +14,7 @@ The LRN primitive performs a forward or backward local response normalization.
 The LRN operation is defined by the following formulas (the variable names
 follow the standard @ref dev_guide_conventions):
 
-LRN [across channels](#dnnl_lrn_across_channels):
+LRN across channels:
 
 \f[
     \dst(n, c, h, w) =
@@ -26,7 +26,7 @@ LRN [across channels](#dnnl_lrn_across_channels):
         \src(n, c, h, w),
 \f]
 
-LRN [within channel](#dnnl_lrn_within_channel):
+LRN within a single channel:
 
 \f[
     \dst(n, c, h, w) =
