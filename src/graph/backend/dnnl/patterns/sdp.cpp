@@ -113,7 +113,7 @@ graph::utils::pm::repetition_t *optional_scale_and_masks(
     return opt_select;
 }
 
-// (-> softmax ->) OR (-> typecast -> softmax -> typecast ->)
+// (-> softmax ->) OR (-> softmax -> typecast ->)
 graph::utils::pm::alternation_t *alter_fp_softmax(
         const std::shared_ptr<pb_graph_t> &pgraph,
         graph::utils::pm::pb_node_t *input) {
@@ -123,17 +123,14 @@ graph::utils::pm::alternation_t *alter_fp_softmax(
     softmax_g1->create_output_port(0, softmax1, 0);
 
     auto softmax_g2 = std::make_shared<graph::utils::pm::pb_graph_t>();
-    auto tc1 = softmax_g2->append_op(graph::op_kind::TypeCast);
-    tc1->append_decision_function(check_output_dtype<graph::data_type::f32>);
-    auto softmax2 = softmax_g2->append_op(
-            graph::op_kind::SoftMax, {in_edge(0, tc1, 0)});
+    auto softmax2 = softmax_g2->append_op(graph::op_kind::SoftMax);
     auto tc2 = softmax_g2->append_op(
             graph::op_kind::TypeCast, {in_edge(0, softmax2, 0)});
-    softmax_g2->create_input_port(0, tc1, 0);
+    softmax_g2->create_input_port(0, softmax2, 0);
     softmax_g2->create_output_port(0, tc2, 0);
 
     auto ret = pgraph->append_alternation(
-            {softmax_g1, softmax_g2}, {in_edge(0, input, 0)});
+            {softmax_g2, softmax_g1}, {in_edge(0, input, 0)});
     return ret;
 }
 } // namespace
