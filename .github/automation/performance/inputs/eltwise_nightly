@@ -28,14 +28,14 @@
 ## algs which do not support alpha and beta + relu with alpha=0
 --alpha=0 --beta=0
 --alg=exp,exp_dst,gelu_erf,gelu_tanh,relu_dst,tanh,tanh_dst
---batch=384x384
+384x384
 
 ## algs which support negative alpha
 --alpha=-2 --beta=0
 --alg=elu,relu,swish
---batch=384x384
+384x384
 
 ## algs which support alpha and beta
 --alpha=-2 --beta=3
 --alg=linear
---batch=384x384
+384x384

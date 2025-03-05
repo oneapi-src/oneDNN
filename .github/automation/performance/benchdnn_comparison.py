@@ -70,8 +70,6 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
             failed_tests.append(prb + times_str)
             passed = False
 
-        print(prb + (" passed" if passed else " failed") + times_str)
-
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
             print(f"pass={passed}", file=f)
