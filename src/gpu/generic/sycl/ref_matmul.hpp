@@ -17,6 +17,8 @@
 #ifndef GPU_GENERIC_SYCL_REF_MATMUL_HPP
 #define GPU_GENERIC_SYCL_REF_MATMUL_HPP
 
+#include "common/c_types_map.hpp"
+#include "gpu/generic/sycl/specialization_constants.hpp"
 #include "gpu/generic/sycl/sycl_gpu_primitive.hpp"
 #include "gpu/generic/sycl/sycl_io_helper.hpp"
 #include "gpu/generic/sycl/sycl_post_ops.hpp"
@@ -70,21 +72,28 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
             VDISPATCH_MATMUL(md_dims_in_range(weights_md()),
                     VERBOSE_OUT_OF_RANGE_DIMS, "weights");
 
-            init_conf();
-            return status::success;
+            return init_conf();
         }
 
         sycl_matmul_conf_t conf_;
+
+        xpu::sycl::md_t_spec_const data_md_t;
+        xpu::sycl::md_t_spec_const dst_md_t;
+        xpu::sycl::md_t_spec_const weights_md_t;
+
         bool any_runtime_params_ = false;
 
-        void init_rt_conf(sycl_matmul_conf_t &conf,
+        status_t init_rt_conf(sycl_matmul_conf_t &conf,
+                xpu::sycl::md_t_spec_const &data_md_t_,
+                xpu::sycl::md_t_spec_const &dst_md_t_,
+                xpu::sycl::md_t_spec_const &weights_md_t_,
                 const memory_desc_wrapper src_d,
                 const memory_desc_wrapper weights_d,
                 const memory_desc_wrapper dst_d,
                 const memory_desc_wrapper bias_d) const;
 
     private:
-        void init_conf();
+        status_t init_conf();
 
         status_t set_default_params() {
             if (src_md_.format_kind == format_kind::any) {
@@ -161,6 +170,8 @@ struct ref_matmul_t : public gpu::generic::sycl::primitive_t {
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
+    status_t create_matmul_kernel(impl::engine_t *engine, ::sycl::kernel_id kid,
+            kernel_t *kernel, xpu::sycl::md_t_spec_const_pod pod);
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     kernel_t kernel_;
 };

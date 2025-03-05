@@ -118,6 +118,37 @@ using in_memory_arg_t = memory_arg_t<::sycl::access::mode::read>;
 using out_memory_arg_t = memory_arg_t<::sycl::access::mode::write>;
 using inout_memory_arg_t = memory_arg_t<::sycl::access::mode::read_write>;
 
+//TODO: This is a work-around for reducing the size of kernel parameters being passed
+// to the matmul kernel. This is to be removed when we shift to sycl-RTC
+struct md_t_spec_const {
+    static constexpr int max_dims = 6;
+
+    using dim32_t = int32_t;
+    using dims32_t = dim32_t[max_dims];
+
+    // ordering of elements is important during initialization.
+    // This struct cannot have a non trivial constructor, or any non trivial types.
+    data_type_t data_type_;
+
+    dim32_t ndims_;
+
+    dims32_t dims_;
+    dims32_t padded_dims_;
+    dims32_t padded_offsets_;
+    dim32_t offset0_;
+
+    dims32_t strides_;
+    dim32_t inner_nblks_;
+    dims32_t inner_blks_;
+    dims32_t inner_idxs_;
+};
+
+struct md_t_spec_const_pod {
+    struct md_t_spec_const data_md_t;
+    struct md_t_spec_const dst_md_t;
+    struct md_t_spec_const weights_md_t;
+};
+
 // TODO: this class mimics memory_desc_t and makes sure it can be passed
 // to SYCL kernels as a kernel argument. SYCL puts restrictions on kernel
 // arguments, e.g. those cannot contain unions.
@@ -169,6 +200,21 @@ struct md_t {
             CHECK_AND_ASSIGN(inner_idxs_[d], blk.inner_idxs[d]);
         }
 #undef CHECK_AND_ASSIGN
+    }
+
+    md_t(const md_t_spec_const &other)
+        : data_type_(other.data_type_)
+        , ndims_(other.ndims_)
+        , offset0_(other.offset0_)
+        , inner_nblks_(other.inner_nblks_) {
+        for (dim32_t i = 0; i < ndims_; i++) {
+            dims_[i] = other.dims_[i];
+            padded_dims_[i] = other.padded_dims_[i];
+            padded_offsets_[i] = other.padded_offsets_[i];
+            strides_[i] = other.strides_[i];
+            inner_blks_[i] = other.inner_blks_[i];
+            inner_idxs_[i] = other.inner_idxs_[i];
+        }
     }
 
     template <typename... Args>
