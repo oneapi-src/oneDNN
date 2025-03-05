@@ -326,6 +326,9 @@ int fill_sparse_data(data_kind_t kind, const prb_t *prb, dnn_mem_t &mem_dt,
         mem_dt.set_elem(i, index, indices_idx);
     });
 
+    // Don't fill data for `no_ref_memory` as it will be filled by benchdnn.
+    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) return OK;
+
     // Generate values.
     cfg_t cfg(prb, {SRC, WEI, BIA, DST});
 
@@ -783,7 +786,16 @@ std::vector<int> supported_exec_args(dir_t dir) {
 int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         dnnl_primitive_t prim, const prb_t *prb, res_t *res,
         dnnl_primitive_t prim_ref) {
-    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) return OK;
+    // Sparse functionality relies on indirect access to the data. While the
+    // data itself can be anything for `no_ref_memory` modifier, metadata values
+    // must be meaningful, otherwise a jump to a random memory location outside
+    // of allocated bytes will happen.
+    // If there's a sparse memory, non-sparse memory and non-metadata handles
+    // will not reach the filling.
+    const bool map_has_sparse_mem = has_sparse_md(mem_map);
+    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)
+            && !map_has_sparse_mem)
+        return OK;
 
     const auto &ref_engine = get_cpu_engine();
 
@@ -805,13 +817,18 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
         const bool is_sparse_src = exec_arg == DNNL_ARG_SRC
                 && src_encoding != dnnl_sparse_encoding_undef;
-
         const bool is_sparse_wei = exec_arg == DNNL_ARG_WEIGHTS
                 && wei_encoding != dnnl_sparse_encoding_undef;
+        const bool is_sparse = is_sparse_src || is_sparse_wei;
         const bool is_sparse_wei_packed
                 = is_sparse_wei && wei_encoding == dnnl_packed;
 
-        if ((is_sparse_src || is_sparse_wei) && !is_sparse_wei_packed) {
+        // See the comment at the beginning of the function.
+        if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)
+                && !is_sparse)
+            continue;
+
+        if (is_sparse && !is_sparse_wei_packed) {
             if (is_sparse_src) {
                 auto src_fp_d = create_md(prb, SRC);
                 ref_mem_map.emplace(exec_arg, dnn_mem_t(src_fp_d, ref_engine));
