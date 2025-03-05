@@ -64,8 +64,6 @@ status_t sdp_primitive_kernel_t<quantized>::compile_impl(
         CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
         CHECK(cfg_.initial_check(subgraph_, inputs));
     } else {
-        std::cout << "cache miss" << std::endl;
-
         // First, dry run on a deep copy
         subgraph_ = std::make_shared<subgraph_t>(
                 graph_t::deep_copy(part->get_ops()), p_engine_,
@@ -77,6 +75,7 @@ status_t sdp_primitive_kernel_t<quantized>::compile_impl(
         subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
             return this->memory_planner_.get_memory_info(val);
         });
+
         pass_pipeline_t pipeline = pass_pipeline_t(vis);
         BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
         BACKEND_DNNL_ADD_PASS(pipeline, fuse_implicit_causal_mask);
@@ -105,10 +104,10 @@ status_t sdp_primitive_kernel_t<quantized>::compile_impl(
         pipeline.reset_visualize_arg(true, false);
         subgraph_cache_t::instance().put(cache_key, subgraph_);
     }
+
     subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
         return this->memory_planner_.get_memory_info(val);
     });
-
     pass_pipeline_t pipeline = pass_pipeline_t(vis);
     BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_transpose_to_matmul);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -111,6 +111,14 @@ size_t get_op_hash(const op_t &op);
 inline size_t get_array_hash(size_t seed, std::vector<op_t *> &ops) {
     for (const auto *op : ops)
         seed = hash_combine(seed, get_op_hash(*op));
+    return seed;
+}
+
+inline size_t get_array_hash(
+        size_t seed, const std::vector<std::shared_ptr<op_t>> &ops) {
+    for (const auto &op : ops) {
+        seed = hash_combine(seed, get_op_hash(*op));
+    }
     return seed;
 }
 

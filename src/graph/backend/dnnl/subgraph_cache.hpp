@@ -69,7 +69,7 @@ size_t subgraph_cache_key(const dnnl_partition_impl_t *part,
     // Combine hash for op_kinds & attributes with the computed hash
     seed = hash_combine(seed, inputs.size());
     seed = hash_combine(seed, outputs.size());
-    seed = hash_combine(seed, part->get_ops().size());
+    seed = partition_hashing::get_array_hash(seed, part->get_ops());
     return seed;
 }
 
