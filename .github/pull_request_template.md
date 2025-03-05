@@ -1,6 +1,6 @@
 # Description
 
-Please include a summary of the change. Please also include relevant motivation and context. See [contribution guidelines](https://github.com/uxlfoundation/oneDNN/blob/master/CONTRIBUTING.md) for more details. If the change fixes an issue not documented in the project's Github issue tracker, please document all steps necessary to reproduce it.
+Please include a summary of the change. Please also include relevant motivation and context. See [contribution guidelines](https://github.com/uxlfoundation/oneDNN/blob/main/CONTRIBUTING.md) for more details. If the change fixes an issue not documented in the project's Github issue tracker, please document all steps necessary to reproduce it.
 
 Fixes # (github issue)
 
