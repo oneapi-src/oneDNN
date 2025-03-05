@@ -91,7 +91,6 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     this->reset_memory_storage(std::move(memory_storage));
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
         const dnnl::impl::memory_desc_t *md,
         std::vector<std::unique_ptr<dnnl::impl::memory_storage_t>>
@@ -100,7 +99,6 @@ dnnl_memory::dnnl_memory(dnnl::impl::engine_t *engine,
     , md_(*md)
     , memory_storages_(std::move(memory_storages))
     , counter_(1) {}
-#endif
 
 status_t dnnl_memory::set_data_handle(void *handle, int index) const {
     using namespace dnnl::impl;
@@ -170,7 +168,6 @@ status_t dnnl_memory_create(memory_t **memory, const memory_desc_t *md,
     return success;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 status_t dnnl_memory_create_v2(memory_t **memory, const memory_desc_t *md,
         engine_t *engine, int nhandles, void **handles) {
     const bool args_ok = !any_null(memory, engine, handles) && nhandles > 0;
@@ -213,7 +210,6 @@ status_t dnnl_memory_create_v2(memory_t **memory, const memory_desc_t *md,
     *memory = _memory;
     return success;
 }
-#endif
 
 status_t dnnl_memory_get_memory_desc(
         const memory_t *memory, const memory_desc_t **md) {

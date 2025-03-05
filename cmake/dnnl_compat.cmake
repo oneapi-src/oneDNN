@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2021-2024 Intel Corporation
+# Copyright 2021-2025 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ endmacro()
 
 set(COMPAT_CACHE_BOOL_VARS
     "EXPERIMENTAL"
-    "EXPERIMENTAL_SPARSE"
     "EXPERIMENTAL_UKERNEL"
     "EXPERIMENTAL_LOGGING"
     "VERBOSE"

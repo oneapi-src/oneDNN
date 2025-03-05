@@ -55,10 +55,9 @@ namespace cpu {
 // - dense_tag -> encoding
 // - encoding -> dense_tag
 #define SIMPLE_SPARSE_REORDER_TEMPL_DECL \
-    impl::data_type_t type_i, typename fmt_i_t, fmt_i_t fmt_i, \
-            impl::data_type_t type_o, typename fmt_o_t, fmt_o_t fmt_o
-#define SIMPLE_SPARSE_REORDER_TEMPL_CALL \
-    type_i, fmt_i_t, fmt_i, type_o, fmt_o_t, fmt_o
+    impl::data_type_t type_i, impl::format_tag_t fmt_i, \
+            impl::data_type_t type_o, impl::format_tag_t fmt_o
+#define SIMPLE_SPARSE_REORDER_TEMPL_CALL type_i, fmt_i, type_o, fmt_o
 
 template <SIMPLE_SPARSE_REORDER_TEMPL_DECL, typename spec = void>
 struct simple_sparse_reorder_impl {};
@@ -72,10 +71,8 @@ constexpr bool is_format_tag(T) {
 
 template <SIMPLE_SPARSE_REORDER_TEMPL_DECL>
 struct simple_sparse_reorder_impl<SIMPLE_SPARSE_REORDER_TEMPL_CALL,
-        typename utils::enable_if<(is_format_tag(fmt_i)
-                                          && (fmt_i == format_tag::any))
-                && (is_format_tag(fmt_o)
-                        && (fmt_o == format_tag::any))>::type> {
+        typename utils::enable_if<(fmt_i == format_tag::any)
+                && (fmt_o == format_tag::any)>::type> {
 
     static status_t is_applicable(const memory_desc_wrapper &input_d,
             const memory_desc_wrapper &output_d, const primitive_attr_t *attr) {
