@@ -588,6 +588,12 @@ status_t jit_avx2_conv_fwd_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const primitive_attr_t &attr) {
     // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(avx)) return status::unimplemented;
+
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, src_d, weights_d, dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
+
     jcp.isa = mayiuse(avx2) ? avx2 : avx;
 
     jcp.nthr = dnnl_get_max_threads();
@@ -1112,6 +1118,11 @@ status_t jit_avx2_conv_bwd_data_kernel_f32::init_conf(jit_conv_conf_t &jcp,
     // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(avx2)) return status::unimplemented;
 
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, diff_src_d, weights_d, diff_dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
+
     jcp.nthr = dnnl_get_max_threads();
 
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
@@ -1332,6 +1343,11 @@ status_t jit_avx2_conv_bwd_weights_kernel_f32::init_conf(jit_conv_conf_t &jcp,
         const memory_desc_wrapper &diff_dst_d) {
     // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(avx2)) return status::unimplemented;
+
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, src_d, diff_weights_d, diff_dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
     int ndims = src_d.ndims();
