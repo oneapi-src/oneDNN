@@ -282,57 +282,52 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // Incremental IDs used to create logical tensors and operations.
     size_t id = 0;
 
+    // intermediate data type
+    const logical_tensor::data_type dt_inter = logical_tensor::data_type::f32;
+
     // score = query x key.T
     auto query = logical_tensor(id++, dt, qv_sz, layout_type::strided);
     auto key = logical_tensor(id++, dt, k_sz, layout_type::strided);
-    auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto score = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto bmm1 = op(id++, op::kind::MatMul, "bmm1");
     bmm1.set_attr<bool>(op::attr::transpose_b, true);
     bmm1.add_inputs({query, key});
     bmm1.add_outputs({score});
 
     // scaled_score = score / scale
-    auto scale = logical_tensor(id++, dt, scale_sz, layout_type::strided);
+    auto scale = logical_tensor(id++, dt_inter, scale_sz, layout_type::strided);
     auto scaled_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
+            = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto scale_div = op(id++, op::kind::Divide, "scale_div");
     scale_div.add_inputs({score, scale});
     scale_div.add_outputs({scaled_score});
 
     // masked_score = scaled_score + mask
-    auto mask = logical_tensor(id++, dt, mask_sz, layout_type::strided);
+    auto mask = logical_tensor(id++, dt_inter, mask_sz, layout_type::strided);
     auto masked_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
+            = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto mask_add = op(id++, op::kind::Add, "mask_add");
     mask_add.add_inputs({scaled_score, mask});
     mask_add.add_outputs({masked_score});
 
-    // cast1: cast masked_score to f32.
-    auto score_f32 = logical_tensor(id++, logical_tensor::data_type::f32,
-            score_sz, layout_type::strided);
-    auto cast1 = op(id++, op::kind::TypeCast, "cast1");
-    cast1.add_input(masked_score);
-    cast1.add_output(score_f32);
-
     // attention_probs = softmax(masked_score)
-    auto probs_f32 = logical_tensor(id++, logical_tensor::data_type::f32,
-            score_sz, layout_type::strided);
+    auto probs = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto softmax = op(id++, op::kind::SoftMax, "softmax");
     softmax.set_attr<int64_t>(op::attr::axis, -1);
-    softmax.add_input(score_f32);
-    softmax.add_output(probs_f32);
+    softmax.add_input(masked_score);
+    softmax.add_output(probs);
 
     // cast2:
-    auto probs = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto probs_dt = logical_tensor(id++, dt, score_sz, layout_type::strided);
     auto cast2 = op(id++, op::kind::TypeCast, "cast2");
-    cast2.add_input(probs_f32);
-    cast2.add_output(probs);
+    cast2.add_input(probs);
+    cast2.add_output(probs_dt);
 
     // attention_output = attention_probs x value
     auto value = logical_tensor(id++, dt, k_sz, layout_type::strided);
     auto output = logical_tensor(id++, dt, qv_sz, layout_type::strided);
     auto bmm2 = op(id++, op::kind::MatMul, "bmm2");
-    bmm2.add_inputs({probs, value});
+    bmm2.add_inputs({probs_dt, value});
     bmm2.add_outputs({output});
 
     // Construct a sdpa graph with engine kind and operations.
@@ -340,7 +335,6 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     sdpa.add_op(bmm1);
     sdpa.add_op(scale_div);
     sdpa.add_op(mask_add);
-    sdpa.add_op(cast1);
     sdpa.add_op(softmax);
     sdpa.add_op(cast2);
     sdpa.add_op(bmm2);
