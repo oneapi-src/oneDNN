@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -159,8 +159,7 @@ size_t logical_tensor_wrapper_t::hash() const noexcept {
     size_t seed = 0;
     seed = hash_combine(seed, this->id());
     const int32_t nd = this->ndims();
-    seed = nd > 0 ? partition_hashing::get_array_hash(seed, this->dims(), nd)
-                  : hash_combine(seed, nd);
+    seed = hash_combine(seed, nd);
     seed = hash_combine(seed, static_cast<size_t>(this->data_type()));
     seed = hash_combine(seed, static_cast<size_t>(this->layout_type()));
     // layout type

@@ -24,6 +24,7 @@
 #include "gpu/intel/sycl/stream.hpp"
 #endif
 
+#include "graph/backend/dnnl/op_executable.hpp"
 #include "graph/backend/dnnl/passes/compile_ops.hpp"
 #include "graph/backend/dnnl/passes/constant_propagation.hpp"
 #include "graph/backend/dnnl/passes/insert_ops.hpp"
@@ -32,8 +33,9 @@
 #include "graph/backend/dnnl/passes/memory_planning.hpp"
 #include "graph/backend/dnnl/passes/transform.hpp"
 #include "graph/backend/dnnl/passes/utils.hpp"
+#include "graph/backend/dnnl/subgraph_cache.hpp"
 
-#include "graph/backend/dnnl/op_executable.hpp"
+#include "graph/interface/partition_cache.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -53,44 +55,61 @@ status_t sdp_primitive_kernel_t<quantized>::compile_impl(
     g_alloc_
             = reinterpret_cast<graph::allocator_t *>(g_engine->get_allocator());
 
-    // First, dry run on a deep copy
-    subgraph_
-            = std::make_shared<subgraph_t>(graph_t::deep_copy(part->get_ops()),
-                    p_engine_, part->get_fpmath_mode(), false, true);
-    CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
+    size_t cache_key = subgraph_cache_key(part, g_engine, inputs, outputs);
+    // Try to get the subgraph from the cache
+    auto cached_subgraph = subgraph_cache_t::instance().get(cache_key);
 
-    CHECK(cfg_.initial_check(subgraph_, inputs));
+    if (cached_subgraph) {
+        subgraph_ = cached_subgraph;
+        CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
+        CHECK(cfg_.initial_check(subgraph_, inputs));
+    } else {
+        std::cout << "cache miss" << std::endl;
 
+        // First, dry run on a deep copy
+        subgraph_ = std::make_shared<subgraph_t>(
+                graph_t::deep_copy(part->get_ops()), p_engine_,
+                part->get_fpmath_mode(), false, true);
+        CHECK(set_given_inputs_outputs(subgraph_, inputs, outputs));
+
+        CHECK(cfg_.initial_check(subgraph_, inputs));
+
+        subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
+            return this->memory_planner_.get_memory_info(val);
+        });
+        pass_pipeline_t pipeline = pass_pipeline_t(vis);
+        BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_implicit_causal_mask);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
+        if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
+            BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_predecessor);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
+            BACKEND_DNNL_ADD_PASS(pipeline, insert_runtime_u8_to_s8_for_matmul);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
+            BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_zero_points);
+            BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_zero_points);
+        }
+        BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
+        BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_matmul);
+        if (quantized) {
+            BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
+        }
+
+        pipeline.reset_visualize_arg(true, false);
+        subgraph_cache_t::instance().put(cache_key, subgraph_);
+    }
     subgraph_visualizer_t vis(part->id(), [this](const value_t *val) {
         return this->memory_planner_.get_memory_info(val);
     });
+
     pass_pipeline_t pipeline = pass_pipeline_t(vis);
-
-    BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-    BACKEND_DNNL_ADD_PASS(pipeline, fuse_implicit_causal_mask);
-    BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
-    if (quantized) {
-        BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
-        BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_typecast_to_matmul_or_conv);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_post_typecast_to_predecessor);
-        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_scales);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_scales);
-        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_src_zero_points);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_zero_points);
-        BACKEND_DNNL_ADD_PASS(pipeline, insert_runtime_u8_to_s8_for_matmul);
-        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_scales);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_scales);
-        BACKEND_DNNL_ADD_PASS(pipeline, convert_to_runtime_dst_zero_points);
-        BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_zero_points);
-    }
-    BACKEND_DNNL_ADD_PASS(pipeline, binary_canonicalization);
-    BACKEND_DNNL_ADD_PASS(pipeline, insert_permute_for_matmul);
-    if (quantized) {
-        BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
-    }
-
-    pipeline.reset_visualize_arg(true, false);
     BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_transpose_to_matmul);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_transpose_to_matmul);
