@@ -41,9 +41,6 @@
 
 using namespace dnnl;
 
-using tag = memory::format_tag;
-using dt = memory::data_type;
-
 void reorder_example(dnnl::engine::kind engine_kind) {
 
     // Create execution dnnl::engine.
@@ -72,8 +69,10 @@ void reorder_example(dnnl::engine::kind engine_kind) {
     });
 
     // Create memory descriptors and memory objects for src and dst.
-    auto src_md = memory::desc(src_dims, dt::f32, tag::nchw);
-    auto dst_md = memory::desc(src_dims, dt::s8, tag::nhwc);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::nchw);
+    auto dst_md = memory::desc(
+            src_dims, memory::data_type::s8, memory::format_tag::nhwc);
 
     auto src_mem = memory(src_md, engine);
     auto dst_mem = memory(dst_md, engine);
@@ -94,7 +93,8 @@ void reorder_example(dnnl::engine::kind engine_kind) {
     // Create primitive post-ops (per-channel output scales)
     primitive_attr reorder_attr;
     reorder_attr.set_scales_mask(DNNL_ARG_DST, 1 << ic_dim);
-    auto dst_scales_mem = memory({{IC}, dt::f32, tag::x}, engine);
+    auto dst_scales_mem = memory(
+            {{IC}, memory::data_type::f32, memory::format_tag::x}, engine);
     write_to_dnnl_memory(scales.data(), dst_scales_mem);
 
     // Create primitive descriptor.

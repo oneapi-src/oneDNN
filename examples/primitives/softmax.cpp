@@ -43,9 +43,6 @@
 
 using namespace dnnl;
 
-using tag = memory::format_tag;
-using dt = memory::data_type;
-
 void softmax_example(dnnl::engine::kind engine_kind) {
 
     // Create execution dnnl::engine.
@@ -70,8 +67,10 @@ void softmax_example(dnnl::engine::kind engine_kind) {
     });
 
     // Create src memory descriptor and memory object.
-    auto src_md = memory::desc(src_dims, dt::f32, tag::nc);
-    auto dst_md = memory::desc(src_dims, dt::f32, tag::nc);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::nc);
+    auto dst_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::nc);
     auto src_mem = memory(src_md, engine);
 
     // Write data to memory object's handle.
