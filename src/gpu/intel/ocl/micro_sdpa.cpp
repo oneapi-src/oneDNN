@@ -459,7 +459,7 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     def_offsets(dst_off, kernel_ctx, "DST", ndims);
     def_offsets(msk_off, kernel_ctx, "MSK", ndims);
     kernel_ctx.define_int("NDIMS", ndims);
-    kernel_ctx.define_int("PAGE_SIZE", pd()->desc()->page_size());
+    kernel_ctx.define_int("BLOCK_SIZE", pd()->desc()->page_size());
 
     const memory_desc_wrapper prompt_lens_mdw(pd()->prompt_lens_md());
     const memory_desc_wrapper subsequence_begins_mdw(
@@ -622,7 +622,7 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     const auto &val = CTX_IN_STORAGE(DNNL_ARG_VALUES);
     auto &dst = CTX_OUT_STORAGE(DNNL_ARG_DST);
     const auto &scale = CTX_IN_STORAGE(DNNL_ARG_SCALE);
-    const auto &attn_mask = CTX_IN_STORAGE(DNNL_ARG_ATTN_MASK);
+    // const auto &attn_mask = CTX_IN_STORAGE(DNNL_ARG_ATTN_MASK);
 
     const auto &key_scales
             = CTX_IN_STORAGE(DNNL_ARG_KEYS | DNNL_ARG_ATTR_SCALES);
@@ -641,7 +641,6 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     auto sg_per_wg = gemm_kq.getSetting("sg_per_wg_m")
             * gemm_kq.getSetting("sg_per_wg_n");
 
-    const auto &prompt_lens = CTX_IN_STORAGE(DNNL_ARG_PROMPT_LENS);
     const auto &subsequence_begins
             = CTX_IN_STORAGE(DNNL_ARG_SUBSEQUENCE_BEGINS);
     const auto &block_indices = CTX_IN_STORAGE(DNNL_ARG_BLOCK_INDICES);
@@ -661,11 +660,10 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(9, key_zp);
     arg_list.set(10, value_scales);
     arg_list.set(11, value_zp);
-    arg_list.set(12, prompt_lens);
-    arg_list.set(13, subsequence_begins);
-    arg_list.set(14, block_indices);
-    arg_list.set(15, block_indices_begins);
-    arg_list.set(16, pd()->desc()->context_len);
+    arg_list.set(12, subsequence_begins);
+    arg_list.set(13, block_indices);
+    arg_list.set(14, block_indices_begins);
+    arg_list.set(15, pd()->desc()->context_len);
     // if (pd()->with_attn_mask()) arg_list.set(12, attn_mask);
 
     compute::range_t lws = {(size_t)pd()->sg_size(), (size_t)sg_per_wg, 1};

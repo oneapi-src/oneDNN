@@ -34,7 +34,8 @@
 #include "oneapi/dnnl/dnnl.hpp"
 #include "tensor_utils.hpp"
 
-#define FORT "/home/pryorgal/pryorgal-fort/"
+#define div_up(x, y) (((x) + (y) - 1) / (y))
+#define FORT "/export/users/pryorgal-fort/"
 
 void single_prompt_problem() {
 
@@ -48,7 +49,7 @@ void single_prompt_problem() {
     tensor value_cache = read(FORT "tensors/value_cache.txt");
     tensor output = zeros({1, 1, 5, 4}); // 5 queries with head size 4
     dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
-            global_engine, 3, // param no longer needed
+            global_engine, 5 * 4, // num pages * page size
             query.md_, key_cache.md_, value_cache.md_, output.md_, tensor().md_,
             prompt_lens.md_, subsequence_begins.md_, block_indices.md_,
             block_indices_begins.md_);
@@ -223,8 +224,7 @@ void mask_check() {
 }
 
 void prefill(int seq_len, int head_size, int page_size) {
-    assert(seq_len % page_size == 0);
-    const int pages_num = seq_len / page_size;
+    const int pages_num = div_up(seq_len, page_size);
     const int heads_num = 1;
 
     tensor query = zeros({1, 1, seq_len, head_size * heads_num});
