@@ -28,10 +28,10 @@ the following information to help reproduce the issue:
 
 # Steps to reproduce
 Please check that the issue is reproducible with the latest revision on
-master. Include all the steps to reproduce the issue. 
+main. Include all the steps to reproduce the issue. 
 
 You can use [verbose mode](https://uxlfoundation.github.io/oneDNN/dev_guide_verbose.html)
-and [benchdnn](https://github.com/uxlfoundation/oneDNN/tree/master/tests/benchdnn)
+and [benchdnn](https://github.com/uxlfoundation/oneDNN/tree/main/tests/benchdnn)
 to validate correctness of all primitives the library supports. If this does not
 work a short C/C++ program or modified unit tests demonstrating the issue
 will greatly help with the investigation.
