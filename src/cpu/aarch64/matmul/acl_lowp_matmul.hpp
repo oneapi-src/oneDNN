@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,9 +21,9 @@
 #include "cpu/matmul/cpu_matmul_pd.hpp"
 #include "cpu/matmul/matmul_utils.hpp"
 
-#include "arm_compute/runtime/NEON/functions/NEDequantizationLayer.h"
-#include "arm_compute/runtime/NEON/functions/NEGEMMLowpMatrixMultiplyCore.h"
-#include "arm_compute/runtime/NEON/functions/NEQuantizationLayer.h"
+#include "arm_compute/runtime/experimental/operators/CpuDequantize.h"
+#include "arm_compute/runtime/experimental/operators/CpuGEMMLowp.h"
+#include "arm_compute/runtime/experimental/operators/CpuQuantize.h"
 #include "cpu/aarch64/acl_post_ops.hpp"
 #include "cpu/aarch64/acl_utils.hpp"
 
@@ -33,17 +33,7 @@ namespace cpu {
 namespace aarch64 {
 namespace matmul {
 
-struct acl_lowp_matmul_obj_t {
-    arm_compute::Tensor src_tensor;
-    arm_compute::Tensor wei_tensor;
-    arm_compute::Tensor bia_tensor;
-    arm_compute::Tensor dst_tensor;
-    arm_compute::Tensor dst_s8_tensor;
-    arm_compute::Tensor dst_cast_tensor;
-    arm_compute::NEGEMMLowpMatrixMultiplyCore gemm;
-    arm_compute::NEQuantizationLayer quant;
-    arm_compute::NEDequantizationLayer dequant;
-};
+using arm_compute::experimental::MemoryLifetime;
 
 struct acl_lowp_matmul_conf_t {
     arm_compute::TensorInfo src_tensor_info;
@@ -60,20 +50,6 @@ struct acl_lowp_matmul_conf_t {
     bool sum_is_fused {false};
 };
 
-struct acl_lowp_matmul_resource_t : public resource_t {
-    acl_lowp_matmul_resource_t()
-        : acl_obj_(utils::make_unique<acl_lowp_matmul_obj_t>()) {}
-
-    status_t configure(const acl_lowp_matmul_conf_t &almc);
-
-    acl_lowp_matmul_obj_t &get_acl_obj() const { return *acl_obj_; }
-
-    DNNL_DISALLOW_COPY_AND_ASSIGN(acl_lowp_matmul_resource_t);
-
-private:
-    std::unique_ptr<acl_lowp_matmul_obj_t> acl_obj_;
-};
-
 struct acl_lowp_matmul_t : public primitive_t {
     struct pd_t : public dnnl::impl::cpu::matmul::cpu_matmul_pd_t {
         using cpu_matmul_pd_t::cpu_matmul_pd_t;
@@ -83,7 +59,9 @@ struct acl_lowp_matmul_t : public primitive_t {
 
         status_t init(engine_t *engine);
 
-        status_t init_scratchpad(memory_tracking::registrar_t &scratchpad);
+        status_t init_scratchpad(memory_tracking::registrar_t &scratchpad,
+                const arm_compute::experimental::MemoryRequirements
+                        &aux_mem_req);
 
         acl_lowp_matmul_conf_t almc_ = utils::zero<decltype(almc_)>();
         acl_post_ops_t acl_post_ops;
@@ -91,13 +69,15 @@ struct acl_lowp_matmul_t : public primitive_t {
 
     acl_lowp_matmul_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t create_resource(engine_t *engine, resource_mapper_t &mapper) const;
+    status_t init(engine_t *engine);
 
     status_t execute(const exec_ctx_t &ctx) const;
 
 private:
-    mutable std::mutex mtx;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    std::unique_ptr<arm_compute::experimental::op::CpuQuantize> quant_;
+    std::unique_ptr<arm_compute::experimental::op::CpuDequantize> dequant_;
+    std::unique_ptr<arm_compute::experimental::op::CpuGEMMLowp> gemm_;
 };
 
 } // namespace matmul
