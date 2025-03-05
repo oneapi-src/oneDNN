@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 #include <string.h>
 
 #include "common/c_types_map.hpp"
-#include "common/serialization_stream.hpp"
+#include "common/serialization.hpp"
 #include "common/utils.hpp"
 #include "common/z_magic.hpp"
 

@@ -23,9 +23,9 @@
 #include "common/cache_hit_types.hpp"
 #include "common/engine_id.hpp"
 #include "common/kernel_cache.hpp"
+#include "common/serialization.hpp"
 #include "common/utils.hpp"
 #include "gpu/intel/compute/compute_engine.hpp"
-#include "gpu/intel/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -49,7 +49,7 @@ struct trivial_key_validator_t {
     };
 
     template <typename U,
-            gpu_utils::enable_if_t<is_trivially_validatable_t<U>::value,
+            utils::enable_if_t<is_trivially_validatable_t<U>::value,
                     bool> = true>
     static bool is_valid(const U &t) {
         static_assert(std::is_same<T, U>::value,
@@ -58,7 +58,7 @@ struct trivial_key_validator_t {
     }
 
     template <typename U,
-            gpu_utils::enable_if_t<!is_trivially_validatable_t<U>::value,
+            utils::enable_if_t<!is_trivially_validatable_t<U>::value,
                     bool> = true>
     static bool is_valid(const U &t) {
         // Runtime validation only occurs in C++20 as default comparisons
@@ -103,7 +103,7 @@ struct trivial_key_t : public T {
         : T(t)
         , id_(id)
         , serialization(t.serialize())
-        , hash_(hash_combine(serialization.hash(), id_.hash())) {}
+        , hash_(hash_combine(serialization.get_hash(), id_.hash())) {}
     bool operator==(const trivial_key_t &other) const {
         return serialization == other.serialization && id_ == other.id_;
     }
@@ -116,7 +116,7 @@ struct trivial_key_t : public T {
 
 private:
     engine_id_t id_;
-    serialized_t serialization;
+    serialization_stream_t serialization;
     size_t hash_;
 };
 
