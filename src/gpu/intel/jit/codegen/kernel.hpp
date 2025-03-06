@@ -39,7 +39,7 @@
 #include "gpu/intel/jit/ir/message.hpp"
 #include "gpu/intel/jit/ir/tensor.hpp"
 #include "gpu/intel/jit/ir/walk_order.hpp"
-#include "ngen.hpp"
+#include "ngen/ngen.hpp"
 #include "ngen/ngen_register_allocator.hpp"
 #include "xpu/utils.hpp"
 
@@ -183,7 +183,7 @@ class ir_to_ngen_t;
 template <typename ngen_generator_t>
 class ir_kernel_base_t : public ngen_generator_t {
 public:
-    NGEN_FORWARD_NAMESPACE(ngen_generator_t)
+    NGEN_FORWARD_SCOPE(ngen_generator_t)
 
     friend class send_impl_t;
 
@@ -199,8 +199,10 @@ public:
     }
 
     template <typename... ngen_generator_args>
-    ir_kernel_base_t(const exec_config_t &exec_cfg, ngen_generator_args... args)
+    ir_kernel_base_t(const exec_config_t &exec_cfg,
+            const kernel_iface_t &kernel_iface, ngen_generator_args... args)
         : ngen_generator_t(std::forward<ngen_generator_args>(args)...)
+        , kernel_iface_(kernel_iface)
         , exec_cfg_(exec_cfg)
         , ra_(hw())
         , emu_strategy(hw(), exec_cfg.hw().stepping_id()) {
@@ -1154,10 +1156,14 @@ public:
     ir_kernel_t(const std::string &kernel_name, const exec_config_t &exec_cfg,
             const compute::range_t &local_range, bool require_dpas,
             const debug_config_t &debug_config)
-        : base(exec_cfg, debug_config)
+        : base(exec_cfg, {}, debug_config)
         , kernel_name_(kernel_name)
         , require_dpas_(require_dpas)
         , local_range_(local_range) {}
+
+    const ngen::NEOInterfaceHandler &neo_interface() const {
+        return ngen::ELFCodeGenerator<hw>::interface_;
+    }
 
     void set_kernel_iface(const kernel_iface_t &kernel_iface) {
         base::kernel_iface_ = kernel_iface;
@@ -1234,6 +1240,59 @@ private:
     using ir_kernel_t<hw>::generate_epilogue; \
     using ir_kernel_t<hw>::emu_strategy; \
     using ir_kernel_t<hw>::ra_;
+
+#ifdef NGEN_ASM
+class ir_asm_generator_t : public ngen::AsmCodeGenerator {
+public:
+    template <typename ngen_generator_t>
+    ir_asm_generator_t(const ngen_generator_t &k)
+        : ngen::AsmCodeGenerator(k.getProduct())
+        , interface_(k.neo_interface()) {}
+
+    NGEN_FORWARD_SCOPE(ngen::AsmCodeGenerator)
+
+    int getSIMD() const { return interface_.getSIMD(); }
+    void prologue() { interface_.generatePrologue(*this); }
+    void epilogue() {
+        int GRFCount = interface_.getGRFCount();
+        bool hasSLM = (interface_.getSLMSize() > 0);
+        epilogue(GRFCount, hasSLM, r0);
+    }
+
+    ngen::Subregister getArgument(const std::string &name) const {
+        return interface_.getArgument(name);
+    }
+    ngen::GRF getLocalID(int dim) const { return interface_.getLocalID(dim); }
+    std::string str() {
+        std::ostringstream oss;
+        getCode(oss);
+        return oss.str();
+    }
+
+private:
+    ngen::NEOInterfaceHandler interface_;
+};
+
+class ir_asm_kernel_t : public ir_kernel_base_t<ir_asm_generator_t> {
+public:
+    using base = ir_kernel_base_t<ir_asm_generator_t>;
+
+    friend class expr_evaluator_t<ir_asm_kernel_t>;
+    friend class ir_to_ngen_t<ir_asm_kernel_t>;
+
+    template <ngen::HW hw>
+    ir_asm_kernel_t(const ir_kernel_t<hw> &k)
+        : base(k.exec_cfg(), k.kernel_iface(), k) {}
+};
+#else
+class ir_asm_kernel_t {
+public:
+    template <ngen::HW hw>
+    ir_asm_kernel_t(const ir_kernel_t<hw> &k) {
+        MAYBE_UNUSED(k);
+    }
+};
+#endif
 
 } // namespace jit
 } // namespace intel

@@ -88,7 +88,8 @@ public:
             } else if (obj.size * 8 <= max_ngen_type_bits) {
                 rbd = scope.alloc_reg_data(type_t::u(obj.size * 8));
             } else {
-                const int regs = utils::div_up(obj.size, ngen::GRF::bytes(hw()));
+                const int regs
+                        = utils::div_up(obj.size, ngen::GRF::bytes(hw()));
                 rbd = scope.alloc_reg_buf(regs);
             }
             if (obj.has_attr<grf_permute_attr_t>()) {
@@ -729,8 +730,8 @@ private:
         auto &data_op = eltwise_t::arg_data(args);
         const auto &data_rd = data_op.reg_buf_data();
 
-        eltwise_injector_f32_t<ngen_generator_t> inj(host_, func.alg_kind, func.alpha,
-                func.beta, func.scale, eu_count_);
+        eltwise_injector_f32_t<ngen_generator_t> inj(host_, func.alg_kind,
+                func.alpha, func.beta, func.scale, eu_count_);
         auto scratch = scope.alloc_range(inj.preferred_scratch_regs());
         inj.set_scratch(scratch);
         inj.prepare();
@@ -1563,7 +1564,7 @@ private:
 };
 
 template <typename ngen_generator_t>
-void convert_ir_to_ngen(const stmt_t &body, ngen_generator_t *host,
+void convert_ir_to_ngen_impl(const stmt_t &body, ngen_generator_t *host,
         const walk_order_t *kernel_grid_walk_order) {
     expr_binding_t expr_binding(host->getHardware());
     host->generate_prologue();
@@ -1576,6 +1577,23 @@ void convert_ir_to_ngen(const stmt_t &body, ngen_generator_t *host,
     visitor.visit(body);
 
     host->generate_epilogue();
+}
+
+std::string get_ngen_str(const stmt_t &body, ir_asm_kernel_t host,
+        const walk_order_t *kernel_grid_walk_order) {
+#ifdef NGEN_ASM
+    convert_ir_to_ngen_impl(body, &host, kernel_grid_walk_order);
+    return host.str();
+#else
+    return "";
+#endif
+}
+
+template <typename ngen_generator_t>
+void convert_ir_to_ngen(const stmt_t &body, ngen_generator_t *host,
+        const walk_order_t *kernel_grid_walk_order) {
+    gpu_trace() << get_ngen_str(body, *host, kernel_grid_walk_order);
+    convert_ir_to_ngen_impl(body, host, kernel_grid_walk_order);
 }
 
 REG_GEN9_ISA(template void convert_ir_to_ngen(const stmt_t &body,
