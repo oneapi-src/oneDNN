@@ -328,7 +328,7 @@ dnnl::primitive_attr make_dnnl_primitive_attr(
             // not reachable
         }
     }
-    attr.set_post_ops(std::move(dnnl_pops));
+    attr.set_post_ops(dnnl_pops);
 
     return attr;
 }

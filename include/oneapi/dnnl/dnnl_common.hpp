@@ -128,7 +128,7 @@ template <typename T, typename traits = handle_traits<T>>
 struct handle {
 private:
     static dnnl_status_t dummy_destructor(T) { return dnnl_success; }
-    std::shared_ptr<typename std::remove_pointer<T>::type> data_ {0};
+    std::shared_ptr<typename std::remove_pointer<T>::type> data_ {nullptr};
 
 protected:
     bool operator==(const T other) const { return other == data_.get(); }
@@ -371,6 +371,7 @@ struct stream : public handle<dnnl_stream_t> {
     }
 };
 
+//NOLINTBEGIN(bugprone-macro-parentheses)
 #define DNNL_DEFINE_BITMASK_OPS(enum_name) \
     inline enum_name operator|(enum_name lhs, enum_name rhs) { \
         return static_cast<enum_name>( \
@@ -408,6 +409,7 @@ struct stream : public handle<dnnl_stream_t> {
     inline enum_name operator~(enum_name rhs) { \
         return static_cast<enum_name>(~static_cast<unsigned>(rhs)); \
     }
+//NOLINTEND(bugprone-macro-parentheses)
 
 DNNL_DEFINE_BITMASK_OPS(stream::flags)
 

@@ -1653,7 +1653,7 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<op_t> &op,
     add_post_ops.append_eltwise(algorithm::eltwise_sqrt, 0.0f, 0.0f);
 
     primitive_attr add_attr;
-    add_attr.set_post_ops(std::move(add_post_ops));
+    add_attr.set_post_ops(add_post_ops);
     desc.add_pd_ = dnnl::binary::primitive_desc(p_engine, algorithm::binary_add,
             variance, desc.epsilon_desc_, variance, add_attr);
 
@@ -1689,7 +1689,7 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<op_t> &op,
     mul_post_ops.append_binary(algorithm::binary_div, desc.new_variance_desc_);
 
     primitive_attr mul_attr;
-    mul_attr.set_post_ops(std::move(mul_post_ops));
+    mul_attr.set_post_ops(mul_post_ops);
     desc.mul_pd_ = dnnl::binary::primitive_desc(p_engine, algorithm::binary_mul,
             weights, desc.new_scale_desc_, weights, mul_attr);
 
@@ -1707,7 +1707,7 @@ bn_folding_t::desc_t bn_folding_t::create_desc(std::shared_ptr<op_t> &op,
     sub_post_ops.append_binary(algorithm::binary_add, shift);
 
     primitive_attr sub_attr;
-    sub_attr.set_post_ops(std::move(sub_post_ops));
+    sub_attr.set_post_ops(sub_post_ops);
     desc.sub_pd_ = dnnl::binary::primitive_desc(p_engine, algorithm::binary_sub,
             valid_bias, mean, valid_bias, sub_attr);
 
