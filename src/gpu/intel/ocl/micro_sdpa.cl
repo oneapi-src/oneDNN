@@ -219,6 +219,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
         const global INDEX_DATA_T *block_indices_begins, const int context_len
 #endif
 ) {
+        printf("hello world\n");    
 
     uint sg_ij = sub_group_broadcast(get_local_id(1), 0);
     uint b0 = get_group_id(1);
@@ -231,13 +232,19 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     const uint start_query_no = subsequence_begins[subsequence_no];
     const uint stop_query_no = subsequence_begins[subsequence_no + 1];
     q = prompt_lens[subsequence_no];
-
+    printf("subsequence_no = %d, start_query_no = %d, stop_query_no = %d, q = %d\n", subsequence_no, start_query_no, stop_query_no, q);    
+    for (int i=0; i<2; i++) {
+        printf("subsequence_begins[%d] = %d\n", i, subsequence_begins[i]);
+    }
     const uint block_start_index = block_indices_begins[subsequence_no];
     const uint block_stop_index = block_indices_begins[subsequence_no + 1];
+    for (int i=0; i<2; i++) {
+        printf("block_indices_begins[%d] = %d\n", i, block_indices_begins[i]);
+    }
 
     const uint num_blocks = block_stop_index - block_start_index;
     k = PAGE_SIZE * num_blocks;
-
+    printf("num_blocks = %d, k = %d\n, page_size %d\n", num_blocks, k, PAGE_SIZE);
     uint wg_j0 = get_group_id(0) * ugemm_kq_wg_tile_n;
 
     /* Leading dimension for matrices */
@@ -270,10 +277,13 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     (ugemm_kq_wg_tile_n * ugemm_kq_sg_per_wg_m * sizeof(float))
 #define S_max_slm_size (ugemm_kq_wg_tile_n * sizeof(float))
 #define ugemm_slm_size MAX(ugemm_kq_slm_size, ugemm_vs_slm_size)
-
+    printf("total_size = %d \n", Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size + ugemm_slm_size);
     local char slm[Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size
             + ugemm_slm_size];
+    auto total_size = Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size
+    + ugemm_slm_size;
 
+    printf("total_size = %d, Q_slm_size = %d, S_slm_size = %d, S_sum_slm_size = %d, S_max_slm_size = %d, ugemm_slm_size = %d\n", total_size, Q_slm_size, S_slm_size, S_sum_slm_size, S_max_slm_size, ugemm_slm_size);
     local QRY_DATA_T *Q_slm = (local QRY_DATA_T *)&slm[0];
     local QRY_DATA_T *S_slm = (local QRY_DATA_T *)&slm[Q_slm_size];
     local float *S_sum_slm = (local float *)&slm[Q_slm_size + S_slm_size];

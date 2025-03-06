@@ -67,11 +67,21 @@ struct tensor {
 
         write_to_dnnl_memory((void *)vec.data(), mem_);
     }
+
+    tensor(std::vector<float> vec, const memory::dims dims, tag out_tag) {
+        memory::data_type dtype = type2dt<float>();
+
+        md_ = memory::desc(dims, dtype, out_tag);
+        mem_ = memory(md_, global_engine);
+
+        write_to_dnnl_memory((void *)vec.data(), mem_);
+    }
 };
 
-tensor cast(tensor in, memory::data_type dt) {
+tensor cast(tensor in, memory::data_type dt, tag out_tag = tag::undef) {
     tensor out;
-    tag out_tag = dims2tag(in.md_.get_dims());
+    if (out_tag == tag::undef)
+        out_tag = dims2tag(in.md_.get_dims());
     out.md_ = memory::desc(in.md_.get_dims(), dt, out_tag);
     out.mem_ = memory(out.md_, global_engine);
 
@@ -85,6 +95,7 @@ tensor cast(tensor in, memory::data_type dt) {
 
     return out;
 }
+
 
 template <typename ty>
 std::vector<ty> tensor2vec(tensor in) {
@@ -139,11 +150,14 @@ tensor rand(const memory::dims &dims) {
     return cast(tensor(vec, dims), dt::f16);
 }
 
-tensor zeros(const memory::dims &dims) {
+tensor zeros(const memory::dims &dims, tag out_tag = tag::undef) {
     std::vector<float> vec;
     int dim0 = dims[0], dim1 = dims[1], rows = dims[2], cols = dims[3];
     vec.resize(dim0 * dim1 * rows * cols, 0.0f);
-    return cast(tensor(vec, dims), dt::f16);
+    if (out_tag == tag::undef) 
+        return cast(tensor(vec, dims), dt::f16);
+    else 
+        return cast(tensor(vec, dims, out_tag), dt::f16, out_tag);
 }
 
 tensor iota(const int numel) {

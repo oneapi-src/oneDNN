@@ -270,16 +270,19 @@ void prefill(int seq_len, int head_size, int page_size) {
 void generate(int seq_len, int head_size, int page_size) {
     const int pages_num = seq_len / page_size;
     const int heads_num = 1;
-
+    std::cout<<"seq_len: "<<seq_len<<", head_size: "<<head_size<<", page_size: "<<page_size<<std::endl;
+    std::cout<<"pages_num: "<<pages_num<<", heads_num: "<<heads_num<<std::endl;
+    
     tensor query = zeros({1, 1, 1, head_size * heads_num});
-    tensor key_cache = zeros({pages_num, heads_num, head_size, page_size});
+    tensor key_cache = zeros({pages_num, heads_num, head_size, page_size}, tag::abdc);
     tensor value_cache = zeros({pages_num, heads_num, page_size, head_size});
     tensor output = zeros({1, 1, 1, head_size});
 
+    auto & kmd = key_cache.md_;
     tensor prompt_lens = cast(tensor({(float)1}, {1, 1, 1, 1}), dt::s32);
     tensor subsequence_begins
             = cast(tensor({0, (float)1}, {1, 1, 1, 2}), dt::s32);
-    tensor block_indices = cast(rand(pages_num), dt::s32);
+    tensor block_indices = cast(tensor({0, 1., 2., 3., 4., 5.}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices_begins
             = cast(tensor({0, (float)pages_num}, {1, 1, 1, 2}), dt::s32);
 
@@ -452,26 +455,27 @@ int main(int argc, char **argv) {
     global_engine = dnnl::engine(dnnl::engine::kind::gpu, 0);
     global_engine_stream = dnnl::stream(global_engine);
 
-    // prefill
-    for (int head_size : {128}) {
-        for (int seq_len : {384, 512, 1024, 2048, 4096}) {
-            prefill(seq_len, head_size, 64);
-        }
-    }
+//     // prefill
+//     for (int head_size : {128}) {
+//         for (int seq_len : {384, 512, 1024, 2048, 4096}) {
+//             prefill(seq_len, head_size, 64);
+//         }
+//     }
 
     // generate
     for (int head_size : {128}) {
-        for (int seq_len : {385, 513, 1025, 2049, 4097}) {
+        // for (int seq_len : {385, 513, 1025, 2049, 4097}) {
+        for (int seq_len : {384}) {
             generate(seq_len, head_size, 64);
         }
     }
 
-    // combined
-    for (int head_size : {128}) {
-        for (int context_len : {384, 1024, 2048, 4096}) {
-            combined(context_len, head_size, 64); // query len 129
-        }
-    }
+//     // combined
+//     for (int head_size : {128}) {
+//         for (int context_len : {384, 1024, 2048, 4096}) {
+//             combined(context_len, head_size, 64); // query len 129
+//         }
+//     }
 
     return 0;
 }

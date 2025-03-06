@@ -67,8 +67,10 @@ status_t sdp_primitive_kernel_t<quantized>::compile_impl(
     pass_pipeline_t pipeline = pass_pipeline_t(vis);
 
     BACKEND_DNNL_ADD_PASS(pipeline, lower_down);
-    BACKEND_DNNL_ADD_PASS(pipeline, fuse_implicit_causal_mask);
-    BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
+    if(!cfg_.page_attention_enabled_) {
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_implicit_causal_mask);
+        BACKEND_DNNL_ADD_PASS(pipeline, fuse_reshape_for_gqa);
+    }
     if (quantized) {
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_typecast);
         BACKEND_DNNL_ADD_PASS(pipeline, lift_up_quantize);
@@ -211,7 +213,40 @@ status_t sdp_primitive_kernel_t<quantized>::get_prim_exec_args(
         mem_arg_block_table = {mem_storage[10].get(), true};
         mem_arg_block_indices_begin = {cfg_.block_indices_begin_.get(), true};
     }
+    auto q_ptr = (float *)mem_storage[0].get_data_handle();
+    auto k_ptr = (float *)mem_storage[1].get_data_handle();
+    auto prompt_lens_ptr = cfg_.prompt_lens_.get_data_handle();
 
+    for( int i=0; i<2; i++) {
+        std::cout<<"q_ptr: "<<q_ptr[i]<<std::endl;
+        std::cout<<"k_ptr: "<<k_ptr[i]<<std::endl;
+        std::cout<<"prompt_lens_ptr: "<<((int*)prompt_lens_ptr)[i]<<std::endl;
+    }
+
+    void *  map_prompt_lens_ptr = cfg_.prompt_lens_.map_data();
+    void * map_q_ptr = mem_storage[0].map_data();
+    void * map_k_ptr = mem_storage[1].map_data();
+    for (int i=0; i<2; i++) {
+        std::cout<<"map_prompt_lens_ptr: "<<((int*)map_prompt_lens_ptr)[i]<<std::endl;
+        std::cout<<"map_q_ptr: "<<((float*)map_q_ptr)[i]<<std::endl;
+        std::cout<<"map_k_ptr: "<<((float*)map_k_ptr)[i]<<std::endl;
+    }   
+
+    auto block_table_ptr = (int*)mem_storage[10].get_data_handle();
+    void * map_block_table_ptr = mem_storage[10].map_data();
+    
+    for (int i=0; i<2; i++) {
+
+        std::cout<<"map_block_table_ptr: "<<((int*)map_block_table_ptr)[i]<<std::endl;
+    }        
+    for (int i=0; i<2; i++) {
+        std::cout<<"block table ptr: "<<((int*)block_table_ptr)[i]<<std::endl;
+    }
+    mem_storage[0].unmap_data(map_q_ptr);
+    mem_storage[1].unmap_data(map_k_ptr);
+    mem_storage[10].unmap_data(map_block_table_ptr);
+    cfg_.prompt_lens_.unmap_data(map_prompt_lens_ptr);
+    
     args.clear();
     args[DNNL_ARG_QUERIES] = mem_arg_q;
     args[DNNL_ARG_KEYS] = mem_arg_k;
@@ -342,10 +377,7 @@ status_t sdp_primitive_kernel_t<quantized>::ocl_execute_impl(
         ocl_stream->ocl_ctx().set_deps(events);
     }
 
-    auto status = status::success;
-    auto status = cfg_.page_attention_enabled_
-            ? cfg_.paged_sdpa_prim_->execute(ctx)
-            : cfg_.sdpa_prim_->execute(ctx);
+    auto status = cfg_.sdpa_prim_->execute(ctx);
 
     cl_event return_event = nullptr;
     if ((ocl_stream->flags() & stream_flags::in_order) == 0) {

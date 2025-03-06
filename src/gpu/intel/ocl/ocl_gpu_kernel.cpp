@@ -219,7 +219,7 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
             param_bytes += arg.size();
         }
     }
-
+    std::cout << "param_bytes is " << param_bytes << std::endl;
     if (param_bytes > stream_ocl_device_info->max_kernel_param_size()) {
         MAYBE_REPORT_ERROR(
                 "parameter bytes requirements greater than device supports");
@@ -234,7 +234,6 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
         const auto &event_wrappers = xpu::ocl::event_t::from(deps).events;
         std::vector<cl_event> events(
                 event_wrappers.begin(), event_wrappers.end());
-
         cl_uint num_events = (cl_uint)events.size();
         const cl_event *events_data = num_events ? events.data() : nullptr;
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
@@ -244,13 +243,45 @@ status_t ocl_gpu_kernel_t::parallel_for(impl::stream_t &stream,
         OCL_CHECK(err);
         xpu::ocl::event_t::from(out_dep).events = {event};
     } else {
+        size_t local_mem_used;
+        auto * ocl_engine = utils::downcast<ocl_gpu_engine_t *>(stream.engine());
+        auto device =  ocl_engine->device();
+
+        clGetKernelWorkGroupInfo(*kernel, device, CL_KERNEL_LOCAL_MEM_SIZE, sizeof(size_t), &local_mem_used, nullptr);
+        printf("Kernel uses %zu bytes of local memory\n", local_mem_used);
+
+        size_t max_work_group_size;
+        clGetKernelWorkGroupInfo(*kernel, device, CL_KERNEL_WORK_GROUP_SIZE, sizeof(size_t), &max_work_group_size, nullptr);
+        printf("Max Work Group Size: %zu\n", max_work_group_size);
         bool save_event = save_events_ || stream.is_profiling_enabled();
+
         cl_int err = clEnqueueNDRangeKernel(queue, *kernel, ndims, nullptr,
                 range.global_range().data(),
                 range.local_range() ? range.local_range().data() : nullptr, 0,
                 nullptr, save_event ? &event.unwrap() : nullptr);
+
+        size_t global_size[3] = { range.global_range().data()[0], range.global_range().data()[1], range.global_range().data()[2] };
+        size_t local_size[3]  = { 1, 1, 1 };
+        
+        if (range.local_range()) {
+            local_size[0] = range.local_range().data()[0];
+            local_size[1] = range.local_range().data()[1];
+            local_size[2] = range.local_range().data()[2];
+        }
+        
+        // 计算 Work-Groups 数量
+        size_t num_groups[3] = {
+            (global_size[0] + local_size[0] - 1) / local_size[0],
+            (global_size[1] + local_size[1] - 1) / local_size[1],
+            (global_size[2] + local_size[2] - 1) / local_size[2]
+        };
+        
+        printf("Num Groups: (%zu, %zu, %zu)\n", num_groups[0], num_groups[1], num_groups[2]);
+        printf("clEnqueueNDRangeKernel failed with error code %d\n", err);
+        printf("Global Work Size: (%zu, %zu, %zu)\n", global_size[0], global_size[1], global_size[2]);
+        printf("Local Work Size:  (%zu, %zu, %zu)\n", local_size[0], local_size[1], local_size[2]);
         OCL_CHECK(err);
-    }
+}
 
     if (stream.is_profiling_enabled()) {
         ocl_stream->profiler().register_event(

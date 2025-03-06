@@ -504,6 +504,9 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     kernel_ctx.define_int("V_ALIGN", jit::alignmentForLD(int(ldv)));
     kernel_ctx.define_int("A_ALIGN", jit::alignmentForLD(int(lda)));
 
+    const auto & qry_md = *pd()->qry_md();
+    const auto & key_md = *pd()->key_md();
+    const auto & val_md = *pd()->val_md();
     kernel_ctx.define_int("TRANSPOSE_K",
             gemm_desc_t::get_trans(*pd()->key_md()) == dnnl_trans);
 
@@ -635,18 +638,53 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     const dim_t Q = pd()->desc()->queries();
     const dim_t K = pd()->desc()->keys();
     const dim_t D = pd()->desc()->head_size();
-
+    printf("Q=%ld, K=%ld, D=%ld\n", Q, K, D);
     auto &gemm_kq = pd()->gemm_kq();
     auto wg_tile_q = gemm_kq.getSetting("wg_tile_n");
     auto sg_per_wg = gemm_kq.getSetting("sg_per_wg_m")
             * gemm_kq.getSetting("sg_per_wg_n");
-
     const auto &prompt_lens = CTX_IN_STORAGE(DNNL_ARG_PROMPT_LENS);
     const auto &subsequence_begins
             = CTX_IN_STORAGE(DNNL_ARG_SUBSEQUENCE_BEGINS);
     const auto &block_indices = CTX_IN_STORAGE(DNNL_ARG_BLOCK_INDICES);
     const auto &block_indices_begins
             = CTX_IN_STORAGE(DNNL_ARG_BLOCK_INDICES_BEGINS);
+
+    float query_a[2] = {-1.0, -1.0};
+    int32_t prompt_lens_a[2] = {-1, -1};
+    int32_t subsequence_begins_a[2] = {-1, -1};
+    int32_t block_indices_a[2] = {-1, -1};
+    int32_t block_indices_begins_a[2] = {-1, -1};
+    void * query_ptr = (void*)query_a;
+    void * prompt_lens_ptr = (void*)prompt_lens_a;
+    void * subsequence_begins_ptr =  (void*)subsequence_begins_a;
+    void * block_indices_ptr =  (void*)block_indices_a;
+    void * block_indices_begins_ptr =  (void*)block_indices_begins_a;
+    qry.map_data(&query_ptr, ctx.stream(), 2 * sizeof(float));
+    prompt_lens.map_data(&prompt_lens_ptr, ctx.stream(), 2 * sizeof(int32_t));
+    subsequence_begins.map_data(&subsequence_begins_ptr, ctx.stream(), 2 * sizeof(int32_t));
+    block_indices.map_data(&block_indices_ptr, ctx.stream(), 2 * sizeof(int32_t));
+    block_indices_begins.map_data(&block_indices_begins_ptr, ctx.stream(), 2 * sizeof(int32_t));
+
+    void *block_indices_ptr2;
+    block_indices.get_data_handle(&block_indices_ptr2);
+    for(int i = 0; i<2; i++) {
+        printf("query_a[%d]=%f, ", i, ((float*)query_ptr)[i]);
+        printf("prompt_lens[%d]=%d\n", i, ((int*)prompt_lens_ptr)[i]);
+        printf("subsequence_begins[%d]=%d\n", i, ((int*)subsequence_begins_ptr)[i]);
+        printf("block_indices_begins[%d]=%d\n", i, ((int*)block_indices_begins_ptr)[i]);
+    }
+    for(int i = 0; i<6; i++) {
+        printf("block_indices[%d]=%d, ", i, ((int*)block_indices_ptr)[i]);
+        printf("block_indices[%d]=%d ", i, ((int*)block_indices_ptr2)[i]);
+    }
+    printf("\n");
+    qry.unmap_data(query_ptr, ctx.stream());
+    prompt_lens.unmap_data(prompt_lens_ptr, ctx.stream());
+    subsequence_begins.unmap_data(subsequence_begins_ptr, ctx.stream());
+    block_indices.unmap_data(block_indices_ptr, ctx.stream());
+    block_indices_begins.unmap_data(block_indices_begins_ptr, ctx.stream());
+    printf("unmap done\n");
 
     compute::kernel_arg_list_t arg_list;
     arg_list.set(0, key);
@@ -670,14 +708,14 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
 
     compute::range_t lws = {(size_t)pd()->sg_size(), (size_t)sg_per_wg, 1};
     compute::range_t gws = lws;
-
+    std::cout<< "wg_tile_q is " << wg_tile_q << std::endl;
     gws[0] *= utils::div_up(Q, wg_tile_q);
     // // old launch config with destination dictating batch dimension
     // gws[1] *= pd()->dst_md()->dims[1];
     // gws[2] *= pd()->dst_md()->dims[0];
     gws[1] *= pd()->desc()->num_sequences();
     // gws[2] *= pd()->dst_md()->dims[1];
-
+    std::cout<< " seq_num is  " << pd()->desc()->num_sequences() << std::endl;
     auto nd_range = compute::nd_range_t(gws, lws);
     return parallel_for(ctx, nd_range, kernel_, arg_list);
 }

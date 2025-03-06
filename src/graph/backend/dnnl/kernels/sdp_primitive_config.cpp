@@ -97,7 +97,12 @@ op_ptr sdp_primitive_config_t::get_paged_cache_load_op(const op_ptr &op) const {
     const auto in_val = op->get_input_value(1);
     if (!in_val->has_producer()) return nullptr;
     auto &producer = in_val->get_producer();
-    if (producer.get_kind() != op_kind::dnnl_paged_cache_load) return nullptr;
+    if (producer.get_kind() == op_kind::dnnl_permute) {
+        if (!producer.get_input_value(0)->has_producer()) return nullptr;
+        producer = producer.get_input_value(0)->get_producer();
+    }
+    if (producer.get_kind() != graph::op_kind::PagedCacheLoad
+        && producer.get_kind() != op_kind::dnnl_paged_cache_load) return nullptr;
     return producer.shared_from_this();
 }
 
@@ -122,7 +127,7 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
 
     // Locate ops of interest: matmuls, scale, mask
     op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr, add = nullptr,
-           final_op = nullptr;
+           final_op = nullptr, cache1 = nullptr, cache2 = nullptr;
     const std::unordered_set<op_kind_t> mm1_post_op_kind
             = {op_kind::dnnl_binary, op_kind::dnnl_softmax, op_kind::dnnl_mask};
     for (const auto &cur_op : sg->get_ops()) {
@@ -187,10 +192,10 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
         block_table_ = k_paged_cache_load_->get_input_value(1);
         auto v_block_table = v_paged_cache_load_->get_input_value(1);
         VCHECK_SDP_PRIMITIVE(
-                (k_cache_ && v_cache_ && block_table_ == v_block_table),
-                status::unimplemented,
-                "Paged attention inputs/outputs not valid");
-        page_attention_enabled_ = true;
+            (k_cache_ && v_cache_ && ltw(block_table_->get_logical_tensor()).is_similar(ltw(v_block_table->get_logical_tensor()))),
+            status::unimplemented,
+            "Paged attention inputs/outputs not valid");
+    page_attention_enabled_ = true;
     }
 
     if (quantized_) {
@@ -204,11 +209,15 @@ status_t sdp_primitive_config_t::locate_io(std::shared_ptr<subgraph_t> &sg,
         if (4 == mm2->num_inputs()) v_zero_points_ = mm2->get_input_value(3);
     }
 
+    if(!page_attention_enabled_) {
     auto k_follow = follow_back(k_);
     for (auto &t : inputs)
         if (k_follow->get_logical_tensor().id == t.id) {
             kv_head_number_ = t.dims[1];
         }
+    } else {
+        kv_head_number_ = ltw(k_cache_->get_logical_tensor()).dims()[1];
+    }
     dst_ = (final_op->get_kind() == op_kind::dnnl_transpose)
             ? final_op->get_input_value(0)
             : final_op->get_output_value(
@@ -363,6 +372,27 @@ status_t sdp_primitive_config_t::initial_check(
                 "Scale should be single value");
     }
 
+    // Locate paged attention input/outputs: QCache, VCache, block_table
+    k_paged_cache_load_ = get_paged_cache_load_op(mm1);
+    v_paged_cache_load_ = get_paged_cache_load_op(mm2);
+
+    if (k_paged_cache_load_ != nullptr && v_paged_cache_load_ != nullptr) {
+        k_cache_ = k_paged_cache_load_->get_input_value(0);
+        v_cache_ = v_paged_cache_load_->get_input_value(0);
+        // key and value should share the same block table
+        block_table_ = k_paged_cache_load_->get_input_value(1);
+        auto v_block_table = v_paged_cache_load_->get_input_value(1);
+        // bool same_block_table = false;
+        // if (block_table_->ndims == v_block_table.ndims()) {
+        //     same_block_table = block_table_ == v_block_table;
+        // }
+        VCHECK_SDP_PRIMITIVE(
+                (k_cache_ && v_cache_ && ltw(block_table_->get_logical_tensor()).is_similar(ltw(v_block_table->get_logical_tensor()))),
+                status::unimplemented,
+                "Paged attention inputs/outputs not valid");
+        page_attention_enabled_ = true;
+    }
+
     return status::success;
 }
 
@@ -405,66 +435,89 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
         q_pa_lt.dims[1] = 1;
         q_pa_lt.dims[2] = q_lt.dims[0] * q_lt.dims[2];
         q_pa_lt.dims[3] = q_lt.dims[1] * q_lt.dims[3];
-        q_pa_lt.layout.strides[3] = 1;
-        q_pa_lt.layout.strides[2] = q_pa_lt.dims[3];
+        q_pa_lt.layout.strides[0] = q_pa_lt.dims[2] * q_pa_lt.dims[3];
         q_pa_lt.layout.strides[1] = q_pa_lt.dims[2] * q_pa_lt.dims[3];
-        q_pa_lt.layout.strides[0] = q_pa_lt.layout.strides[1];
+        q_pa_lt.layout.strides[2] = q_pa_lt.dims[3];
+        q_pa_lt.layout.strides[3] = 1;
         md_q_pa = make_dnnl_memory_desc(q_pa_lt);
 
-        md_k_cache = make_dnnl_memory_desc(k_cache_->get_logical_tensor());
+        auto md_k_cache_api = make_dnnl_memory_desc(k_cache_->get_logical_tensor());
+        md_k_cache = transpose(md_k_cache_api, 2, 3);
         md_v_cache = make_dnnl_memory_desc(v_cache_->get_logical_tensor());
-
         // block_table [seq_num, max_block_num_per_seq]
         auto block_table_lt = block_table_->get_logical_tensor();
-        // block_indices [seq_num * max_block_num_per_seq]
+        // block_indices [1, 1, 1, seq_num * max_block_num_per_seq]
         // 1D tensor with the same number of elements as block_table;
         logical_tensor_t block_indices_lt;
-        block_indices_lt.ndims = 1;
-        block_indices_lt.dims[0]
+        block_indices_lt.ndims = 4;
+        block_indices_lt.dims[0] = 1;
+        block_indices_lt.dims[1] = 1;
+        block_indices_lt.dims[2] = 1;
+        block_indices_lt.dims[3]
                 = block_table_lt.dims[0] * block_table_lt.dims[1];
         block_indices_lt.data_type = block_table_lt.data_type;
         block_indices_lt.layout_type = layout_type::strided;
-        block_indices_lt.layout.strides[0] = 1;
+        block_indices_lt.layout.strides[0] = block_indices_lt.dims[3];
+        block_indices_lt.layout.strides[1] = block_indices_lt.dims[3];
+        block_indices_lt.layout.strides[2] = block_indices_lt.dims[3];
+        block_indices_lt.layout.strides[3] = 1;
         block_indices_lt.property = block_table_lt.property;
         md_block_indices = make_dnnl_memory_desc(block_indices_lt);
 
-        // block_indices_begin [seq_num + 1]
+        // block_indices_begin [1, 1, 1, seq_num + 1]
         // 1D tensor with the start position of each sequence in block_indices;
         logical_tensor_t block_indices_begin_lt;
-        block_indices_begin_lt.ndims = 1;
-        block_indices_begin_lt.dims[0] = block_table_lt.dims[0];
+        block_indices_begin_lt.ndims = 4;
+        block_indices_begin_lt.dims[0] = 1;
+        block_indices_begin_lt.dims[1] = 1;
+        block_indices_begin_lt.dims[2] = 1; 
+        block_indices_begin_lt.dims[3] = block_table_lt.dims[0] + 1;
         block_indices_begin_lt.data_type = block_table_lt.data_type;
         block_indices_begin_lt.layout_type = layout_type::strided;
-        block_indices_begin_lt.layout.strides[0] = 1;
+        block_indices_begin_lt.layout.strides[0] = block_indices_begin_lt.dims[3];
+        block_indices_begin_lt.layout.strides[1] = block_indices_begin_lt.dims[3];
+        block_indices_begin_lt.layout.strides[2] = block_indices_begin_lt.dims[3];
+        block_indices_begin_lt.layout.strides[3] = 1;
         block_indices_begin_lt.property = dnnl_graph_tensor_property_t::
                 dnnl_graph_tensor_property_constant;
-        ;
         md_block_indices_begin = make_dnnl_memory_desc(block_indices_begin_lt);
 
-        // prompt_lens [query_num + 1]
-        // 1D tensor with the same number of elements as query[1,1,query_num,head_num*head_size];
+        // prompt_lens [1, 1, 1, query_num]
+        // 1D tensor with value of seq_len of each query;
         logical_tensor_t prompt_lens_lt;
-        prompt_lens_lt.ndims = 1;
-        prompt_lens_lt.dims[0] = q_lt.dims[0] + 1;
+        prompt_lens_lt.ndims = 4;
+        prompt_lens_lt.dims[0] = 1;
+        prompt_lens_lt.dims[1] = 1;
+        prompt_lens_lt.dims[2] = 1;
+        prompt_lens_lt.dims[3] = q_lt.dims[0];
         prompt_lens_lt.data_type = dnnl_data_type_t::dnnl_s32;
         prompt_lens_lt.layout_type = layout_type::strided;
-        prompt_lens_lt.layout.strides[0] = 1;
+        prompt_lens_lt.layout.strides[0] = prompt_lens_lt.dims[3];
+        prompt_lens_lt.layout.strides[1] = prompt_lens_lt.dims[3];
+        prompt_lens_lt.layout.strides[2] = prompt_lens_lt.dims[3];
+        prompt_lens_lt.layout.strides[3] = 1;
         prompt_lens_lt.property = dnnl_graph_tensor_property_t::
                 dnnl_graph_tensor_property_constant;
         md_prompt_lens = make_dnnl_memory_desc(prompt_lens_lt);
 
-        // subsequence_begins [seq_num + 1]
+        // subsequence_begins [1, 1, 1, seq_num + 1]
         // 1D tensor for the lenth of seq_lens of KV;
         //K&&V should have the same seq_len
         k_paged_cache_load_->has_same_attr_values(*v_paged_cache_load_);
         auto seq_lens = k_paged_cache_load_->get_attr<std::vector<int64_t>>(
                 op_attr::seq_lens);
         logical_tensor_t subsequence_begins_lt;
-        subsequence_begins_lt.ndims = 1;
-        subsequence_begins_lt.dims[0] = q_lt.dims[0] + 1;
+        subsequence_begins_lt.ndims = 4;
+        subsequence_begins_lt.dims[0] = 1;
+        subsequence_begins_lt.dims[1] = 1;
+        subsequence_begins_lt.dims[2] = 1;
+        subsequence_begins_lt.dims[3] = q_lt.dims[0] + 1;
         subsequence_begins_lt.data_type = dnnl_data_type_t::dnnl_s32;
         subsequence_begins_lt.layout_type = layout_type::strided;
-        subsequence_begins_lt.layout.strides[0] = 1;
+        subsequence_begins_lt.layout.strides[0] = subsequence_begins_lt.dims[3];
+        subsequence_begins_lt.layout.strides[1] = subsequence_begins_lt.dims[3];
+        subsequence_begins_lt.layout.strides[2] = subsequence_begins_lt.dims[3];
+        subsequence_begins_lt.layout.strides[3] = 1;
         subsequence_begins_lt.property = dnnl_graph_tensor_property_t::
                 dnnl_graph_tensor_property_constant;
         md_subsequence_begins = make_dnnl_memory_desc(subsequence_begins_lt);
@@ -496,28 +549,39 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
     }
 
     auto status = status::success;
+    int context_len = 0;
     if (!page_attention_enabled_) {
         CHECK(create_sdpa_pd(sdpa_pd_, p_engine.get(), md_q.get(), md_k.get(),
                 md_v.get(), md_dst.get(), md_mask.get(), scale_dt,
                 invert_scale_, kv_head_number_, causal_mask_, attr.get(),
-                qk_attr.get(), vs_attr.get(), md_q_pa.get(), md_k_cache.get(),
-                md_v_cache.get(), md_prompt_lens.get(),
+                qk_attr.get(), vs_attr.get(), md_prompt_lens.get(),
                 md_subsequence_begins.get(), md_block_indices.get(),
-                md_block_indices_begin.get()));
-        status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
+                md_block_indices_begin.get(), context_len));
     } else {
         const auto seq_lens
                 = k_paged_cache_load_->get_attr<std::vector<int64_t>>(
                         op_attr::seq_lens);
         const auto context_len
                 = std::accumulate(seq_lens.begin(), seq_lens.end(), int64_t(0));
-        paged_sdpa_pd_ = std::make_shared<dnnl::sdpa_micro::primitive_desc>(
-                p_engine, context_len, md_q_pa, md_k_cache, md_v_cache, md_dst,
-                md_mask, md_prompt_lens, md_subsequence_begins,
-                md_block_indices, md_block_indices_begin);
-        paged_sdpa_prim_
-                = std::make_shared<dnnl::sdpa_micro>(*paged_sdpa_pd_.get());
+        std::cout<<"context_len: "<<context_len<<std::endl;
+        CHECK(create_sdpa_pd(sdpa_pd_, p_engine.get(), md_q_pa.get(), md_k_cache.get(),
+                md_v_cache.get(), md_dst.get(), md_mask.get(), scale_dt,
+                invert_scale_, kv_head_number_, causal_mask_, attr.get(),
+                qk_attr.get(), vs_attr.get(), md_prompt_lens.get(),
+                md_subsequence_begins.get(), md_block_indices.get(),
+                md_block_indices_begin.get(), context_len));
+        // const auto seq_lens
+        //         = k_paged_cache_load_->get_attr<std::vector<int64_t>>(
+        //                 op_attr::seq_lens);
+        // const auto context_len
+        //         = std::accumulate(seq_lens.begin(), seq_lens.end(), int64_t(0));
+        // paged_sdpa_pd_ = std::make_shared<dnnl::sdpa_micro::primitive_desc>(
+        //         p_engine, context_len, md_q_pa, md_k_cache, md_v_cache, md_dst,
+        //         md_mask, md_prompt_lens, md_subsequence_begins,
+        //         md_block_indices, md_block_indices_begin);
     }
+    status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
+
     VCONDCHECK(graph, create, dispatch, sdp, status == status::success, status,
             "could not create sdp primitive, falling back\n");
 

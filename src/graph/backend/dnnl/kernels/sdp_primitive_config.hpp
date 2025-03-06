@@ -78,9 +78,11 @@ public:
     std::shared_ptr<primitive_desc_t> sdpa_pd_;
     std::shared_ptr<primitive_t> sdpa_prim_;
 
-    // // paged attention SDP pd and primitive.
-    std::shared_ptr<dnnl::sdpa_micro::primitive_desc> paged_sdpa_pd_;
-    std::shared_ptr<dnnl::sdpa_micro::primitive> paged_sdpa_prim_;
+    // // // paged attention SDP pd and primitive.
+    // std::shared_ptr<dnnl::sdpa_micro::primitive_desc> paged_sdpa_pd_;
+    // // std::shared_ptr<dnnl::sdpa_micro::primitive> paged_sdpa_prim_;
+    // std::shared_ptr<primitive_t> micro_sdpa_t;
+    
     memory prompt_lens_;
     memory subsequence_begins_;
     memory block_indices_begin_;

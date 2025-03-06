@@ -108,7 +108,10 @@ static inline sdpa_desc_t create_sdpa_desc(const memory_desc_t *q_md,
         const memory_desc_t *dst_md, const memory_desc_t *attn_mask_md,
         data_type_t scale_dt, bool invert_scale, dim_t kv_head_number,
         bool causal_mask, const primitive_attr_t *kq_attr,
-        const primitive_attr_t *vs_attr) {
+        const primitive_attr_t *vs_attr, const memory_desc_t *prompt_lens_md,
+        const memory_desc_t *subsequence_md,
+        const memory_desc_t *block_indices_md, 
+        const memory_desc_t *block_indices_begins_md, int context_len) {
     auto sdpa_desc = sdpa_desc_t();
     sdpa_desc.primitive_kind = primitive_kind::sdpa;
     sdpa_desc.q_desc = *q_md;
@@ -128,6 +131,11 @@ static inline sdpa_desc_t create_sdpa_desc(const memory_desc_t *q_md,
     sdpa_desc.invert_scale = invert_scale;
     sdpa_desc.kv_head_number = kv_head_number;
     sdpa_desc.causal_mask = causal_mask;
+    if (prompt_lens_md) sdpa_desc.prompt_lens_desc = *prompt_lens_md;
+    if (subsequence_md) sdpa_desc.subsequence_begins_desc = *subsequence_md;
+    if (block_indices_md) sdpa_desc.block_indices_desc = *block_indices_md;
+    if (block_indices_begins_md) sdpa_desc.block_indices_begins_desc = *block_indices_begins_md;
+    if (context_len != 0) sdpa_desc.context_len = context_len;
     return sdpa_desc;
 }
 
@@ -138,31 +146,23 @@ static inline status_t create_sdpa_pd(
         const memory_desc_t *attn_mask_md, data_type_t scale_dt,
         bool invert_scale, dim_t kv_head_number, bool causal_mask,
         const primitive_attr_t *attr, const primitive_attr_t *kq_attr,
-        const primitive_attr_t *vs_attr, const memory_desc_t *q_pa_md,
-        const memory_desc_t *key_cache, const memory_desc_t *value_cache,
+        const primitive_attr_t *vs_attr,
         const memory_desc_t *prompt_lens_md,
         const memory_desc_t *subsequence_begins_md,
         const memory_desc_t *block_indices_md,
-        const memory_desc_t *block_indices_begin_md) {
-    bool page_attention_enabled = false;
-    if (!q_pa_md && !block_indices_md && !block_indices_begin_md
-            && !prompt_lens_md)
-        page_attention_enabled = true;
+        const memory_desc_t *block_indices_begin_md, int context_len) {
+    bool page_attention_enabled = context_len > 0 ? true : false;
 
-    // quantized page attention is not supported yet
-    if (page_attention_enabled && (kq_attr || vs_attr))
-        return status::unimplemented;
+    // TODO: add attr check for paged attention sdpa primitive 
     if (!page_attention_enabled)
         CHECK(sdpa_attr_check(
                 q_md, k_md, v_md, engine, attr, kq_attr, vs_attr));
 
     sdpa_desc_t sdpa_desc;
-    if (!page_attention_enabled) {
-        sdpa_desc = create_sdpa_desc(q_md, k_md, v_md, dst_md, attn_mask_md,
-                scale_dt, invert_scale, kv_head_number, causal_mask, kq_attr,
-                vs_attr);
-    } else {
-    }
+    sdpa_desc = create_sdpa_desc(q_md, k_md, v_md, dst_md, attn_mask_md,
+            scale_dt, invert_scale, kv_head_number, causal_mask, kq_attr,
+            vs_attr, prompt_lens_md, subsequence_begins_md, block_indices_md,
+            block_indices_begin_md, context_len);
     int ndims = dst_md->ndims;
     int r = ndims - 2, c = ndims - 1;
     VCHECK_SDPA_COND(
@@ -171,19 +171,22 @@ static inline status_t create_sdpa_pd(
             "%d",
             ndims, q_md->ndims, k_md->ndims, v_md->ndims);
 
-    VCHECK_SDPA_COND(q_md->dims[c] == k_md->dims[r],
-            "q_md->dims[%d](%s) must match k_md->dims[%d](%s)", c,
-            md2dim_str(q_md).c_str(), r, md2dim_str(k_md).c_str());
-    VCHECK_SDPA_COND(k_md->dims[c] == v_md->dims[r],
-            "k_md->dims[%d](%s) must match v_md->dims[%d](%s)", c,
-            md2dim_str(k_md).c_str(), r, md2dim_str(v_md).c_str());
-    VCHECK_SDPA_COND(dst_md->dims[r] == q_md->dims[r],
-            "dst_md->dims[%d](%s) == q_md->dims[%d](%s)", r,
-            md2dim_str(dst_md).c_str(), r, md2dim_str(q_md).c_str());
-    VCHECK_SDPA_COND(dst_md->dims[c] == v_md->dims[c],
-            "dst_md->dims[%d](%s) == v_md->dims[%d](%s)", c,
-            md2dim_str(dst_md).c_str(), c, md2dim_str(v_md).c_str());
-
+    if (!page_attention_enabled) {
+        VCHECK_SDPA_COND(q_md->dims[c] == k_md->dims[r],
+                "q_md->dims[%d](%s) must match k_md->dims[%d](%s)", c,
+                md2dim_str(q_md).c_str(), r, md2dim_str(k_md).c_str());
+        VCHECK_SDPA_COND(k_md->dims[c] == v_md->dims[r],
+                "k_md->dims[%d](%s) must match v_md->dims[%d](%s)", c,
+                md2dim_str(k_md).c_str(), r, md2dim_str(v_md).c_str());
+        VCHECK_SDPA_COND(dst_md->dims[r] == q_md->dims[r],
+                "dst_md->dims[%d](%s) == q_md->dims[%d](%s)", r,
+                md2dim_str(dst_md).c_str(), r, md2dim_str(q_md).c_str());
+        VCHECK_SDPA_COND(dst_md->dims[c] == v_md->dims[c],
+                "dst_md->dims[%d](%s) == v_md->dims[%d](%s)", c,
+                md2dim_str(dst_md).c_str(), c, md2dim_str(v_md).c_str());
+    } else {
+        // TODO: add paged attention sdpa primitive check
+    }
     primitive_attr_t sdpa_attr = attr ? *attr : default_attr();
 
     primitive_desc_iterator_t it(

@@ -530,7 +530,7 @@ public:
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
             auto sh_ptr = std::shared_ptr<void> {
-                    ocl_malloc_device(size, alignment, dev, ctx),
+                    ocl_malloc_shared(size, alignment, dev, ctx),
                     [ctx, dev](void *p) { ocl_free(p, dev, ctx, {}); }};
 #endif
             ptr = sh_ptr.get();

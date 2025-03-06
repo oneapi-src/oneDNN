@@ -139,8 +139,11 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
             = *std::max_element(p.seq_lens.begin(), p.seq_lens.end());
     const auto max_block_per_seq
             = (max_seq_len + p.block_size - 1) / p.block_size;
+    std::cout<<"example max_seq_len" << max_seq_len << std::endl;
+    std::cout<<"example max_block_per_seq" << max_block_per_seq << std::endl;
     // Prepare input and output shapes to construct the sdpa graph.
     const dims qv_sz = {p.mb, p.head_num, p.query_num, p.head_size};
+    const dims q_strides = {p.query_num * p.head_num * p.head_size, p.head_size, p.head_num * p.head_size, 1};
     const dims kv_cache_sz
             = {p.block_num, p.head_num, p.block_size, p.head_size};
     const dims block_table_sz = {p.mb, max_block_per_seq};
@@ -165,44 +168,45 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
             op::attr::seq_lens, p.seq_lens);
 
     // score = query x key.T
-    auto query = logical_tensor(id++, dt, qv_sz, layout_type::strided);
+    auto query = logical_tensor(id++, dt, qv_sz, q_strides);
     auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
     auto bmm1 = op(id++, op::kind::MatMul, "bmm1");
     bmm1.set_attr<bool>(op::attr::transpose_b, true);
     bmm1.add_inputs({query, key});
     bmm1.add_outputs({score});
 
-    // scaled_score = score / scale
-    auto scale = logical_tensor(id++, dt, scale_sz, layout_type::strided);
-    auto scaled_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
-    auto scale_div = op(id++, op::kind::Divide, "scale_div");
-    scale_div.add_inputs({score, scale});
-    scale_div.add_outputs({scaled_score});
+    // // scaled_score = score / scale
+    // auto scale = logical_tensor(id++, dt, scale_sz, layout_type::strided);
+    // auto scaled_score
+    //         = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    // auto scale_div = op(id++, op::kind::Divide, "scale_div");
+    // scale_div.add_inputs({score, scale});
+    // scale_div.add_outputs({scaled_score});
 
-    // masked_score = scaled_score + mask
-    auto mask = logical_tensor(id++, dt, mask_sz, layout_type::strided);
-    auto masked_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
-    auto mask_add = op(id++, op::kind::Add, "mask_add");
-    mask_add.add_inputs({scaled_score, mask});
-    mask_add.add_outputs({masked_score});
+    // // masked_score = scaled_score + mask
+    // auto mask = logical_tensor(id++, dt, mask_sz, layout_type::strided);
+    // auto masked_score
+    //         = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    // auto mask_add = op(id++, op::kind::Add, "mask_add");
+    // mask_add.add_inputs({scaled_score, mask});
+    // mask_add.add_outputs({masked_score});
 
     // attention_probs = softmax(masked_score)
     auto probs = logical_tensor(id++, dt, score_sz, layout_type::strided);
     auto softmax = op(id++, op::kind::SoftMax, "softmax");
     softmax.set_attr<int64_t>(op::attr::axis, -1);
-    softmax.add_inputs({masked_score});
+    softmax.add_inputs({score});
     softmax.add_outputs({probs});
 
-    // v_gathered = gather(v_buff, block_table)
+    // v_paged_cache_load = PagedCacheLoad(v_buff, block_table)
     auto v_cache = logical_tensor(id++, dt, kv_cache_sz, layout_type::strided);
     auto v_block_table = logical_tensor(id++, logical_tensor::data_type::s32,
             block_table_sz, layout_type::strided);
     auto value = logical_tensor(id++, dt, k_sz, layout_type::strided);
     auto v_paged_cache_load
             = op(id++, op::kind::PagedCacheLoad, "v_pagedCacheLoad");
-    v_paged_cache_load.add_inputs({v_cache, v_block_table});
+    v_paged_cache_load.add_inputs({v_cache});
+    v_paged_cache_load.add_inputs({v_block_table});
     v_paged_cache_load.add_outputs({value});
     v_paged_cache_load.set_attr<std::vector<int64_t>>(
             op::attr::seq_lens, p.seq_lens);
@@ -217,8 +221,8 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     dnnl::graph::graph sdpa(ekind);
     sdpa.add_op(k_paged_cache_load);
     sdpa.add_op(bmm1);
-    sdpa.add_op(scale_div);
-    sdpa.add_op(mask_add);
+    // sdpa.add_op(scale_div);
+    // sdpa.add_op(mask_add);
     sdpa.add_op(softmax);
     sdpa.add_op(v_paged_cache_load);
     sdpa.add_op(bmm2);
@@ -234,7 +238,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
 
     // Compile the partition with inputs, outputs, and an engine.
     compiled_partition cp
-            = partitions[0].compile({k_cache, k_block_table, query, scale, mask,
+            = partitions[0].compile({query, k_cache, k_block_table, 
                                             v_cache, v_block_table},
                     {output}, eng);
 
@@ -242,8 +246,8 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     auto ts_query = tensor(query, eng);
     auto ts_k_cache = tensor(k_cache, eng);
     auto ts_k_block_table = tensor(k_block_table, eng);
-    auto ts_scale = tensor(scale, eng);
-    auto ts_mask = tensor(mask, eng);
+    // auto ts_scale = tensor(scale, eng);
+    // auto ts_mask = tensor(mask, eng);
     auto ts_v_cache = tensor(v_cache, eng);
     auto ts_v_block_table = tensor(v_block_table, eng);
     auto ts_output = tensor(output, eng);
@@ -252,8 +256,8 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     std::vector<float> k_cache_data(product(kv_cache_sz));
     std::vector<int32_t> k_block_table_data(product(block_table_sz));
     std::vector<float> query_data(product(qv_sz));
-    std::vector<float> scale_data(product(scale_sz), std::sqrt(p.head_size));
-    std::vector<float> mask_data(product(mask_sz));
+    // std::vector<float> scale_data(product(scale_sz), std::sqrt(p.head_size));
+    // std::vector<float> mask_data(product(mask_sz));
     std::vector<float> v_cache_data(product(kv_cache_sz));
     std::vector<int32_t> v_block_table_data(product(block_table_sz));
     std::vector<float> output_data(product(qv_sz));
@@ -261,23 +265,27 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     fill_random(query_data);
     fill_random(k_cache_data);
     fill_random(v_cache_data);
-    fill_mask(mask_data, static_cast<size_t>(max_seq_len));
+    // fill_mask(mask_data, static_cast<size_t>(max_seq_len));
     fill_random_int(k_block_table_data, p.block_num);
     fill_random_int(v_block_table_data, p.block_num);
 
+    for (int i=0; i<product(block_table_sz); i++) {
+        std::cout << k_block_table_data[i] << " " << std::endl;
+        std::cout << v_block_table_data[i] << " " << std::endl;
+    }
     // Write data to tensor object's handle.
     write_to_dnnl_tensor(query_data.data(), ts_query);
     write_to_dnnl_tensor(k_cache_data.data(), ts_k_cache);
     write_to_dnnl_tensor(k_block_table_data.data(), ts_k_block_table);
-    write_to_dnnl_tensor(scale_data.data(), ts_scale);
-    write_to_dnnl_tensor(mask_data.data(), ts_mask);
+    // write_to_dnnl_tensor(scale_data.data(), ts_scale);
+    // write_to_dnnl_tensor(mask_data.data(), ts_mask);
     write_to_dnnl_tensor(v_cache_data.data(), ts_v_cache);
     write_to_dnnl_tensor(v_block_table_data.data(), ts_v_block_table);
 
     // Warmup run.
     // Execute the compiled partition of sdpa.
     cp.execute(strm,
-            {ts_k_cache, ts_k_block_table, ts_query, ts_scale, ts_mask,
+            {ts_query, ts_k_cache, ts_k_block_table, 
                     ts_v_cache, ts_v_block_table},
             {ts_output});
 
@@ -287,7 +295,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // First run.
     auto start_first = std::chrono::steady_clock::now();
     cp.execute(strm,
-            {ts_k_cache, ts_k_block_table, ts_query, ts_scale, ts_mask,
+            {ts_query, ts_k_cache, ts_k_block_table, 
                     ts_v_cache, ts_v_block_table},
             {ts_output});
     strm.wait();
@@ -302,7 +310,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     auto start = std::chrono::steady_clock::now();
     for (int i = 0; i <= runs; i++)
         cp.execute(strm,
-                {ts_k_cache, ts_k_block_table, ts_query, ts_scale, ts_mask,
+                {ts_query, ts_k_cache, ts_k_block_table,  
                         ts_v_cache, ts_v_block_table},
                 {ts_output});
     strm.wait();
@@ -349,10 +357,23 @@ void bench(engine::kind ekind, dnnl_data_type_t dt, const pa_sdpa_dims_t &p,
 //     dim block_num;
 //     dim block_size;
 // };
+// | mb | hd_num | kv_grp_sz | seq_len | qry_num | hd_size | kg_sz | vgrp_sz |
+// |----|--------|-----------|---------|---------|---------|-------|---------|
+// |  1 |     32 |        32 |     384 |     384 |     128 |   128 |     128 |
+// |  1 |     32 |        32 |     385 |       1 |     128 |   128 |     128 |
+// |  1 |     32 |        32 |     512 |     512 |     128 |   128 |     128 |
+// |  1 |     32 |        32 |     513 |       1 |     128 |   128 |     128 |
+// |  1 |     32 |        32 |    1024 |    1024 |     128 |   128 |     128 |
+// |  1 |     32 |        32 |    1025 |       1 |     128 |   128 |     128 |
+// |  1 |     32 |        32 |    2048 |    2048 |     128 |   128 |     128 |
+// |  1 |     32 |        32 |    2049 |       1 |     128 |   128 |     128 |
+// tensor query = zeros({1, 1, 1, head_size * heads_num});
+// tensor key_cache = zeros({pages_num, heads_num, head_size, seq_len});
+// tensor value_cache = zeros({pages_num, heads_num, seq_len, head_size});
 
 void sdpa_perf(engine::kind ekind, int argc, char **argv) {
     // default testing parameters
-    pa_sdpa_dims_t params = {4, {8, 8, 8, 8}, 16, 64, 1, 256, 32};
+    pa_sdpa_dims_t params = {1, {384}, 1, 128, 1, 6, 64};
 
     if (argc > 2) {
         params.mb = std::atoi(argv[2]);
@@ -377,7 +398,7 @@ void sdpa_perf(engine::kind ekind, int argc, char **argv) {
         }
     }
 
-    bench(ekind, dnnl_f32, params, 2000.0 /*ms*/);
+    bench(ekind, dnnl_f16, params, 2000.0 /*ms*/);
 }
 
 int main(int argc, char **argv) {

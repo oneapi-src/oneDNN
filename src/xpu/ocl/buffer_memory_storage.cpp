@@ -34,6 +34,7 @@ status_t buffer_memory_storage_t::init_allocate(size_t size) {
             = utils::downcast<const xpu::ocl::engine_impl_t *>(engine()->impl())
                       ->context();
     cl_int err;
+    std::cout <<"size is " << size << std::endl;
     mem_object_ = clCreateBuffer_wrapper(
             context, CL_MEM_READ_WRITE, size, nullptr, &err);
     OCL_CHECK(err);
