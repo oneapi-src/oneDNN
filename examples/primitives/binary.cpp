@@ -42,9 +42,6 @@
 
 using namespace dnnl;
 
-using tag = memory::format_tag;
-using dt = memory::data_type;
-
 void binary_example(dnnl::engine::kind engine_kind) {
 
     // Create execution dnnl::engine.
@@ -78,9 +75,12 @@ void binary_example(dnnl::engine::kind engine_kind) {
     });
 
     // Create src and dst memory descriptors.
-    auto src_0_md = memory::desc(src_0_dims, dt::f32, tag::nchw);
-    auto src_1_md = memory::desc(src_1_dims, dt::f32, tag::nchw);
-    auto dst_md = memory::desc(src_0_dims, dt::f32, tag::nchw);
+    auto src_0_md = memory::desc(
+            src_0_dims, memory::data_type::f32, memory::format_tag::nchw);
+    auto src_1_md = memory::desc(
+            src_1_dims, memory::data_type::f32, memory::format_tag::nchw);
+    auto dst_md = memory::desc(
+            src_0_dims, memory::data_type::f32, memory::format_tag::nchw);
 
     // Create src memory objects.
     auto src_0_mem = memory(src_0_md, engine);
