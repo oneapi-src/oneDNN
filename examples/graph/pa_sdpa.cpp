@@ -270,18 +270,26 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     fill_random_int(v_block_table_data, p.block_num);
 
     for (int i=0; i<product(block_table_sz); i++) {
-        std::cout << k_block_table_data[i] << " " << std::endl;
-        std::cout << v_block_table_data[i] << " " << std::endl;
+        std::cout << "k_block_table_data " << k_block_table_data[i] << " " << std::endl;
+        std::cout << "v_block_table_data " << v_block_table_data[i] << " " << std::endl;
     }
     // Write data to tensor object's handle.
     write_to_dnnl_tensor(query_data.data(), ts_query);
     write_to_dnnl_tensor(k_cache_data.data(), ts_k_cache);
-    write_to_dnnl_tensor(k_block_table_data.data(), ts_k_block_table);
+    write_dt(k_block_table_data.data(), ts_k_block_table);
     // write_to_dnnl_tensor(scale_data.data(), ts_scale);
     // write_to_dnnl_tensor(mask_data.data(), ts_mask);
     write_to_dnnl_tensor(v_cache_data.data(), ts_v_cache);
-    write_to_dnnl_tensor(v_block_table_data.data(), ts_v_block_table);
+    write_dt(v_block_table_data.data(), ts_v_block_table);
 
+    auto * q_table = (float *)ts_query.get_data_handle();
+    auto * k_table = (int *)ts_k_block_table.get_data_handle();
+    auto * v_table = (int *)ts_v_block_table.get_data_handle();
+    for (int i=0; i<6; i++) {
+        std::cout << "k_table " << k_table[i] << " " << std::endl;
+        std::cout << "v_table " << v_table[i] << " " << std::endl;
+        std::cout << "q_table " << q_table[i] << " " << std::endl;
+    }
     // Warmup run.
     // Execute the compiled partition of sdpa.
     cp.execute(strm,

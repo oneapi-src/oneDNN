@@ -273,13 +273,12 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     (ugemm_kq_wg_tile_n * ugemm_kq_sg_per_wg_m * sizeof(float))
 #define S_max_slm_size (ugemm_kq_wg_tile_n * sizeof(float))
 #define ugemm_slm_size MAX(ugemm_kq_slm_size, ugemm_vs_slm_size)
-    printf("total_size = %d \n", Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size + ugemm_slm_size);
     local char slm[Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size
             + ugemm_slm_size];
     auto total_size = Q_slm_size + S_slm_size + S_sum_slm_size + S_max_slm_size
     + ugemm_slm_size;
 
-    printf("total_size = %d, Q_slm_size = %d, S_slm_size = %d, S_sum_slm_size = %d, S_max_slm_size = %d, ugemm_slm_size = %d\n", total_size, Q_slm_size, S_slm_size, S_sum_slm_size, S_max_slm_size, ugemm_slm_size);
+//     printf("total_size = %d, Q_slm_size = %d, S_slm_size = %d, S_sum_slm_size = %d, S_max_slm_size = %d, ugemm_slm_size = %d\n", total_size, Q_slm_size, S_slm_size, S_sum_slm_size, S_max_slm_size, ugemm_slm_size);
     local QRY_DATA_T *Q_slm = (local QRY_DATA_T *)&slm[0];
     local QRY_DATA_T *S_slm = (local QRY_DATA_T *)&slm[Q_slm_size];
     local float *S_sum_slm = (local float *)&slm[Q_slm_size + S_slm_size];
@@ -428,6 +427,9 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     /* Main loop over k blocks */
     int block_index_no = 0; int tile_no = 0;
     int block_no = block_indices[block_index_no];
+    for(int i=0; i<6; i++) {
+        printf("block_indices[%d] = %d\n", i, block_indices[i]);
+    }
     int valid_block_size, multiply_rows;
     int k0 = 0;
     for (int multiply_no = 0; multiply_no < num_multiplies; multiply_no++) {
