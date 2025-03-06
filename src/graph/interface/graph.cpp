@@ -31,7 +31,8 @@
 #include "graph/utils/pm/dag_check_pass.hpp"
 #include "graph/utils/pm/op_depth_check_pass.hpp"
 #include "graph/utils/pm/pass_manager.hpp"
-#include "graph/utils/utils.hpp"
+
+#include "graph/utils/json.hpp"
 
 using namespace dnnl::impl::graph;
 
@@ -199,6 +200,46 @@ status_t dnnl_graph_graph::analyze() {
     graph::pass::pass_manager_t pm(analysis_pass_reg);
     status_t ret = pm.run_passes(*this, "");
     return ret;
+}
+
+status_t dnnl_graph_graph::serialize(const std::string &filename) const {
+    const auto &fpmath = get_fpmath_mode();
+    dnnl::impl::verbose_printf(
+            "graph,info,serialize graph to a json file %s\n", filename.c_str());
+    std::ofstream of(filename);
+    utils::json::json_writer_t writer(&of);
+    writer.begin_object();
+    std::string version = std::to_string(dnnl_version()->major) + "."
+            + std::to_string(dnnl_version()->minor) + "."
+            + std::to_string(dnnl_version()->patch);
+    writer.write_keyvalue("version", version);
+    writer.write_keyvalue("engine_kind",
+            std::string(utils::engine_kind2str(get_engine_kind())));
+    writer.write_keyvalue(
+            "fpmath_mode", std::string(utils::fpmath_mode2str(fpmath.mode_)));
+    writer.write_keyvalue("fpmath_mode_apply_to_int",
+            std::string(fpmath.apply_to_int_ ? "true" : "false"));
+    std::vector<size_t> inputs_id;
+    inputs_id.reserve(get_input_values().size());
+    for (const auto &val : get_input_values()) {
+        auto lt = val->get_logical_tensor();
+        auto ltw = logical_tensor_wrapper_t(lt);
+        inputs_id.push_back(ltw.id());
+    }
+    writer.write_keyvalue("input_ports", inputs_id);
+    std::vector<size_t> outputs_id;
+    outputs_id.reserve(get_output_values().size());
+    for (const auto &val : get_output_values()) {
+        auto lt = val->get_logical_tensor();
+        auto ltw = logical_tensor_wrapper_t(lt);
+        outputs_id.push_back(ltw.id());
+    }
+    writer.write_keyvalue("output_ports", outputs_id);
+    writer.write_keyvalue("graph", get_ops());
+    writer.end_object();
+    writer.write_newline();
+
+    return graph::status::success;
 }
 
 // Deep copy a graph
