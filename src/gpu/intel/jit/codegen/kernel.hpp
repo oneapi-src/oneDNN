@@ -291,13 +291,6 @@ public:
         }
     }
 
-    void bind_external_vars(const stmt_t &kernel_body,
-            const walk_order_t &kernel_grid_walk_order,
-            expr_binding_t &expr_binding) {
-        bind_external_vars(kernel_body, expr_binding);
-        bind_kernel_grid_walk_order(kernel_grid_walk_order, expr_binding);
-    }
-
     void bind_external_vars(
             const stmt_t &kernel_body, expr_binding_t &expr_binding) {
         alloc_manager_t alloc_mgr(kernel_body);

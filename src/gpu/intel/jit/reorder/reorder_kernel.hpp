@@ -51,14 +51,9 @@ public:
         reorder_ir_builder_t builder(cfg, kernel_info, attr, dst_md);
         stmt_t body = builder.stmt();
         setup_interface(body);
-        generate_prologue();
-        expr_binding_t expr_binding(hw);
-        bind_external_vars(body, expr_binding);
 
         // Generate assembly from IR.
-        convert_ir_to_ngen<hw>(body, this, expr_binding);
-
-        generate_epilogue();
+        convert_ir_to_ngen<hw>(body, this);
     }
 };
 
