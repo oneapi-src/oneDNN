@@ -1026,7 +1026,26 @@ void cell_common_inner(const_wei_layer_cell_t wei_layer,
                         ctx.rnn.alpha, ctx.rnn.tm_scales);
                 store_vanilla_rnn(gates.ptr, gates.strides.mb, states.ptr,
                         states.strides.mb, dims.dhc, n, c, g);
-            }
+            } else if (CELL_KIND == LBR_GRU) {
+			  // AUX and SCRATCH data type is same for fwd prop
+			    __global AUX_DATA_T *scratch_cell = (__global AUX_DATA_T *)(scr_cell);
+			    __global WS_STATE_DATA_T *src_iter = h_states_tm_l;
+
+			    lbr_gru_gates_t gates = compute_gates_lbr_gru(scratch_gates, scratch_cell,
+			            bias, tm_scales, scratch_gates_ld, dhc, i, j);
+			    float Wh_b = gates.Wh_b;
+			    float G0 = gates.G[0];
+			    float G1 = gates.G[1];
+			    float G2 = gates.G[2];
+
+			    float Ht = G0 * TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)])
+			            + (1 - G0) * G2;
+
+			    h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_WS_STATE(Ht);
+
+				//store result
+				store_lbr_gru(gates.ptr, gates.strides.mb, states.ptr, states.strides.mb, dims.dhc, n, c, h_states_t_l);
+			}
         }
     }
 }
@@ -1147,7 +1166,8 @@ simple_rnn_cell_fwd(__global const WEI_LAYER_DATA_T *wei_layer_,
                            .tm_cscale = tm_cscale}};
 
 #elif CELL_KIND == LBR_GRU
-
+	 cell_ctx_t cell_ctx = {
+			.lbr_gru = {}};
 #endif
 
         cell_common(wei_layer, wei_iter, cell_layer, cell_iter, gates, states,
