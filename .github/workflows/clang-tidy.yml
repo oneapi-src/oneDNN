@@ -51,16 +51,13 @@ jobs:
         env:
           ONEDNN_ACTION: configure
 
-      - name: Check compile commands content
-        run: cat build/compile_commands.json
-
       - name: Check source files
         run: |
           touch source-check.log
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(c|cpp)$'); 
           do
             if grep -q "$file" "build/compile_commands.json"; then
-              clang-tidy -p build --header-filter='' $file 2>&1 | tee -a source-check.log
+              clang-tidy -p build $file 2>&1 | tee -a source-check.log
             fi
           done
           grep -i "warning:" source-check.log | sort -u
