@@ -148,6 +148,12 @@ partition_data_displacer_t::partition_data_displacer_t(
         while (aop.kind_ == "Add" || aop.kind_ == "Select") {
             auto *aop_out_lt = &aop.out_lts_[0];
             auto *child_op = &dg_->get_op_by_in_lt(aop_out_lt->id_);
+
+            if (child_op->kind_ == "TypeCast") {
+                auto *next_child_op
+                        = &dg_->get_op_by_in_lt(child_op->out_lts_[0].id_);
+                child_op = next_child_op;
+            }
             if (child_op->kind_ != "SoftMax") break;
 
             // Softmax must be a part of same partition as the mask. This is to
