@@ -178,6 +178,7 @@
 --wtag=any,ab,ba
 --dt=s8:s8:f16
 --attr-scales=src:common:0.5:f32+wei:per_oc:f16
+--attr-fpmath=f16:true
 4x256:256x64
 6x384:384x100
 
@@ -185,12 +186,14 @@
 --dt=s8:s4:f16
 --attr-scales=src:per_ocic:f16:1x256+wei:per_ocic:f16:128x1
 --attr-zero-points=wei:per_ocic:s4:128x1,src:per_ocic:s4:1x128+wei:per_ocic:s4:128x1
+--attr-fpmath=f16:true
 4x256:256x64
 6x256:256x100
 
 --wtag=any,ab,ba
 --dt=s8:u8:f16
 --attr-scales=src:per_ocic:f16:1x256+wei:per_ocic:f16:128x1
+--attr-fpmath=f16:true
 4x256:256x64
 6x256:256x100
 
@@ -198,6 +201,7 @@
 --dt=s8:u4:f32
 --attr-scales=src:per_ocic:f16:1x192+wei:per_ocic:f16:192x1
 --attr-zero-points=wei:per_ocic:u4:192x1,src:per_ocic:s4:1x192+wei:per_ocic:u4:192x1
+--attr-fpmath=f16:true
 12x4x576:12x576x192
 12x6x192:12x192x100
 
@@ -205,5 +209,6 @@
 --dt=s8:s4:f16
 --attr-scales=src:per_ocic:f16:1x256+wei:per_tensor:f16:128x1
 --attr-zero-points=wei:per_tensor:s4:128x1,src:per_ocic:u4:1x256+wei:per_tensor:s4:128x1
+--attr-fpmath=f16:true
 2x3x4x256:2x3x256x64
 2x3x6x256:2x3x256x100

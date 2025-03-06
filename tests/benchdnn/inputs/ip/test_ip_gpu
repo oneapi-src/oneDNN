@@ -96,6 +96,9 @@
 # regression tests
 --batch=harness_ip_regression
 
+# ref smoke test
+--batch=test_ip_smoke_ref
+
 # Test CI in Nightly
 --reset
 --batch=test_ip_ci

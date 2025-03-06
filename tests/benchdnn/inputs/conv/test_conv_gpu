@@ -188,6 +188,9 @@ mb128ic3ih230oc64oh112kh7sh2ph0
 --dir=BWD_WB
 --batch=shapes_mem_strided
 
+# ref smoke test
+--batch=test_conv_smoke_ref
+
 
 # Test layers of some key GPU DL Frameworks
 --reset
