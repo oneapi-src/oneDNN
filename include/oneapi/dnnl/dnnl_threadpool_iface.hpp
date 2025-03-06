@@ -61,7 +61,7 @@ struct threadpool_iface {
     /// waiting for the submitted closures to finish execution on its own.
     static constexpr uint64_t ASYNCHRONOUS = 1;
 
-    virtual ~threadpool_iface() {}
+    virtual ~threadpool_iface() = default;
 };
 
 } // namespace threadpool_interop
