@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -130,6 +130,8 @@ struct jit_uni_eltwise_injector_f32 {
     void prepare_table(bool gen_table = true);
     void load_table_addr() { h->mov(p_table, l_table); }
 
+    static size_t aux_vecs_count(alg_kind_t alg, bool is_fwd, float alpha);
+
 private:
     const alg_kind_t alg_;
     const float alpha_;
@@ -183,6 +185,8 @@ private:
 
     size_t aux_vecs_count();
     size_t aux_gprs_count();
+
+    Wmm vmm_aux(size_t idx);
 
     void compute_body(
             const injector_utils::vmm_index_set_iterator_t &start_idx_it,

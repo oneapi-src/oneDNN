@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -21,6 +21,31 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 namespace injector {
+
+size_t aux_vec_count(const post_ops_t &post_ops, cpu_isa_t isa, bool is_fwd) {
+    size_t res = 0;
+#define CASE_ELTWISE_SUPERSET(_isa) \
+    if (is_superset(isa, _isa)) { \
+        res = nstl::max(res, \
+                jit_uni_eltwise_injector_f32<_isa>::aux_vecs_count( \
+                        post_op.eltwise.alg, is_fwd, post_op.eltwise.alpha)); \
+        continue; \
+    }
+
+    for (int i = 0; i < post_ops.len(); i++) {
+        const auto &post_op = post_ops.entry_[i];
+        if (post_op.is_eltwise()) {
+            CASE_ELTWISE_SUPERSET(avx512_core);
+            CASE_ELTWISE_SUPERSET(avx2);
+            CASE_ELTWISE_SUPERSET(sse41);
+        }
+        // TODO: add support for other post-ops types. For now we assume that
+        // other post operations do not use vectors implicitly.
+    }
+#undef CASE_ELTWISE_SUPERSET
+
+    return res;
+}
 
 bool is_supported(const post_ops_ok_args_t &post_ops_ok_args) {
     const cpu_isa_t isa = post_ops_ok_args.isa;

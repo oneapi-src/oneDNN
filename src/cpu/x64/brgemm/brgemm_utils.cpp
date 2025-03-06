@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -169,15 +169,24 @@ status_t brgemm_blocking(brgemm_t *brg) {
                 = (brg->req_cal_comp_pads || brg->brgattr.max_top_vpad > 0
                           || brg->brgattr.max_bottom_vpad > 0)
                 && brg->zp_type_a != brgemm_broadcast_t::none;
-        int max_regs = max_isa_regs - (adj_ld_block + max_bcst_regs);
-        int max_block
-                = (brg->embd_bcst ? max_regs - 4
-                                  : ((brg->beta == 1.f || brg->beta == 0.f)
-                                                  ? max_regs
-                                                  : max_regs - 1));
-        max_block -= req_compensation;
-        max_block -= req_zp_a_comp_pads;
-        if (req_zp_a_comp_pads) max_block = nstl::min(max_block, max_regs - 5);
+
+        /////////////////////
+        const int beta_regs = !one_of(brg->beta, 1.f, 0.f);
+
+        auto max_reg_count = max_isa_regs - max_bcst_regs - beta_regs
+                - req_compensation - req_zp_a_comp_pads;
+        if (req_zp_a_comp_pads)
+            max_reg_count = nstl::min(
+                    max_reg_count, max_isa_regs - max_bcst_regs - 5);
+
+        const int postops_regs = brg->attr
+                ? injector::aux_vec_count(
+                        brg->attr->post_ops_, brg->isa_impl, true)
+                : 0;
+        int max_block = max_reg_count - nstl::max(adj_ld_block, postops_regs);
+        //assert(false);
+        //////////////
+
         if (brg->is_bf16_emu)
             max_block
                     = nstl::min(max_block, 28); // bf16_emu only for avx512_core

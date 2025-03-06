@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,6 +45,8 @@ namespace injector {
  */
 using lambda_jit_injectors_t
         = std::map<dnnl_primitive_kind_t, std::function<void()>>;
+
+size_t aux_vec_count(const post_ops_t &post_ops, cpu_isa_t isa, bool is_fwd);
 
 struct post_ops_ok_args_t;
 /*

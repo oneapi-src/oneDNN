@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -189,6 +189,12 @@ void jit_uni_eltwise_injector_f32<isa, Wmm>::assign_regs() {
         ymm_tmp = Ymm(preserved_vec_idxs[vecs_to_preserve - 1]);
         xmm_tmp = Xmm(preserved_vec_idxs[vecs_to_preserve - 1]);
     }
+}
+
+template <cpu_isa_t isa, typename Wmm>
+Wmm jit_uni_eltwise_injector_f32<isa, Wmm>::vmm_aux(size_t idx) {
+    assert(idx < (vecs_to_preserve - preserve_vec_for_avx));
+    return Vmm(preserved_vec_idxs[idx]);
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -836,16 +842,19 @@ template <cpu_isa_t isa, typename Wmm>
 void jit_uni_eltwise_injector_f32<isa, Wmm>::swish_compute_vector_fwd(
         const Vmm &vmm_src) {
     // Save src data on stack for later usage
-    h->sub(h->rsp, vlen);
-    h->uni_vmovups(h->ptr[h->rsp], vmm_src);
+    //h->sub(h->rsp, vlen);
+    //h->uni_vmovups(h->ptr[h->rsp], vmm_src);
+    h->uni_vmovups(vmm_aux(4), vmm_src);
+
     // x*alpha
     h->uni_vmulps(vmm_src, vmm_src, table_val(alpha));
     // sigmoid(x*alpha)
     logistic_compute_vector_fwd(vmm_src);
     // x*sigmoid(alpha*x)
-    h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
-    h->add(h->rsp, vlen);
-    h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+    //h->uni_vmovups(vmm_aux0, h->ptr[h->rsp]);
+    //h->add(h->rsp, vlen);
+    //h->uni_vmulps(vmm_src, vmm_src, vmm_aux0);
+    h->uni_vmulps(vmm_src, vmm_src, vmm_aux(4));
 }
 
 template <cpu_isa_t isa, typename Wmm>
@@ -1648,7 +1657,7 @@ size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count() {
             case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp: return 3;
             case eltwise_gelu_tanh: return 5;
-            case eltwise_swish: return 4;
+            case eltwise_swish: return 5;
             case eltwise_log: return 5;
             case eltwise_clip:
             case eltwise_clip_v2_use_dst_for_bwd:
@@ -1683,7 +1692,85 @@ size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count() {
             case eltwise_exp_use_dst_for_bwd: return 0;
             case eltwise_exp: return 3;
             case eltwise_gelu_tanh: return 5;
-            case eltwise_swish: return 4;
+            case eltwise_swish: return 5;
+            case eltwise_log: return 1;
+            case eltwise_clip:
+            case eltwise_clip_v2_use_dst_for_bwd:
+            case eltwise_clip_v2: return 2;
+            case eltwise_pow: return 2;
+            case eltwise_gelu_erf: return 5;
+            case eltwise_hardswish: return 2;
+            case eltwise_hardsigmoid: return 2;
+            default: assert(!"unsupported eltwise algorithm");
+        }
+    }
+
+    return 0;
+}
+
+template <cpu_isa_t isa, typename Wmm>
+size_t jit_uni_eltwise_injector_f32<isa, Wmm>::aux_vecs_count(
+        alg_kind_t alg_, bool is_fwd_, float alpha_) {
+    using namespace alg_kind;
+    if (is_fwd_) {
+        switch (alg_) {
+            case eltwise_relu_use_dst_for_bwd:
+            case eltwise_relu: return (alpha_ == 0.f) ? 0 : 2;
+            case eltwise_elu_use_dst_for_bwd:
+            case eltwise_elu: return 4;
+            case eltwise_tanh_use_dst_for_bwd:
+            case eltwise_tanh: return 5;
+            case eltwise_square: return 0;
+            case eltwise_abs: return 0;
+            case eltwise_sqrt_use_dst_for_bwd:
+            case eltwise_sqrt: return 0;
+            case eltwise_linear: return 1;
+            case eltwise_bounded_relu: return 0;
+            case eltwise_soft_relu:
+            case eltwise_soft_relu_v2:
+            case eltwise_logsigmoid: return 4;
+            case eltwise_mish: return 4;
+            case eltwise_logistic_use_dst_for_bwd:
+            case eltwise_logistic: return 4;
+            case eltwise_exp_use_dst_for_bwd:
+            case eltwise_exp: return 3;
+            case eltwise_gelu_tanh: return 5;
+            case eltwise_swish: return 5;
+            case eltwise_log: return 5;
+            case eltwise_clip:
+            case eltwise_clip_v2_use_dst_for_bwd:
+            case eltwise_clip_v2: return 0;
+            case eltwise_pow: return 2;
+            case eltwise_gelu_erf: return 5;
+            case eltwise_round: return 0;
+            case eltwise_hardswish: return 1;
+            case eltwise_hardsigmoid: return 0;
+            default: assert(!"unsupported eltwise algorithm");
+        }
+    } else {
+        switch (alg_) {
+            case eltwise_relu_use_dst_for_bwd:
+            case eltwise_relu: return 1;
+            case eltwise_elu_use_dst_for_bwd: return 1;
+            case eltwise_elu: return 3;
+            case eltwise_tanh_use_dst_for_bwd: return 1;
+            case eltwise_tanh: return 5;
+            case eltwise_square: return 0;
+            case eltwise_abs: return 0;
+            case eltwise_sqrt_use_dst_for_bwd:
+            case eltwise_sqrt: return 1;
+            case eltwise_linear: return 0;
+            case eltwise_bounded_relu: return 1;
+            case eltwise_soft_relu:
+            case eltwise_soft_relu_v2:
+            case eltwise_logsigmoid: return 4;
+            case eltwise_mish: return 4;
+            case eltwise_logistic_use_dst_for_bwd: return 1;
+            case eltwise_logistic: return 4;
+            case eltwise_exp_use_dst_for_bwd: return 0;
+            case eltwise_exp: return 3;
+            case eltwise_gelu_tanh: return 5;
+            case eltwise_swish: return 5;
             case eltwise_log: return 1;
             case eltwise_clip:
             case eltwise_clip_v2_use_dst_for_bwd:
