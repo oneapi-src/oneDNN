@@ -792,6 +792,10 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     if (!everyone_is(data_type::f32, src_d.data_type(), weights_d.data_type(),
                 dst_d.data_type()))
         return status::unimplemented;
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, src_d, weights_d, dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
 
     const int regs = 28;
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
@@ -822,13 +826,6 @@ status_t jit_avx512_common_conv_fwd_kernel::init_conf(jit_conv_conf_t &jcp,
     jcp.stride_d = (ndims == 5) ? cd.strides[0] : 1;
     jcp.stride_h = (ndims == 3) ? 1 : cd.strides[ndims - 4];
     jcp.stride_w = cd.strides[ndims - 3];
-
-    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
-    // TODO: change data type of jcp fields to size_t
-    VDISPATCH_CONV_IC(!((ndims == 5 && cd.dilates[ndims - 5] > INT_MAX)
-                              || (ndims >= 4 && cd.dilates[ndims - 4] > INT_MAX)
-                              || (cd.dilates[ndims - 3] > INT_MAX)),
-            VERBOSE_BAD_PARAM, "dilates");
 
     jcp.dilate_d = (ndims == 5) ? cd.dilates[0] : 0;
     jcp.dilate_h = (ndims == 3) ? 0 : cd.dilates[ndims - 4];
@@ -1859,6 +1856,10 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32::init_conf(
     if (!everyone_is(data_type::f32, diff_dst_d.data_type(),
                 weights_d.data_type(), diff_src_d.data_type()))
         return status::unimplemented;
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, diff_src_d, weights_d, diff_dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
 
     const bool with_groups = weights_d.ndims() == diff_src_d.ndims() + 1;
     int ndims = diff_src_d.ndims();
@@ -3906,6 +3907,10 @@ status_t jit_avx512_common_conv_bwd_weights_kernel_f32::init_conf(
     if (!utils::everyone_is(data_type::f32, src_d.data_type(),
                 diff_weights_d.data_type(), diff_dst_d.data_type()))
         return status::unimplemented;
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, src_d, diff_weights_d, diff_dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
 
     const bool with_groups = diff_weights_d.ndims() == src_d.ndims() + 1;
     int ndims = src_d.ndims();

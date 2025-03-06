@@ -276,6 +276,25 @@ inline status_t init_tag(format_tag_t &tag, const memory_desc_wrapper &mdw,
     return tag == tag_value ? status::success : status::unimplemented;
 }
 
+inline bool has_large_size(const convolution_desc_t &cd,
+        const memory_desc_wrapper &src_d, const memory_desc_wrapper &weights_d,
+        const memory_desc_wrapper &dst_d) {
+    auto is_large = [](const dim_t val) { return val > INT_MAX; };
+
+    if (utils::one_of(true, is_large(src_d.nelems()),
+                is_large(weights_d.nelems()), is_large(dst_d.nelems())))
+        return true;
+
+    const int ndims = src_d.ndims();
+    for (int d = 3; d <= ndims; d++) {
+        if (utils::one_of(true, is_large(cd.strides[ndims - d]),
+                    is_large(cd.padding[0][ndims - d]),
+                    is_large(cd.dilates[ndims - d])))
+            return true;
+    }
+    return false;
+}
+
 struct jit_conv_call_s {
     const void *src; /* hack, non-const for backward_data */
     const void *dst; /* hack, non-const for forward */
