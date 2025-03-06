@@ -529,6 +529,18 @@ struct sycl_group_norm_conf_t {
     sycl_post_ops_t post_ops;
 };
 
+struct sycl_gnorm_bwd_conf_t {
+    xpu::sycl::md_t src_desc;
+    xpu::sycl::md_t diff_src_desc;
+    xpu::sycl::md_t diff_dst_desc;
+    int32_t num_groups;
+    int32_t num_channels_per_group;
+    bool scale_diff_required;
+    bool bias_diff_required;
+    bool used_global_stats;
+    float eta;
+};
+
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_binary_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_prelu_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_shuffle_conf_t);
@@ -550,6 +562,7 @@ CHECK_SYCL_KERNEL_ARG_TYPE(sycl_reduction_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_rnn_copy_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_rnn_bias_conf_t);
 CHECK_SYCL_KERNEL_ARG_TYPE(sycl_group_norm_conf_t);
+CHECK_SYCL_KERNEL_ARG_TYPE(sycl_gnorm_bwd_conf_t);
 
 } // namespace sycl
 } // namespace generic

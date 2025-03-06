@@ -42,6 +42,7 @@ impl_list_map REG_GNORM_P({
     },
     {{backward}, REG_BWD_PK({
         GPU_INSTANCE_INTEL(intel::ocl::ref_group_normalization_bwd_t)
+        GPU_INSTANCE_GENERIC_SYCL(generic::sycl::ref_group_normalization_bwd_t)
         nullptr,
         })
     },

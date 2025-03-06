@@ -52,6 +52,30 @@ private:
         return dynamic_cast<pd_t *>(primitive_t::pd().get());
     }
 };
+
+struct ref_group_normalization_bwd_t : public gpu::generic::sycl::primitive_t {
+    using gpu::generic::sycl::primitive_t::primitive_t;
+
+    struct pd_t : public group_normalization_bwd_pd_t {
+        using group_normalization_bwd_pd_t ::group_normalization_bwd_pd_t;
+        DECLARE_COMMON_PD_T("ref:sycl:group_normalization_bwd",
+                ref_group_normalization_bwd_t);
+
+        status_t init(impl::engine_t *engine);
+
+        ::sycl::nd_range<1> launch_range;
+        sycl_gnorm_bwd_conf_t conf_;
+    };
+
+    kernel_t kernel_;
+    status_t init(impl::engine_t *engine) override;
+    status_t execute(const exec_ctx_t &ctx) const override;
+
+    const pd_t *pd() const {
+        return dynamic_cast<pd_t *>(primitive_t::pd().get());
+    }
+};
+
 } // namespace dnnl::impl::gpu::generic::sycl
 
 #endif
