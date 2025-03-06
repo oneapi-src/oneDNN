@@ -19,6 +19,7 @@
 
 #ifndef ONEAPI_DNNL_DNNL_UKERNEL_HPP
 #define ONEAPI_DNNL_DNNL_UKERNEL_HPP
+// NOLINTBEGIN(readability-identifier-naming)
 
 #include "oneapi/dnnl/dnnl.hpp"
 #include "oneapi/dnnl/dnnl_ukernel.h"
@@ -467,4 +468,5 @@ struct transform : public handle<dnnl_transform_t> {
 
 /// @} dnnl_api
 
+// NOLINTEND(readability-identifier-naming)
 #endif /* ONEAPI_DNNL_DNNL_UKERNEL_HPP */
