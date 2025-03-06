@@ -51,6 +51,9 @@ jobs:
         env:
           ONEDNN_ACTION: configure
 
+      - name: Check compile commands content
+        run: cat build/compile_commands.json
+
       - name: Check source files
         run: |
           touch source-check.log
