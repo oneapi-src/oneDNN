@@ -1196,6 +1196,11 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel::init_conf(
     const int simd_w = cpu_isa_traits<avx512_core>::vlen / sizeof(float);
     const int ndims = src_d.ndims();
 
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, src_d, weights_d, dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
+
     jcp.nthr = nthreads;
     jcp.isa = mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                         : bf16_emulation_t::get_isa();
