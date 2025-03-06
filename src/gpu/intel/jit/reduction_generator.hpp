@@ -94,7 +94,7 @@ public:
         ra().release(outer_off);
 
         ngen::GRFRange acc = ra().alloc_range(nregs);
-        reduction_injector_f32_t<hw> reduce(
+        reduction_injector_f32_t<generator_t<hw>> reduce(
                 *this, alg, ra(), device_info.stepping_id());
         reduce.compute(src_addr, acc, stride, iters);
         ra().release(src_addr);

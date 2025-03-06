@@ -54,8 +54,6 @@ inline ngen::ConditionModifier cmp_op_to_ngen(op_kind_t op_kind) {
 template <typename ngen_generator_t>
 class ir_to_ngen_t : public ir_visitor_t {
 public:
-    static constexpr auto hw = ngen_generator_t::hw;
-
     ir_to_ngen_t(ngen_generator_t *host, const expr_binding_t &expr_binding)
         : host_(host)
         , expr_binding_(expr_binding)
@@ -75,6 +73,8 @@ public:
             = default;
 #endif
 
+    ngen::HW hw() const { return host_->getHardware(); }
+
     void _visit(const alloc_t &obj) override {
         auto scope = register_scope();
         bool do_alloc = (obj.kind == alloc_kind_t::grf);
@@ -88,7 +88,7 @@ public:
             } else if (obj.size * 8 <= max_ngen_type_bits) {
                 rbd = scope.alloc_reg_data(type_t::u(obj.size * 8));
             } else {
-                const int regs = utils::div_up(obj.size, ngen::GRF::bytes(hw));
+                const int regs = utils::div_up(obj.size, ngen::GRF::bytes(hw()));
                 rbd = scope.alloc_reg_buf(regs);
             }
             if (obj.has_attr<grf_permute_attr_t>()) {
@@ -325,15 +325,15 @@ private:
             const ngen::RegData &_src0, const ngen::RegData &_src1,
             const ngen::RegData &_src2, bool is_dpas = false) {
         int esize = mod.getExecSize();
-        int hw_simd = (hw >= ngen::HW::XeHPC ? 16 : 8);
-        auto shift = [](const ngen::RegData &rd, int exec_off) {
+        int hw_simd = (hw() >= ngen::HW::XeHPC ? 16 : 8);
+        auto shift = [this](const ngen::RegData &rd, int exec_off) {
             if (exec_off == 0 || rd.isNull()) return rd;
             int type_size = ngen::getBytes(rd.getType());
             int w = (exec_off % rd.getWidth());
             int h = (exec_off / rd.getWidth());
             int off = rd.getByteOffset()
                     + (w * rd.getHS() + h * rd.getVS()) * type_size;
-            int grf_size = ngen::GRF::bytes(hw);
+            int grf_size = ngen::GRF::bytes(hw());
             int shifted_base = rd.getBase() + off / grf_size;
             int shifted_off = off % grf_size;
             auto ret = rd;
@@ -345,15 +345,15 @@ private:
             auto src0 = shift(_src0, i);
             auto src1 = shift(_src1, i);
             auto src2 = shift(_src2, i);
-            bool same_bank01 = ngen::Bundle::same_bank(hw, src0, src1);
-            bool same_bank02 = ngen::Bundle::same_bank(hw, src0, src2);
+            bool same_bank01 = ngen::Bundle::same_bank(hw(), src0, src1);
+            bool same_bank02 = ngen::Bundle::same_bank(hw(), src0, src2);
             if (is_dpas) {
                 if (same_bank02) bank_conflicts_++;
             } else {
                 if (same_bank01 && same_bank02) bank_conflicts_++;
-                if (ngen::Bundle::conflicts(hw, src0, src1)
-                        || ngen::Bundle::conflicts(hw, src0, src2)
-                        || ngen::Bundle::conflicts(hw, src1, src2)) {
+                if (ngen::Bundle::conflicts(hw(), src0, src1)
+                        || ngen::Bundle::conflicts(hw(), src0, src2)
+                        || ngen::Bundle::conflicts(hw(), src1, src2)) {
                     bundle_conflicts_++;
                 }
             }
@@ -509,7 +509,7 @@ private:
             gpu_assert(dst.byte_offset() == src0.getByteOffset())
                     << "dst/src0 must be aligned to the same GRF offset.";
             align_src_dst_offset(host_, scope, mod, dst, src1, src2);
-            if (hw < ngen::HW::XeLP
+            if (hw() < ngen::HW::XeLP
                     && (ngen_is_dw(to_ngen(mad_func.dst_type))
                             || mad_func.dst_type == type_t::f64()
                             || (src1_width == 1 && src2_width == 1))) {
@@ -517,7 +517,7 @@ private:
                 // Use mul/add sequence instead.
                 auto tmp = scope.alloc_range(
                         (mad_func.exec_size * mad_func.dst_type.size())
-                        / ngen::GRF::bytes(hw));
+                        / ngen::GRF::bytes(hw()));
                 auto reg = tmp[0].setType(to_ngen(mad_func.dst_type));
                 host_->mul(mod, reg, src1, src2);
                 host_->add(mod, dst, reg, src0);
@@ -536,7 +536,7 @@ private:
             const ngen_operand_t &pattern = {}) const {
         auto &rd = buf_op.reg_buf_data();
         type_t type = (pattern.is_invalid() ? type_t::f32() : type_t::u32());
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         int step = 2 * grf_size;
         for (int i = 0; i < size; i += step) {
             step = std::min(step, size - i);
@@ -575,12 +575,12 @@ private:
                 || send_func.is_atomic());
 
         // Reorder buffer to a dense buffer for store.
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         int regs = utils::div_up(size, grf_size);
 
         auto tmp = scope.alloc_range(regs);
 
-        int dwords = ngen::GRF::bytes(hw) / sizeof(int32_t);
+        int dwords = ngen::GRF::bytes(hw()) / sizeof(int32_t);
         int max_step = 2;
         for (int i = 0; i < regs;) {
             auto sub_buf = buf.format(i * grf_size);
@@ -616,7 +616,7 @@ private:
         send_impl_t cmpwr(cmpwr_send);
         bool is_df = send_func.type.kind() == type_kind_t::qword;
 
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         int regs = utils::div_up(size, grf_size);
 
         auto new_val = scope.alloc_range(2 * regs);
@@ -691,8 +691,8 @@ private:
                 mod |= flag;
             }
         }
-        if ((hw <= ngen::HW::XeLP && send_func.is_atomic())
-                || (hw == ngen::HW::XeHPG && send_func.is_atomic()
+        if ((hw() <= ngen::HW::XeLP && send_func.is_atomic())
+                || (hw() == ngen::HW::XeHPG && send_func.is_atomic()
                         && send_func.type.kind() == type_kind_t::qword
                         && !with_atomic_fp64_)) {
             send_atomic_add_emu(
@@ -708,7 +708,7 @@ private:
         auto &src_op = reorder_t::arg_src_buf(args);
         auto &dst_op = reorder_t::arg_dst_buf(args);
 
-        reorder_impl_t reorder_impl(hw, reorder_func);
+        reorder_impl_t reorder_impl(hw(), reorder_func);
         reorder_impl.emit(
                 host_, scope, src_op.reg_buf_data(), dst_op.reg_buf_data());
     }
@@ -718,24 +718,24 @@ private:
         auto &src_op = reduce_t::arg_src_buf(args);
         auto &dst_op = reduce_t::arg_dst_buf(args);
 
-        reduce_impl_t reduce_impl(hw, reduce_func, simd_size_);
+        reduce_impl_t reduce_impl(hw(), reduce_func, simd_size_);
         reduce_impl.emit(
                 host_, scope, src_op.reg_buf_data(), dst_op.reg_buf_data());
     }
 
     void eltwise(ngen_register_scope_t &scope, const eltwise_t &func,
             const std::vector<ngen_operand_t> &args) {
-        int elems = to_cpp<int>(hw, eltwise_t::arg_elems(args));
+        int elems = to_cpp<int>(hw(), eltwise_t::arg_elems(args));
         auto &data_op = eltwise_t::arg_data(args);
         const auto &data_rd = data_op.reg_buf_data();
 
-        eltwise_injector_f32_t<hw> inj(host_, func.alg_kind, func.alpha,
+        eltwise_injector_f32_t<ngen_generator_t> inj(host_, func.alg_kind, func.alpha,
                 func.beta, func.scale, eu_count_);
         auto scratch = scope.alloc_range(inj.preferred_scratch_regs());
         inj.set_scratch(scratch);
         inj.prepare();
 
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         int f_size = sizeof(float);
         int step = 2 * grf_size / f_size;
 
@@ -764,10 +764,10 @@ private:
                         = utils::rnd_up(cur_elems * f_size, grf_size) / f_size;
                 auto tmp = i_scope.alloc_reg_data(type_t::f32(full_elems));
                 emit_reorder_1d_tile(
-                        hw, host_, i_scope, cur_elems, rd, 1, tmp, 1);
+                        hw(), host_, i_scope, cur_elems, rd, 1, tmp, 1);
                 do_eltwise(tmp, full_elems * f_size / grf_size);
                 emit_reorder_1d_tile(
-                        hw, host_, i_scope, cur_elems, tmp, 1, rd, 1);
+                        hw(), host_, i_scope, cur_elems, tmp, 1, rd, 1);
             } else {
                 do_eltwise(rd, cur_elems * f_size / grf_size);
             }
@@ -778,13 +778,15 @@ protected:
     ngen_operand_t eval(const expr_t &e, ngen_register_scope_t &scope,
             const ngen_operand_t &dst_operand = ngen_operand_t(),
             bool fill_mask0 = false) const {
-        expr_evaluator_t<hw> expr_evaluator(host_, expr_binding_, scope);
+        expr_evaluator_t<ngen_generator_t> expr_evaluator(
+                host_, expr_binding_, scope);
         return expr_evaluator.eval(e, dst_operand, fill_mask0);
     }
 
     std::vector<ngen_operand_t> eval(const std::vector<expr_t> &exprs,
             ngen_register_scope_t &scope) const {
-        expr_evaluator_t<hw> expr_evaluator(host_, expr_binding_, scope);
+        expr_evaluator_t<ngen_generator_t> expr_evaluator(
+                host_, expr_binding_, scope);
         return expr_evaluator.eval(exprs);
     }
 
@@ -804,12 +806,14 @@ private:
 };
 
 // Evaluates expression by emitting instructions with nGEN.
-template <ngen::HW hw>
+template <typename ngen_generator_t>
 class expr_evaluator_t : public ir_visitor_t {
 public:
-    expr_evaluator_t(ir_kernel_t<hw> *host, const expr_binding_t &expr_binding,
+    expr_evaluator_t(ngen_generator_t *host, const expr_binding_t &expr_binding,
             ngen_register_scope_t &scope)
         : host_(host), expr_binding_(expr_binding), scope_(scope) {}
+
+    constexpr ngen::HW hw() const { return host_->getHardware(); }
 
     bool is_int_up_convert(const expr_t &e, type_t &type) const {
         auto it = int_up_converts_.find(e);
@@ -948,7 +952,7 @@ public:
                         // mul(q, d, d) instruction on XeHP. For some reason
                         // the result is incorrect when dst and src0 are
                         // accessed from the same register.
-                        if (hw > ngen::HW::XeLP)
+                        if (hw() > ngen::HW::XeLP)
                             host_->sync(ngen::SyncFunction::nop,
                                     ngen::SWSB<uint64_t>(1));
                     } else {
@@ -1284,7 +1288,7 @@ private:
             }
             case op_kind_t::_and: host_->eand(mod, dst, src0, src1); break;
             case op_kind_t::_prelu: {
-                int grf_size = ngen::GRF::bytes(hw);
+                int grf_size = ngen::GRF::bytes(hw());
                 int esize = mod.getExecSize();
                 int off = src0.reg_data().getByteOffset();
                 int regs = utils::div_up(
@@ -1380,7 +1384,7 @@ private:
             if (data_type != rbd.type()) return false;
         }
 
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         auto diff_bytes = [&](const ngen_operand_t &a,
                                   const ngen_operand_t &b) {
             auto a_rd = a.reg_data();
@@ -1409,7 +1413,7 @@ private:
             int regs = utils::div_up(stride_bytes * 2, grf_size);
             if (regs > 2) return false;
             rd.setRegion(stride_bytes / type_size, elems / 2, 0);
-            reg_buf_t rb(hw, ngen::GRFRange(rd.getBase(), regs));
+            reg_buf_t rb(hw(), ngen::GRFRange(rd.getBase(), regs));
             bind(obj, reg_buf_data_t(rb, rd));
             return true;
         }
@@ -1430,7 +1434,7 @@ private:
             int regs = utils::div_up(stride_bytes * elems / 2, grf_size);
             if (regs > 2) return false;
             rd.setRegion(0, elems / 2, stride_bytes / type_size);
-            reg_buf_t rb(hw, ngen::GRFRange(rd.getBase(), regs));
+            reg_buf_t rb(hw(), ngen::GRFRange(rd.getBase(), regs));
             bind(obj, reg_buf_data_t(rb, rd));
             return true;
         }
@@ -1512,7 +1516,7 @@ private:
         auto &dst_rbd = dst.reg_buf_data();
         int dst_stride = dst_rbd.hs();
         int w_size = sizeof(uint16_t);
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         auto tmp = scope_.alloc_reg_buf_data(1);
         auto w_type = (use_uv) ? ngen::DataType::uw : ngen::DataType::w;
         for (int i = 0; i < obj.elems(); i += esize) {
@@ -1550,7 +1554,7 @@ private:
         return true;
     }
 
-    ir_kernel_t<hw> *host_;
+    ngen_generator_t *host_;
     expr_binding_t expr_binding_;
     ngen_register_scope_t &scope_;
     bool allow_vert_stride_region_ = true;

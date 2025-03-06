@@ -39,14 +39,18 @@ inline bool reduction_injector_f32_is_supported(alg_kind_t alg) {
             reduction_min, reduction_mul);
 }
 
-template <gpu_gen_t hw>
+template <typename ngen_generator_t>
 struct reduction_injector_f32_t {
-    reduction_injector_f32_t(generator_t<hw> &host, alg_kind_t alg,
+    reduction_injector_f32_t(ngen_generator_t &host, alg_kind_t alg,
             reg_allocator_t &ra_, int stepping_id)
-        : emu_strategy(hw, stepping_id), alg_(alg), h(host), ra(ra_) {
+        : emu_strategy(host.getHardware(), stepping_id)
+        , alg_(alg)
+        , h(host)
+        , ra(ra_) {
         assert(reduction_injector_f32_is_supported(alg_));
     }
 
+    ngen::HW hw() const { return h.getHardware(); }
     // src_ptr: GRF whose 1st qword subregister holds the first address to be loaded from
     // acc: Potentially uninitialized GRFRange to store values in
     // stride: Number of elements to increment the pointer by between iterations
@@ -61,26 +65,26 @@ private:
     void eload(const ngen::GRFRange &dst, const ngen::GRF &base_src_addr);
 
     // Emulation functions
-    void emov(generator_t<hw> &host, const ngen::InstructionModifier &mod,
+    void emov(ngen_generator_t &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::Immediate &src0);
-    void emov(generator_t<hw> &host, const ngen::InstructionModifier &mod,
+    void emov(ngen_generator_t &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0);
-    void eadd(generator_t<hw> &host, const ngen::InstructionModifier &mod,
+    void eadd(ngen_generator_t &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0,
             const ngen::Immediate &src1);
-    void eadd(generator_t<hw> &host, const ngen::InstructionModifier &mod,
+    void eadd(ngen_generator_t &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0,
             const ngen::RegData &src1);
-    void emul(generator_t<hw> &host, const ngen::InstructionModifier &mod,
+    void emul(ngen_generator_t &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0,
             const ngen::Immediate &src1);
-    void emul(generator_t<hw> &host, const ngen::InstructionModifier &mod,
+    void emul(ngen_generator_t &host, const ngen::InstructionModifier &mod,
             const ngen::RegData &dst, const ngen::RegData &src0,
             const ngen::RegData &src1);
     EmulationStrategy emu_strategy;
 
     const alg_kind_t alg_;
-    generator_t<hw> &h;
+    ngen_generator_t &h;
     reg_allocator_t &ra;
 
     void sum_fwd(int simd, const ngen::GRF &acc, const ngen::GRF &val);
