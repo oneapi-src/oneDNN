@@ -141,7 +141,7 @@ void single_prompt_two_page_problem() {
 }
 
 void two_prompt_two_page_problem() {
-    const int num_queries = 5, max_num_blocks = 2;
+    const int num_queries = 5;
 
     tensor prompt_lens = cast(tensor({3, 2}, {1, 1, 1, 2}), dt::s32);
     tensor subsequence_begins = cast(tensor({0, 3, 5}, {1, 1, 1, 3}), dt::s32);
@@ -156,7 +156,7 @@ void two_prompt_two_page_problem() {
     tensor value_cache = read(FORT "tensors/value_cache.txt");
     tensor output = zeros({1, 1, num_queries, head_size});
     dnnl::sdpa_micro::primitive_desc sdpa_pd
-            = sdpa_micro::primitive_desc(global_engine, max_num_blocks,
+            = sdpa_micro::primitive_desc(global_engine, 5 * 4,
                     query.md_, key_cache.md_, value_cache.md_, output.md_,
                     tensor().md_, prompt_lens.md_, subsequence_begins.md_,
                     block_indices.md_, block_indices_begins.md_);
@@ -452,26 +452,19 @@ int main(int argc, char **argv) {
     global_engine = dnnl::engine(dnnl::engine::kind::gpu, 0);
     global_engine_stream = dnnl::stream(global_engine);
 
-    // prefill
-    for (int head_size : {128}) {
-        for (int seq_len : {384, 512, 1024, 2048, 4096}) {
-            prefill(seq_len, head_size, 64);
-        }
-    }
+    // the following should output:
+    //
+    //    1 1 5 4 [f16]
+    //    Legend:
+    //      0: 0.174927
+    //      1: 0.475342
 
-    // generate
-    for (int head_size : {128}) {
-        for (int seq_len : {385, 513, 1025, 2049, 4097}) {
-            generate(seq_len, head_size, 64);
-        }
-    }
-
-    // combined
-    for (int head_size : {128}) {
-        for (int context_len : {384, 1024, 2048, 4096}) {
-            combined(context_len, head_size, 64); // query len 129
-        }
-    }
+    //    (0,0)
+    //      1  0  0  0  1
+    //      0  1  0  0  0
+    //      0  0  1  0  0
+    //      0  0  0  1  0
+    two_prompt_two_page_problem();
 
     return 0;
 }
