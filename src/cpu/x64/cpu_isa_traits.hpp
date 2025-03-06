@@ -30,7 +30,7 @@
 
 #define XBYAK64
 #define XBYAK_NO_OP_NAMES
-/* in order to make selinux happy memory that would be marked with X-bit should
+/*a in order to make selinux happy memory that would be marked with X-bit should
  * be obtained with mmap */
 #define XBYAK_USE_MMAP_ALLOCATOR
 

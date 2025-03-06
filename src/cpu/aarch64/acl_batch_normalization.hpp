@@ -38,7 +38,7 @@ struct acl_batch_normalization_obj_t {
 };
 
 struct acl_batch_normalization_conf_t {
-    // src and dst
+    //a src and dst
     arm_compute::TensorInfo data_info;
     // TensorInfo for statistics (mean and/or variance), shift and scale
     arm_compute::TensorInfo stats_info;
