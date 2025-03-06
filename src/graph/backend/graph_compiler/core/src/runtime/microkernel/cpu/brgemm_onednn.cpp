@@ -525,21 +525,6 @@ struct brg_desc_safe_t {
             brgemm_desc_set_attr(&desc, dnnl_brg_attrs);
         }
 
-        found_kernel->is_amx_ = false;
-        char palette_buffer[PALETTE_SIZE];
-        status = brgemm_init_tiles(desc, palette_buffer);
-        if (status == dnnl::impl::status::success) {
-            auto itr_pair = palettes_.insert(palette_ptr_t(palette_buffer));
-            found_kernel->palette_ = itr_pair.first->ptr_;
-            amx_tile_configure(found_kernel->palette_);
-            dnnl::impl::graph::gc::runtime::thread_local_buffer_t::tls_buffer()
-                    .amx_buffer_.cur_palette
-                    = nullptr;
-            found_kernel->is_amx_ = true;
-        } else {
-            found_kernel->palette_ = nullptr;
-        }
-
         // set brgemm post ops.
         if (postops_setting != nullptr) {
             dnnl_primitive_attr dnnl_pattr;
@@ -563,11 +548,26 @@ struct brg_desc_safe_t {
             status = brgemm_desc_set_postops(
                     &desc, &dnnl_pattr, &dnnl_dst_md, arg.LDC, dnnl_bias_dtype);
             assert(status == dnnl::impl::status::success);
-            // use local vars' lifetime
-            status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
-        } else {
-            status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
         }
+        status = brgemm_desc_finalize(&desc);
+        assert(status == dnnl::impl::status::success);
+
+        found_kernel->is_amx_ = false;
+        char palette_buffer[PALETTE_SIZE];
+        status = brgemm_init_tiles(desc, palette_buffer);
+        if (status == dnnl::impl::status::success) {
+            auto itr_pair = palettes_.insert(palette_ptr_t(palette_buffer));
+            found_kernel->palette_ = itr_pair.first->ptr_;
+            amx_tile_configure(found_kernel->palette_);
+            dnnl::impl::graph::gc::runtime::thread_local_buffer_t::tls_buffer()
+                    .amx_buffer_.cur_palette
+                    = nullptr;
+            found_kernel->is_amx_ = true;
+        } else {
+            found_kernel->palette_ = nullptr;
+        }
+
+        status = brgemm_kernel_create(&found_kernel->brg_kernel_, desc);
         assert(status == dnnl::impl::status::success);
 #ifdef SC_KERNEL_PROFILE
         found_kernel->flops_ = 2 * M * K * N;
