@@ -123,6 +123,7 @@ public:
     }
 
     void setRegisterCount(int rcount) { ra.setRegisterCount(rcount); }
+    int getRegisterCount() { return ra.getRegisterCount(); }
 
 #ifdef DNNL_DEV_MODE
     int get_peak_regs() const { return peak_regs; }

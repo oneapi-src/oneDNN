@@ -64,7 +64,7 @@ public:
     }
 
     static bank_conflict_allocation_t create(
-            reg_allocator_t &ra, int regs, const bank_conflict_attr_t &_attr);
+            reg_allocator_t &ra, const bank_conflict_attr_t &_attr);
 
 private:
     int refs_ = 0;

@@ -635,7 +635,8 @@ reg_mask_t create_available_reg_mask(
 } // namespace
 
 bank_conflict_allocation_t bank_conflict_allocation_t::create(
-        reg_allocator_t &ra, int regs, const bank_conflict_attr_t &attr) {
+        reg_allocator_t &ra, const bank_conflict_attr_t &attr) {
+    int regs = ra.getRegisterCount();
     hw_context_t hw_ctx(ra.hardware(), regs);
     gpu_assert(regs <= reg_mask_t::max_regs);
 

@@ -370,8 +370,7 @@ private:
             it->second.retain();
             return it->second.get_reg_buf(alloc.buf);
         }
-        auto bca = bank_conflict_allocation_t::create(
-                host_->ra_, host_->regs_, bc_attr);
+        auto bca = bank_conflict_allocation_t::create(host_->ra_, bc_attr);
         if (bca.is_empty()) return {};
 
         auto ret = bc_allocations_.emplace(bc_attr, std::move(bca));
