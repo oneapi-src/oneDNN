@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 
 #include "alloc_utils.hpp"
+#include "atomic_fusions.hpp"
 #include "generator.hpp"
 
 using namespace ngen;
 using std::vector;
 
 #include "internal/namespace_start.hxx"
-
 
 // Preparatory work for fused beta/post-ops.
 // For fused beta, check whether this thread is responsible for performing beta scaling.
@@ -88,12 +88,7 @@ void BLASKernelGenerator<hw>::gemmFusedBetaPOInit(const Subregister &groupID, co
         auto temp1 = state.ra.alloc_sub<uint32_t>();
         auto temp2 = state.ra.alloc_sub<uint32_t>();
 
-        int stride = strategy.unroll[LoopM] * strategy.unroll[LoopN];
-        if (problem.sumA) stride += strategy.unroll[LoopM];
-        if (problem.sumB) stride += strategy.unroll[LoopN];
-        stride *= problem.Tc;
-        stride = align_up(stride, 64);
-
+        int stride = tempCThreadStride(problem, strategy);
         mulConstant(1, temp1, groupID, strategy.wg[LoopM] * strategy.wg[LoopN]);
         emad(1, temp2, state.lidM, state.lidN, strategy.wg[LoopM], strategy, state);
         add(1, temp1, temp1, temp2);
@@ -260,27 +255,6 @@ void BLASKernelGenerator<hw>::gemmFusedBetaScale(GEMMProblem problem, GEMMStrate
     std::swap(nested, state.isNested);
 }
 
-// Calculate number of non-scaling WGs for a C tile.
-template <HW hw>
-void BLASKernelGenerator<hw>::gemmFusedBetaCalcWGCount(const Subregister &count, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
-{
-    if (strategy.kParallelVariable) {
-        /* Count workgroups before this one. */
-        divUp(count, state.h0, state.inputs.k0, state.inputs.k0Recip, state.flagAP, strategy, state);
-        if (!strategy.altFusedBeta) {
-            /* Count workgroups after this one. TODO: vectorize divide. */
-            auto temp = state.ra.alloc_sub<uint32_t>();
-            auto temp2 = state.ra.alloc_sub<uint32_t>();
-            eadd3(1 | sat, temp2, state.fullK, -state.h0, -state.wgK);
-            divUp(temp, temp2, state.inputs.k0, state.inputs.k0Recip, state.flagAP, strategy, state);
-            add(1, count, count, temp);
-            state.ra.safeRelease(temp2);
-            state.ra.safeRelease(temp);
-        }
-    } else
-        add(1, count, state.inputs.groupCountK, -1);
-}
-
 // Notify other threads that beta scaling is complete for this tile.
 template <HW hw>
 void BLASKernelGenerator<hw>::gemmFusedBetaNotifyCompletion(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
@@ -306,7 +280,7 @@ void BLASKernelGenerator<hw>::gemmFusedBetaNotifyCompletion(const GEMMProblem &p
         else if (hw >= HW::Gen11)
             slmfence(temp, r0_info);
 
-        gemmFusedBetaCalcWGCount(data.ud(0), problem, strategy, state);
+        add(1 | sat, data.ud(0), state.fullK, -state.wgK);
 
         fencewait();
         activeThreadBarrierSignal(temp, r0_info, strategy);
@@ -334,11 +308,11 @@ void BLASKernelGenerator<hw>::gemmFusedBetaNotifyCompletion(const GEMMProblem &p
 template <HW hw>
 void BLASKernelGenerator<hw>::gemmFusedBetaWaitCompletion(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    Label lSkipCheck, lCheckAgain, lFinalDec, lCheckDone;
+    Label lSkipCheck, lCheckAgain, lReady, lFinalDec, lCheckDone;
     bool checkIfEnabled = strategy.kParallelVariable;
 
     auto header = state.ra.alloc().uq();
-    auto data = state.ra.alloc().ud();
+    auto data = state.ra.alloc().d();
     auto &addr = state.statusFlagAddr;
     bool simtCF = strategy.fused;
     int simt = simtCF ? 16 : 1;
@@ -353,6 +327,7 @@ void BLASKernelGenerator<hw>::gemmFusedBetaWaitCompletion(const GEMMProblem &pro
         and_(1 | nz | f0[1], null.ud(), state.inputs.flags, FlagSkipBetaCheck);
 
     emov(1, header, addr, strategy, state);
+    mov(1, data, -state.wgK);
 
     jmpi(1 | f1[0], lSkipCheck);            /* If we did beta scaling ourselves, no need to check */
     if (checkIfEnabled)
@@ -363,9 +338,9 @@ void BLASKernelGenerator<hw>::gemmFusedBetaWaitCompletion(const GEMMProblem &pro
         jmpi(1 | f0[1], lFinalDec);         /* If beta scaling known to be complete, just decrement counter */
 
     if (hw >= HW::XeHPG)
-        atomic(AtomicOp::dec, 1, data, D32 | CacheSettingsLSC::L1UC_L3C, A64, header);
+        atomic(AtomicOp::add, 1, data, D32 | CacheSettingsLSC::L1UC_L3C, A64, header, data);
     else
-        atomic(AtomicOp::dec, 1, data, scattered_dword(), A64, header);
+        atomic(AtomicOp::add, 1, data, scattered_dword(), A64, header, data);
 
     cmp(simt | gt | state.flagAP, data.d(0), 0);
     simtCF ? goto12(16 | state.flagAP, lCheckDone)
@@ -382,19 +357,22 @@ void BLASKernelGenerator<hw>::gemmFusedBetaWaitCompletion(const GEMMProblem &pro
         load(1, data, scattered_dword(), A64, header);     /* no L1 */
 
     cmp(simt | gt | state.flagAP, data.d(0), 0);
-    simtCF ? goto12(16 | state.flagAP, lFinalDec)
-           :   jmpi(1  | state.flagAP, lFinalDec);
+    simtCF ? goto12(16 | state.flagAP, lReady)
+           :   jmpi(1  | state.flagAP, lReady);
 
     pause(strategy);
     jmpi(1, lCheckAgain);
+
+    mark(lReady);
+    mov(1, data, -state.wgK);
 
     mark(lFinalDec);
     if (simtCF) join(16);
 
     if (hw >= HW::XeHPG)
-        atomic(AtomicOp::dec, 1, D32 | CacheSettingsLSC::L1UC_L3C, A64, header);
+        atomic(AtomicOp::add, 1, D32 | CacheSettingsLSC::L1UC_L3C, A64, header, data);
     else
-        atomic(AtomicOp::dec, 1, scattered_dword(), A64, header);
+        atomic(AtomicOp::add, 1, scattered_dword(), A64, header, data);
 
     mark(lCheckDone);
     if (simtCF) join(16);

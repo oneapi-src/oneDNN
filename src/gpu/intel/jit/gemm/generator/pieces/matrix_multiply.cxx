@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -756,6 +756,7 @@ void BLASKernelGenerator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h
             std::array<int, 2> scaleStride = {0, 0};
             int nscale = 0;
             if (scaleA && !doBSum) {
+                // TODO: handle non-repacked case correctly.
                 int js = ((jr + h) / problem.aqGroupK) % state.kaqLate;
                 scale[nscale] = findBlockReg(state.Ta_scaleInt, state.Ar_scaleLayout,
                                              i, js, state.Ar_scaleRegs, nes[0], sblock);
