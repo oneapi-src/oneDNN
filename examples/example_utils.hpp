@@ -79,7 +79,7 @@ inline void finalize() {
 #endif
 }
 
-dnnl::engine::kind validate_engine_kind(dnnl::engine::kind akind) {
+inline dnnl::engine::kind validate_engine_kind(dnnl::engine::kind akind) {
     // Checking if a GPU exists on the machine
     if (akind == dnnl::engine::kind::gpu) {
         if (dnnl::engine::get_count(dnnl::engine::kind::gpu) == 0) {
@@ -94,6 +94,7 @@ dnnl::engine::kind validate_engine_kind(dnnl::engine::kind akind) {
 // Exception class to indicate that the example uses a feature that is not
 // available on the current systems. It is not treated as an error then, but
 // just notifies a user.
+// NOLINTNEXTLINE(readability-identifier-naming)
 struct example_allows_unimplemented : public std::exception {
     example_allows_unimplemented(const char *message) noexcept
         : message(message) {}
@@ -107,7 +108,7 @@ inline const char *engine_kind2str_upper(dnnl::engine::kind kind);
 // Returns `0` on success, `1` or oneDNN error, and `2` on example error.
 inline int handle_example_errors(
         std::initializer_list<dnnl::engine::kind> engine_kinds,
-        std::function<void()> example) {
+        const std::function<void()> &example) {
     int exit_code = 0;
 
     try {
