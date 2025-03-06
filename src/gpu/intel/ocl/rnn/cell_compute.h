@@ -121,6 +121,13 @@ typedef struct {
             __global float *tm_scales;
             float tm_cscale;
         } lstm;
+		struct {
+			__global WS_STATE_DATA_T *hidden_state_iter;
+			__global AUX_DATA_T *grid;
+			__global AUX_DATA_T *scratch_cell;
+            __global BIAS_DATA_T *bias;
+            __global float *tm_scales;
+		} lbr_gru;
     };
 } cell_ctx_t;
 
