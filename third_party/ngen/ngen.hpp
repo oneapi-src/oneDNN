@@ -1328,343 +1328,338 @@ public:
 #include "ngen_pseudo.hpp"
 };
 
-#define NGEN_FORWARD(hw) \
-NGEN_FORWARD_NO_ELF_OVERRIDES(hw) \
-NGEN_FORWARD_EXTRA_ELF_OVERRIDES(hw) \
-void requireGRF(int grfs) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::requireGRF(grfs); }
+#define NGEN_FORWARD(hw) NGEN_FORWARD_SCOPE(NGEN_NAMESPACE::BinaryCodeGenerator<hw>)
 
-#define NGEN_NILARY_OP(op) void op(NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::op(loc);}
-#define NGEN_UNARY_OP(op) template <typename A0> void op(A0 &&a0, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::op(std::forward<A0>(a0), loc);}
-#define NGEN_BINARY_OP(op) template <typename A0, typename A1> void op(A0 &&a0, A1 &&a1, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::op(std::forward<A0>(a0), std::forward<A1>(a1), loc);}
-#define NGEN_TERNARY_OP(op) template <typename A0, typename A1, typename A2> void op(A0 &&a0, A1 &&a1, A2 &&a2, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), loc);}
-#define NGEN_QUADRARY_OP(op) template <typename A0, typename A1, typename A2, typename A3> void op(A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), loc);}
-#define NGEN_PENTARY_OP(op) template <typename A0, typename A1, typename A2, typename A3, typename A4> void op(A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), loc);}
-#define NGEN_HEXARY_OP(op) template <typename A0, typename A1, typename A2, typename A3, typename A4, typename A5> void op(A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, A5 &&a5, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), std::forward<A5>(a5), loc);}
-#define NGEN_SEPTARY_OP(op) template <typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6> void op(A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, A5 &&a5, A6 &&a6, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), std::forward<A5>(a5), std::forward<A6>(a6), loc);}
+#define NGEN_FORWARD_SCOPE(scope) \
+NGEN_FORWARD_SCOPE_NO_ELF_OVERRIDES(scope) \
+void requireGRF(int grfs) { scope::requireGRF(grfs); }
 
-#define NGEN_FORWARD_OP(op) \
-  NGEN_UNARY_OP(op) \
-  NGEN_BINARY_OP(op) \
-  NGEN_TERNARY_OP(op) \
-  NGEN_QUADRARY_OP(op) \
-  NGEN_PENTARY_OP(op) \
-  NGEN_HEXARY_OP(op) \
-  NGEN_SEPTARY_OP(op) \
+#define NGEN_NILARY_OP(op, scope) void op(NGEN_NAMESPACE::SourceLocation loc = {}) {scope::op(loc);}
+#define NGEN_UNARY_OP(op, scope) template <typename A0> void op(A0 &&a0, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::op(std::forward<A0>(a0), loc);}
+#define NGEN_BINARY_OP(op, scope) template <typename A0, typename A1> void op(A0 &&a0, A1 &&a1, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::op(std::forward<A0>(a0), std::forward<A1>(a1), loc);}
+#define NGEN_TERNARY_OP(op, scope) template <typename A0, typename A1, typename A2> void op(A0 &&a0, A1 &&a1, A2 &&a2, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), loc);}
+#define NGEN_QUADRARY_OP(op, scope) template <typename A0, typename A1, typename A2, typename A3> void op(A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), loc);}
+#define NGEN_PENTARY_OP(op, scope) template <typename A0, typename A1, typename A2, typename A3, typename A4> void op(A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), loc);}
+#define NGEN_HEXARY_OP(op, scope) template <typename A0, typename A1, typename A2, typename A3, typename A4, typename A5> void op(A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, A5 &&a5, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), std::forward<A5>(a5), loc);}
+#define NGEN_SEPTARY_OP(op, scope) template <typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6> void op(A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, A5 &&a5, A6 &&a6, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::op(std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), std::forward<A5>(a5), std::forward<A6>(a6), loc);}
 
-#define NGEN_BINARY_DT_OP(op) template <typename DT = void, typename A0, typename A1> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), loc);}
-#define NGEN_TERNARY_DT_OP(op) template <typename DT = void, typename A0, typename A1, typename A2> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), loc);}
-#define NGEN_QUADRARY_DT_OP(op) template <typename DT = void, typename A0, typename A1, typename A2, typename A3> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), loc);}
-#define NGEN_PENTARY_DT_OP(op) template <typename DT = void, typename A0, typename A1, typename A2, typename A3, typename A4> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), loc);}
-#define NGEN_HEXARY_DT_OP(op) template <typename DT = void, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, A5 &&a5, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), std::forward<A5>(a5), loc);}
-#define NGEN_OCTARY_DT_OP(op) template <typename DT = void, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, A5 &&a5, A6 &&a6, A7 &&a7, NGEN_NAMESPACE::SourceLocation loc = {}) {NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), std::forward<A5>(a5), std::forward<A6>(a6), std::forward<A7>(a7), loc);}
+#define NGEN_FORWARD_SCOPE_OP(op, scope) \
+    NGEN_UNARY_OP(op, scope)       \
+    NGEN_BINARY_OP(op, scope)      \
+    NGEN_TERNARY_OP(op, scope)     \
+    NGEN_QUADRARY_OP(op, scope)    \
+    NGEN_PENTARY_OP(op, scope)     \
+    NGEN_HEXARY_OP(op, scope)      \
+    NGEN_SEPTARY_OP(op, scope)     \
 
-#define NGEN_FORWARD_DT_OP(op) \
-  NGEN_BINARY_DT_OP(op) \
-  NGEN_TERNARY_DT_OP(op) \
-  NGEN_QUADRARY_DT_OP(op) \
-  NGEN_PENTARY_DT_OP(op) \
-  NGEN_HEXARY_DT_OP(op) \
-  NGEN_OCTARY_DT_OP(op) \
+#define NGEN_BINARY_DT_OP(op, scope) template <typename DT = void, typename A0, typename A1> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), loc);}
+#define NGEN_TERNARY_DT_OP(op, scope) template <typename DT = void, typename A0, typename A1, typename A2> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), loc);}
+#define NGEN_QUADRARY_DT_OP(op, scope) template <typename DT = void, typename A0, typename A1, typename A2, typename A3> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), loc);}
+#define NGEN_PENTARY_DT_OP(op, scope) template <typename DT = void, typename A0, typename A1, typename A2, typename A3, typename A4> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), loc);}
+#define NGEN_HEXARY_DT_OP(op, scope) template <typename DT = void, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, A5 &&a5, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), std::forward<A5>(a5), loc);}
+#define NGEN_OCTARY_DT_OP(op, scope) template <typename DT = void, typename A0, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7> void op(const NGEN_NAMESPACE::InstructionModifier &mod, A0 &&a0, A1 &&a1, A2 &&a2, A3 &&a3, A4 &&a4, A5 &&a5, A6 &&a6, A7 &&a7, NGEN_NAMESPACE::SourceLocation loc = {}) {scope::template op<DT>(mod, std::forward<A0>(a0), std::forward<A1>(a1), std::forward<A2>(a2), std::forward<A3>(a3), std::forward<A4>(a4), std::forward<A5>(a5), std::forward<A6>(a6), std::forward<A7>(a7), loc);}
 
-#define NGEN_FORWARD_NO_ELF_OVERRIDES(hw) \
-using InstructionStream = typename NGEN_NAMESPACE::BinaryCodeGenerator<hw>::InstructionStream; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::isGen12; \
-NGEN_FORWARD_DT_OP(add) \
-NGEN_FORWARD_DT_OP(addc) \
-NGEN_FORWARD_DT_OP(add3) \
-NGEN_FORWARD_DT_OP(and_) \
-NGEN_FORWARD_DT_OP(asr) \
-NGEN_FORWARD_DT_OP(avg) \
-NGEN_FORWARD_DT_OP(bfe) \
-NGEN_FORWARD_DT_OP(bfi1) \
-NGEN_FORWARD_DT_OP(bfi2) \
-NGEN_FORWARD_DT_OP(bfn) \
-NGEN_FORWARD_DT_OP(bfrev) \
-NGEN_FORWARD_DT_OP(cbit) \
-NGEN_FORWARD_DT_OP(cmp) \
-NGEN_FORWARD_DT_OP(cmpn) \
-NGEN_FORWARD_DT_OP(csel) \
-NGEN_FORWARD_DT_OP(dp2) \
-NGEN_FORWARD_DT_OP(dp3) \
-NGEN_FORWARD_DT_OP(dp4) \
-NGEN_FORWARD_DT_OP(dp4a) \
-NGEN_FORWARD_DT_OP(dpas) \
-NGEN_FORWARD_DT_OP(dpasw) \
-NGEN_FORWARD_DT_OP(dph) \
-NGEN_FORWARD_DT_OP(fbh) \
-NGEN_FORWARD_DT_OP(fbl) \
-NGEN_FORWARD_DT_OP(frc) \
-NGEN_FORWARD_DT_OP(line) \
-NGEN_FORWARD_DT_OP(lrp) \
-NGEN_FORWARD_DT_OP(lzd) \
-NGEN_FORWARD_DT_OP(mac) \
-NGEN_FORWARD_DT_OP(macl) \
-NGEN_FORWARD_DT_OP(mach) \
-NGEN_FORWARD_DT_OP(mad) \
-NGEN_FORWARD_DT_OP(madm) \
-NGEN_FORWARD_DT_OP(math) \
-NGEN_FORWARD_DT_OP(mov) \
-NGEN_FORWARD_DT_OP(movi) \
-NGEN_FORWARD_DT_OP(mul) \
-NGEN_FORWARD_DT_OP(not_) \
-NGEN_FORWARD_DT_OP(or_) \
-NGEN_FORWARD_DT_OP(pln) \
-NGEN_FORWARD_DT_OP(rndd) \
-NGEN_FORWARD_DT_OP(rnde) \
-NGEN_FORWARD_DT_OP(rndu) \
-NGEN_FORWARD_DT_OP(rndz) \
-NGEN_FORWARD_DT_OP(rol) \
-NGEN_FORWARD_DT_OP(ror) \
-NGEN_FORWARD_DT_OP(sad2) \
-NGEN_FORWARD_DT_OP(sada2) \
-NGEN_FORWARD_DT_OP(sel) \
-NGEN_FORWARD_DT_OP(shl) \
-NGEN_FORWARD_DT_OP(shr) \
-NGEN_FORWARD_DT_OP(smov) \
-NGEN_FORWARD_DT_OP(subb) \
-NGEN_FORWARD_DT_OP(xor_) \
-NGEN_FORWARD_OP(brc) \
-NGEN_FORWARD_OP(brd) \
-NGEN_FORWARD_OP(break_) \
-NGEN_FORWARD_OP(call) \
-NGEN_FORWARD_OP(calla) \
-NGEN_FORWARD_OP(cont) \
-NGEN_FORWARD_OP(else_) \
-NGEN_FORWARD_OP(endif) \
-NGEN_FORWARD_OP(goto_) \
-NGEN_FORWARD_OP(halt) \
-NGEN_FORWARD_OP(if_) \
-NGEN_NILARY_OP(illegal) \
-NGEN_FORWARD_OP(join) \
-NGEN_FORWARD_OP(jmpi) \
-NGEN_NILARY_OP(nop) \
-NGEN_FORWARD_OP(ret) \
-NGEN_FORWARD_OP(send) \
-NGEN_FORWARD_OP(sendc) \
-NGEN_FORWARD_OP(sends) \
-NGEN_FORWARD_OP(sendsc) \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sync; \
-NGEN_FORWARD_OP(wait) \
-NGEN_FORWARD_OP(while_) \
-NGEN_FORWARD_OP(ignoredep) \
-NGEN_FORWARD_OP(subdep) \
-NGEN_FORWARD_OP(wrdep) \
-NGEN_FORWARD_OP(fencedep) \
-NGEN_NILARY_OP(disablePVCWARWA) \
-NGEN_FORWARD_DT_OP(min_) \
-NGEN_FORWARD_DT_OP(max_) \
-NGEN_FORWARD_DT_OP(bfi) \
-NGEN_FORWARD_DT_OP(cos) \
-NGEN_FORWARD_DT_OP(exp) \
-NGEN_FORWARD_DT_OP(fdiv) \
-NGEN_FORWARD_DT_OP(idiv) \
-NGEN_FORWARD_DT_OP(inv) \
-NGEN_FORWARD_DT_OP(invm) \
-NGEN_FORWARD_DT_OP(iqot) \
-NGEN_FORWARD_DT_OP(irem) \
-NGEN_FORWARD_DT_OP(log) \
-NGEN_FORWARD_DT_OP(pow) \
-NGEN_FORWARD_DT_OP(rsqt) \
-NGEN_FORWARD_DT_OP(rsqtm) \
-NGEN_FORWARD_DT_OP(sin) \
-NGEN_FORWARD_DT_OP(sqt) \
-template <typename DT = void, typename... Targs> void fdiv_ieee(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::template fdiv_ieee<DT>(std::forward<Targs>(args)...); } \
-NGEN_FORWARD_DT_OP(inv_ieee) \
-NGEN_FORWARD_DT_OP(sqt_ieee) \
-NGEN_FORWARD_OP(threadend) \
-template <typename... Targs> void barrierheader(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::barrierheader(std::forward<Targs>(args)...); } \
-NGEN_FORWARD_OP(barriermsg) \
-template <typename... Targs> void barriersignal(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::barriersignal(std::forward<Targs>(args)...); } \
-NGEN_NILARY_OP(barrierwait) \
-NGEN_FORWARD_OP(barrierwait) \
-template <typename... Targs> void barrier(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::barrier(std::forward<Targs>(args)...); } \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::load; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::store; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::atomic; \
-template <typename... Targs> void memfence(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::memfence(std::forward<Targs>(args)...); } \
-template <typename... Targs> void slmfence(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::slmfence(std::forward<Targs>(args)...); } \
-NGEN_NILARY_OP(fencewait) \
-template <typename... Targs> void loadlid(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::loadlid(std::forward<Targs>(args)...); } \
-template <typename... Targs> void loadargs(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::loadargs(std::forward<Targs>(args)...); } \
-template <typename... Targs> void epilogue(int GRFCount, bool hasSLM, const NGEN_NAMESPACE::RegData &r0_info) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::epilogue(GRFCount, hasSLM, r0_info); } \
-template <typename... Targs> void pushStream(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::pushStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> InstructionStream *popStream(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::popStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> void appendStream(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::appendStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> void appendCurrentStream(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::appendCurrentStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> void discardStream(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::discardStream(std::forward<Targs>(args)...); } \
-template <typename... Targs> void mark(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mark(std::forward<Targs>(args)...); } \
-template <typename... Targs> void comment(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::comment(std::forward<Targs>(args)...); } \
-template <typename... Targs> void setDefaultNoMask(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setDefaultNoMask(std::forward<Targs>(args)...); } \
-template <typename... Targs> void setDefaultAutoSWSB(Targs&&... args) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setDefaultAutoSWSB(std::forward<Targs>(args)...); } \
-bool getDefaultNoMask() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getDefaultNoMask(); } \
-bool getDefaultAutoSWSB() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getDefaultAutoSWSB(); } \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::product; \
-NGEN_NAMESPACE::Product getProduct() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getProduct(); } \
-NGEN_NAMESPACE::ProductFamily getProductFamily() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getProductFamily(); } \
-int getStepping() { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::getStepping(); } \
-void setProduct(NGEN_NAMESPACE::Product product_) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setProduct(product_); } \
-void setProductFamily(NGEN_NAMESPACE::ProductFamily family_) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setProductFamily(family_); } \
-void setStepping(int stepping_) { NGEN_NAMESPACE::BinaryCodeGenerator<hw>::setStepping(stepping_); } \
-NGEN_FORWARD_EXTRA(hw) \
-NGEN_FORWARD_OP_NAMES(hw) \
-NGEN_FORWARD_MIN_MAX(hw) \
-NGEN_FORWARD_REGISTERS(hw)
+#define NGEN_FORWARD_SCOPE_DT_OP(op, scope) \
+    NGEN_BINARY_DT_OP(op, scope)      \
+    NGEN_TERNARY_DT_OP(op, scope)     \
+    NGEN_QUADRARY_DT_OP(op, scope)    \
+    NGEN_PENTARY_DT_OP(op, scope)     \
+    NGEN_HEXARY_DT_OP(op, scope)      \
+    NGEN_OCTARY_DT_OP(op, scope)      \
 
-#define NGEN_FORWARD_EXTRA(hw)
-#define NGEN_FORWARD_EXTRA_ELF_OVERRIDES(hw)
+#define NGEN_FORWARD_SCOPE_NO_ELF_OVERRIDES(scope)            \
+using scope::isGen12; \
+NGEN_FORWARD_SCOPE_DT_OP(add, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(addc, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(add3, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(and_, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(asr, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(avg, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(bfe, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(bfi1, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(bfi2, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(bfn, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(bfrev, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(cbit, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(cmp, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(cmpn, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(csel, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(dp2, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(dp3, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(dp4, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(dp4a, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(dpas, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(dpasw, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(dph, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(fbh, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(fbl, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(frc, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(line, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(lrp, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(lzd, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(mac, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(macl, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(mach, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(mad, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(madm, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(math, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(mov, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(movi, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(mul, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(not_, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(or_, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(pln, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(rndd, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(rnde, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(rndu, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(rndz, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(rol, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(ror, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(sad2, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(sada2, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(sel, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(shl, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(shr, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(smov, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(subb, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(xor_, scope) \
+NGEN_FORWARD_SCOPE_OP(brc, scope) \
+NGEN_FORWARD_SCOPE_OP(brd, scope) \
+NGEN_FORWARD_SCOPE_OP(break_, scope) \
+NGEN_FORWARD_SCOPE_OP(call, scope) \
+NGEN_FORWARD_SCOPE_OP(calla, scope) \
+NGEN_FORWARD_SCOPE_OP(cont, scope) \
+NGEN_FORWARD_SCOPE_OP(else_, scope) \
+NGEN_FORWARD_SCOPE_OP(endif, scope) \
+NGEN_FORWARD_SCOPE_OP(goto_, scope) \
+NGEN_FORWARD_SCOPE_OP(halt, scope) \
+NGEN_FORWARD_SCOPE_OP(if_, scope) \
+NGEN_NILARY_OP(illegal, scope) \
+NGEN_FORWARD_SCOPE_OP(join, scope) \
+NGEN_FORWARD_SCOPE_OP(jmpi, scope) \
+NGEN_NILARY_OP(nop, scope) \
+NGEN_FORWARD_SCOPE_OP(ret, scope) \
+NGEN_FORWARD_SCOPE_OP(send, scope) \
+NGEN_FORWARD_SCOPE_OP(sendc, scope) \
+NGEN_FORWARD_SCOPE_OP(sends, scope) \
+NGEN_FORWARD_SCOPE_OP(sendsc, scope) \
+using scope::sync; \
+NGEN_FORWARD_SCOPE_OP(wait, scope) \
+NGEN_FORWARD_SCOPE_OP(while_, scope) \
+NGEN_FORWARD_SCOPE_OP(ignoredep, scope) \
+NGEN_FORWARD_SCOPE_OP(subdep, scope) \
+NGEN_FORWARD_SCOPE_OP(wrdep, scope) \
+NGEN_FORWARD_SCOPE_OP(fencedep, scope) \
+NGEN_NILARY_OP(disablePVCWARWA, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(min_, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(max_, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(bfi, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(cos, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(exp, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(fdiv, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(idiv, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(inv, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(invm, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(iqot, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(irem, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(log, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(pow, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(rsqt, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(rsqtm, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(sin, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(sqt, scope) \
+template <typename DT = void, typename... Targs> void fdiv_ieee(Targs&&... args) { scope::template fdiv_ieee<DT>(std::forward<Targs>(args)...); } \
+NGEN_FORWARD_SCOPE_DT_OP(inv_ieee, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(sqt_ieee, scope) \
+NGEN_FORWARD_SCOPE_OP(threadend, scope) \
+template <typename... Targs> void barrierheader(Targs&&... args) { scope::barrierheader(std::forward<Targs>(args)...); } \
+NGEN_FORWARD_SCOPE_OP(barriermsg, scope)                                           \
+template <typename... Targs> void barriersignal(Targs&&... args) { scope::barriersignal(std::forward<Targs>(args)...); } \
+NGEN_NILARY_OP(barrierwait, scope) \
+NGEN_FORWARD_SCOPE_OP(barrierwait, scope) \
+template <typename... Targs> void barrier(Targs&&... args) { scope::barrier(std::forward<Targs>(args)...); } \
+using scope::load; \
+using scope::store; \
+using scope::atomic; \
+template <typename... Targs> void memfence(Targs&&... args) { scope::memfence(std::forward<Targs>(args)...); } \
+template <typename... Targs> void slmfence(Targs&&... args) { scope::slmfence(std::forward<Targs>(args)...); } \
+NGEN_NILARY_OP(fencewait, scope) \
+template <typename... Targs> void loadlid(Targs&&... args) { scope::loadlid(std::forward<Targs>(args)...); } \
+template <typename... Targs> void loadargs(Targs&&... args) { scope::loadargs(std::forward<Targs>(args)...); } \
+template <typename... Targs> void epilogue(int GRFCount, bool hasSLM, const NGEN_NAMESPACE::RegData &r0_info) { scope::epilogue(GRFCount, hasSLM, r0_info); } \
+template <typename... Targs> void pushStream(Targs&&... args) { scope::pushStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> void appendStream(Targs&&... args) { scope::appendStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> void appendCurrentStream(Targs&&... args) { scope::appendCurrentStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> void discardStream(Targs&&... args) { scope::discardStream(std::forward<Targs>(args)...); } \
+template <typename... Targs> void mark(Targs&&... args) { scope::mark(std::forward<Targs>(args)...); } \
+template <typename... Targs> void comment(Targs&&... args) { scope::comment(std::forward<Targs>(args)...); } \
+template <typename... Targs> void setDefaultNoMask(Targs&&... args) { scope::setDefaultNoMask(std::forward<Targs>(args)...); } \
+template <typename... Targs> void setDefaultAutoSWSB(Targs&&... args) { scope::setDefaultAutoSWSB(std::forward<Targs>(args)...); } \
+bool getDefaultNoMask() const { return scope::getDefaultNoMask(); } \
+bool getDefaultAutoSWSB() const { return scope::getDefaultAutoSWSB(); } \
+using scope::product; \
+NGEN_NAMESPACE::Product getProduct() const { return scope::getProduct(); } \
+NGEN_NAMESPACE::ProductFamily getProductFamily() const { return scope::getProductFamily(); } \
+int getStepping() const { return scope::getStepping(); } \
+void setProduct(NGEN_NAMESPACE::Product product_) { scope::setProduct(product_); } \
+void setProductFamily(NGEN_NAMESPACE::ProductFamily family_) { scope::setProductFamily(family_); } \
+void setStepping(int stepping_) { scope::setStepping(stepping_); } \
+NGEN_FORWARD_SCOPE_OP_NAMES(scope) \
+NGEN_FORWARD_SCOPE_MIN_MAX(scope) \
+NGEN_FORWARD_SCOPE_REGISTERS(scope)
 
 #ifdef NGEN_NO_OP_NAMES
-#define NGEN_FORWARD_OP_NAMES(hw)
+#define NGEN_FORWARD_SCOPE_OP_NAMES(scope)
 #else
-#define NGEN_FORWARD_OP_NAMES(hw) \
-NGEN_FORWARD_DT_OP(and) \
-NGEN_FORWARD_DT_OP(not) \
-NGEN_FORWARD_DT_OP(or) \
-NGEN_FORWARD_DT_OP(xor)
+#define NGEN_FORWARD_SCOPE_OP_NAMES(scope) \
+NGEN_FORWARD_SCOPE_DT_OP(and, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(not, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(or, scope) \
+NGEN_FORWARD_SCOPE_DT_OP(xor, scope)
 #endif
 
 #ifdef NGEN_WINDOWS_COMPAT
-#define NGEN_FORWARD_MIN_MAX(hw)
+#define NGEN_FORWARD_SCOPE_MIN_MAX(scope)
 #else
-#define NGEN_FORWARD_MIN_MAX(hw) \
-NGEN_FORWARD_DT_OP(min) \
-NGEN_FORWARD_DT_OP(max)
+#define NGEN_FORWARD_SCOPE_MIN_MAX(scope) \
+NGEN_FORWARD_SCOPE_DT_OP(min, scope)     \
+NGEN_FORWARD_SCOPE_DT_OP(max, scope)
 #endif
 
 #ifdef NGEN_GLOBAL_REGS
-#define NGEN_FORWARD_REGISTERS(hw)
+#define NGEN_FORWARD_SCOPE_REGISTERS(scope)
 #else
-#define NGEN_FORWARD_REGISTERS_BASE(hw) \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::indirect; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r3; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r5; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r6; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r7; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r9; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r10; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r11; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r12; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r13; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r14; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r15; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r17; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r18; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r19; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r20; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r21; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r22; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r23; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r24; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r25; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r26; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r27; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r28; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r29; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r30; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r31; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r33; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r34; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r35; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r36; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r37; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r38; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r39; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r40; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r41; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r42; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r43; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r44; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r45; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r46; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r47; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r48; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r49; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r50; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r51; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r52; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r53; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r54; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r55; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r56; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r57; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r58; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r59; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r60; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r61; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r62; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r63; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r64; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r65; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r66; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r67; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r68; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r69; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r70; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r71; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r72; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r73; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r74; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r75; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r76; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r77; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r78; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r79; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r80; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r81; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r82; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r83; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r84; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r85; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r86; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r87; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r88; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r89; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r90; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r91; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r92; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r93; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r94; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r95; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r96; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r97; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r98; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r99; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r100; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r101; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r102; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r103; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r104; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r105; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r106; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r107; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r108; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r109; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r110; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r111; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r112; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r113; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r114; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r115; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r116; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r117; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r118; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r119; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r120; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r121; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r122; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r123; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r124; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r125; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r126; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r127; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r128; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r129; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r130; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r131; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r132; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r133; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r134; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r135; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r136; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r137; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r138; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r139; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r140; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r141; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r142; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r143; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r144; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r145; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r146; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r147; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r148; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r149; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r150; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r151; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r152; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r153; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r154; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r155; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r156; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r157; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r158; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r159; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r160; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r161; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r162; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r163; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r164; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r165; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r166; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r167; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r168; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r169; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r170; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r171; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r172; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r173; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r174; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r175; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r176; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r177; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r178; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r179; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r180; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r181; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r182; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r183; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r184; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r185; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r186; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r187; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r188; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r189; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r190; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r191; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r192; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r193; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r194; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r195; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r196; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r197; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r198; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r199; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r200; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r201; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r202; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r203; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r204; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r205; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r206; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r207; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r208; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r209; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r210; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r211; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r212; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r213; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r214; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r215; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r216; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r217; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r218; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r219; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r220; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r221; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r222; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r223; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r224; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r225; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r226; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r227; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r228; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r229; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r230; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r231; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r232; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r233; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r234; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r235; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r236; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r237; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r238; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r239; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r240; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r241; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r242; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r243; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r244; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r245; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r246; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r247; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r248; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r249; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r250; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r251; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r252; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r253; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r254; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::r255; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::null; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::a0; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc3; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc5; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc6; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc7; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::acc9; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme3; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme5; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme6; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::mme7; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::noacc; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::nomme; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f3; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f0_0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f0_1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f1_0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::f1_1; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ce0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sp; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sr0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sr1; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::cr0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::n0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ip; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tdr0; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm3; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tm4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::pm0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::tp0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::dbg0; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fc0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fc1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fc2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::fc3; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoDDClr; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoDDChk; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::AccWrEn; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoSrcDepSet; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Breakpoint; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sat; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoMask; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ExBSO; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Serialize; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::EOT; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Atomic; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Switch; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoPreempt; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::anyv; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::allv; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any2h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all2h; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any4h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all4h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any8h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all8h; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any16h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all16h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any32h; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all32h; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::any; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::all; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::x_repl; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::y_repl; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::z_repl; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::w_repl; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ze; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::eq; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::nz; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ne; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::gt; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ge; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::lt; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::le; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ov; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::un; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::eo; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M12; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M20; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M24; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::M28; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb0; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb3; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb4; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb5; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb6; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb7; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb9; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb10; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb11; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb12; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb13; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb14; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb15; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb17; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb18; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb19; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb20; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb21; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb22; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb23; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb24; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb25; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb26; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb27; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb28; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb29; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb30; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::sb31; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::NoAccSBSet; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::A32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::A32NC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::A64; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::A64NC; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::SLM; \
-template <typename... Targs> NGEN_NAMESPACE::InstructionModifier ExecutionOffset(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::ExecutionOffset(std::forward<Targs>(args)...); } \
-template <typename... Targs> NGEN_NAMESPACE::AddressBase Surface(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::Surface(std::forward<Targs>(args)...); } \
-template <typename... Targs> NGEN_NAMESPACE::AddressBase CC(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::CC(std::forward<Targs>(args)...); } \
-template <typename... Targs> NGEN_NAMESPACE::AddressBase SC(Targs&&... args) { return NGEN_NAMESPACE::BinaryCodeGenerator<hw>::SC(std::forward<Targs>(args)...); } \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D64; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D8U32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D16U32; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D8T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D16T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D32T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D64T; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D8U32T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::D16U32T; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V1; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V2; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V3; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V4; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V8; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V16; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V32; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V64; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V1T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V2T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V3T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V4T; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V8T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V16T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V32T; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::V64T; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::transpose; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::vnni; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1UC_L3UC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1UC_L3C; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1C_L3UC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1C_L3C; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1S_L3UC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1S_L3C; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1IAR_L3C; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1UC_L3WB; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1WT_L3UC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1WT_L3WB; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1S_L3WB; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1WB_L3WB; \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1C_L3CC; using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::L1UC_L3CC;
-#define NGEN_FORWARD_REGISTERS_EXTRA1(hw) \
-using NGEN_NAMESPACE::BinaryCodeGenerator<hw>::s0;
-#define NGEN_FORWARD_REGISTERS_EXTRA2(hw)
-#define NGEN_FORWARD_REGISTERS_EXTRA3(hw)
-#define NGEN_FORWARD_REGISTERS(hw) NGEN_FORWARD_REGISTERS_BASE(hw) NGEN_FORWARD_REGISTERS_EXTRA1(hw) NGEN_FORWARD_REGISTERS_EXTRA2(hw) NGEN_FORWARD_REGISTERS_EXTRA3(hw)
+#define NGEN_FORWARD_SCOPE_REGISTERS_BASE(scope) \
+using scope::indirect; \
+using scope::r0; using scope::r1; using scope::r2; using scope::r3; \
+using scope::r4; using scope::r5; using scope::r6; using scope::r7; \
+using scope::r8; using scope::r9; using scope::r10; using scope::r11; \
+using scope::r12; using scope::r13; using scope::r14; using scope::r15; \
+using scope::r16; using scope::r17; using scope::r18; using scope::r19; \
+using scope::r20; using scope::r21; using scope::r22; using scope::r23; \
+using scope::r24; using scope::r25; using scope::r26; using scope::r27; \
+using scope::r28; using scope::r29; using scope::r30; using scope::r31; \
+using scope::r32; using scope::r33; using scope::r34; using scope::r35; \
+using scope::r36; using scope::r37; using scope::r38; using scope::r39; \
+using scope::r40; using scope::r41; using scope::r42; using scope::r43; \
+using scope::r44; using scope::r45; using scope::r46; using scope::r47; \
+using scope::r48; using scope::r49; using scope::r50; using scope::r51; \
+using scope::r52; using scope::r53; using scope::r54; using scope::r55; \
+using scope::r56; using scope::r57; using scope::r58; using scope::r59; \
+using scope::r60; using scope::r61; using scope::r62; using scope::r63; \
+using scope::r64; using scope::r65; using scope::r66; using scope::r67; \
+using scope::r68; using scope::r69; using scope::r70; using scope::r71; \
+using scope::r72; using scope::r73; using scope::r74; using scope::r75; \
+using scope::r76; using scope::r77; using scope::r78; using scope::r79; \
+using scope::r80; using scope::r81; using scope::r82; using scope::r83; \
+using scope::r84; using scope::r85; using scope::r86; using scope::r87; \
+using scope::r88; using scope::r89; using scope::r90; using scope::r91; \
+using scope::r92; using scope::r93; using scope::r94; using scope::r95; \
+using scope::r96; using scope::r97; using scope::r98; using scope::r99; \
+using scope::r100; using scope::r101; using scope::r102; using scope::r103; \
+using scope::r104; using scope::r105; using scope::r106; using scope::r107; \
+using scope::r108; using scope::r109; using scope::r110; using scope::r111; \
+using scope::r112; using scope::r113; using scope::r114; using scope::r115; \
+using scope::r116; using scope::r117; using scope::r118; using scope::r119; \
+using scope::r120; using scope::r121; using scope::r122; using scope::r123; \
+using scope::r124; using scope::r125; using scope::r126; using scope::r127; \
+using scope::r128; using scope::r129; using scope::r130; using scope::r131; \
+using scope::r132; using scope::r133; using scope::r134; using scope::r135; \
+using scope::r136; using scope::r137; using scope::r138; using scope::r139; \
+using scope::r140; using scope::r141; using scope::r142; using scope::r143; \
+using scope::r144; using scope::r145; using scope::r146; using scope::r147; \
+using scope::r148; using scope::r149; using scope::r150; using scope::r151; \
+using scope::r152; using scope::r153; using scope::r154; using scope::r155; \
+using scope::r156; using scope::r157; using scope::r158; using scope::r159; \
+using scope::r160; using scope::r161; using scope::r162; using scope::r163; \
+using scope::r164; using scope::r165; using scope::r166; using scope::r167; \
+using scope::r168; using scope::r169; using scope::r170; using scope::r171; \
+using scope::r172; using scope::r173; using scope::r174; using scope::r175; \
+using scope::r176; using scope::r177; using scope::r178; using scope::r179; \
+using scope::r180; using scope::r181; using scope::r182; using scope::r183; \
+using scope::r184; using scope::r185; using scope::r186; using scope::r187; \
+using scope::r188; using scope::r189; using scope::r190; using scope::r191; \
+using scope::r192; using scope::r193; using scope::r194; using scope::r195; \
+using scope::r196; using scope::r197; using scope::r198; using scope::r199; \
+using scope::r200; using scope::r201; using scope::r202; using scope::r203; \
+using scope::r204; using scope::r205; using scope::r206; using scope::r207; \
+using scope::r208; using scope::r209; using scope::r210; using scope::r211; \
+using scope::r212; using scope::r213; using scope::r214; using scope::r215; \
+using scope::r216; using scope::r217; using scope::r218; using scope::r219; \
+using scope::r220; using scope::r221; using scope::r222; using scope::r223; \
+using scope::r224; using scope::r225; using scope::r226; using scope::r227; \
+using scope::r228; using scope::r229; using scope::r230; using scope::r231; \
+using scope::r232; using scope::r233; using scope::r234; using scope::r235; \
+using scope::r236; using scope::r237; using scope::r238; using scope::r239; \
+using scope::r240; using scope::r241; using scope::r242; using scope::r243; \
+using scope::r244; using scope::r245; using scope::r246; using scope::r247; \
+using scope::r248; using scope::r249; using scope::r250; using scope::r251; \
+using scope::r252; using scope::r253; using scope::r254; using scope::r255; \
+using scope::null; \
+using scope::a0; \
+using scope::acc0; using scope::acc1; using scope::acc2; using scope::acc3; \
+using scope::acc4; using scope::acc5; using scope::acc6; using scope::acc7; \
+using scope::acc8; using scope::acc9; \
+using scope::mme0; using scope::mme1; using scope::mme2; using scope::mme3; \
+using scope::mme4; using scope::mme5; using scope::mme6; using scope::mme7; \
+using scope::noacc; using scope::nomme; \
+using scope::f0; using scope::f1; using scope::f2; using scope::f3; \
+using scope::f0_0; using scope::f0_1; using scope::f1_0; using scope::f1_1; \
+using scope::ce0; using scope::sp; using scope::sr0; using scope::sr1; \
+using scope::cr0; using scope::n0; using scope::ip; using scope::tdr0; \
+using scope::tm0; using scope::tm1; using scope::tm2; using scope::tm3; \
+using scope::tm4; using scope::pm0; using scope::tp0; using scope::dbg0; \
+using scope::fc0; using scope::fc1; using scope::fc2; using scope::fc3; \
+using scope::NoDDClr; using scope::NoDDChk; \
+using scope::AccWrEn; using scope::NoSrcDepSet; using scope::Breakpoint; using scope::sat; \
+using scope::NoMask; \
+using scope::ExBSO; \
+using scope::Serialize; using scope::EOT; \
+using scope::Atomic; using scope::Switch; using scope::NoPreempt; \
+using scope::anyv; using scope::allv; using scope::any2h; using scope::all2h; \
+using scope::any4h; using scope::all4h; using scope::any8h; using scope::all8h; \
+using scope::any16h; using scope::all16h; using scope::any32h; using scope::all32h; \
+using scope::any; using scope::all; \
+using scope::x_repl; using scope::y_repl; using scope::z_repl; using scope::w_repl; \
+using scope::ze; using scope::eq; using scope::nz; using scope::ne; \
+using scope::gt; using scope::ge; using scope::lt; using scope::le; \
+using scope::ov; using scope::un; using scope::eo; \
+using scope::M0; using scope::M4; using scope::M8; using scope::M12; \
+using scope::M16; using scope::M20; using scope::M24; using scope::M28; \
+using scope::sb0; using scope::sb1; using scope::sb2; using scope::sb3; \
+using scope::sb4; using scope::sb5; using scope::sb6; using scope::sb7; \
+using scope::sb8; using scope::sb9; using scope::sb10; using scope::sb11; \
+using scope::sb12; using scope::sb13; using scope::sb14; using scope::sb15; \
+using scope::sb16; using scope::sb17; using scope::sb18; using scope::sb19; \
+using scope::sb20; using scope::sb21; using scope::sb22; using scope::sb23; \
+using scope::sb24; using scope::sb25; using scope::sb26; using scope::sb27; \
+using scope::sb28; using scope::sb29; using scope::sb30; using scope::sb31; \
+using scope::NoAccSBSet; \
+using scope::A32; using scope::A32NC; using scope::A64; using scope::A64NC; \
+using scope::SLM; \
+template <typename... Targs> NGEN_NAMESPACE::InstructionModifier ExecutionOffset(Targs&&... args) { return scope::ExecutionOffset(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::AddressBase Surface(Targs&&... args) { return scope::Surface(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::AddressBase CC(Targs&&... args) { return scope::CC(std::forward<Targs>(args)...); } \
+template <typename... Targs> NGEN_NAMESPACE::AddressBase SC(Targs&&... args) { return scope::SC(std::forward<Targs>(args)...); } \
+using scope::D8; using scope::D16; using scope::D32; using scope::D64; \
+using scope::D8U32; using scope::D16U32; \
+using scope::D8T; using scope::D16T; using scope::D32T; using scope::D64T; \
+using scope::D8U32T; using scope::D16U32T; \
+using scope::V1; using scope::V2; using scope::V3; using scope::V4; \
+using scope::V8; using scope::V16; using scope::V32; using scope::V64; \
+using scope::V1T; using scope::V2T; using scope::V3T; using scope::V4T; \
+using scope::V8T; using scope::V16T; using scope::V32T; using scope::V64T; \
+using scope::transpose; \
+using scope::vnni; \
+using scope::L1UC_L3UC; using scope::L1UC_L3C; using scope::L1C_L3UC; using scope::L1C_L3C; \
+using scope::L1S_L3UC; using scope::L1S_L3C; using scope::L1IAR_L3C; using scope::L1UC_L3WB; \
+using scope::L1WT_L3UC; using scope::L1WT_L3WB; using scope::L1S_L3WB; using scope::L1WB_L3WB; \
+using scope::L1C_L3CC; using scope::L1UC_L3CC;
+#define NGEN_FORWARD_SCOPE_REGISTERS_EXTRA1(scope) \
+using scope::s0;
+#define NGEN_FORWARD_SCOPE_REGISTERS_EXTRA2(scope)
+#define NGEN_FORWARD_SCOPE_REGISTERS_EXTRA3(scope)
+#define NGEN_FORWARD_SCOPE_REGISTERS(scope) NGEN_FORWARD_SCOPE_REGISTERS_BASE(scope) NGEN_FORWARD_SCOPE_REGISTERS_EXTRA1(scope) NGEN_FORWARD_SCOPE_REGISTERS_EXTRA2(scope) NGEN_FORWARD_SCOPE_REGISTERS_EXTRA3(scope)
 #endif
 
 template <HW hw>
