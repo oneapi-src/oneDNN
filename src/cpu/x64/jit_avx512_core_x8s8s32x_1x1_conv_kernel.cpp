@@ -17,6 +17,7 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/convolution_pd.hpp"
 #include "common/memory.hpp"
 #include "common/memory_tracking.hpp"
 #include "common/nstl.hpp"
@@ -837,6 +838,11 @@ status_t jit_avx512_core_x8s8s32x_1x1_conv_kernel::init_conf(
     const memory_desc_wrapper weights_d(&weights_md);
     const memory_desc_wrapper dst_d(&dst_md);
     const memory_desc_wrapper bias_d(&bias_md);
+
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, src_d, weights_d, dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     if (!one_of(src_d.data_type(), data_type::u8, data_type::s8)
