@@ -445,6 +445,7 @@ public:
         writer.write_keyvalue("output_ports", outputs_id);
         writer.write_keyvalue("graph", get_ops());
         writer.end_object();
+        writer.write_newline();
 
         return graph::status::success;
     }
