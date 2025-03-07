@@ -360,7 +360,7 @@ private:
         x2_info.set_iter_unit(unit);
         x2_info.d0 = info0.div_info;
         x2_info.d1 = info1.div_info;
-        x2_tile_infos_.push_back(x2_info);
+        x2_tile_infos_.push_back(std::move(x2_info));
     }
 
     void finalize_loop_dims(const conv_config_t &cfg) {
@@ -395,7 +395,7 @@ private:
                 ld.size = shape.get(d, 1);
                 if (iter_.has(d))
                     ld.size = utils::div_up(ld.size, iter_dim_hint);
-                loop_dims.push_back(ld);
+                loop_dims.push_back(std::move(ld));
             }
             std::sort(loop_dims.begin(), loop_dims.end(),
                     [&](const loop_dim_t &a, const loop_dim_t &b) {

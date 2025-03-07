@@ -531,7 +531,7 @@ private:
         if (rhs.type() != type_t::f32()) {
             auto rhs_f32 = _rhs.retype(type_t::f32(), /*dense=*/true);
             rhs_buf = reorder(_rhs, rhs_f32, _rhs_buf);
-            rhs = rhs_f32;
+            rhs = std::move(rhs_f32);
         }
         if (zero_point != 0) {
             auto func = eltwise_t::make(
@@ -559,7 +559,7 @@ private:
         elems = (elems < 8 ? 1 : elems);
         pvar_tile_t tile;
         tile[lhs0.dim] = elems;
-        for_each(lhs.int_dim_sizes(), tile,
+        for_each(lhs.int_dim_sizes(), std::move(tile),
                 [&](const pvar_coord_t<dim_t> &coord) {
                     auto lhs_off = lhs.offset_in_bytes(coord);
                     auto rhs_off = rhs.offset_in_bytes(coord);
@@ -670,7 +670,7 @@ private:
                 gpu_error_not_expected();
             }
         }
-        out_layout = f32_layout;
+        out_layout = std::move(f32_layout);
         return buf;
     }
 

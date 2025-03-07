@@ -1078,9 +1078,9 @@ void BLASKernelGenerator<hw>::updateCLayout(const vector<RegisterBlock> &layoutE
                             break;
                         case 1:
                             {
-                                C_accs.push_back(C_acc);
-                                C_accSwaps.push_back(C_accSwap);
-                                C_loads.push_back(C_load);
+                                C_accs.push_back(std::move(C_acc));
+                                C_accSwaps.push_back(std::move(C_accSwap));
+                                C_loads.push_back(std::move(C_load));
                             }
                             break;
                         case 2:

@@ -766,7 +766,7 @@ private:
                 buf_mgr, zp_type, real_zp, (zp_stride) ? simd_ : 1);
         auto mad = mad_t::make(
                 hw, comp_type, simd_, zp_type, zp_stride, wei_type, wei_stride);
-        return ret.append(mad.call({comp, comp, real_zp, wei}));
+        return ret.append(mad.call({comp, comp, std::move(real_zp), wei}));
     }
 
     stmt_t maybe_typecast_zp_src(buffer_manager_t &buf_mgr, type_t &type,
@@ -937,7 +937,7 @@ struct texpr_t {
             auto s = "_" + std::to_string(vidxs[i]);
             // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
             if (vstrides[i] != 1) s = std::to_string(vstrides[i]) + " x " + s;
-            parts.push_back(s);
+            parts.push_back(std::move(s));
         }
         for (int i = 0; i < (int)parts.size(); i++) {
             if (i > 0) oss << " + ";
@@ -1123,7 +1123,7 @@ public:
                     for (auto &m : mask_descs_) {
                         auto e_m = m.normalize(
                                 vvars_, vstart_, start, simd_, simd_dim_idx_);
-                        e_masks.push_back(e_m);
+                        e_masks.push_back(std::move(e_m));
                     }
                     auto cond = e_masks[0];
                     for (int i = 1; i < (int)e_masks.size(); i++)

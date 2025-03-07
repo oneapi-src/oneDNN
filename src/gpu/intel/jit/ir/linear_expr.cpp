@@ -244,7 +244,7 @@ public:
         for (auto &f : factors_) {
             if (f.is<const_var_t>()) new_factors.push_back(f);
         }
-        factors_ = new_factors;
+        factors_ = std::move(new_factors);
     }
 
     linear_coef_t &operator/=(int64_t factor) {

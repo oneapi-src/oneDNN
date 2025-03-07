@@ -104,7 +104,7 @@ public:
 
         auto new_call = func_call_t::make(obj.func,
                 {mem_buf, header_buf, reg_buf, mask, expr_t(), expr_t(),
-                        pattern},
+                        std::move(pattern)},
                 obj.attr);
         auto body = stmt_seq_t::make(off_store, new_call);
 
@@ -147,7 +147,7 @@ public:
             if (!c.as<func_call_t>().func.as<send_t>().is_2d()) continue;
             auto header_buf = send_t::arg_mem_off(c);
             gpu_assert(is_var(header_buf)) << header_buf;
-            header_bufs_.insert(header_buf);
+            header_bufs_.insert(std::move(header_buf));
         }
     }
 

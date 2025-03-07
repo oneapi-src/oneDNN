@@ -740,7 +740,7 @@ public:
                 gpu_assert(c_po_idx_ == -1);
                 c_po_idx_ = tensor_idx;
             }
-            post_op_tensors_.push_back(po_tensor);
+            post_op_tensors_.push_back(std::move(po_tensor));
             tensor_idx++;
         }
 

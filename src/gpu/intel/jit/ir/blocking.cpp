@@ -196,7 +196,7 @@ std::vector<blocking_t> level_tile_set_t::sample(int target,
             set(blk, dims_[i], try_tiles[i]);
         }
         if (!is_ok(blk)) continue;
-        ret.push_back(blk);
+        ret.push_back(std::move(blk));
         if ((int)ret.size() >= target) break;
     }
     return ret;

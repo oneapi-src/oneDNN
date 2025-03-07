@@ -1109,7 +1109,7 @@ struct send_group_t {
             if (bounds.contains(subtile_idx, b.reg_off)) {
                 auto bb = b;
                 bb.reg_off = bounds.normalize_reg_off(subtile_idx, b.reg_off);
-                new_blocks.push_back(bb);
+                new_blocks.push_back(std::move(bb));
             }
         }
 

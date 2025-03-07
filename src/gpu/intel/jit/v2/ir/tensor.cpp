@@ -694,8 +694,8 @@ struct try_div_mod_t<expr_t> {
             if (!a_mod.is_empty()) return false;
             a_mod = v;
         }
-        div = a_div;
-        mod = a_mod;
+        div = std::move(a_div);
+        mod = std::move(a_mod);
         return true;
     }
 };
@@ -751,8 +751,8 @@ layout_t layout_t::map(const dim_mapper_t &dim_mapper,
                 T mod = T();
                 if (try_div_mod_t<T>::call(idxs[dim], b.int_size(),
                             var_range_info, div, mod)) {
-                    idxs[dim] = div;
-                    off = mod;
+                    idxs[dim] = std::move(div);
+                    off = std::move(mod);
                     is_final = false;
                 }
             }

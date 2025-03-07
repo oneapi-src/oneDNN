@@ -326,9 +326,9 @@ private:
         a_inner_ = to_v2_layout(dpas.b_layout(), a_desc,
                 std::vector<fused_dim_t> {k_dim, m_dim});
         b_inner_ = to_v2_layout(dpas.a_layout(), b_desc,
-                std::vector<fused_dim_t> {n_dim, k_dim});
+                std::vector<fused_dim_t> {n_dim, std::move(k_dim)});
         c_inner_ = to_v2_layout(dpas.c_layout(), c_desc,
-                std::vector<fused_dim_t> {n_dim, m_dim});
+                std::vector<fused_dim_t> {std::move(n_dim), std::move(m_dim)});
         return true;
     }
 

@@ -110,7 +110,7 @@ offset_t offset_scope_t::get_offset(int version, const expr_t &base0,
     for (size_t i = 0; i < loop_nest.nloops(); i++) {
         auto inc_value = simplify(_loop_incs[i] - comp_value);
         auto inc = to_simple_expr(inc_value);
-        ret.loop_incs.push_back(inc);
+        ret.loop_incs.push_back(std::move(inc));
         if (i == loop_nest.nloops() - 1) break;
         comp_value = to_simple_expr(_loop_incs[i] * loop_nest[i].bound);
     }

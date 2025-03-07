@@ -538,7 +538,7 @@ std::vector<problem_t> generate_problems(const bench_input_params_t &params) {
         auto prb = params.problem();
         prb.set_shape(shape);
         if (!params.reqs.fits(prb.shape())) continue;
-        ret.push_back(prb);
+        ret.push_back(std::move(prb));
         if ((int)ret.size() >= params.nprbs) break;
     }
     if ((int)ret.size() < params.nprbs) {

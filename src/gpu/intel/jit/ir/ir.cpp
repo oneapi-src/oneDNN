@@ -482,7 +482,7 @@ private:
             j = _find(j);
             parent[j] = i;
         };
-        std::vector<stmt_t> new_stmt_seq = stmt_vec;
+        std::vector<stmt_t> new_stmt_seq = std::move(stmt_vec);
         for (auto &buf : bufs) {
             auto &e = entries.at(buf);
             stmt_t stmt;

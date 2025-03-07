@@ -409,15 +409,15 @@ private:
                 if (!params_.is_iter_set) d.iter_tile = td.iter;
                 auto d_key = jit::stringify(d);
                 if (seen.count(d_key) > 0) continue;
-                seen.insert(d_key);
+                seen.insert(std::move(d_key));
                 if (!create_conv_plan(d, bench_mger_.hw())) {
                     std::cout << d.brief_str() << ": \033[1;31mFAIL\033[0m"
                               << std::endl;
                     continue;
                 }
-                descs.push_back(d);
                 std::cout << d.brief_str() << ": \033[1;32mOK\033[0m"
                           << std::endl;
+                descs.push_back(std::move(d));
             }
         }
         gpu_info() << "gen_desc_groups(): descs.size() = " << descs.size();
@@ -465,7 +465,7 @@ private:
                 if (desc.iter_tile.at(d) % outer != 0) continue;
                 pvar_tile_t tile_outer;
                 tile_outer[d] = outer;
-                tiles.push_back(tile_outer);
+                tiles.push_back(std::move(tile_outer));
             }
         }
         return tiles;
@@ -487,11 +487,11 @@ public:
             std::vector<pvar_tile_t> d_tiles;
             auto iter = to_gemm(d.iter_tile, d.prop);
             auto tg = to_gemm(d.thread_group_tile, d.prop);
-            d_tiles.push_back(iter);
-            d_tiles.push_back(tg);
+            d_tiles.push_back(std::move(iter));
+            d_tiles.push_back(std::move(tg));
             pvar_tile_t prefetch_tile;
             prefetch_tile[prefetch_dim] = d.prefetch.dist;
-            d_tiles.push_back(prefetch_tile);
+            d_tiles.push_back(std::move(prefetch_tile));
             tiles.push_back(std::move(d_tiles));
         }
         tile_to_vec_ = tile_to_vec_t(tiles);

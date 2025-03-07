@@ -83,7 +83,7 @@ public:
         print_helper_t<T>::call(oss, obj);
         auto lines = gpu_utils::split(oss.str(), "\n");
         if (lines_.empty() || lines.empty()) {
-            lines_ = lines;
+            lines_ = std::move(lines);
             return *this;
         }
         lines_.back() += lines[0];

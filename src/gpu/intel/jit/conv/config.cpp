@@ -1573,7 +1573,7 @@ public:
             e.tile_size = tile[d];
             if (!utils::one_of(bmnk, pvars::m, pvars::n)) continue;
             e.mn_kind = (bmnk == pvars::m ? 'm' : 'n');
-            entries_.push_back(e);
+            entries_.push_back(std::move(e));
         }
         // Put through spatial dimensions first and order spatial accordingly
         // (WHD, width is first).

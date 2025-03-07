@@ -406,7 +406,7 @@ std::vector<pvar_t> skip_mask(
         // Check if the mask can be proven with known dimension requirements.
         if (!reqs.can_prove(dim_sizes.at(dim) % tile.at(dim) == 0)) continue;
         // Mask is not required for this dimension.
-        ret.push_back(dim);
+        ret.push_back(std::move(dim));
     }
     return ret;
 }
