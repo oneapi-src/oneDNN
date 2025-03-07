@@ -556,7 +556,6 @@ private:
 bench_data_set_t bench_kernel_desc_group(const bench_manager_t &bench_mger,
         const search_kernel_desc_group_t &desc_group, int nprbs,
         int max_descs) {
-    auto eng = bench_mger.get_engine();
     bench_runner_t runner(
             bench_mger, desc_group.bench_input_params(nprbs, bench_mger.hw()));
     bench_data_set_t bd_set;

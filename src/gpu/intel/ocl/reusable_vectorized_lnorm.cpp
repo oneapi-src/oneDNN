@@ -97,8 +97,6 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     conf->calculate_stats = !pd->stats_are_src();
     conf->save_stats = pd->is_training();
 
-    auto scales = pd->attr()->scales_;
-
     // We require that the lnorm axis is a single dense block, so that it can
     // be represented by a stride + size alone.
     size_t ndims = into<size_t>(input_buf.ndims);

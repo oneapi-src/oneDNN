@@ -90,7 +90,6 @@ struct stride_t {
 
 struct block_2d_params_t {
     stride_t base_stride;
-    dim_t x_stride;
     expr_t y_stride;
     pvar_t w_dim;
     pvar_t h_dim;
