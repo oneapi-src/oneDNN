@@ -1111,7 +1111,7 @@ conv_blocking_scheme_list_t get_blocking_schemes_fwd(const conv_config_t &cfg) {
 conv_blocking_scheme_list_t get_blocking_schemes_bwd_d(
         const conv_config_t &cfg) {
     conv_blocking_scheme_list_t ret(conv_tune_level());
-    auto m_iter_dim = cfg.prb().ab_swap_transpose
+    const auto &m_iter_dim = cfg.prb().ab_swap_transpose
             ? pvars::ic
             : select_iter_dim(cfg, {pvars::mb, pvars::iw});
     bool m_is_mb = (m_iter_dim == pvars::mb);

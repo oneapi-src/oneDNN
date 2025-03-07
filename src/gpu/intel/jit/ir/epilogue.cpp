@@ -367,7 +367,7 @@ public:
 
         reg_layout_ = slm_reduce_builder_.reg_layout();
 
-        auto new_tile = slm_reduce_builder_.thr_tile();
+        const auto &new_tile = slm_reduce_builder_.thr_tile();
         info_ = info_.create_sub_tensor(new_tile);
 
         auto &slm_allocs = slm_reduce_builder_.allocs();

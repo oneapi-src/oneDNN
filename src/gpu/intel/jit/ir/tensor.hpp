@@ -495,8 +495,8 @@ public:
     bool operator!=(const layout_t &other) const { return !operator==(other); }
     bool operator<=(const layout_t &other) const {
         if (!type_.is_equal(other.type_)) return false;
-        const auto other_blocks = other.normalize().blocks();
-        const auto self_blocks = normalize().blocks();
+        const auto &other_blocks = other.normalize().blocks();
+        const auto &self_blocks = normalize().blocks();
         if (self_blocks.size() > other_blocks.size()) return false;
         if (self_blocks.empty()) return true;
 

@@ -111,7 +111,7 @@ layout_tag_t append_groups(
     bool is_dst = (tensor_kind == tensor_kind_t::dst);
     bool is_bias = (tensor_kind == tensor_kind_t::bias);
     if (!is_src && !is_dst && !is_bias) return layout_tag;
-    auto xc_dim = (is_src ? pvars::ic : pvars::oc);
+    const auto &xc_dim = (is_src ? pvars::ic : pvars::oc);
     auto xc_letter = dim_idx::as_tag(layout_tag.desc().dim_index(xc_dim));
     auto new_g_letter = xc_letter;
     auto new_xc_letter = into<char>(xc_letter + 1);

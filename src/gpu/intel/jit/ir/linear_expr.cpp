@@ -372,8 +372,7 @@ expr_t linear_div(const expr_t &e, int64_t factor) {
     auto &linear = _linear.as<linear_t>();
     auto c = linear_coef_t::div(linear.c, factor);
     auto u_vec = linear_coef_t::div(linear.u_vec, factor);
-    auto v_vec = linear.v_vec;
-    return linear_t::to_expr(c, u_vec, v_vec);
+    return linear_t::to_expr(c, u_vec, linear.v_vec);
 }
 
 expr_t simplify_linear_mod_reduce(const expr_t &e, int64_t factor) {

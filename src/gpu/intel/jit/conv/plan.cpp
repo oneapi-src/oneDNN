@@ -2167,7 +2167,7 @@ private:
 
         auto &direct_view
                 = (abc == abc_kind_t::a ? a_direct_view_ : b_direct_view_);
-        auto load_view = direct_view ? direct_view.get() : gmem_view;
+        const auto &load_view = direct_view ? direct_view.get() : gmem_view;
 
         auto params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
                 send_address_t::a64, cfg_.fma_kind(), abc, load_view,

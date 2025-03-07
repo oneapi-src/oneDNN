@@ -1118,7 +1118,7 @@ bool post_op_layouts_ok(const conv_problem_t &prb) {
                             po.binary.src1_desc.dims, prb.ndims, true);
             // These cases don't have message-related limitations.
             if ((mask & (1 << 1)) == 0 || mask == (1 << 1)) continue;
-            auto rhs_layout = po.is_prelu()
+            const auto &rhs_layout = po.is_prelu()
                     ? layout_t(type_t::f32(), 0,
                             get_prelu_weights_dims(po.prelu.mask, output_md))
                     : layout_t(po.binary.src1_desc);
