@@ -45,6 +45,7 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc);
 
+// NOLINTBEGIN(google-default-arguments)
 struct matmul_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::matmul;
 
@@ -281,6 +282,7 @@ protected:
                 {&src_md_, &weights_md_, &bias_md_, &dst_md_, &reduce_md_});
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

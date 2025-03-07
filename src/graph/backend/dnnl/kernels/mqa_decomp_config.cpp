@@ -149,7 +149,7 @@ status_t mqa_decomp_config_t::construct_params(std::shared_ptr<subgraph_t> &sg,
     auto alg
             = static_cast<algorithm>(ori_dnnl_pops.get()->entry_[0].binary.alg);
     dnnl_pops.append_binary(alg, sub_mm1_post_add_md);
-    sub_matmul1_attr.set_post_ops(std::move(dnnl_pops));
+    sub_matmul1_attr.set_post_ops(dnnl_pops);
     auto sub_mm1_pd = matmul::primitive_desc(p_engine, sub_mm1_src_md,
             sub_mm1_wei_md, sub_mm1_dst_md, sub_matmul1_attr);
     sub_mm1_prim = matmul(sub_mm1_pd);

@@ -40,6 +40,7 @@
 namespace dnnl {
 namespace impl {
 
+// NOLINTBEGIN(google-default-arguments)
 struct sum_pd_t : public primitive_desc_t {
     const sum_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -115,14 +116,14 @@ protected:
         init_desc();
     }
 
-    sum_pd_t(const sum_pd_t &other) : primitive_desc_t(other) {
-        n_ = other.n_;
-        scales_ = other.scales_;
-        dst_md_ = other.dst_md_;
-        dst_acc_md_ = other.dst_acc_md_;
-        src_mds_ = other.src_mds_;
-        original_dst_md_ = other.original_dst_md_;
-
+    sum_pd_t(const sum_pd_t &other)
+        : primitive_desc_t(other)
+        , n_(other.n_)
+        , scales_(other.scales_)
+        , dst_md_(other.dst_md_)
+        , dst_acc_md_(other.dst_acc_md_)
+        , src_mds_(other.src_mds_)
+        , original_dst_md_(other.original_dst_md_) {
         init_desc();
     }
     sum_pd_t &operator=(const sum_pd_t &other) {
@@ -195,6 +196,7 @@ private:
             desc_.src_mds.push_back(&md);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 #define DECLARE_SUM_PD_t(impl_name, ...) \
     static status_t create(sum_pd_t **sum_pd, dnnl::impl::engine_t *engine, \

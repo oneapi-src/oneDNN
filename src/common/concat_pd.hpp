@@ -37,6 +37,7 @@
 namespace dnnl {
 namespace impl {
 
+// NOLINTBEGIN(google-default-arguments)
 struct concat_pd_t : public primitive_desc_t {
     const concat_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -111,14 +112,14 @@ protected:
         init_desc();
     }
 
-    concat_pd_t(const concat_pd_t &other) : primitive_desc_t(other) {
-        n_ = other.n_;
-        concat_dim_ = other.concat_dim_;
-        dst_md_ = other.dst_md_;
-        original_dst_ = other.original_dst_;
-        src_mds_ = other.src_mds_;
-        src_image_mds_ = other.src_image_mds_;
-
+    concat_pd_t(const concat_pd_t &other)
+        : primitive_desc_t(other)
+        , n_(other.n_)
+        , concat_dim_(other.concat_dim_)
+        , dst_md_(other.dst_md_)
+        , original_dst_(other.original_dst_)
+        , src_mds_(other.src_mds_)
+        , src_image_mds_(other.src_image_mds_) {
         init_desc();
     }
 
@@ -265,6 +266,7 @@ private:
             desc_.src_mds.push_back(&md);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 #define DECLARE_CONCAT_PD_t(impl_name, ...) \
     static status_t create(concat_pd_t **concat_pd, \
