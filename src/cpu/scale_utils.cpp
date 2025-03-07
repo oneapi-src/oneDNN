@@ -91,13 +91,10 @@ const float *precompute_scales(const memory_tracking::grantor_t &scratchpad,
 
     const float *scales = nullptr;
     if (req_copy_scales(attr, scale_adjust_factor)) {
-        const int wei_scale_mask = attr_scales.get_mask(DNNL_ARG_WEIGHTS);
-        assert(wei_scale_mask >= 0);
-
         size_t size = 0;
         auto loc_scales
                 = scratchpad.template get<float>(key_precomputed_scales, &size);
-        if (wei_scale_mask == 0 || wei_scale_count == 1) {
+        if (wei_scale_count == 1) {
             const size_t count = nstl::min(size / sizeof(float), scales_simd_w);
             utils::array_set(loc_scales,
                     src_scales[0] * wei_scales[0] * scale_adjust_factor, count);
