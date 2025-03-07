@@ -195,14 +195,12 @@ int fill_random_real_dense(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
     // This function doesn't handle the predefined set yet.
     assert(fill_cfg.predefined_set_.empty());
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     // The `nelems()` function returns a product of dims/pdims regardless of
     // whether the tensor is dense or sparse (this is by design). Because of
     // that we need to adjust the `nelems` value for the sparse tensor as the
     // number of elements to fill is equal to `nnz`.
     if (mem_ref.format_kind() == dnnl_format_kind_sparse)
         nelems = query_md_nnz(mem_ref.md_);
-#endif
 
     // Note: fill_cfg_t drives value distribution, but the final rounding is
     // in compliance with the memory object the values are inserted. Depending
@@ -290,7 +288,6 @@ int fill_random_real_dense(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
     return OK;
 }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
 // Since a sparsity pattern affects performance, it's crucial to keep the
 // pattern intact and only randomize tensor values. Thus, the function relies on
 // an assumption that every sparse format contains three handles, where the
@@ -313,17 +310,14 @@ int fill_random_real_sparse(const_dnnl_memory_t dnnl_memory, dnn_mem_t &mem,
 
     return fill_random_real_dense(mem, mem_ref, res, fill_cfg);
 }
-#endif
 
 int fill_random_real(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
         const fill_cfg_t &fill_cfg, const_dnnl_memory_t dnnl_memory) {
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     if (mem_ref.format_kind() == dnnl_format_kind_sparse) {
         assert(dnnl_memory != nullptr);
         return fill_random_real_sparse(
                 dnnl_memory, mem, mem_ref, res, fill_cfg);
     }
-#endif
     return fill_random_real_dense(mem, mem_ref, res, fill_cfg);
 }
 

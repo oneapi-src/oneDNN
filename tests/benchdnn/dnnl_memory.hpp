@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -167,7 +167,6 @@ struct dnn_mem_t {
     static benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> init_md(int ndims,
             const dnnl_dims_t dims, dnnl_data_type_t data_type,
             const std::string &tag, const dims_t &strides_ = {});
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     // Initializes memory descriptor for CSR encoding.
     static benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> init_csr_md(int ndims,
             const dnnl_dims_t dims, dnnl_data_type_t data_type, dnnl_dim_t nnz,
@@ -180,7 +179,6 @@ struct dnn_mem_t {
     static benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> init_sparse_packed_md(
             int ndims, const dnnl_dims_t dims, dnnl_data_type_t data_type,
             dnnl_dim_t nnz);
-#endif
 
     /* fields */
     dnnl_memory_desc_t md_ {};
