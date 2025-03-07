@@ -24,7 +24,9 @@ namespace dnnl {
 namespace impl {
 namespace itt {
 
-typedef enum {
+// GCC treats using and typedef differently for enums and structs
+// https://stackoverflow.com/questions/48613758
+typedef enum { // NOLINT(modernize-use-using)
     __itt_task_level_none = 0,
     __itt_task_level_low,
     __itt_task_level_high

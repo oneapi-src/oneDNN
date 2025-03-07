@@ -62,7 +62,7 @@ status_t safe_ptr_assign(
 }
 
 template <typename T, typename U>
-struct is_subset {
+struct is_subset { // NOLINT(readability-identifier-naming)
     static constexpr bool value = false;
 };
 template <typename T>
