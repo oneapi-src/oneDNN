@@ -678,7 +678,7 @@ private:
             auto store_layout = store.reg_layout();
             if (bias_reg_layout != store_layout) {
                 plan.bias_reorder = reorder_plan_t(hw_);
-                plan.bias_reorder.src = std::move(bias_reg_layout);
+                plan.bias_reorder.src = bias_reg_layout;
                 plan.bias_reorder.dst = std::move(store_layout);
             }
         }

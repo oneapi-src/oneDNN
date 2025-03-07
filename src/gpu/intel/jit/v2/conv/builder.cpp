@@ -429,8 +429,8 @@ private:
                         auto src1 = a_buf[a_off];
                         auto src2 = b_buf[b_off];
                         if (fma.fma == fma_kind_t::dpas) std::swap(src1, src2);
-                        call_stmt = call_stmt.append(fma_func.call(
-                                {dst, dst, std::move(src1), std::move(src2)}));
+                        call_stmt = call_stmt.append(
+                                fma_func.call({dst, dst, src1, src2}));
                     }
                 }
             }

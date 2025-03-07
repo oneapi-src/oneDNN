@@ -646,9 +646,9 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
 
     // Use plain tags for user-facing activations for small-channel tensors.
     if (!matches_tag(src_md, src_tag) && is_small_ic_g1)
-        user_src_tag = (user_src_req.empty() ? "axb" : std::move(user_src_req));
+        user_src_tag = (user_src_req.empty() ? "axb" : user_src_req);
     if (!matches_tag(dst_md, dst_tag) && is_small_oc_g1)
-        user_dst_tag = (user_dst_req.empty() ? "axb" : std::move(user_dst_req));
+        user_dst_tag = (user_dst_req.empty() ? "axb" : user_dst_req);
 
     // Avoid reorder for small shapes
     if (!user_src_tag.empty() && !user_dst_tag.empty() && prb.g == 1
