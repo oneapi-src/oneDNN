@@ -119,6 +119,7 @@ private:
     const memory_desc_t &dst_desc() const { return dst_md_; }
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct softmax_fwd_pd_t : public softmax_pd_t {
     using base_class = softmax_fwd_pd_t;
     using hint_class = softmax_fwd_pd_t;
@@ -193,7 +194,9 @@ protected:
         return ok;
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct softmax_bwd_pd_t : public softmax_pd_t {
     using base_class = softmax_bwd_pd_t;
     using hint_class = softmax_fwd_pd_t;
@@ -269,6 +272,7 @@ protected:
         return status::success;
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

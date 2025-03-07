@@ -36,6 +36,7 @@ namespace impl {
     VCHECK(primitive, create, dispatch, sdpa, (f), "%s," msg, \
             this->info(engine), ##__VA_ARGS__)
 
+// NOLINTBEGIN(google-default-arguments)
 struct sdpa_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::sdpa;
 
@@ -244,6 +245,7 @@ private:
         return static_cast<int>(out);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

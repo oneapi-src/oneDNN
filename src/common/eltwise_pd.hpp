@@ -116,6 +116,7 @@ private:
     }
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct eltwise_fwd_pd_t : public eltwise_pd_t {
     using base_class = eltwise_fwd_pd_t;
     using hint_class = eltwise_fwd_pd_t;
@@ -190,7 +191,9 @@ protected:
                         == status::success);
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct eltwise_bwd_pd_t : public eltwise_pd_t {
     using base_class = eltwise_bwd_pd_t;
     using hint_class = eltwise_fwd_pd_t;
@@ -300,6 +303,7 @@ protected:
                                 == status::success);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

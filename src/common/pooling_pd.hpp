@@ -175,6 +175,7 @@ private:
     }
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct pooling_fwd_pd_t : public pooling_pd_t {
     using base_class = pooling_fwd_pd_t;
     using hint_class = pooling_fwd_pd_t;
@@ -245,7 +246,9 @@ protected:
                 dst_md_, src_md_.format_desc.blocking);
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct pooling_bwd_pd_t : public pooling_pd_t {
     using base_class = pooling_bwd_pd_t;
     using hint_class = pooling_fwd_pd_t;
@@ -339,6 +342,7 @@ protected:
 private:
     std::vector<memory_desc_t> hint_mds_;
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

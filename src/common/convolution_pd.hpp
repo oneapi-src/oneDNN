@@ -256,6 +256,7 @@ protected:
     }
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct convolution_fwd_pd_t : public convolution_pd_t {
     using base_class = convolution_fwd_pd_t;
     using hint_class = convolution_fwd_pd_t;
@@ -336,7 +337,9 @@ protected:
                                                                           : 2;
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct convolution_bwd_data_pd_t : public convolution_pd_t {
     using base_class = convolution_bwd_data_pd_t;
     using hint_class = convolution_fwd_pd_t;
@@ -407,7 +410,9 @@ protected:
                 weights_md_, wei_tag, diff_dst_md_, diff_dst_tag, bias_md_);
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct convolution_bwd_weights_pd_t : public convolution_pd_t {
     using base_class = convolution_bwd_weights_pd_t;
     using hint_class = convolution_fwd_pd_t;
@@ -480,6 +485,7 @@ protected:
                 diff_bias_md_);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

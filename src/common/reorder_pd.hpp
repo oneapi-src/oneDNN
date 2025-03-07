@@ -102,6 +102,7 @@ private:
     dnnl::impl::engine_t *scratchpad_engine_;
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct reorder_pd_t : public primitive_desc_t {
     const reorder_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -188,6 +189,7 @@ protected:
         desc_.is_cross_engine = is_cross_engine;
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

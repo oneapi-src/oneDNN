@@ -111,6 +111,7 @@ protected:
         , scaleshift_md_(desc_.scaleshift_desc) {}
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct group_normalization_fwd_pd_t : public group_normalization_pd_t {
     using base_class = group_normalization_fwd_pd_t;
     using hint_class = group_normalization_fwd_pd_t;
@@ -208,7 +209,9 @@ protected:
         return ok;
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct group_normalization_bwd_pd_t : public group_normalization_pd_t {
     using base_class = group_normalization_bwd_pd_t;
     using hint_class = group_normalization_fwd_pd_t;
@@ -310,6 +313,7 @@ protected:
                         diff_weights_md()->data_type));
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl
