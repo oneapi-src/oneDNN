@@ -367,36 +367,29 @@ private:
         const auto &b_buf = buf_info_.reg_buf("b");
         const auto &c_buf = buf_info_.reg_buf("c");
 
-        for (auto &d : a_layout.dims())
-            gpu_assert(fma.inst_tile.has(d)) << d;
-        for (auto &d : b_layout.dims())
-            gpu_assert(fma.inst_tile.has(d)) << d;
-
-        // BMNK order.
-        pvar_t dims[4];
-        dim_t blocks[4] = {1, 1, 1, 1};
-        int sizes[4] = {1, 1, 1, 1};
-        pvar_map_t<int> bmnk_map;
-        bmnk_map[pvars::b] = 0;
-        bmnk_map[pvars::m] = 1;
-        bmnk_map[pvars::n] = 2;
-        bmnk_map[pvars::k] = 3;
-        for (auto &d : fma.inst_tile) {
-            int idx = bmnk_map.at(to_gemm(d, desc_.prop));
-            dims[idx] = d;
-            blocks[idx] = fma.inst_tile[d];
-            sizes[idx] = (idx != 2 ? a_layout : b_layout).int_dim_size(d);
+        pvar_tile_t sizes = a_layout.int_dim_sizes();
+        auto b_sizes = b_layout.int_dim_sizes();
+        for (auto &d : b_sizes) {
+            if (sizes.has(d)) gpu_assert(sizes[d] == b_sizes[d]);
+            sizes[d] = b_sizes[d];
         }
 
-        // BKNM order.
-        int i0 = 0;
-        int i1 = 3;
-        int i2 = 2;
-        int i3 = 1;
-        stmt_t stmt;
-        pvar_coord_t<dim_t> off;
-        bool is_a_bcast = (blocks[0] * blocks[1] * blocks[3] == 1);
-        bool is_b_bcast = (blocks[0] * blocks[2] * blocks[3] == 1);
+        // BMNK order (outer -> inner).
+        std::vector<pvar_t> dim_order;
+        for (auto bmnk : {pvars::m, pvars::n, pvars::k, pvars::b}) {
+            for (auto &d : sizes) {
+                if (to_gemm(d, desc_.prop) != bmnk) continue;
+                dim_order.push_back(d);
+            }
+        }
+
+        auto bmnk_inst_tile = to_gemm(fma.inst_tile, desc_.prop);
+        dim_t B = bmnk_inst_tile.get(pvars::b, 1);
+        dim_t M = bmnk_inst_tile.get(pvars::m, 1);
+        dim_t N = bmnk_inst_tile.get(pvars::n, 1);
+        dim_t K = bmnk_inst_tile.get(pvars::k, 1);
+        bool is_a_bcast = (B * M * K == 1);
+        bool is_b_bcast = (B * K * N == 1);
         func_t fma_func;
         switch (fma.fma) {
             case fma_kind_t::mad: {
@@ -414,27 +407,19 @@ private:
             default: gpu_error_not_expected();
         }
         stmt_t call_stmt;
-        for (int b = 0; b < sizes[i0]; b += blocks[i0]) {
-            off[dims[i0]] = b;
-            for (int k = 0; k < sizes[i1]; k += blocks[i1]) {
-                off[dims[i1]] = k;
-                for (int n = 0; n < sizes[i2]; n += blocks[i2]) {
-                    off[dims[i2]] = n;
-                    for (int m = 0; m < sizes[i3]; m += blocks[i3]) {
-                        off[dims[i3]] = m;
-                        dim_t a_off = a_layout.offset_in_bytes(off);
-                        dim_t b_off = b_layout.offset_in_bytes(off);
-                        dim_t c_off = c_layout.offset_in_bytes(off);
-                        auto dst = c_buf[c_off];
-                        auto src1 = a_buf[a_off];
-                        auto src2 = b_buf[b_off];
-                        if (fma.fma == fma_kind_t::dpas) std::swap(src1, src2);
-                        call_stmt = call_stmt.append(fma_func.call(
-                                {dst, dst, std::move(src1), std::move(src2)}));
-                    }
-                }
-            }
-        }
+        for_each(sizes, fma.inst_tile, dim_order,
+                [&](const pvar_coord_t<dim_t> &coord) {
+                    dim_t a_off = a_layout.offset_in_bytes(coord);
+                    dim_t b_off = b_layout.offset_in_bytes(coord);
+                    dim_t c_off = c_layout.offset_in_bytes(coord);
+                    auto dst = c_buf[c_off];
+                    auto src1 = a_buf[a_off];
+                    auto src2 = b_buf[b_off];
+                    if (fma.fma == fma_kind_t::dpas) std::swap(src1, src2);
+                    call_stmt = call_stmt.append(fma_func.call(
+                            {dst, dst, std::move(src1), std::move(src2)}));
+                });
+
         if (fma.fma == fma_kind_t::dpas) {
             call_stmt
                     = inject_dpas_atomic(call_stmt, /*filter_by_label=*/false);

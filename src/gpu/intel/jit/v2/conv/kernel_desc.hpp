@@ -476,6 +476,7 @@ dim_t stream_k_thread_groups(
 type_t accumulator_type(const type_t &a_type, const type_t &b_type);
 kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext = true);
 prb_reqs_t generate_2d_reqs(const kernel_desc_t &desc);
+bool can_use_2d(const kernel_desc_t &desc, tensor_kind_t tensor);
 
 class kernel_params_t : public kernel_params_base_t {
 public:
