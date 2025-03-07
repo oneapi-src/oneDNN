@@ -34,6 +34,7 @@
 namespace dnnl {
 namespace impl {
 
+// NOLINTBEGIN(google-default-arguments)
 struct shuffle_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::shuffle;
 
@@ -179,6 +180,7 @@ private:
         return is_fwd() ? src_md() : diff_src_md();
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

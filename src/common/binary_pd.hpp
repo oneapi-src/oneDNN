@@ -37,6 +37,7 @@
 namespace dnnl {
 namespace impl {
 
+// NOLINTBEGIN(google-default-arguments)
 struct binary_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::binary;
 
@@ -200,6 +201,7 @@ private:
                     = (dims_A[d] == dims_B[d] && dims_A[d] != 1) ? 0 : 1;
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl
