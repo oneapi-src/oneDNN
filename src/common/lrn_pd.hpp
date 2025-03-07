@@ -97,6 +97,7 @@ protected:
         , src_md_(desc_.src_desc) {}
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct lrn_fwd_pd_t : public lrn_pd_t {
     using base_class = lrn_fwd_pd_t;
     using hint_class = lrn_fwd_pd_t;
@@ -155,7 +156,9 @@ protected:
                         == status::success);
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct lrn_bwd_pd_t : public lrn_pd_t {
     using base_class = lrn_bwd_pd_t;
     using hint_class = lrn_fwd_pd_t;
@@ -230,6 +233,7 @@ protected:
                                 == status::success);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl
