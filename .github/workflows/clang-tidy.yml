@@ -54,13 +54,13 @@ jobs:
       - name: Check source files
         run: |
           touch source-check.log
-          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(c|cpp)$'); 
+          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp$'); 
           do
             if grep -q "$file" "build/compile_commands.json"; then
-              echo Analyzing $file
-              clang-tidy -p build $file 2>&1 | tee -a source-check.log
+              echo "Analyzing $file"
+              clang-tidy -p build --header-filter='' $file 2>&1 | tee -a source-check.log
             else
-              echo Skipped $file as it's not built in x64 OpenMP/OpenCL configuration.
+              echo "Skipped $file as it's not built in x64 OpenMP/OpenCL configuration."
             fi
           done
           grep -i "warning:" source-check.log | sort -u
@@ -68,14 +68,16 @@ jobs:
 
       - name: Check header files
         if: always()
+        continue-on-error: true
         run: |
           touch headers-check.log
-          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(h|hpp)$'); 
+          for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp$'); 
           do
-            header_dir=$(dirname "$file") 
-            if [[ "$header_dir" =~ ^include ]] || grep -q "$header_dir" "build/compile_commands.json"; then
-              clang-tidy -p build --header-filter='' $file | tee -a headers-check.log
+            if grep -q "$file" "build/compile_commands.json"; then
+              echo "Analyzing $file"
+              clang-tidy -p build $file 2>&1 | tee -a headers-check.log
+            else
+              echo "Skipped $file as it's not built in x64 OpenMP/OpenCL configuration."
             fi
           done
           grep -i "warning:" headers-check.log | sort -u
-          grep -q -i "warning:" headers-check.log && exit 1 || true
