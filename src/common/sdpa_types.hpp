@@ -75,7 +75,7 @@ struct sdpa_desc_t : public op_desc_t {
     dnnl_dim_t values() const { return v_desc.dims[v_desc.ndims - 1]; }
     // Number of subsequences.
     dnnl_dim_t num_sequences() const {
-      return subsequence_begins_desc.dims[subsequence_begins_desc.ndims - 1];
+      return subsequence_begins_desc.dims[subsequence_begins_desc.ndims - 1] - 1;
     }
     // Total batch size.
     dnnl_dim_t batch_size() const {

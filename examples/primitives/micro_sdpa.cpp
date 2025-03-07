@@ -321,36 +321,43 @@ int main(int argc, char **argv) {
     //
     //    1 1 5 4 [f16]
     //    Legend:
-    //      0: 0.174927
-    //      1: 0.475342
-
+    //      0: 0
+    //      1: 0.174927
+    //      2: 0.211914
+    //      3: 0.269043
+    //      4: 0.475342
+    //      5: 0.576172
+    //      6: 0.730957
+    //      7: 1
+    //
     //    (0,0)
-    //      1  0  0  0  1
-    //      0  1  0  0  0
-    //      0  0  1  0  0
-    //      0  0  0  1  0
+    //      7  3  2  1  4
+    //      0  6  2  1  1
+    //      0  0  5  1  1
+    //      0  0  0  4  1
+    //
     two_prompt_two_page_problem();
 
-    // // prefill
-    // for (int head_size : {128}) {
-    //     for (int seq_len : {384, 512, 1024, 2048, 4096}) {
-    //         prefill(seq_len, head_size, 64);
-    //     }
-    // }
+    // prefill
+    for (int head_size : {128}) {
+        for (int seq_len : {384, 512, 1024, 2048, 4096}) {
+            prefill(seq_len, head_size, 64);
+        }
+    }
 
-    // // generate
-    // for (int head_size : {128}) {
-    //     for (int seq_len : {385, 513, 1025, 2049, 4097}) {
-    //         generate(seq_len, head_size, 64);
-    //     }
-    // }
+    // generate
+    for (int head_size : {128}) {
+        for (int seq_len : {385, 513, 1025, 2049, 4097}) {
+            generate(seq_len, head_size, 64);
+        }
+    }
 
-    // // combined
-    // for (int head_size : {128}) {
-    //     for (int context_len : {384, 1024, 2048, 4096}) {
-    //         combined(context_len, head_size, 64); // query len 129
-    //     }
-    // }
+    // combined
+    for (int head_size : {128}) {
+        for (int context_len : {384, 1024, 2048, 4096}) {
+            combined(context_len, head_size, 64); // query len 129
+        }
+    }
 
     return 0;
 }

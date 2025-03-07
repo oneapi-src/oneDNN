@@ -211,6 +211,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #endif
 #if WITH_PAGED_ATTN
         ,
+        const global INDEX_DATA_T *past_lens,
         const global INDEX_DATA_T *subsequence_begins,
         const global INDEX_DATA_T *block_indices,
         const global INDEX_DATA_T *block_indices_begins, const int context_len
@@ -218,13 +219,13 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 ) {
 
     uint sg_ij = sub_group_broadcast(get_local_id(1), 0);
-    uint b0 = get_group_id(2);
+    uint b0 = get_group_id(1);
     uint b0_kv = b0 / KV_GROUP_SIZE;
     const uint b1 = 0;
 
     const global VAL_DATA_T *V_backup = V;
 
-    const uint subsequence_no = get_group_id(1);
+    const uint subsequence_no = get_group_id(2);
     const uint start_query_no = subsequence_begins[subsequence_no];
     const uint stop_query_no = subsequence_begins[subsequence_no + 1];
     q = stop_query_no - start_query_no;
@@ -525,10 +526,12 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #if WITH_CAUSAL_MASK
 #define greater_than(offset_k, offset_q) (offset_k > offset_q)
         /* Apply causal mask */
-        tile_predicated_assignment_t(S_tile, k0 + sg_i0_kq, wg_j0 + sg_j0_kq,
-                greater_than, -INFINITY, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
-                ugemm_kq_c_type_block1, ugemm_kq_c_type_nblock0,
-                ugemm_kq_c_type_nblock1);
+        tile_predicated_assignment_t(S_tile,
+                                     k0 + sg_i0_kq - past_lens[subsequence_no],
+                                     wg_j0 + sg_j0_kq,
+                                     greater_than, -INFINITY, SUBGROUP_SIZE, ugemm_kq_c_type_block0,
+                                     ugemm_kq_c_type_block1, ugemm_kq_c_type_nblock0,
+                                     ugemm_kq_c_type_nblock1);
 #endif
 
         /* Before softmax, we will need to scale columns by maximum values to avoid overflow. */

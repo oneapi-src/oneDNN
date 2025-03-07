@@ -672,8 +672,8 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     compute::range_t lws = {(size_t)pd()->sg_size(), (size_t)sg_per_wg, 1};
     compute::range_t gws = lws;
 
-    gws[1] *= pd()->desc()->num_sequences();
-    gws[2] *= pd()->dst_md()->dims[1];
+    gws[1] *= pd()->dst_md()->dims[1];
+    gws[2] *= pd()->desc()->num_sequences();
 
     auto nd_range = compute::nd_range_t(gws, lws);
     return parallel_for(ctx, nd_range, kernel_, arg_list);
