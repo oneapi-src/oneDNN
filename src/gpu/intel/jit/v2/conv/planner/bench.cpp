@@ -650,7 +650,7 @@ bool try_create(
     bench_input_params_t params(kernel_desc, bench_mger.hw(), /*nprbs=*/1);
     bench_task_t task(generate_problems(params)[0]);
     auto engine = bench_mger.get_engine();
-    auto guard = debug_t::instance().make_kernel_desc_setter(kernel_desc);
+    auto guard = debug_t::make_kernel_desc_setter(kernel_desc);
     return task.init_primitive(engine);
 }
 
