@@ -106,7 +106,7 @@ struct concat_desc_t : public op_desc_t {
     const memory_desc_t *dst_md {};
     dim_t n {};
     dim_t concat_dimension {};
-    std::vector<const memory_desc_t *> src_mds {};
+    std::vector<const memory_desc_t *> src_mds;
 };
 
 // A descriptor of a sum operation.
@@ -124,7 +124,7 @@ struct sum_desc_t : public op_desc_t {
     const memory_desc_t *dst_md {};
     dim_t n {};
     const float *scales {};
-    std::vector<const memory_desc_t *> src_mds {};
+    std::vector<const memory_desc_t *> src_mds;
 };
 
 // A descriptor of a zero padding operation.
@@ -145,21 +145,21 @@ struct inner_product_desc_t : public op_desc_t {
     // backward_weights, and backward_bias.
     prop_kind_t prop_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Weights memory descriptor.
-    memory_desc_t weights_desc {};
+    memory_desc_t weights_desc;
     // Weights gradient memory descriptor.
-    memory_desc_t diff_weights_desc {};
+    memory_desc_t diff_weights_desc;
     // Bias memory descriptor.
-    memory_desc_t bias_desc {};
+    memory_desc_t bias_desc;
     // Bias gradient memory descriptor.
-    memory_desc_t diff_bias_desc {};
+    memory_desc_t diff_bias_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
     // The accumulator data type.
     data_type_t accum_data_type {};
 };
@@ -178,21 +178,21 @@ struct convolution_desc_t : public op_desc_t {
     // #dnnl_convolution_direct.
     alg_kind_t alg_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Weights memory descriptor.
-    memory_desc_t weights_desc {};
+    memory_desc_t weights_desc;
     // Weights gradient memory descriptor.
-    memory_desc_t diff_weights_desc {};
+    memory_desc_t diff_weights_desc;
     // Bias memory descriptor.
-    memory_desc_t bias_desc {};
+    memory_desc_t bias_desc;
     // Bias gradient memory descriptor.
-    memory_desc_t diff_bias_desc {};
+    memory_desc_t diff_bias_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
     // Convolution strides in each spatial dimension.
     dims_t strides {};
     // Convolution dilates in each spatial dimension.
@@ -220,9 +220,9 @@ struct shuffle_desc_t : public op_desc_t {
     // #dnnl_forward_inference, and #dnnl_backward_data.
     prop_kind_t prop_kind {};
     // Source or source gradient memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Destination or destination gradient memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Axis for shuffling.
     int axis {};
     // Number of groups.
@@ -242,13 +242,13 @@ struct resampling_desc_t : public op_desc_t {
     // #dnnl_resampling_nearest, #dnnl_resampling_linear.
     alg_kind_t alg_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
     // Resampling factor in each spatial dimension.
     float factors[DNNL_MAX_NDIMS] {};
 };
@@ -266,15 +266,15 @@ struct matmul_desc_t : public op_desc_t {
     DECLARE_COMMON_OP_DESC_CLONE(matmul_desc_t);
 
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Weights memory descriptor.
-    memory_desc_t weights_desc {};
+    memory_desc_t weights_desc;
     // Bias memory descriptor.
-    memory_desc_t bias_desc {};
+    memory_desc_t bias_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Reduce memory descriptor;
-    memory_desc_t reduce_desc {};
+    memory_desc_t reduce_desc;
     // Reduce kind.
     matmul_reduce_kind_t reduce_kind {};
     // The accumulator data type. Initialized automatically.
@@ -306,13 +306,13 @@ struct eltwise_desc_t : public op_desc_t {
     // #dnnl_eltwise_clip_v2_use_dst_for_bwd.
     alg_kind_t alg_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
     // Algorithm specific parameter.
     // Accordance table:
     //  - #dnnl_eltwise_relu: @p alpha -- negative slope, @p beta ignored
@@ -351,21 +351,21 @@ struct batch_normalization_desc_t : public op_desc_t {
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
     // Scale and/or shift data and gradient memory descriptor.
     // Scaleshift memory descriptor uses 1D #dnnl_x format[Channels].
-    memory_desc_t scaleshift_desc {};
-    memory_desc_t diff_scaleshift_desc {};
+    memory_desc_t scaleshift_desc;
+    memory_desc_t diff_scaleshift_desc;
     // Statistics memory descriptor.
     //
     // Statistics (mean or variance) descriptor use 1D #dnnl_x format[Channels].
-    memory_desc_t stat_desc {};
+    memory_desc_t stat_desc;
     // Batch normalization epsilon parameter.
     float batch_norm_epsilon {};
     unsigned flags {};
@@ -382,26 +382,26 @@ struct group_normalization_desc_t : public op_desc_t {
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Scale and/or shift data and gradient memory descriptor.
     // Scaleshift memory descriptor uses 1D #dnnl_x format[Channels].
-    memory_desc_t scaleshift_desc {};
-    memory_desc_t diff_scaleshift_desc {};
+    memory_desc_t scaleshift_desc;
+    memory_desc_t diff_scaleshift_desc;
     // Mean and variance data memory descriptors.
     // Statistics (mean and variance) memory descriptor uses 2D #dnnl_ab
     // format[Batch, groups].
-    memory_desc_t stat_desc {};
+    memory_desc_t stat_desc;
     // Group normalization groups parameter.
     dim_t groups {};
     // Group normalization epsilon parameter.
     float group_norm_epsilon {};
     unsigned flags {};
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
 };
 
 // A descriptor of a Layer Normalization operation.
@@ -415,28 +415,28 @@ struct layer_normalization_desc_t : public op_desc_t {
     // #dnnl_forward_inference, #dnnl_backward, and #dnnl_backward_data.
     prop_kind_t prop_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Scale and shift data and gradient memory descriptors.
     // Scaleshift memory descriptor uses 1D #dnnl_x format[normalized_dim].
     // Normalized_dim is equal to the last logical dimension of the source
     // tensor across which normalization is performed.
-    memory_desc_t data_scaleshift_desc {};
-    memory_desc_t diff_data_scaleshift_desc {};
+    memory_desc_t data_scaleshift_desc;
+    memory_desc_t diff_data_scaleshift_desc;
     // Mean and variance data memory descriptors.
     //
     // Statistics (mean and variance) memory descriptor is the k-dimensional tensor
     // where k is equal to data_tensor_ndims - 1 and may have any plain
     // (stride[last_dim] == 1) user-provided format.
-    memory_desc_t stat_desc {};
+    memory_desc_t stat_desc;
     // Layer normalization epsilon parameter.
     float layer_norm_epsilon {};
     unsigned flags {};
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
 };
 
 // A descriptor of a Local Response Normalization (LRN) operation.
@@ -452,13 +452,13 @@ struct lrn_desc_t : public op_desc_t {
     // #dnnl_lrn_across_channels.
     alg_kind_t alg_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
     // The number of channels to sum over (for cross-channel LRN) or the side
     // length of the square region to sum over (for within-channel LRN).
     dim_t local_size {};
@@ -483,9 +483,9 @@ struct reduction_desc_t : public op_desc_t {
     // #dnnl_reduction_norm_lp_power_p_sum.
     alg_kind_t alg_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Algorithm specific parameters.
     // Accordance table:
     // #dnnl_reduction_max: @p p and @p eps are ignored
@@ -511,18 +511,18 @@ struct softmax_desc_t : public op_desc_t {
     // #dnnl_forward_inference, and #dnnl_backward_data.
     prop_kind_t prop_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // The axis along which to perform the softmax.
     int softmax_axis {};
     // Softmax algorithm. Possible values: #dnnl_softmax_accurate and
     // #dnnl_softmax_log.
     alg_kind_t alg_kind {};
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
 };
 
 // A descriptor of a binary operation.
@@ -540,7 +540,7 @@ struct binary_desc_t : public op_desc_t {
     // Source memory descriptors.
     memory_desc_t src_desc[3] {};
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
 };
 
 /// A descriptor of a PReLU operation.
@@ -553,18 +553,18 @@ struct prelu_desc_t : public op_desc_t {
     // #dnnl_forward_inference, #dnnl_backward
     prop_kind_t prop_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Learnable parameter alpha memory descriptor.
     // Alpha describes negative slope.
-    memory_desc_t weights_desc {};
+    memory_desc_t weights_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Learnable parameter alpha gradient memory descriptor.
-    memory_desc_t diff_weights_desc {};
+    memory_desc_t diff_weights_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
 };
 
 // A descriptor of a pooling operation.
@@ -582,13 +582,13 @@ struct pooling_desc_t : public op_desc_t {
     // #dnnl_pooling_avg_exclude_padding.
     alg_kind_t alg_kind {};
     // Source memory descriptor.
-    memory_desc_t src_desc {};
+    memory_desc_t src_desc;
     // Source gradient memory descriptor.
-    memory_desc_t diff_src_desc {};
+    memory_desc_t diff_src_desc;
     // Destination memory descriptor.
-    memory_desc_t dst_desc {};
+    memory_desc_t dst_desc;
     // Destination gradient memory descriptor.
-    memory_desc_t diff_dst_desc {};
+    memory_desc_t diff_dst_desc;
     // Pooling kernel strides for spatial dimensions.
     dims_t strides {};
     // Pooling kernel spatial dimensions.
@@ -618,58 +618,58 @@ struct rnn_desc_t : public op_desc_t {
     // The direction of RNN primitive execution.
     rnn_direction_t direction {};
     // Source layer memory descriptor.
-    memory_desc_t src_layer_desc {};
+    memory_desc_t src_layer_desc;
     // Source iteration memory descriptor for hidden state.
-    memory_desc_t src_iter_desc {};
+    memory_desc_t src_iter_desc;
     // Source iteration memory descriptor for cell state.
-    memory_desc_t src_iter_c_desc {};
+    memory_desc_t src_iter_c_desc;
     // Weights layer memory descriptor.
-    memory_desc_t weights_layer_desc {};
+    memory_desc_t weights_layer_desc;
     // Weights iteration memory descriptor.
-    memory_desc_t weights_iter_desc {};
+    memory_desc_t weights_iter_desc;
     // Bias memory descriptor.
-    memory_desc_t bias_desc {};
+    memory_desc_t bias_desc;
     // Destination layer memory descriptor.
-    memory_desc_t dst_layer_desc {};
+    memory_desc_t dst_layer_desc;
     // Destination iter memory descriptor for hidden state.
-    memory_desc_t dst_iter_desc {};
+    memory_desc_t dst_iter_desc;
     // Destination iter memory descriptor for cell state.
-    memory_desc_t dst_iter_c_desc {};
+    memory_desc_t dst_iter_c_desc;
     // Weights peephole memory descriptor.
     // This memory descriptor is equal to zero memory descriptor in case of
     // non-peephole LSTMs and other non-LSTM RNNs.
-    memory_desc_t weights_peephole_desc {};
+    memory_desc_t weights_peephole_desc;
     // Weights projection memory descriptor.
     // This memory descriptor is equal to zero memory descriptor in case of
     // non-projection LSTMs and other non-LSTM RNNs.
-    memory_desc_t weights_projection_desc {};
+    memory_desc_t weights_projection_desc;
 
     // Source gradient layer memory descriptor.
-    memory_desc_t diff_src_layer_desc {};
+    memory_desc_t diff_src_layer_desc;
     // Source gradient iter memory descriptor for hidden state.
-    memory_desc_t diff_src_iter_desc {};
+    memory_desc_t diff_src_iter_desc;
     // Source gradient iter memory descriptor for cell state.
-    memory_desc_t diff_src_iter_c_desc {};
+    memory_desc_t diff_src_iter_c_desc;
     // Weights gradient layer memory descriptor.
-    memory_desc_t diff_weights_layer_desc {};
+    memory_desc_t diff_weights_layer_desc;
     // Weights gradient iter memory descriptor.
-    memory_desc_t diff_weights_iter_desc {};
+    memory_desc_t diff_weights_iter_desc;
     // Bias gradient memory descriptor.
-    memory_desc_t diff_bias_desc {};
+    memory_desc_t diff_bias_desc;
     // Destination gradient layer memory descriptor.
-    memory_desc_t diff_dst_layer_desc {};
+    memory_desc_t diff_dst_layer_desc;
     // Destination gradient iteration memory descriptor for hidden state.
-    memory_desc_t diff_dst_iter_desc {};
+    memory_desc_t diff_dst_iter_desc;
     // Destination gradient iteration memory descriptor for cell state.
-    memory_desc_t diff_dst_iter_c_desc {};
+    memory_desc_t diff_dst_iter_c_desc;
     // Weights gradient peephole memory descriptor.
     // This memory descriptor is equal to zero memory descriptor in case of
     // non-peephole LSTMs and other non-LSTM RNNs.
-    memory_desc_t diff_weights_peephole_desc {};
+    memory_desc_t diff_weights_peephole_desc;
     // Weights gradient projection memory descriptor.
     // This memory descriptor is equal to zero memory descriptor in case of
     // non-projection LSTMs and other non-LSTM RNNs.
-    memory_desc_t diff_weights_projection_desc {};
+    memory_desc_t diff_weights_projection_desc;
 
     // RNN cell flags
     unsigned flags {};
