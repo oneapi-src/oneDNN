@@ -43,8 +43,7 @@ public:
         auto grf_size = 1; // Assume all objects are grf aligned
         auto guard = mem_usage_guard(obj.register_alloc_size(grf_size));
         print_indent();
-        out_ << "alloc " << obj.buf.as<var_t>().name << "[" << obj.size
-             << "] (mem_usage: " << mem_usage_bytes_ << ")\n";
+        out_ << obj.line_str() << "(mem_usage: " << mem_usage_bytes_ << ")\n";
         visit(obj.body);
     }
 
@@ -98,16 +97,14 @@ public:
 
     void _visit(const func_call_t &obj) override {
         print_indent();
-        out_ << obj.func << "(" << make_seq_print_helper(obj.args) << ")";
-        if (!obj.attr.is_empty()) out_ << " " << obj.attr;
-        out_ << "\n";
+        out_ << obj.line_str() << "\n";
     }
 
     void _visit(const func_impl_t &obj) override { out_ << obj.str(); }
 
     void _visit(const if_t &obj) override {
         print_indent();
-        out_ << "if (" << strip_parens(obj.cond.str()) << ") {\n";
+        out_ << obj.line_str() << " {\n";
         add_indent();
         visit(obj.body);
         remove_indent();
@@ -137,7 +134,7 @@ public:
         int size = obj.register_alloc_size();
         auto guard = mem_usage_guard(size);
         print_indent();
-        out_ << obj.var << "." << obj.var.type() << " = " << obj.value << "\n";
+        out_ << obj.line_str() << "\n";
         visit(obj.body);
     }
 
@@ -216,13 +213,7 @@ public:
 
     void _visit(const store_t &obj) override {
         print_indent();
-        out_ << load_t::make(obj.value.type(), obj.buf, obj.off, obj.stride);
-        out_ << " = " << obj.value;
-        if (!obj.mask.is_empty()) {
-            out_ << ", mask = " << obj.mask.str();
-            if (obj.fill_mask0) out_ << " [FILL]";
-        }
-        out_ << "\n";
+        out_ << obj.line_str() << "\n";
     }
 
     void _visit(const ternary_op_t &obj) override {
@@ -239,7 +230,7 @@ public:
 
     void _visit(const while_t &obj) override {
         print_indent();
-        out_ << "while (" << obj.cond << ") {\n";
+        out_ << obj.line_str() << " {\n";
         add_indent();
         visit(obj.body);
         remove_indent();

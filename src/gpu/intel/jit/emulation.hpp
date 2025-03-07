@@ -267,7 +267,7 @@ struct EmulationImplementation { // NOLINT(readability-identifier-naming)
                 && dst.getType() == DataType::df);
         bool unaligned = (mod.getExecSize() > 1 && src0.getHS() != 0
                 && src0.getOffset() != dst.getOffset());
-        bool emulateDF = isDF && unaligned && g.hardware >= ngen::HW::XeHP;
+        bool emulateDF = isDF && unaligned && g.getHardware() >= ngen::HW::XeHP;
 
         if ((strategy.emulate64 && dstQ) || emulateDF) {
             switch (src0.getType()) {
@@ -691,7 +691,7 @@ struct EmulationImplementation { // NOLINT(readability-identifier-naming)
             g.mov(mod, dstHi, dstLo, loc);
             g.mov(mod, dstLo, acc, loc);
         } else if (dstD && s0D && s1D && strategy.emulateDWxDW) {
-            int ne1 = ngen::GRF::bytes(g.hardware) >> 2;
+            int ne1 = ngen::GRF::bytes(g.getHardware()) >> 2;
 
             for (int r = 0; r < mod.getExecSize(); r += ne1) {
                 auto mmod = mod;
@@ -704,16 +704,16 @@ struct EmulationImplementation { // NOLINT(readability-identifier-naming)
 
                 g.mul(mmod, acc, src0, lowWord(src1), loc);
 
-                if (g.hardware < HW::Gen10) {
+                if (g.getHardware() < HW::Gen10) {
                     g.mach(mmod, dummy, src0, expandDW(src1), loc);
                     g.mov(mmod, dst, acc, loc);
                 } else {
                     g.macl(mmod, dst, src0, expandDW(src1), loc);
                 }
 
-                regionVSAdvance(g.hardware, dst, ne1);
-                regionVSAdvance(g.hardware, src0, ne1);
-                regionVSAdvance(g.hardware, src1, ne1);
+                regionVSAdvance(g.getHardware(), dst, ne1);
+                regionVSAdvance(g.getHardware(), src0, ne1);
+                regionVSAdvance(g.getHardware(), src1, ne1);
             }
         } else
             g.mul(mod, dst, src0, src1, loc);

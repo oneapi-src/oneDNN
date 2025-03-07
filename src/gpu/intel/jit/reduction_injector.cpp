@@ -35,29 +35,30 @@ namespace jit {
 
 using namespace ngen;
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::sum_fwd(
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::sum_fwd(
         int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     eadd(h, simd, acc, acc, val);
 }
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::max_fwd(
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::max_fwd(
         int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     h.max_(simd, acc, acc, val);
 }
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::min_fwd(
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::min_fwd(
         int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     h.min_(simd, acc, acc, val);
 }
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::mul_fwd(
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::mul_fwd(
         int simd, const ngen::GRF &acc, const ngen::GRF &val) {
     emul(h, simd, acc, acc, val);
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::initialize(int simd, const ngen::GRF &reg) {
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::initialize(
+        int simd, const ngen::GRF &reg) {
     switch (alg_) {
         case dnnl_reduction_sum:
         case dnnl_reduction_mean: emov(h, simd, reg, 0.0f); break;
@@ -73,14 +74,14 @@ void reduction_injector_f32_t<hw>::initialize(int simd, const ngen::GRF &reg) {
     }
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::eload(
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::eload(
         const ngen::GRFRange &dst, const ngen::GRF &base_src_addr) {
-    const int grf_bytes = ngen::GRF::bytes(hw);
+    const int grf_bytes = ngen::GRF::bytes(hw());
     int nregs = dst.getLen();
     bool force_legacy
             = gpu_utils::dev_getenv("jit_reduction_force_legacy_send", false);
-    bool use_legacy = force_legacy || hw < ngen::HW::XeHPG;
+    bool use_legacy = force_legacy || hw() < ngen::HW::XeHPG;
     const int max_load_size = use_legacy ? 128 : 512;
     gpu_assert(max_load_size % grf_bytes == 0) << "Unexpected load size";
     const int max_load_regs = max_load_size / grf_bytes;
@@ -124,9 +125,10 @@ void reduction_injector_f32_t<hw>::eload(
     }
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::compute(const ngen::GRF &src_ptr,
-        const ngen::GRFRange &acc, dim_t stride, dim_t iters) {
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::compute(
+        const ngen::GRF &src_ptr, const ngen::GRFRange &acc, dim_t stride,
+        dim_t iters) {
     using namespace alg_kind;
 #ifdef DNNL_DEV_MODE
     int pre_regs = ra.get_alloced_regs();
@@ -134,13 +136,13 @@ void reduction_injector_f32_t<hw>::compute(const ngen::GRF &src_ptr,
     assert(src_ptr.getType() == ngen::DataType::uq);
 
     int dt_size = sizeof(float);
-    int reg_size = ngen::GRF::bytes(hw);
+    int reg_size = ngen::GRF::bytes(hw());
     int elems_per_reg = reg_size / dt_size;
     int nregs = acc.getLen();
 
-    int regs_per_inst = std::min(nregs, []() {
-        int reg_size = ngen::GRF::bytes(hw);
-        compute::gpu_arch_t gpu_arch = convert_ngen_arch_to_dnnl(hw);
+    int regs_per_inst = std::min(nregs, [this]() {
+        int reg_size = ngen::GRF::bytes(hw());
+        compute::gpu_arch_t gpu_arch = convert_ngen_arch_to_dnnl(hw());
         int max_exec_size = compute::device_info_t::max_exec_size(gpu_arch);
         return max_exec_size / reg_size;
     }());
@@ -209,22 +211,22 @@ void reduction_injector_f32_t<hw>::compute(const ngen::GRF &src_ptr,
 #endif
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::emov(generator_t<hw> &host,
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::emov(ngen_generator_t &host,
         const ngen::InstructionModifier &mod, const ngen::RegData &dst,
         const ngen::Immediate &src0) {
     EmulationImplementation::emov(host, mod, dst, src0, emu_strategy);
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::emov(generator_t<hw> &host,
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::emov(ngen_generator_t &host,
         const ngen::InstructionModifier &mod, const ngen::RegData &dst,
         const ngen::RegData &src0) {
     EmulationImplementation::emov(host, mod, dst, src0, emu_strategy);
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::eadd(generator_t<hw> &host,
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::eadd(ngen_generator_t &host,
         const ngen::InstructionModifier &mod, const ngen::RegData &dst,
         const ngen::RegData &src0, const ngen::Immediate &src1) {
     EmulationState state;
@@ -236,8 +238,8 @@ void reduction_injector_f32_t<hw>::eadd(generator_t<hw> &host,
     ra.release(state.temp[1]);
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::eadd(generator_t<hw> &host,
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::eadd(ngen_generator_t &host,
         const ngen::InstructionModifier &mod, const ngen::RegData &dst,
         const ngen::RegData &src0, const ngen::RegData &src1) {
     EmulationState state;
@@ -249,8 +251,8 @@ void reduction_injector_f32_t<hw>::eadd(generator_t<hw> &host,
     ra.release(state.temp[1]);
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::emul(generator_t<hw> &host,
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::emul(ngen_generator_t &host,
         const ngen::InstructionModifier &mod, const ngen::RegData &dst,
         const ngen::RegData &src0, const ngen::Immediate &src1) {
     EmulationState state;
@@ -262,8 +264,8 @@ void reduction_injector_f32_t<hw>::emul(generator_t<hw> &host,
     ra.release(state.temp[1]);
 }
 
-template <gpu_gen_t hw>
-void reduction_injector_f32_t<hw>::emul(generator_t<hw> &host,
+template <typename ngen_generator_t>
+void reduction_injector_f32_t<ngen_generator_t>::emul(ngen_generator_t &host,
         const ngen::InstructionModifier &mod, const ngen::RegData &dst,
         const ngen::RegData &src0, const ngen::RegData &src1) {
     EmulationState state;
@@ -275,14 +277,16 @@ void reduction_injector_f32_t<hw>::emul(generator_t<hw> &host,
     ra.release(state.temp[1]);
 }
 
-REG_GEN9_ISA(template struct reduction_injector_f32_t<gpu_gen9>);
-REG_GEN11_ISA(template struct reduction_injector_f32_t<gpu_gen11>);
-REG_XELP_ISA(template struct reduction_injector_f32_t<gpu_xe_lp>);
-REG_XEHP_ISA(template struct reduction_injector_f32_t<gpu_xe_hp>);
-REG_XEHPG_ISA(template struct reduction_injector_f32_t<gpu_xe_hpg>);
-REG_XEHPC_ISA(template struct reduction_injector_f32_t<gpu_xe_hpc>);
-REG_XE2_ISA(template struct reduction_injector_f32_t<gpu_xe2>);
-REG_XE3_ISA(template struct reduction_injector_f32_t<gpu_xe3>);
+REG_GEN9_ISA(template struct reduction_injector_f32_t<generator_t<gpu_gen9>>);
+REG_GEN11_ISA(template struct reduction_injector_f32_t<generator_t<gpu_gen11>>);
+REG_XELP_ISA(template struct reduction_injector_f32_t<generator_t<gpu_xe_lp>>);
+REG_XEHP_ISA(template struct reduction_injector_f32_t<generator_t<gpu_xe_hp>>);
+REG_XEHPG_ISA(
+        template struct reduction_injector_f32_t<generator_t<gpu_xe_hpg>>);
+REG_XEHPC_ISA(
+        template struct reduction_injector_f32_t<generator_t<gpu_xe_hpc>>);
+REG_XE2_ISA(template struct reduction_injector_f32_t<generator_t<gpu_xe2>>);
+REG_XE3_ISA(template struct reduction_injector_f32_t<generator_t<gpu_xe3>>);
 
 } // namespace jit
 } // namespace intel

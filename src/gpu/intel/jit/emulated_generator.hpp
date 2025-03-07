@@ -41,9 +41,9 @@ protected:
 
 public:
     emulated_generator_t(const compute::device_info_t &device_info,
-            const std::string &name, const debug_config_t &debug_config)
+            const debug_config_t &debug_config)
         : generator_t<hw>(debug_config)
-        , ra_(hw, name)
+        , ra_(hw)
         , emu_strategy(hw, device_info.stepping_id()) {}
 
 protected:

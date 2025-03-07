@@ -108,13 +108,13 @@ constexpr gpu_gen_t gpu_xe3 = ngen::HW::Xe3;
 //  ```
 //
 
-template <gpu_gen_t hw>
+template <typename ngen_generator_t>
 struct eltwise_injector_f32_t;
 
-template <gpu_gen_t hw>
+template <typename ngen_generator_t>
 struct reduction_injector_f32_t;
 
-template <gpu_gen_t hw>
+template <typename ngen_generator_t>
 struct post_op_injector_t;
 
 #if (!defined(NDEBUG) || defined(DNNL_DEV_MODE))
@@ -133,9 +133,9 @@ struct debug_config_t {
 template <gpu_gen_t hw>
 class generator_t : public ngen::OpenCLCodeGenerator<hw>,
                     public generator_base_t {
-    friend struct eltwise_injector_f32_t<hw>;
-    friend struct reduction_injector_f32_t<hw>;
-    friend struct post_op_injector_t<hw>;
+    friend struct eltwise_injector_f32_t<generator_t>;
+    friend struct reduction_injector_f32_t<generator_t>;
+    friend struct post_op_injector_t<generator_t>;
     friend struct EmulationImplementation;
 
 private:

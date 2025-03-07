@@ -44,9 +44,9 @@ inline bool eltwise_injector_f32_is_supported(alg_kind_t alg) {
             eltwise_logistic_use_dst_for_bwd, eltwise_stochastic_round);
 }
 
-template <gpu_gen_t hw>
+template <typename ngen_generator_t>
 struct eltwise_injector_f32_t {
-    eltwise_injector_f32_t(generator_t<hw> *host, alg_kind_t alg, float alpha,
+    eltwise_injector_f32_t(ngen_generator_t *host, alg_kind_t alg, float alpha,
             float beta, float scale, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
@@ -62,6 +62,8 @@ struct eltwise_injector_f32_t {
         assert(eltwise_injector_f32_is_supported(alg_));
         assert(scratch_.isEmpty() || (scratch_.getLen() >= min_scratch_regs()));
     }
+
+    ngen::HW hw() const { return h->getHardware(); }
 
     int min_scratch_regs();
     int preferred_scratch_regs();
@@ -83,12 +85,12 @@ private:
 
     const int eu_count_;
 
-    generator_t<hw> *h;
+    ngen_generator_t *h;
 
     ngen::GRFRange scratch_;
 
     bool is_gpu(ngen::HW arg_hw, int arg_eu_count) const {
-        return (hw == arg_hw) && (eu_count_ == arg_eu_count);
+        return (hw() == arg_hw) && (eu_count_ == arg_eu_count);
     }
     bool use_tanh_compat() const { return false; }
 
@@ -151,13 +153,13 @@ private:
     void gelu_tanh_compute_bwd(
             int simd, const ngen::GRF &r, int phase, int off, int batch);
 
-    const ngen::InstructionModifier le = generator_t<hw>::le;
-    const ngen::InstructionModifier lt = generator_t<hw>::lt;
-    const ngen::InstructionModifier ge = generator_t<hw>::ge;
-    const ngen::InstructionModifier gt = generator_t<hw>::gt;
-    const ngen::InstructionModifier eq = generator_t<hw>::eq;
-    const ngen::InstructionModifier sat = generator_t<hw>::sat;
-    const ngen::FlagRegister f0 = generator_t<hw>::f0;
+    const ngen::InstructionModifier le = ngen_generator_t::le;
+    const ngen::InstructionModifier lt = ngen_generator_t::lt;
+    const ngen::InstructionModifier ge = ngen_generator_t::ge;
+    const ngen::InstructionModifier gt = ngen_generator_t::gt;
+    const ngen::InstructionModifier eq = ngen_generator_t::eq;
+    const ngen::InstructionModifier sat = ngen_generator_t::sat;
+    const ngen::FlagRegister f0 = ngen_generator_t::f0;
 };
 
 } // namespace jit

@@ -89,7 +89,7 @@ protected:
     GRFMultirange outputCRange;
     std::vector<RegisterBlock> outputCLayout;
 
-    using Injector = post_op_injector_t<hw>;
+    using Injector = post_op_injector_t<GENERATOR_BASE(hw)>;
     std::unique_ptr<Injector> postOpInjector;
 
     class status_stream {

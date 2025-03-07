@@ -43,8 +43,8 @@ protected:
 public:
     reduction_generator_t(const compute::device_info_t &device_info,
             alg_kind_t alg, dim_t stride, dim_t iters, int nregs)
-        : emulated_generator_t<hw>(device_info, "ngen_jit_reduction",
-                {GENERATOR_NAME, GENERATOR_LINE}) {
+        : emulated_generator_t<hw>(
+                device_info, {GENERATOR_NAME, GENERATOR_LINE}) {
         constexpr auto GlobalPtr = ngen::ExternalArgumentType::GlobalPtr;
 
         // Number of dst elements computed per thread
@@ -94,7 +94,7 @@ public:
         ra().release(outer_off);
 
         ngen::GRFRange acc = ra().alloc_range(nregs);
-        reduction_injector_f32_t<hw> reduce(
+        reduction_injector_f32_t<generator_t<hw>> reduce(
                 *this, alg, ra(), device_info.stepping_id());
         reduce.compute(src_addr, acc, stride, iters);
         ra().release(src_addr);

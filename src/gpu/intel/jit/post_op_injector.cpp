@@ -25,8 +25,8 @@ namespace jit {
 
 using namespace ngen;
 
-template <gpu_gen_t hw>
-int post_op_injector_t<hw>::min_scratch_regs() {
+template <typename ngen_generator_t>
+int post_op_injector_t<ngen_generator_t>::min_scratch_regs() {
     int regs_cnt = 0;
     for (size_t idx = 0; idx < workers_.size(); ++idx) {
         regs_cnt = nstl::max(regs_cnt, workers_[idx].min_scratch_regs());
@@ -34,8 +34,8 @@ int post_op_injector_t<hw>::min_scratch_regs() {
     return regs_cnt;
 }
 
-template <gpu_gen_t hw>
-int post_op_injector_t<hw>::preferred_scratch_regs() {
+template <typename ngen_generator_t>
+int post_op_injector_t<ngen_generator_t>::preferred_scratch_regs() {
     int regs_cnt = 0;
     for (size_t idx = 0; idx < workers_.size(); ++idx) {
         regs_cnt = nstl::max(regs_cnt, workers_[idx].preferred_scratch_regs());
@@ -43,8 +43,9 @@ int post_op_injector_t<hw>::preferred_scratch_regs() {
     return regs_cnt;
 }
 
-template <gpu_gen_t hw>
-void post_op_injector_t<hw>::set_scratch(const ngen::GRFRange &scratch) {
+template <typename ngen_generator_t>
+void post_op_injector_t<ngen_generator_t>::set_scratch(
+        const ngen::GRFRange &scratch) {
     for (size_t idx = 0; idx < workers_.size(); ++idx) {
         workers_[idx].set_scratch(scratch);
         if (workers_.size() == 1) workers_[idx].prepare();
@@ -52,22 +53,22 @@ void post_op_injector_t<hw>::set_scratch(const ngen::GRFRange &scratch) {
     scratch_ = scratch;
 }
 
-template <gpu_gen_t hw>
-void post_op_injector_t<hw>::compute(const ngen::GRFRange &regs) {
+template <typename ngen_generator_t>
+void post_op_injector_t<ngen_generator_t>::compute(const ngen::GRFRange &regs) {
     for (size_t idx = 0; idx < workers_.size(); ++idx) {
         if (workers_.size() > 1) workers_[idx].prepare();
         workers_[idx].compute(regs);
     }
 }
 
-REG_GEN9_ISA(template struct post_op_injector_t<gpu_gen9>);
-REG_GEN11_ISA(template struct post_op_injector_t<gpu_gen11>);
-REG_XELP_ISA(template struct post_op_injector_t<gpu_xe_lp>);
-REG_XEHP_ISA(template struct post_op_injector_t<gpu_xe_hp>);
-REG_XEHPG_ISA(template struct post_op_injector_t<gpu_xe_hpg>);
-REG_XEHPC_ISA(template struct post_op_injector_t<gpu_xe_hpc>);
-REG_XE2_ISA(template struct post_op_injector_t<gpu_xe2>);
-REG_XE3_ISA(template struct post_op_injector_t<gpu_xe3>);
+REG_GEN9_ISA(template struct post_op_injector_t<generator_t<gpu_gen9>>);
+REG_GEN11_ISA(template struct post_op_injector_t<generator_t<gpu_gen11>>);
+REG_XELP_ISA(template struct post_op_injector_t<generator_t<gpu_xe_lp>>);
+REG_XEHP_ISA(template struct post_op_injector_t<generator_t<gpu_xe_hp>>);
+REG_XEHPG_ISA(template struct post_op_injector_t<generator_t<gpu_xe_hpg>>);
+REG_XEHPC_ISA(template struct post_op_injector_t<generator_t<gpu_xe_hpc>>);
+REG_XE2_ISA(template struct post_op_injector_t<generator_t<gpu_xe2>>);
+REG_XE3_ISA(template struct post_op_injector_t<generator_t<gpu_xe3>>);
 
 } // namespace jit
 } // namespace intel
