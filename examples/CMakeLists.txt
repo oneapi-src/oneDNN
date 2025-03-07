@@ -63,6 +63,9 @@ endif()
 
 if(NOT DNNL_EXPERIMENTAL_UKERNEL)
     list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/ukernels/cpu_brgemm.cpp)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/ukernels/cpu_kleidiai.cpp)
+elseif(NOT DNNL_AARCH64_USE_KAI)
+    list(REMOVE_ITEM sources ${CMAKE_CURRENT_SOURCE_DIR}/ukernels/cpu_kleidiai.cpp)
 endif()
 
 # Remove tests for CUDA which use unimplemented primitives

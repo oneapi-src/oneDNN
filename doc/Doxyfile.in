@@ -1,5 +1,6 @@
 #===============================================================================
 # Copyright 2016-2022 Intel Corporation
+# Copyright 2025 Arm Ltd. and affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -533,7 +534,7 @@ INTERNAL_DOCS          = NO
 # and Mac users are advised to set this option to NO.
 # The default value is: system dependent.
 
-CASE_SENSE_NAMES       = NO 
+CASE_SENSE_NAMES       = NO
 
 # If the HIDE_SCOPE_NAMES tag is set to NO then doxygen will show members with
 # their full class and namespace scopes in the documentation. If set to YES the
@@ -1818,7 +1819,7 @@ MAN_LINKS              = NO
 # captures the structure of the code including all documentation.
 # The default value is: NO.
 
-GENERATE_XML           = YES 
+GENERATE_XML           = YES
 
 # The XML_OUTPUT tag is used to specify where the XML pages will be put. If a
 # relative path is entered the value of OUTPUT_DIRECTORY will be put in front of
@@ -1962,7 +1963,7 @@ INCLUDE_FILE_PATTERNS  =
 # recursively expanded use the := operator instead of the = operator.
 # This tag requires that the tag ENABLE_PREPROCESSING is set to YES.
 
-PREDEFINED             = DOXYGEN_SHOULD_SKIP_THIS DNNL_GPU_RUNTIME=DNNL_RUNTIME_OCL DNNL_WITH_SYCL DNNL_USE_SYCL_BUFFERS DNNL_EXPERIMENTAL_SPARSE DNNL_EXPERIMENTAL_UKERNEL DNNL_EXPERIMENTAL_LOGGING
+PREDEFINED             = DOXYGEN_SHOULD_SKIP_THIS DNNL_GPU_RUNTIME=DNNL_RUNTIME_OCL DNNL_WITH_SYCL DNNL_USE_SYCL_BUFFERS DNNL_EXPERIMENTAL_SPARSE DNNL_EXPERIMENTAL_UKERNEL DNNL_EXPERIMENTAL_LOGGING DNNL_AARCH64_USE_KAI
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2022-2023 Intel Corporation
 * Copyright 2023-2024 FUJITSU LIMITED
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,15 +41,16 @@ enum {
     undefined,
 };
 
-impl::data_type_t get_accum_datatype(brgemm_t *brg) {
+impl::data_type_t get_accum_datatype(brgemm_desc_t *brg) {
     // this assert should check if 'init_kernel_datatype()' was previously
     // called.
-    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16);
+    assert(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16
+            || brg->is_int4);
     return brg->is_int8 ? data_type::s32 : data_type::f32;
 }
 
 status_t init_kernel_datatype(
-        brgemm_t *brg, impl::data_type_t dt_a, impl::data_type_t dt_b) {
+        brgemm_desc_t *brg, impl::data_type_t dt_a, impl::data_type_t dt_b) {
     if (!(dt_a != data_type::undef && dt_b != data_type::undef))
         return status::unimplemented;
     brg->is_int8 = utils::one_of(dt_a, data_type::u8, data_type::s8)
@@ -57,12 +58,16 @@ status_t init_kernel_datatype(
     brg->is_bf16 = (dt_a == data_type::bf16) && (dt_b == data_type::bf16);
     brg->is_f32 = (dt_a == data_type::f32) && (dt_b == data_type::f32);
     brg->is_f16 = utils::one_of(data_type::f16, dt_a, dt_b);
-    if (!(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16))
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+    brg->is_int4 = (dt_a == data_type::s8) && (dt_b == data_type::s4);
+#endif
+    if (!(brg->is_int8 || brg->is_bf16 || brg->is_f32 || brg->is_f16
+                || brg->is_int4))
         return status::unimplemented;
     return status::success;
 }
 
-void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
+void init_common_conf(brgemm_desc_t *brg, brgemm_batch_kind_t type, float alpha,
         float beta, const brgemm_strides_t *strides) {
     brg->beta = beta;
     brg->alpha = alpha;
@@ -85,14 +90,14 @@ void init_common_conf(brgemm_t *brg, brgemm_batch_kind_t type, float alpha,
 
 namespace brgemm_utils {
 
-bool can_dispatch_uker(const brgemm_t *brg) {
+bool can_dispatch_uker(const brgemm_desc_t *brg) {
     return false;
 }
-void maybe_try_bf32(brgemm_t *brg) {
+void maybe_try_bf32(brgemm_desc_t *brg) {
     //
 }
 
-status_t set_isa_impl(brgemm_t *brg) {
+status_t set_isa_impl(brgemm_desc_t *brg) {
     auto is_isa_ok = [&](cpu_isa_t isa) {
         return mayiuse(isa) &&
                 // maybe IMPLICATION(brg->isa_user != isa_undef,
@@ -110,14 +115,14 @@ status_t set_isa_impl(brgemm_t *brg) {
     return status::success;
 }
 
-void set_brg_vmm(brgemm_t *brg) {
+void set_brg_vmm(brgemm_desc_t *brg) {
 
     brg->is_zmm = mayiuse(sve_512) && is_superset(brg->isa_impl, sve_512);
     brg->is_ymm = !brg->is_zmm && mayiuse(sve_256)
             && is_superset(brg->isa_impl, sve_256);
 }
 
-int calculate_ldb_params(brgemm_t *brg, const int try_ld_block2) {
+int calculate_ldb_params(brgemm_desc_t *brg, const int try_ld_block2) {
     brg->ld_block2 = try_ld_block2;
     brg->ldb2 = brg->ldb / brg->ld_block2;
     brg->ldb2_tail = brg->ldb % brg->ld_block2;
@@ -133,7 +138,7 @@ int calculate_ldb_params(brgemm_t *brg, const int try_ld_block2) {
     return nstl::max(1, adj_ld_block2);
 }
 
-int calculate_max_bcast_block(brgemm_t *brg, const int adj_ld_block2) {
+int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
 
     constexpr int max_bcst_regs = 1;
     const bool req_compensation = brg->req_s8s8_compensation
@@ -184,7 +189,7 @@ inline size_t data_type_vnni_granularity(data_type_t data_type) {
     }
     return size_t(0); /* should not be reachable */
 }
-status_t brgemm_blocking(brgemm_t *brg) {
+status_t brgemm_blocking(brgemm_desc_t *brg) {
 
     CHECK(set_isa_impl(brg));
     if (brg->isa_impl == isa_undef) return status::unimplemented;
@@ -241,7 +246,7 @@ status_t brgemm_blocking(brgemm_t *brg) {
     return status::success;
 }
 
-status_t brdgmm_blocking(brgemm_t *brg) {
+status_t brdgmm_blocking(brgemm_desc_t *brg) {
 
     if (brg->isa_impl == isa_undef) return status::unimplemented;
 
@@ -295,19 +300,24 @@ status_t brdgmm_blocking(brgemm_t *brg) {
     return status::success;
 }
 
-status_t init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa,
+status_t init_brgemm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
         impl::data_type_t dt_b, brgemm_layout_t layout, float alpha, float beta,
         dim_t LDA, dim_t LDB, dim_t LDC, dim_t M, dim_t N, dim_t K,
         const brgemm_strides_t *strides, bool is_bf32) {
-
-    init_common_conf(brg, type, alpha, beta, strides);
 
     brg->layout = layout;
 
     brg->dt_a = brg->is_row_major() ? dt_a : dt_b;
     brg->dt_b = brg->is_row_major() ? dt_b : dt_a;
     CHECK(init_kernel_datatype(brg, brg->dt_a, brg->dt_b));
+
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+    brg->is_kai = (brg->is_f32 || brg->is_int4);
+    type = brgemm_batch_kind_t::brgemm_offs;
+#endif
+
+    init_common_conf(brg, type, alpha, beta, strides);
 
     brg->dt_c = get_accum_datatype(brg);
     brg->dt_d = brg->dt_c;
@@ -319,7 +329,7 @@ status_t init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa,
     brg->typesize_D = types::data_type_size(brg->dt_d);
 
     brg->isa_user = isa;
-    CHECK(set_isa_impl(brg));
+    if (!brg->is_kai) CHECK(set_isa_impl(brg));
     brg->is_bf32 = false;
 
     brg->has_int8_vnni = true;
@@ -340,6 +350,10 @@ status_t init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa,
             = (brg->is_row_major()) ? static_cast<int>(N) : static_cast<int>(M);
     brg->reduce_dim = static_cast<int>(K);
 
+    brg->M = M;
+    brg->N = N;
+    brg->K = K;
+
     brg->bd_block2 = 0;
     brg->bdb2 = 0;
     brg->bdb2_tail = 0;
@@ -348,14 +362,14 @@ status_t init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa,
     brg->ld_step
             = is_b_in_vnni_format ? data_type_vnni_granularity(brg->dt_b) : 1;
 
-    const bool has_no_vnni_compute_instruction = false;
+    const bool has_no_vnni_compute_instruction = brg->is_kai;
     brg->rd_step = has_no_vnni_compute_instruction
             ? 1
             : data_type_vnni_granularity(brg->dt_b);
     return status::success;
 }
 
-status_t init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa,
+status_t init_brdgmm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
         impl::data_type_t dt_b, brgemm_layout_t layout, float alpha, float beta,
         dim_t LDA, dim_t LDC, dim_t M, dim_t N,

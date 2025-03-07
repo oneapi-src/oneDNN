@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,7 +37,7 @@ std::set<std::shared_ptr<brgemm_kernel_t>,
                 brgemm_kernel_container_t::brgemm_kernel_cmp);
 #endif
 
-bool brgemm_desc_container_t::insert(int idx, brgemm_t &brg,
+bool brgemm_desc_container_t::insert(int idx, brgemm_desc_t &brg,
         const std::vector<char> &bd_mask,
         const std::vector<brgemm_batch_element_t> &static_offsets) {
     bd_mask_list_.push_back(bd_mask);
@@ -66,7 +67,7 @@ bool brgemm_kernel_container_t::brgemm_kernel_cmp(
     return (std::memcmp(lcode, rcode, lsz) < 0);
 }
 
-status_t brgemm_kernel_container_t::insert(int idx, const brgemm_t *brg) {
+status_t brgemm_kernel_container_t::insert(int idx, const brgemm_desc_t *brg) {
     // Use two level hashing of brgemm kernels:
     // 1. Try to find entry in local brgemm_map_ using brgemm descriptor as a
     // key (we can check if brgemm descriptor is unique inside brgemm primitive)

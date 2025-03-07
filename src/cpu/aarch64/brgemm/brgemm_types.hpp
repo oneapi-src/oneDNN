@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2020-2023 Intel Corporation
 * Copyright 2023 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -183,12 +184,18 @@ struct DNNL_API brgemm_attr_t {
     const brgemm_batch_element_t *static_offsets;
 };
 
-struct brgemm_t {
+struct brgemm_desc_t {
     // Note: new added parameters must be taken into account in the brgemm
     // comparison function
     int bcast_dim = 0; // M;
     int load_dim = 0; // N;
     int reduce_dim = 0; // K;
+
+    dim_t M = 0; // M;
+    dim_t N = 0; // N;
+    dim_t K = 0; // K;
+    dim_t BL = 32; //KleidiAI groupwise - internal K blocking length
+
     int LDA = 0;
     int LDB = 0;
     int LDC = 0;
@@ -252,7 +259,9 @@ struct brgemm_t {
 
     bool is_ymm = false;
     bool is_zmm = false;
+    bool is_kai = false;
 
+    bool is_int4 = false;
     bool is_int8 = false;
     bool is_bf16 = false, is_bf16_emu = false;
     bool is_f16 = false;
@@ -289,12 +298,30 @@ struct brgemm_t {
         return sz;
     }
 
-    bool is_b_data_layout_vnni() { return true; }
+    bool is_b_data_layout_vnni() const { return false; }
 
-    bool operator==(const brgemm_t &rhs) const;
-    bool operator<(const brgemm_t &rhs) const;
+    // This function indicates when the kernel would operate with the D pointer
+    // (`true`) and when not (`false`). It's important to distinguish these two
+    // cases due to the fact that kernel would ignore D pointer completely if
+    // no post-accumulation work is identified.
+    //
+    // Correspondent decisions are done in `store_accumulators` function.
+    // The function is used inside kernel generation and ukernel API.
+    // TODO: extend usage to primitives (each of them utilize their own copy
+    // of this definition).
+    bool are_post_ops_applicable() const {
+        // todo add post ops support
+        return false;
+        // const bool has_zero_points = !utils::everyone_is(
+        //         brgemm_broadcast_t::none, zp_type_a, zp_type_b, zp_type_c);
+        // return dt_c != dt_d || with_eltwise || with_binary || with_scales
+        //         || with_bias || with_sum || req_s8s8_compensation
+        //         || has_zero_points || with_dst_scales;
+    }
+
+    bool operator==(const brgemm_desc_t &rhs) const;
+    bool operator<(const brgemm_desc_t &rhs) const;
 };
-
 struct brgemm_kernel_params_t {
     const void *ptr_A;
     const void *ptr_B;
@@ -337,22 +364,29 @@ struct brgemm_kernel_params_t {
 
 struct jit_brgemm_kernel_t;
 struct jit_brdgmm_kernel_base_t;
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+struct kai_f32_qa8dxp_qs4cxp_kernel_packet_t;
+struct kai_f32_qa8dxp_qs4c32p_kernel_packet_t;
+struct kai_f32_f32_f32p_kernel_packet_t;
+#endif
 class jit_generator;
 
 struct brgemm_kernel_t {
     brgemm_kernel_t() {};
     virtual ~brgemm_kernel_t() {};
+    virtual std::string to_string() const = 0;
     virtual status_t create_kernel() = 0;
     virtual void operator()(brgemm_kernel_params_t *) const = 0;
     virtual const jit_generator *get_jit_generator() const = 0;
 };
 
 struct brgemm_kernel_common_t : public brgemm_kernel_t {
-    brgemm_kernel_common_t(const brgemm_t abrd);
+    brgemm_kernel_common_t(const brgemm_desc_t abrd);
     ~brgemm_kernel_common_t();
 
     status_t create_kernel();
     void operator()(brgemm_kernel_params_t *) const;
+    std::string to_string() const { return "jit_brgemm_kernel"; };
     virtual const jit_generator *get_jit_generator() const;
 
 private:
@@ -362,11 +396,12 @@ private:
 };
 
 struct brdgmm_kernel_t : public brgemm_kernel_t {
-    brdgmm_kernel_t(const brgemm_t abrd);
+    brdgmm_kernel_t(const brgemm_desc_t abrd);
     ~brdgmm_kernel_t();
 
     status_t create_kernel();
     void operator()(brgemm_kernel_params_t *) const;
+    std::string to_string() const { return "jit_brdgmm_kernel"; };
     virtual const jit_generator *get_jit_generator() const;
 
 private:
@@ -375,9 +410,39 @@ private:
     DNNL_DISALLOW_COPY_AND_ASSIGN(brdgmm_kernel_t);
 };
 
+template <typename KernelType>
+struct kai_kernel_t : public brgemm_kernel_t {
+    kai_kernel_t(const brgemm_desc_t abrd);
+    ~kai_kernel_t();
+
+    virtual status_t create_kernel() { return status::success; };
+    virtual void operator()(brgemm_kernel_params_t *) const;
+    virtual std::string to_string() const;
+    virtual jit_generator *get_jit_generator() const { return nullptr; };
+
+private:
+    KernelType *kai_kernel_ = nullptr;
+};
+
+#if defined(DNNL_EXPERIMENTAL_UKERNEL) && defined(DNNL_AARCH64_USE_KAI)
+struct kai_f32_qa8dxp_qs4c32p_kernel_t
+    : public kai_kernel_t<kai_f32_qa8dxp_qs4c32p_kernel_packet_t> {
+    using kai_kernel_t::kai_kernel_t;
+};
+
+struct kai_f32_qa8dxp_qs4cxp_kernel_t
+    : public kai_kernel_t<kai_f32_qa8dxp_qs4cxp_kernel_packet_t> {
+    using kai_kernel_t::kai_kernel_t;
+};
+
+struct kai_f32_f32_f32p_kernel_t
+    : public kai_kernel_t<kai_f32_f32_f32p_kernel_packet_t> {
+    using kai_kernel_t::kai_kernel_t;
+};
+#endif
 /// @param bias Vector of bias (vector length is N)
 /// @param scales - Vector of scale factor values which represents combination
-///     scale factors for matrixes A and B. If brgemm_t::is_oc_scale = true
+///     scale factors for matrixes A and B. If brgemm_desc_t::is_oc_scale = true
 ///     vector length is N otherwise it must be broadcasted to vector of simd
 ///     width length
 /// @param binary_post_ops_rhs - Ptr to table of pointers to tensors used as rhs

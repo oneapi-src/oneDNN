@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,21 +38,21 @@ public:
     brgemm_desc_container_t() {}
     brgemm_desc_container_t(size_t ns) { resize(ns); }
     void resize(size_t ns) { refs_.resize(ns); }
-    inline const brgemm_t *operator[](int idx) const { return refs_[idx]; }
+    inline const brgemm_desc_t *operator[](int idx) const { return refs_[idx]; }
 
-    bool insert(int idx, brgemm_t &brg) {
+    bool insert(int idx, brgemm_desc_t &brg) {
         std::vector<char> dummy_bd_mask;
         std::vector<brgemm_batch_element_t> dummy_static_offsets;
         return insert(idx, brg, dummy_bd_mask, dummy_static_offsets);
     }
 
-    bool insert(int idx, brgemm_t &brg, const std::vector<char> &bd_mask,
+    bool insert(int idx, brgemm_desc_t &brg, const std::vector<char> &bd_mask,
             const std::vector<brgemm_batch_element_t> &static_offsets);
 
 private:
-    std::vector<const brgemm_t *> refs_;
+    std::vector<const brgemm_desc_t *> refs_;
 
-    std::set<brgemm_t> set_;
+    std::set<brgemm_desc_t> set_;
     std::vector<std::vector<char>> bd_mask_list_;
     std::vector<std::vector<brgemm_batch_element_t>> static_offsets_list_;
 };
@@ -66,7 +67,7 @@ struct brgemm_kernel_container_t {
         return refs_[idx];
     }
 
-    status_t insert(int idx, const brgemm_t *brg);
+    status_t insert(int idx, const brgemm_desc_t *brg);
     static bool brgemm_kernel_cmp(const std::shared_ptr<brgemm_kernel_t> &lhs,
             const std::shared_ptr<brgemm_kernel_t> &rhs);
 
@@ -92,7 +93,7 @@ private:
     void lock_write() {}
     void unlock_write() {}
 #endif
-    std::map<const brgemm_t *, const brgemm_kernel_t *> brgemm_map_;
+    std::map<const brgemm_desc_t *, const brgemm_kernel_t *> brgemm_map_;
 };
 
 } // namespace brgemm_containers

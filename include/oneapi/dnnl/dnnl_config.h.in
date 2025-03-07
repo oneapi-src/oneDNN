@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2019-2024 Intel Corporation
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -171,6 +172,11 @@
 
 // When defined, graph component is enabled.
 #cmakedefine ONEDNN_BUILD_GRAPH
+
+#ifndef DNNL_AARCH64_USE_KAI
+// When defined, KleidiAI ukernels are enabled.
+#cmakedefine DNNL_AARCH64_USE_KAI
+#endif
 
 // When defined, experimental profiling capabilities are enabled.
 #cmakedefine DNNL_EXPERIMENTAL_PROFILING
