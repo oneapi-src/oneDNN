@@ -24,7 +24,7 @@ namespace dnnl {
 namespace impl {
 namespace itt {
 
-typedef enum {
+using enum {
     __itt_task_level_none = 0,
     __itt_task_level_low,
     __itt_task_level_high
