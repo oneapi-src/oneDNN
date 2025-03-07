@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,9 +41,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 void lstm_example(dnnl::engine::kind engine_kind) {
 
@@ -90,9 +87,12 @@ void lstm_example(dnnl::engine::kind engine_kind) {
     });
 
     // Create memory descriptors and memory objects for src, bias, and dst.
-    auto src_layer_md = memory::desc(src_dims, dt::f32, tag::tnc);
-    auto bias_md = memory::desc(bias_dims, dt::f32, tag::ldgo);
-    auto dst_layer_md = memory::desc(dst_dims, dt::f32, tag::tnc);
+    auto src_layer_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::tnc);
+    auto bias_md = memory::desc(
+            bias_dims, memory::data_type::f32, memory::format_tag::ldgo);
+    auto dst_layer_md = memory::desc(
+            dst_dims, memory::data_type::f32, memory::format_tag::tnc);
 
     auto src_layer_mem = memory(src_layer_md, engine);
     auto bias_mem = memory(bias_md, engine);
@@ -100,10 +100,12 @@ void lstm_example(dnnl::engine::kind engine_kind) {
 
     // Create memory objects for weights using user's memory layout. In this
     // example, LDIGO is assumed.
-    auto user_weights_layer_mem
-            = memory({weights_dims, dt::f32, tag::ldigo}, engine);
-    auto user_weights_iter_mem
-            = memory({weights_dims, dt::f32, tag::ldigo}, engine);
+    auto user_weights_layer_mem = memory(
+            {weights_dims, memory::data_type::f32, memory::format_tag::ldigo},
+            engine);
+    auto user_weights_iter_mem = memory(
+            {weights_dims, memory::data_type::f32, memory::format_tag::ldigo},
+            engine);
 
     // Write data to memory object's handle.
     write_to_dnnl_memory(src_layer_data.data(), src_layer_mem);
@@ -113,8 +115,10 @@ void lstm_example(dnnl::engine::kind engine_kind) {
 
     // Create memory descriptors for weights with format_tag::any. This enables
     // the LSTM primitive to choose the optimized memory layout.
-    auto lstm_weights_layer_md = memory::desc(weights_dims, dt::f32, tag::any);
-    auto lstm_weights_iter_md = memory::desc(weights_dims, dt::f32, tag::any);
+    auto lstm_weights_layer_md = memory::desc(
+            weights_dims, memory::data_type::f32, memory::format_tag::any);
+    auto lstm_weights_iter_md = memory::desc(
+            weights_dims, memory::data_type::f32, memory::format_tag::any);
 
     // Optional memory descriptors for recurrent data.
     auto src_iter_md = memory::desc();

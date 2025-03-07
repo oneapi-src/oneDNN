@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,9 +41,6 @@
 #include "example_utils.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 void lbr_gru_example(dnnl::engine::kind engine_kind) {
     // Create execution dnnl::engine.
@@ -98,9 +95,12 @@ void lbr_gru_example(dnnl::engine::kind engine_kind) {
     });
 
     // Create memory descriptors and memory objects for src, bias, and dst.
-    auto src_layer_md = memory::desc(src_dims, dt::f32, tag::tnc);
-    auto bias_md = memory::desc(bias_dims, dt::f32, tag::ldgo);
-    auto dst_layer_md = memory::desc(dst_layer_dims, dt::f32, tag::tnc);
+    auto src_layer_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::tnc);
+    auto bias_md = memory::desc(
+            bias_dims, memory::data_type::f32, memory::format_tag::ldgo);
+    auto dst_layer_md = memory::desc(
+            dst_layer_dims, memory::data_type::f32, memory::format_tag::tnc);
 
     auto src_layer_mem = memory(src_layer_md, engine);
     auto bias_mem = memory(bias_md, engine);
@@ -110,9 +110,13 @@ void lbr_gru_example(dnnl::engine::kind engine_kind) {
     // example, LDIGO (num_layers, num_directions, input_channels, num_gates,
     // output_channels) is assumed.
     auto user_weights_layer_mem
-            = memory({weights_layer_dims, dt::f32, tag::ldigo}, engine);
+            = memory({weights_layer_dims, memory::data_type::f32,
+                             memory::format_tag::ldigo},
+                    engine);
     auto user_weights_iter_mem
-            = memory({weights_iter_dims, dt::f32, tag::ldigo}, engine);
+            = memory({weights_iter_dims, memory::data_type::f32,
+                             memory::format_tag::ldigo},
+                    engine);
 
     // Write data to memory object's handle.
     // For GRU cells, the gates order is update, reset and output
@@ -125,8 +129,10 @@ void lbr_gru_example(dnnl::engine::kind engine_kind) {
 
     // Create memory descriptors for weights with format_tag::any. This enables
     // the lbr_gru primitive to choose the optimized memory layout.
-    auto weights_layer_md = memory::desc(weights_layer_dims, dt::f32, tag::any);
-    auto weights_iter_md = memory::desc(weights_iter_dims, dt::f32, tag::any);
+    auto weights_layer_md = memory::desc(weights_layer_dims,
+            memory::data_type::f32, memory::format_tag::any);
+    auto weights_iter_md = memory::desc(
+            weights_iter_dims, memory::data_type::f32, memory::format_tag::any);
 
     // Optional memory descriptors for recurrent data.
     // Default memory descriptor for initial hidden states of the GRU cells

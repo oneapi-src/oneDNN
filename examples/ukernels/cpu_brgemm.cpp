@@ -36,9 +36,6 @@
 using namespace dnnl;
 using namespace dnnl::ukernel;
 
-using tag = memory::format_tag;
-using dt = memory::data_type;
-
 void brgemm_example() {
 
     // Create execution dnnl::engine. Needed for reorders to operate over input
@@ -57,10 +54,10 @@ void brgemm_example() {
     }
     const memory::dim n_calls = K / K_k;
 
-    memory::data_type a_dt = dt::u8;
-    memory::data_type b_dt = dt::s8;
-    memory::data_type c_dt = dt::s32; // Accumulator data type.
-    memory::data_type d_dt = dt::f32; // Output data type.
+    memory::data_type a_dt = memory::data_type::u8;
+    memory::data_type b_dt = memory::data_type::s8;
+    memory::data_type c_dt = memory::data_type::s32; // Accumulator data type.
+    memory::data_type d_dt = memory::data_type::f32; // Output data type.
 
     // Query the packing requirement from the ukernel. It's enough to query
     // packing requirements once for multiple objects.
@@ -131,11 +128,16 @@ void brgemm_example() {
 
     // Create f32 memories. They are used as data holders and reorder into
     // memories passed to the ukernel.
-    auto A_f32_md = memory::desc(A_dims, dt::f32, tag::ab);
-    auto B_f32_md = memory::desc(B_dims, dt::f32, tag::ab);
-    auto binary_add_f32_md = memory::desc(binary_add_dims, dt::f32, tag::ab);
-    auto B_scales_f32_md = memory::desc(B_scales_dims, dt::f32, tag::ab);
-    auto D_f32_md = memory::desc(D_dims, dt::f32, tag::ab);
+    auto A_f32_md = memory::desc(
+            A_dims, memory::data_type::f32, memory::format_tag::ab);
+    auto B_f32_md = memory::desc(
+            B_dims, memory::data_type::f32, memory::format_tag::ab);
+    auto binary_add_f32_md = memory::desc(
+            binary_add_dims, memory::data_type::f32, memory::format_tag::ab);
+    auto B_scales_f32_md = memory::desc(
+            B_scales_dims, memory::data_type::f32, memory::format_tag::ab);
+    auto D_f32_md = memory::desc(
+            D_dims, memory::data_type::f32, memory::format_tag::ab);
 
     auto A_f32_mem = memory(A_f32_md, engine, A_user_data.data());
     auto B_f32_mem = memory(B_f32_md, engine, B_user_data.data());
@@ -147,12 +149,14 @@ void brgemm_example() {
 
     // Create ukernel memories in requested data types.
     // Note that all formats are `ab`.
-    auto A_md = memory::desc(A_dims, a_dt, tag::ab);
-    auto B_md = memory::desc(B_dims, b_dt, tag::ab);
-    auto binary_add_md = memory::desc(binary_add_dims, dt::f32, tag::ab);
-    auto B_scales_md = memory::desc(B_scales_dims, dt::f32, tag::ab);
-    auto C_md = memory::desc(C_dims, c_dt, tag::ab);
-    auto D_md = memory::desc(D_dims, d_dt, tag::ab);
+    auto A_md = memory::desc(A_dims, a_dt, memory::format_tag::ab);
+    auto B_md = memory::desc(B_dims, b_dt, memory::format_tag::ab);
+    auto binary_add_md = memory::desc(
+            binary_add_dims, memory::data_type::f32, memory::format_tag::ab);
+    auto B_scales_md = memory::desc(
+            B_scales_dims, memory::data_type::f32, memory::format_tag::ab);
+    auto C_md = memory::desc(C_dims, c_dt, memory::format_tag::ab);
+    auto D_md = memory::desc(D_dims, d_dt, memory::format_tag::ab);
 
     auto A_mem = memory(A_md, engine);
     auto B_mem = memory(B_md, engine);
@@ -233,7 +237,7 @@ void brgemm_example() {
         // Specify post-ops for the brgemm object.
         brg_po.set_post_ops(ldd, d_dt, brgemm_ops);
         // Specify quantization scales for B.
-        if (b_dt == dt::s8 || b_dt == dt::u8) {
+        if (b_dt == memory::data_type::s8 || b_dt == memory::data_type::u8) {
             brg_po.set_B_scales(/* mask = */ 2);
         }
         // Finalize the initialization.

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2022 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,9 +38,6 @@
 using namespace dnnl;
 
 void simple_net(engine::kind engine_kind) {
-    using tag = memory::format_tag;
-    using dt = memory::data_type;
-
     auto eng = engine(engine_kind, 0);
     stream s(eng);
 
@@ -79,27 +76,36 @@ void simple_net(engine::kind engine_kind) {
         conv_bias[i] = sinf((float)i);
 
     // create memory for user data
-    auto conv_user_src_memory
-            = memory({{conv_src_tz}, dt::f32, tag::nchw}, eng);
+    auto conv_user_src_memory = memory(
+            {{conv_src_tz}, memory::data_type::f32, memory::format_tag::nchw},
+            eng);
     write_to_dnnl_memory(net_src.data(), conv_user_src_memory);
 
     auto conv_user_weights_memory
-            = memory({{conv_weights_tz}, dt::f32, tag::oihw}, eng);
+            = memory({{conv_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::oihw},
+                    eng);
     write_to_dnnl_memory(conv_weights.data(), conv_user_weights_memory);
 
-    auto conv_user_bias_memory = memory({{conv_bias_tz}, dt::f32, tag::x}, eng);
+    auto conv_user_bias_memory = memory(
+            {{conv_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(conv_bias.data(), conv_user_bias_memory);
 
     // create memory descriptors for bfloat16 convolution data w/ no specified
     // format tag(`any`)
     // tag `any` lets a primitive(convolution in this case)
     // chose the memory format preferred for best performance.
-    auto conv_src_md = memory::desc({conv_src_tz}, dt::bf16, tag::any);
-    auto conv_weights_md = memory::desc({conv_weights_tz}, dt::bf16, tag::any);
-    auto conv_dst_md = memory::desc({conv_dst_tz}, dt::bf16, tag::any);
+    auto conv_src_md = memory::desc(
+            {conv_src_tz}, memory::data_type::bf16, memory::format_tag::any);
+    auto conv_weights_md = memory::desc({conv_weights_tz},
+            memory::data_type::bf16, memory::format_tag::any);
+    auto conv_dst_md = memory::desc(
+            {conv_dst_tz}, memory::data_type::bf16, memory::format_tag::any);
     // here bias data type is set to bf16.
     // additionally, f32 data type is supported for bf16 convolution.
-    auto conv_bias_md = memory::desc({conv_bias_tz}, dt::bf16, tag::any);
+    auto conv_bias_md = memory::desc(
+            {conv_bias_tz}, memory::data_type::bf16, memory::format_tag::any);
 
     // create a convolution primitive descriptor
 
@@ -225,11 +231,13 @@ void simple_net(engine::kind engine_kind) {
     memory::dims pool_padding = {0, 0};
 
     // create memory for pool dst data in user format
-    auto pool_user_dst_memory
-            = memory({{pool_dst_tz}, dt::f32, tag::nchw}, eng);
+    auto pool_user_dst_memory = memory(
+            {{pool_dst_tz}, memory::data_type::f32, memory::format_tag::nchw},
+            eng);
 
     // create pool dst memory descriptor in format any for bfloat16 data type
-    auto pool_dst_md = memory::desc({pool_dst_tz}, dt::bf16, tag::any);
+    auto pool_dst_md = memory::desc(
+            {pool_dst_tz}, memory::data_type::bf16, memory::format_tag::any);
 
     // create a pooling primitive descriptor
     auto pool_pd = pooling_forward::primitive_desc(eng, prop_kind::forward,
@@ -269,14 +277,17 @@ void simple_net(engine::kind engine_kind) {
         net_diff_dst[i] = sinf((float)i);
 
     // create memory for user diff dst data stored in float data type
-    auto pool_user_diff_dst_memory
-            = memory({{pool_dst_tz}, dt::f32, tag::nchw}, eng);
+    auto pool_user_diff_dst_memory = memory(
+            {{pool_dst_tz}, memory::data_type::f32, memory::format_tag::nchw},
+            eng);
     write_to_dnnl_memory(net_diff_dst.data(), pool_user_diff_dst_memory);
 
     // Backward pooling
     // create memory descriptors for pooling
-    auto pool_diff_src_md = memory::desc({lrn_data_tz}, dt::bf16, tag::any);
-    auto pool_diff_dst_md = memory::desc({pool_dst_tz}, dt::bf16, tag::any);
+    auto pool_diff_src_md = memory::desc(
+            {lrn_data_tz}, memory::data_type::bf16, memory::format_tag::any);
+    auto pool_diff_dst_md = memory::desc(
+            {pool_dst_tz}, memory::data_type::bf16, memory::format_tag::any);
 
     // backward primitive descriptor needs to hint forward descriptor
     auto pool_bwd_pd = pooling_backward::primitive_desc(eng,
@@ -305,7 +316,8 @@ void simple_net(engine::kind engine_kind) {
             {DNNL_ARG_WORKSPACE, pool_workspace_memory}});
 
     // Backward lrn
-    auto lrn_diff_dst_md = memory::desc({lrn_data_tz}, dt::bf16, tag::any);
+    auto lrn_diff_dst_md = memory::desc(
+            {lrn_data_tz}, memory::data_type::bf16, memory::format_tag::any);
     const auto &lrn_diff_src_md = lrn_diff_dst_md;
 
     // create backward lrn primitive descriptor
@@ -335,8 +347,10 @@ void simple_net(engine::kind engine_kind) {
             {DNNL_ARG_WORKSPACE, lrn_workspace_memory}});
 
     // Backward relu
-    auto relu_diff_src_md = memory::desc({relu_data_tz}, dt::bf16, tag::any);
-    auto relu_diff_dst_md = memory::desc({relu_data_tz}, dt::bf16, tag::any);
+    auto relu_diff_src_md = memory::desc(
+            {relu_data_tz}, memory::data_type::bf16, memory::format_tag::any);
+    auto relu_diff_dst_md = memory::desc(
+            {relu_data_tz}, memory::data_type::bf16, memory::format_tag::any);
     auto relu_src_md = conv_pd.dst_desc();
 
     // create backward relu primitive_descriptor
@@ -367,14 +381,20 @@ void simple_net(engine::kind engine_kind) {
     // create user format diff weights and diff bias memory for float data type
 
     auto conv_user_diff_weights_memory
-            = memory({{conv_weights_tz}, dt::f32, tag::nchw}, eng);
-    auto conv_diff_bias_memory = memory({{conv_bias_tz}, dt::f32, tag::x}, eng);
+            = memory({{conv_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::nchw},
+                    eng);
+    auto conv_diff_bias_memory = memory(
+            {{conv_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
 
     // create memory descriptors for bfloat16 convolution data
-    auto conv_bwd_src_md = memory::desc({conv_src_tz}, dt::bf16, tag::any);
-    auto conv_diff_weights_md
-            = memory::desc({conv_weights_tz}, dt::bf16, tag::any);
-    auto conv_diff_dst_md = memory::desc({conv_dst_tz}, dt::bf16, tag::any);
+    auto conv_bwd_src_md = memory::desc(
+            {conv_src_tz}, memory::data_type::bf16, memory::format_tag::any);
+    auto conv_diff_weights_md = memory::desc({conv_weights_tz},
+            memory::data_type::bf16, memory::format_tag::any);
+    auto conv_diff_dst_md = memory::desc(
+            {conv_dst_tz}, memory::data_type::bf16, memory::format_tag::any);
 
     // use diff bias provided by the user
     auto conv_diff_bias_md = conv_diff_bias_memory.get_desc();

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2022 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -45,9 +45,6 @@
 #include "example_utils.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 void bnorm_u8_via_binary_postops(dnnl::engine::kind engine_kind) {
 
@@ -102,12 +99,18 @@ void bnorm_u8_via_binary_postops(dnnl::engine::kind engine_kind) {
             oscale_data.begin(), oscale_data.end(), []() { return 0.5f; });
 
     // Create descriptors.
-    auto src_md = memory::desc(src_dims, dt::u8, tag::nhwc);
-    auto mean_md = memory::desc(params_dims, dt::f32, tag::nhwc);
-    auto variance_md = memory::desc(params_dims, dt::f32, tag::nhwc);
-    auto scale_md = memory::desc(params_dims, dt::f32, tag::nhwc);
-    auto shift_md = memory::desc(params_dims, dt::f32, tag::nhwc);
-    auto oscale_md = memory::desc(params_dims, dt::f32, tag::nhwc);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::u8, memory::format_tag::nhwc);
+    auto mean_md = memory::desc(
+            params_dims, memory::data_type::f32, memory::format_tag::nhwc);
+    auto variance_md = memory::desc(
+            params_dims, memory::data_type::f32, memory::format_tag::nhwc);
+    auto scale_md = memory::desc(
+            params_dims, memory::data_type::f32, memory::format_tag::nhwc);
+    auto shift_md = memory::desc(
+            params_dims, memory::data_type::f32, memory::format_tag::nhwc);
+    auto oscale_md = memory::desc(
+            params_dims, memory::data_type::f32, memory::format_tag::nhwc);
 
     // Create src memory objects.
     auto src_mem = memory(src_md, engine);

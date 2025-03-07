@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -36,9 +36,6 @@
 #include "oneapi/dnnl/dnnl.hpp"
 
 using namespace dnnl;
-
-using tag = memory::format_tag;
-using dt = memory::data_type;
 
 void matmul_example(dnnl::engine::kind engine_kind) {
     // Create execution dnnl::engine.
@@ -79,22 +76,31 @@ void matmul_example(dnnl::engine::kind engine_kind) {
     const memory::dim nnz = std::count_if(weights_data.begin(),
             weights_data.end(), [](float v) { return v != 0.0f; });
 
-    auto src_md = memory::desc(src_dims, dt::f32, tag::ab);
-    auto dst_md = memory::desc(dst_dims, dt::f32, tag::ab);
+    auto src_md = memory::desc(
+            src_dims, memory::data_type::f32, memory::format_tag::ab);
+    auto dst_md = memory::desc(
+            dst_dims, memory::data_type::f32, memory::format_tag::ab);
 
     auto src_mem = memory(src_md, engine);
     auto dst_mem = memory(dst_md, engine);
 
-    auto user_src_mem = memory({src_dims, dt::f32, tag::ab}, engine);
-    auto user_weights_mem = memory({weights_dims, dt::f32, tag::ab}, engine);
-    auto user_dst_mem = memory({dst_dims, dt::f32, tag::ab}, engine);
+    auto user_src_mem = memory(
+            {src_dims, memory::data_type::f32, memory::format_tag::ab}, engine);
+    auto user_weights_mem = memory(
+            {weights_dims, memory::data_type::f32, memory::format_tag::ab},
+            engine);
+    auto user_dst_mem = memory(
+            {dst_dims, memory::data_type::f32, memory::format_tag::ab}, engine);
 
     write_to_dnnl_memory(src_data.data(), src_mem);
     write_to_dnnl_memory(weights_data.data(), user_weights_mem);
 
-    auto matmul_src_md = memory::desc(src_dims, dt::u8, tag::any);
-    auto matmul_weights_md = memory::desc::packed(weights_dims, dt::s8, nnz);
-    auto matmul_dst_md = memory::desc(dst_dims, dt::u8, tag::any);
+    auto matmul_src_md = memory::desc(
+            src_dims, memory::data_type::u8, memory::format_tag::any);
+    auto matmul_weights_md
+            = memory::desc::packed(weights_dims, memory::data_type::s8, nnz);
+    auto matmul_dst_md = memory::desc(
+            dst_dims, memory::data_type::u8, memory::format_tag::any);
 
     matmul::primitive_desc matmul_pd;
     try {

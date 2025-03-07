@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2022 Intel Corporation
+* Copyright 2016-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -51,9 +51,6 @@
 using namespace dnnl;
 
 void simple_net(engine::kind engine_kind, int times = 100) {
-    using tag = memory::format_tag;
-    using dt = memory::data_type;
-
     /// Initialize an engine and stream. The last parameter in the call represents
     /// the index of the engine.
     /// @snippet cnn_inference_f32.cpp Initialize engine and stream
@@ -91,33 +88,43 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     std::vector<float> conv1_bias(product(conv1_bias_tz));
     //[Allocate buffers]
 
-    /// Create memory that describes data layout in the buffers. This example uses
-    /// tag::nchw (batch-channels-height-width) for input data and tag::oihw
-    /// for weights.
+    /// Create memory that describes data layout in the buffers. This example
+    /// uses dnnl::memory::format_tag::nchw (batch-channels-height-width)
+    /// for input data and dnnl::memory::format_tag::oihw for weights.
     /// @snippet cnn_inference_f32.cpp Create user memory
     //[Create user memory]
-    auto user_src_memory = memory({{conv1_src_tz}, dt::f32, tag::nchw}, eng);
+    auto user_src_memory = memory(
+            {{conv1_src_tz}, memory::data_type::f32, memory::format_tag::nchw},
+            eng);
     write_to_dnnl_memory(user_src.data(), user_src_memory);
     auto user_weights_memory
-            = memory({{conv1_weights_tz}, dt::f32, tag::oihw}, eng);
+            = memory({{conv1_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::oihw},
+                    eng);
     write_to_dnnl_memory(conv1_weights.data(), user_weights_memory);
-    auto conv1_user_bias_memory
-            = memory({{conv1_bias_tz}, dt::f32, tag::x}, eng);
+    auto conv1_user_bias_memory = memory(
+            {{conv1_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(conv1_bias.data(), conv1_user_bias_memory);
     //[Create user memory]
 
-    /// Create memory descriptors with layout tag::any. The `any` format enables
-    /// the convolution primitive to choose the data format that will result in
-    /// best performance based on its input parameters (convolution kernel
-    /// sizes, strides, padding, and so on). If the resulting format is different
-    /// from `nchw`, the user data must be transformed to the format required for
-    /// the convolution (as explained below).
+    /// Create memory descriptors with layout dnnl::memory::format_tag::any.
+    /// The `any` format enables the convolution primitive to choose the data
+    /// format that will result in best performance based on its input
+    /// parameters (convolution kernel sizes, strides, padding, and so on).
+    /// If the resulting format is different from `nchw`, the user data must be
+    /// transformed to the format required for the convolution (as explained
+    /// below).
     /// @snippet cnn_inference_f32.cpp Create convolution memory descriptors
     //[Create convolution memory descriptors]
-    auto conv1_src_md = memory::desc({conv1_src_tz}, dt::f32, tag::any);
-    auto conv1_bias_md = memory::desc({conv1_bias_tz}, dt::f32, tag::any);
-    auto conv1_weights_md = memory::desc({conv1_weights_tz}, dt::f32, tag::any);
-    auto conv1_dst_md = memory::desc({conv1_dst_tz}, dt::f32, tag::any);
+    auto conv1_src_md = memory::desc(
+            {conv1_src_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv1_bias_md = memory::desc(
+            {conv1_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv1_weights_md = memory::desc({conv1_weights_tz},
+            memory::data_type::f32, memory::format_tag::any);
+    auto conv1_dst_md = memory::desc(
+            {conv1_dst_tz}, memory::data_type::f32, memory::format_tag::any);
     //[Create convolution memory descriptors]
 
     /// Create a convolution primitive descriptor by specifying engine,
@@ -136,9 +143,9 @@ void simple_net(engine::kind engine_kind, int times = 100) {
             conv1_strides, conv1_padding, conv1_padding);
     //[Create convolution primitive descriptor]
 
-    /// Check whether data and weights formats required by convolution is different
-    /// from the user format. In case it is different change the layout using
-    /// reorder primitive.
+    /// Check whether data and weights formats required by convolution is
+    /// different from the user format. In case it is different change the
+    /// layout using reorder primitive.
     /// @snippet cnn_inference_f32.cpp Reorder data and weights
     //[Reorder data and weights]
     auto conv1_src_memory = user_src_memory;
@@ -180,7 +187,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     /// Create the relu primitive. For better performance, keep the input data
     /// format for ReLU (as well as for other operation primitives until another
     /// convolution or inner product is encountered) the same as the one chosen
-    /// for convolution. Also note that ReLU is done in-place by using conv1 memory.
+    /// for convolution. Also note that ReLU is done in-place by using conv1
+    /// memory.
     /// @snippet cnn_inference_f32.cpp Create relu primitive
     //[Create relu primitive]
     auto relu1_prim_desc
@@ -224,11 +232,12 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     memory::dims pool_dilation = {0, 0};
     memory::dims pool_padding = {0, 0};
 
-    auto pool1_dst_md = memory::desc({pool1_dst_tz}, dt::f32, tag::any);
+    auto pool1_dst_md = memory::desc(
+            {pool1_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     /// For training execution, pooling requires a private workspace memory
-    /// to perform the backward pass. However, pooling should not use 'workspace'
-    /// for inference, because this is detrimental to performance.
+    /// to perform the backward pass. However, pooling should not use
+    /// 'workspace' for inference, because this is detrimental to performance.
     /// @snippet cnn_inference_f32.cpp Create pooling primitive
     ///
     /// The example continues to create more layers according
@@ -260,17 +269,24 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create memory for user data
     auto conv2_user_weights_memory
-            = memory({{conv2_weights_tz}, dt::f32, tag::goihw}, eng);
+            = memory({{conv2_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::goihw},
+                    eng);
     write_to_dnnl_memory(conv2_weights.data(), conv2_user_weights_memory);
-    auto conv2_user_bias_memory
-            = memory({{conv2_bias_tz}, dt::f32, tag::x}, eng);
+    auto conv2_user_bias_memory = memory(
+            {{conv2_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(conv2_bias.data(), conv2_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
-    auto conv2_src_md = memory::desc({conv2_src_tz}, dt::f32, tag::any);
-    auto conv2_bias_md = memory::desc({conv2_bias_tz}, dt::f32, tag::any);
-    auto conv2_weights_md = memory::desc({conv2_weights_tz}, dt::f32, tag::any);
-    auto conv2_dst_md = memory::desc({conv2_dst_tz}, dt::f32, tag::any);
+    auto conv2_src_md = memory::desc(
+            {conv2_src_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv2_bias_md = memory::desc(
+            {conv2_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv2_weights_md = memory::desc({conv2_weights_tz},
+            memory::data_type::f32, memory::format_tag::any);
+    auto conv2_dst_md = memory::desc(
+            {conv2_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a convolution
     auto conv2_prim_desc = convolution_forward::primitive_desc(eng,
@@ -348,7 +364,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     memory::dims pool2_dilation = {0, 0};
     memory::dims pool2_padding = {0, 0};
 
-    auto pool2_dst_md = memory::desc({pool2_dst_tz}, dt::f32, tag::any);
+    auto pool2_dst_md = memory::desc(
+            {pool2_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a pooling
     auto pool2_pd = pooling_forward::primitive_desc(eng,
@@ -377,17 +394,24 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create memory for user data
     auto conv3_user_weights_memory
-            = memory({{conv3_weights_tz}, dt::f32, tag::oihw}, eng);
+            = memory({{conv3_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::oihw},
+                    eng);
     write_to_dnnl_memory(conv3_weights.data(), conv3_user_weights_memory);
-    auto conv3_user_bias_memory
-            = memory({{conv3_bias_tz}, dt::f32, tag::x}, eng);
+    auto conv3_user_bias_memory = memory(
+            {{conv3_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(conv3_bias.data(), conv3_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
-    auto conv3_src_md = memory::desc({conv3_src_tz}, dt::f32, tag::any);
-    auto conv3_bias_md = memory::desc({conv3_bias_tz}, dt::f32, tag::any);
-    auto conv3_weights_md = memory::desc({conv3_weights_tz}, dt::f32, tag::any);
-    auto conv3_dst_md = memory::desc({conv3_dst_tz}, dt::f32, tag::any);
+    auto conv3_src_md = memory::desc(
+            {conv3_src_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv3_bias_md = memory::desc(
+            {conv3_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv3_weights_md = memory::desc({conv3_weights_tz},
+            memory::data_type::f32, memory::format_tag::any);
+    auto conv3_dst_md = memory::desc(
+            {conv3_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a convolution
     auto conv3_prim_desc = convolution_forward::primitive_desc(eng,
@@ -450,17 +474,24 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create memory for user data
     auto conv4_user_weights_memory
-            = memory({{conv4_weights_tz}, dt::f32, tag::goihw}, eng);
+            = memory({{conv4_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::goihw},
+                    eng);
     write_to_dnnl_memory(conv4_weights.data(), conv4_user_weights_memory);
-    auto conv4_user_bias_memory
-            = memory({{conv4_bias_tz}, dt::f32, tag::x}, eng);
+    auto conv4_user_bias_memory = memory(
+            {{conv4_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(conv4_bias.data(), conv4_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
-    auto conv4_src_md = memory::desc({conv4_src_tz}, dt::f32, tag::any);
-    auto conv4_bias_md = memory::desc({conv4_bias_tz}, dt::f32, tag::any);
-    auto conv4_weights_md = memory::desc({conv4_weights_tz}, dt::f32, tag::any);
-    auto conv4_dst_md = memory::desc({conv4_dst_tz}, dt::f32, tag::any);
+    auto conv4_src_md = memory::desc(
+            {conv4_src_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv4_bias_md = memory::desc(
+            {conv4_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv4_weights_md = memory::desc({conv4_weights_tz},
+            memory::data_type::f32, memory::format_tag::any);
+    auto conv4_dst_md = memory::desc(
+            {conv4_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a convolution
     auto conv4_prim_desc = convolution_forward::primitive_desc(eng,
@@ -522,17 +553,24 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create memory for user data
     auto conv5_user_weights_memory
-            = memory({{conv5_weights_tz}, dt::f32, tag::goihw}, eng);
+            = memory({{conv5_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::goihw},
+                    eng);
     write_to_dnnl_memory(conv5_weights.data(), conv5_user_weights_memory);
-    auto conv5_user_bias_memory
-            = memory({{conv5_bias_tz}, dt::f32, tag::x}, eng);
+    auto conv5_user_bias_memory = memory(
+            {{conv5_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(conv5_bias.data(), conv5_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
-    auto conv5_src_md = memory::desc({conv5_src_tz}, dt::f32, tag::any);
-    auto conv5_weights_md = memory::desc({conv5_weights_tz}, dt::f32, tag::any);
-    auto conv5_bias_md = memory::desc({conv5_bias_tz}, dt::f32, tag::any);
-    auto conv5_dst_md = memory::desc({conv5_dst_tz}, dt::f32, tag::any);
+    auto conv5_src_md = memory::desc(
+            {conv5_src_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv5_weights_md = memory::desc({conv5_weights_tz},
+            memory::data_type::f32, memory::format_tag::any);
+    auto conv5_bias_md = memory::desc(
+            {conv5_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto conv5_dst_md = memory::desc(
+            {conv5_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a convolution
     auto conv5_prim_desc = convolution_forward::primitive_desc(eng,
@@ -591,7 +629,8 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     std::vector<float> pool5_dst(product(pool5_dst_tz));
 
-    auto pool5_dst_md = memory::desc({pool5_dst_tz}, dt::f32, tag::any);
+    auto pool5_dst_md = memory::desc(
+            {pool5_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a pooling
     auto pool5_pd = pooling_forward::primitive_desc(eng,
@@ -618,16 +657,24 @@ void simple_net(engine::kind engine_kind, int times = 100) {
 
     // create memory for user data
     auto fc6_user_weights_memory
-            = memory({{fc6_weights_tz}, dt::f32, tag::oihw}, eng);
+            = memory({{fc6_weights_tz}, memory::data_type::f32,
+                             memory::format_tag::oihw},
+                    eng);
     write_to_dnnl_memory(fc6_weights.data(), fc6_user_weights_memory);
-    auto fc6_user_bias_memory = memory({{fc6_bias_tz}, dt::f32, tag::x}, eng);
+    auto fc6_user_bias_memory = memory(
+            {{fc6_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(fc6_bias.data(), fc6_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
-    auto fc6_src_md = memory::desc({fc6_src_tz}, dt::f32, tag::any);
-    auto fc6_bias_md = memory::desc({fc6_bias_tz}, dt::f32, tag::any);
-    auto fc6_weights_md = memory::desc({fc6_weights_tz}, dt::f32, tag::any);
-    auto fc6_dst_md = memory::desc({fc6_dst_tz}, dt::f32, tag::any);
+    auto fc6_src_md = memory::desc(
+            {fc6_src_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto fc6_bias_md = memory::desc(
+            {fc6_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto fc6_weights_md = memory::desc(
+            {fc6_weights_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto fc6_dst_md = memory::desc(
+            {fc6_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a inner_product
     auto fc6_prim_desc = inner_product_forward::primitive_desc(eng,
@@ -667,17 +714,23 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     std::vector<float> fc7_bias(product(fc7_bias_tz));
 
     // create memory for user data
-    auto fc7_user_weights_memory
-            = memory({{fc7_weights_tz}, dt::f32, tag::nc}, eng);
+    auto fc7_user_weights_memory = memory(
+            {{fc7_weights_tz}, memory::data_type::f32, memory::format_tag::nc},
+            eng);
     write_to_dnnl_memory(fc7_weights.data(), fc7_user_weights_memory);
 
-    auto fc7_user_bias_memory = memory({{fc7_bias_tz}, dt::f32, tag::x}, eng);
+    auto fc7_user_bias_memory = memory(
+            {{fc7_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(fc7_bias.data(), fc7_user_bias_memory);
 
     // create memory descriptors for convolution data w/ no specified format
-    auto fc7_bias_md = memory::desc({fc7_bias_tz}, dt::f32, tag::any);
-    auto fc7_weights_md = memory::desc({fc7_weights_tz}, dt::f32, tag::any);
-    auto fc7_dst_md = memory::desc({fc7_dst_tz}, dt::f32, tag::any);
+    auto fc7_bias_md = memory::desc(
+            {fc7_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto fc7_weights_md = memory::desc(
+            {fc7_weights_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto fc7_dst_md = memory::desc(
+            {fc7_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a inner_product
     auto fc7_prim_desc = inner_product_forward::primitive_desc(eng,
@@ -709,18 +762,26 @@ void simple_net(engine::kind engine_kind, int times = 100) {
     std::vector<float> fc8_bias(product(fc8_bias_tz));
 
     // create memory for user data
-    auto fc8_user_weights_memory
-            = memory({{fc8_weights_tz}, dt::f32, tag::nc}, eng);
+    auto fc8_user_weights_memory = memory(
+            {{fc8_weights_tz}, memory::data_type::f32, memory::format_tag::nc},
+            eng);
     write_to_dnnl_memory(fc8_weights.data(), fc8_user_weights_memory);
-    auto fc8_user_bias_memory = memory({{fc8_bias_tz}, dt::f32, tag::x}, eng);
+    auto fc8_user_bias_memory = memory(
+            {{fc8_bias_tz}, memory::data_type::f32, memory::format_tag::x},
+            eng);
     write_to_dnnl_memory(fc8_bias.data(), fc8_user_bias_memory);
-    auto user_dst_memory = memory({{fc8_dst_tz}, dt::f32, tag::nc}, eng);
+    auto user_dst_memory = memory(
+            {{fc8_dst_tz}, memory::data_type::f32, memory::format_tag::nc},
+            eng);
     write_to_dnnl_memory(user_dst.data(), user_dst_memory);
 
     // create memory descriptors for convolution data w/ no specified format
-    auto fc8_bias_md = memory::desc({fc8_bias_tz}, dt::f32, tag::any);
-    auto fc8_weights_md = memory::desc({fc8_weights_tz}, dt::f32, tag::any);
-    auto fc8_dst_md = memory::desc({fc8_dst_tz}, dt::f32, tag::any);
+    auto fc8_bias_md = memory::desc(
+            {fc8_bias_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto fc8_weights_md = memory::desc(
+            {fc8_weights_tz}, memory::data_type::f32, memory::format_tag::any);
+    auto fc8_dst_md = memory::desc(
+            {fc8_dst_tz}, memory::data_type::f32, memory::format_tag::any);
 
     // create a inner_product
     auto fc8_prim_desc = inner_product_forward::primitive_desc(eng,
