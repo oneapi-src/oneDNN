@@ -317,7 +317,32 @@ int main(int argc, char **argv) {
     global_engine = dnnl::engine(dnnl::engine::kind::gpu, 0);
     global_engine_stream = dnnl::stream(global_engine);
 
-    // the following should output:
+    // The following runs a two-sequence, two-page SDPA problem. It
+    // exercises multi-sequence and paged attention support. Causal
+    // mask support is toggled by environment variable. On success,
+    // two printouts are possible to stdout:
+
+    // USE_CAUSAL_MASK=0 ./primitives-micro-sdpa-cpp
+    //
+    //    1 1 5 4 [f16]
+    //    Legend:
+    //      0: 0
+    //      1: 0.174927
+    //      2: 0.211914
+    //      3: 0.269043
+    //      4: 0.475342
+    //      5: 0.576172
+    //      6: 0.730957
+    //      7: 1
+    //
+    //    (0,0)
+    //      7  3  2  1  4
+    //      0  6  2  1  1
+    //      0  0  5  1  1
+    //      0  0  0  4  1
+    //
+
+    // USE_CAUSAL_MASK=1 ./primitives-micro-sdpa-cpp
     //
     //    1 1 5 4 [f16]
     //    Legend:
@@ -337,6 +362,12 @@ int main(int argc, char **argv) {
     //      0  0  0  4  1
     //
     two_prompt_two_page_problem();
+
+
+
+    // The following run benchmarks for prefill, generate, and
+    // prefill+generate SDPA problems. Printouts show timing in
+    // milliseconds without JIT overhead.
 
     // prefill
     for (int head_size : {128}) {
