@@ -129,6 +129,9 @@ tensor_kind_t to_abc(prop_kind_t prop, tensor_kind_t tensor) {
         case tensor_kind_t::src: return kinds[0];
         case tensor_kind_t::wei: return kinds[1];
         case tensor_kind_t::dst: return kinds[2];
+        case tensor_kind_t::a:
+        case tensor_kind_t::b:
+        case tensor_kind_t::c: return tensor;
         default: gpu_error_not_expected();
     }
     return kinds[0];

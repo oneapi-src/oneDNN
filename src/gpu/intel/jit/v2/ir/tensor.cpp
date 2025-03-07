@@ -206,6 +206,13 @@ bool layout_raw_tag_t::is_blocked(char letter) const {
     return false;
 }
 
+bool layout_raw_tag_t::is_blocked() const {
+    for (auto &e : entries_) {
+        if (e.is_blocked) return true;
+    }
+    return false;
+}
+
 dim_idx_t layout_raw_tag_t::ndims() const {
     gpu_assert(!is_any() && !has_x());
     dim_idx_t max_index = 0;

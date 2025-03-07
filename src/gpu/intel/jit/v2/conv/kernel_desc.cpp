@@ -664,7 +664,8 @@ tensor_config_t get_tensor_config(
 
 send_kind_t kernel_desc_t::access_kind(
         send_op_t op, tensor_kind_t tensor) const {
-    if (use_2d_access && tensor != tensor_kind_t::undef && !is_atomic(op))
+    if (use_2d_access && tensor != tensor_kind_t::undef && !is_atomic(op)
+            && can_use_2d(*this, tensor))
         return send_kind_t::_2d;
     return send_kind_t::undef;
 }
@@ -1044,6 +1045,25 @@ grid_t create_thread_grid(const kernel_desc_t &desc) {
         if (!desc.thread_group_tile.has(d)) grid.unset(d);
     }
     return grid;
+}
+
+bool can_use_2d(const kernel_desc_t &desc, tensor_kind_t tensor) {
+    auto abc = to_abc(desc.prop, tensor);
+    // No block 2D access with atomics.
+    if (abc == tensor_kind_t::c && desc.use_stream_k) return false;
+    // No block 2D access with blocked layouts.
+    if (desc.layout_tag(tensor).is_blocked()) return false;
+    int ndims = 0;
+    for (auto &d : desc.iter_tile) {
+        auto bmnk = to_gemm(d, desc.prop);
+        if (abc == tensor_kind_t::a && bmnk == pvars::n) continue;
+        if (abc == tensor_kind_t::b && bmnk == pvars::m) continue;
+        if (abc == tensor_kind_t::c && bmnk == pvars::k) continue;
+        ndims++;
+    }
+    // Tile has too many dimensions.
+    if (ndims > 2) return false;
+    return true;
 }
 
 } // namespace conv
