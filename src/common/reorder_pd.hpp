@@ -160,10 +160,10 @@ protected:
         init_desc(src_engine_kind, dst_engine_kind, false);
     }
 
-    reorder_pd_t(const reorder_pd_t &other) : primitive_desc_t(other) {
-        src_md_ = other.src_md_;
-        dst_md_ = other.dst_md_;
-
+    reorder_pd_t(const reorder_pd_t &other)
+        : primitive_desc_t(other)
+        , src_md_(other.src_md_)
+        , dst_md_(other.dst_md_) {
         init_desc(other.desc_.src_engine_kind, other.desc_.dst_engine_kind,
                 other.desc_.is_cross_engine);
     }

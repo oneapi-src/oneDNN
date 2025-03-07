@@ -112,14 +112,14 @@ protected:
         init_desc();
     }
 
-    concat_pd_t(const concat_pd_t &other) : primitive_desc_t(other) {
-        n_ = other.n_;
-        concat_dim_ = other.concat_dim_;
-        dst_md_ = other.dst_md_;
-        original_dst_ = other.original_dst_;
-        src_mds_ = other.src_mds_;
-        src_image_mds_ = other.src_image_mds_;
-
+    concat_pd_t(const concat_pd_t &other)
+        : primitive_desc_t(other)
+        , n_(other.n_)
+        , concat_dim_(other.concat_dim_)
+        , dst_md_(other.dst_md_)
+        , original_dst_(other.original_dst_)
+        , src_mds_(other.src_mds_)
+        , src_image_mds_(other.src_image_mds_) {
         init_desc();
     }
 

@@ -116,14 +116,14 @@ protected:
         init_desc();
     }
 
-    sum_pd_t(const sum_pd_t &other) : primitive_desc_t(other) {
-        n_ = other.n_;
-        scales_ = other.scales_;
-        dst_md_ = other.dst_md_;
-        dst_acc_md_ = other.dst_acc_md_;
-        src_mds_ = other.src_mds_;
-        original_dst_md_ = other.original_dst_md_;
-
+    sum_pd_t(const sum_pd_t &other)
+        : primitive_desc_t(other)
+        , n_(other.n_)
+        , scales_(other.scales_)
+        , dst_md_(other.dst_md_)
+        , dst_acc_md_(other.dst_acc_md_)
+        , src_mds_(other.src_mds_)
+        , original_dst_md_(other.original_dst_md_) {
         init_desc();
     }
     sum_pd_t &operator=(const sum_pd_t &other) {
