@@ -39,6 +39,7 @@ namespace impl {
 
 struct rnn_fwd_pd_t;
 
+// NOLINTBEGIN(google-default-arguments)
 struct rnn_pd_t : public primitive_desc_t {
     static constexpr auto base_pkind = primitive_kind::rnn;
 
@@ -247,7 +248,9 @@ protected:
         , dst_iter_md_(desc_.dst_iter_desc)
         , dst_iter_c_md_(desc_.dst_iter_c_desc) {}
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct rnn_fwd_pd_t : public rnn_pd_t {
     using base_class = rnn_fwd_pd_t;
     using hint_class = rnn_fwd_pd_t;
@@ -326,7 +329,9 @@ protected:
             const rnn_fwd_pd_t *hint_fwd_pd)
         : rnn_pd_t(adesc, attr, hint_fwd_pd) {}
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct rnn_bwd_pd_t : public rnn_pd_t {
     using base_class = rnn_bwd_pd_t;
     using hint_class = rnn_fwd_pd_t;
@@ -535,6 +540,7 @@ protected:
         , diff_dst_iter_md_(desc_.diff_dst_iter_desc)
         , diff_dst_iter_c_md_(desc_.diff_dst_iter_c_desc) {}
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

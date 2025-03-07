@@ -196,6 +196,7 @@ protected:
     }
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct inner_product_fwd_pd_t : public inner_product_pd_t {
     using base_class = inner_product_fwd_pd_t;
     using hint_class = inner_product_fwd_pd_t;
@@ -265,7 +266,9 @@ protected:
                 weights_md_, wei_tag, dst_md_, dst_tag, bias_md_);
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct inner_product_bwd_data_pd_t : public inner_product_pd_t {
     using base_class = inner_product_bwd_data_pd_t;
     using hint_class = inner_product_fwd_pd_t;
@@ -331,7 +334,9 @@ protected:
                 weights_md_, wei_tag, diff_dst_md_, diff_dst_tag, dummy_md);
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct inner_product_bwd_weights_pd_t : public inner_product_pd_t {
     using base_class = inner_product_bwd_weights_pd_t;
     using hint_class = inner_product_fwd_pd_t;
@@ -404,6 +409,7 @@ protected:
                 diff_bias_md_);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl

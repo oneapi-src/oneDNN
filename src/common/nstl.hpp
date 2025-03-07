@@ -55,7 +55,7 @@ void *malloc(size_t size, int alignment);
 #endif
 void free(void *p);
 
-struct c_compatible {
+struct c_compatible { // NOLINT(readability-identifier-naming)
     enum { default_alignment = 64 };
     static void *operator new(size_t sz) {
         return MALLOC(sz, default_alignment);
