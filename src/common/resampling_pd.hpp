@@ -111,6 +111,7 @@ private:
     }
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct resampling_fwd_pd_t : public resampling_pd_t {
     using base_class = resampling_fwd_pd_t;
     using hint_class = resampling_fwd_pd_t;
@@ -168,7 +169,9 @@ protected:
         }
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct resampling_bwd_pd_t : public resampling_pd_t {
     using base_class = resampling_bwd_pd_t;
     using hint_class = resampling_fwd_pd_t;
@@ -229,6 +232,7 @@ protected:
                 diff_src_md_, diff_dst_md_.format_desc.blocking);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl
