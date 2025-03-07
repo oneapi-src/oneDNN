@@ -33,7 +33,7 @@ struct jit_amx_tilecfg_t : public jit_generator {
 
     void tile_configure(const char *palette) const { (*this)(palette); }
     // TODO: merge into a single call. Keep both versions for now until there's
-    // a clear path lazy initialization API used across the library.
+    //t a clear path lazy initialization API used across the library.
     void tile_lazy_configure(
             const char *new_palette, const char *old_palette) const {
         (*this)(new_palette, old_palette);
