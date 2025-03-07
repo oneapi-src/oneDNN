@@ -55,7 +55,7 @@ public:
     void stringify(std::ostream &out) const;
     void parse(std::istream &out);
 
-public:
+private:
     std::vector<entry_t> entries_;
 };
 
