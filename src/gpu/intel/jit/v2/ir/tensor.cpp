@@ -365,10 +365,23 @@ std::vector<std::pair<char, int>> layout_raw_tag_t::parse_letter_blocks(
     return ret;
 }
 
-static void advance(pvar_coord_t<dim_t> &idx, const pvar_tile_t &bound,
+static void advance(pvar_coord_t<dim_t> &idx,
+        const std::vector<pvar_t> &_idx_order, const pvar_tile_t &bound,
         const pvar_tile_t &block) {
     dim_t inc = 1;
-    for (auto &d : idx) {
+    auto idx_order = _idx_order;
+    if (idx_order.empty()) {
+        for (auto &d : idx)
+            idx_order.push_back(d);
+    } else {
+        pvar_map_t<bool> seen;
+        for (auto &d : idx_order)
+            seen[d] = true;
+        gpu_assert(seen.size() == idx.size());
+        for (auto &d : idx)
+            gpu_assert(seen.has(d));
+    }
+    for (auto &d : idx_order) {
         dim_t inc_idx = (idx[d] / block[d] + inc) % bound[d];
         inc = (idx[d] / block[d] + inc) / bound[d];
         idx[d] = inc_idx * block[d];
@@ -894,6 +907,12 @@ std::string layout_t::str_with_size(const hw_t &hw) const {
 
 void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
         const std::function<void(const pvar_coord_t<dim_t> &)> &func) {
+    for_each(base_tile, tile, {}, func);
+}
+
+void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
+        const std::vector<pvar_t> &idx_order,
+        const std::function<void(const pvar_coord_t<dim_t> &)> &func) {
     for (auto &d : tile) {
         gpu_assert(base_tile.has(d));
         gpu_assert(base_tile[d] % tile[d] == 0);
@@ -910,9 +929,10 @@ void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
     }
     for (int i = 0; i < ntiles; i++) {
         func(idx);
-        advance(idx, bound, tile);
+        advance(idx, idx_order, bound, tile);
     }
 }
+
 block_iterator_t::block_iterator_t(const layout_t &layout, bool set_to_end)
     : parent_(&layout), block_idx_(set_to_end ? parent_->nblocks() : 0) {
     gpu_assert(layout.has_const_sizes());
