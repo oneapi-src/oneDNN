@@ -447,6 +447,7 @@ private:
             }
         }
         std::vector<search_kernel_desc_group_t> ret;
+        ret.reserve(desc_groups.size());
         for (auto &kv : desc_groups) {
             ret.push_back(kv.second);
         }
