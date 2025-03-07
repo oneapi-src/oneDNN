@@ -22,7 +22,7 @@ where *lnorm-knobs* are:
             `G` is dnnl_use_global_stats;
             `C` is dnnl_use_scale;
             `H` is dnnl_use_shift;
-            Refer to [layer normalization primitive](https://oneapi-src.github.io/oneDNN/dev_guide_layer_normalization.html)
+            Refer to [layer normalization primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_layer_normalization.html)
             for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.

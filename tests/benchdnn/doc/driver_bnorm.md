@@ -23,7 +23,7 @@ where *bnorm-knobs* are:
             `H` is dnnl_use_shift;
             `R` is dnnl_fuse_norm_relu;
             `A` is dnnl_fuse_norm_add_relu;
-            Refer to [batch normalization primitive](https://oneapi-src.github.io/oneDNN/dev_guide_batch_normalization.html)
+            Refer to [batch normalization primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_batch_normalization.html)
             for details.
  - `--inplace=BOOL` -- memory mode for the primitive. If `true`, it uses input
             memory as output, otherwise, input and output are separate.

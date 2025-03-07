@@ -23,7 +23,7 @@ where *pool-knobs* are:
                     dnnl_pooling_avg_exclude_padding;
             `avg_p` or `pooling_avg_include_padding` is
                     dnnl_pooling_avg_include_padding;
-            Refer to [pooling primitive](https://oneapi-src.github.io/oneDNN/dev_guide_pooling.html)
+            Refer to [pooling primitive](https://uxlfoundation.github.io/oneDNN/dev_guide_pooling.html)
             for details.
  - `--mb=INT` -- override minibatch size specified in the problem description.
              When set to `0`, use minibatch size as defined by the individual

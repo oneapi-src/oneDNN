@@ -3,7 +3,7 @@ GPU Convolution Kernel Generator
 
 # Generalized Convolution Algorithm
 
-See [oneDNN documentation](https://oneapi-src.github.io/oneDNN/dev_guide_convolution.html)
+See [oneDNN documentation](https://uxlfoundation.github.io/oneDNN/dev_guide_convolution.html)
 for the naming conventions that are used below.
 
 Convolution has more variations than GEMM but for simplicity we will rely on
