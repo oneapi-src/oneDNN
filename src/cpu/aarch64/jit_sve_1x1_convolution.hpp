@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2021-2024 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -54,6 +55,13 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
 
         status_t init(engine_t *engine) {
             using namespace utils;
+#if (DNNL_AARCH64_USE_ACL)
+            if (get_fpmath_mode() == fpmath_mode::bf16) {
+                // prefer ACL to jit for fpmath_mode::bf16 if available
+                // since it supports lower precision calculation
+                return status::unimplemented;
+            }
+#endif
 
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
