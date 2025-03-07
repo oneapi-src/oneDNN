@@ -52,6 +52,10 @@ public:
             desc_ptr_ = other.desc_ptr_;
             other.desc_ptr_ = nullptr;
         }
+        kernel_desc_setter_t &operator=(kernel_desc_setter_t &&other) {
+            if (&other != this) std::swap(desc_ptr_, other.desc_ptr_);
+            return *this;
+        }
 
         kernel_desc_setter_t(const kernel_desc_setter_t &) = delete;
         kernel_desc_setter_t &operator=(const kernel_desc_setter_t &) = delete;
