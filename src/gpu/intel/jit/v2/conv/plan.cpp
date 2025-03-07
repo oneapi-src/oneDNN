@@ -301,7 +301,7 @@ private:
                 default: gpu_error_not_expected();
             }
         }
-        gpu_check(m_dim.ndims() == 1 && n_dim.ndims() == 1
+        gpu_check(utils::one_of(m_dim.ndims(), 1, 2) && n_dim.ndims() == 1
                 && utils::one_of(k_dim.ndims(), 1, 2))
                 << "init_dpas: cannot initialize MNK dimensions.";
         if (k_dim.ndims() == 2) {
