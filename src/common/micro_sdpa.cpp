@@ -37,7 +37,7 @@ status_t dnnl_micro_sdpa_primitive_desc_create(
         const int context_len, const memory_desc_t *qry_desc,
         const memory_desc_t *key_cache_desc,
         const memory_desc_t *val_cache_desc, const memory_desc_t *dst_desc,
-        const memory_desc_t *msk_desc, const memory_desc_t *prompt_lens_desc,
+        const memory_desc_t *msk_desc, const memory_desc_t *past_lens_desc,
         const memory_desc_t *subsequence_begins_desc,
         const memory_desc_t *block_indices_desc,
         const memory_desc_t *block_indices_begins_desc) {
@@ -47,11 +47,12 @@ status_t dnnl_micro_sdpa_primitive_desc_create(
     sdpa_desc.k_desc = *key_cache_desc;
     sdpa_desc.v_desc = *val_cache_desc;
     sdpa_desc.dst_desc = *dst_desc;
-    sdpa_desc.attn_mask_desc = *msk_desc;
-    sdpa_desc.kv_head_number = 1;
+    // sdpa_desc.attn_mask_desc = *msk_desc;
+    sdpa_desc.causal_mask = dnnl::impl::gpu::intel::gpu_utils::dev_getenv("USE_CAUSAL_MASK", 0) ? true : false;
+    sdpa_desc.kv_head_number = true;
     sdpa_desc.context_len = context_len;
 
-    sdpa_desc.prompt_lens_desc = *prompt_lens_desc;
+    sdpa_desc.past_lens_desc = *past_lens_desc;
     sdpa_desc.subsequence_begins_desc = *subsequence_begins_desc;
     sdpa_desc.block_indices_desc = *block_indices_desc;
     sdpa_desc.block_indices_begins_desc = *block_indices_begins_desc;

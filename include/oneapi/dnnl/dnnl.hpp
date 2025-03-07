@@ -7628,7 +7628,7 @@ struct sdpa_micro : public primitive {
                 const memory::desc &key_cache_desc,
                 const memory::desc &val_cache_desc,
                 const memory::desc &dst_desc, const memory::desc &msk_desc,
-                const memory::desc &prompt_lens,
+                const memory::desc &past_lens,
                 const memory::desc &subsequence_begins,
                 const memory::desc &block_indices,
                 const memory::desc &block_indices_begins) {
@@ -7636,7 +7636,7 @@ struct sdpa_micro : public primitive {
             dnnl_status_t status = dnnl_micro_sdpa_primitive_desc_create(&pd,
                     aengine.get(), context_len, qry_desc.get(),
                     key_cache_desc.get(), val_cache_desc.get(), dst_desc.get(),
-                    msk_desc.get(), prompt_lens.get(), subsequence_begins.get(),
+                    msk_desc.get(), past_lens.get(), subsequence_begins.get(),
                     block_indices.get(), block_indices_begins.get());
 
             error::wrap_c_api(

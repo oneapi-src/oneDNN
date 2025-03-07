@@ -40,7 +40,7 @@ struct sdpa_desc_t : public op_desc_t {
     memory_desc_t k_desc {}; /* keys */
     memory_desc_t v_desc {}; /* values */
 
-    memory_desc_t prompt_lens_desc {};
+    memory_desc_t past_lens_desc {};
     memory_desc_t subsequence_begins_desc {};
     memory_desc_t block_indices_desc {};
     memory_desc_t block_indices_begins_desc {};
@@ -75,7 +75,7 @@ struct sdpa_desc_t : public op_desc_t {
     dnnl_dim_t values() const { return v_desc.dims[v_desc.ndims - 1]; }
     // Number of subsequences.
     dnnl_dim_t num_sequences() const {
-      return prompt_lens_desc.dims[prompt_lens_desc.ndims - 1];
+      return subsequence_begins_desc.dims[subsequence_begins_desc.ndims - 1];
     }
     // Total batch size.
     dnnl_dim_t batch_size() const {

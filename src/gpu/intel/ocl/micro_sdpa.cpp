@@ -461,19 +461,19 @@ status_t micro_sdpa_t::init(impl::engine_t *engine) {
     kernel_ctx.define_int("NDIMS", ndims);
     kernel_ctx.define_int("BLOCK_SIZE", pd()->desc()->page_size());
 
-    const memory_desc_wrapper prompt_lens_mdw(pd()->prompt_lens_md());
+    const memory_desc_wrapper past_lens_mdw(pd()->past_lens_md());
     const memory_desc_wrapper subsequence_begins_mdw(
             pd()->subsequence_begins_md());
     const memory_desc_wrapper block_indices_mdw(pd()->block_indices_md());
     const memory_desc_wrapper block_indices_begins_mdw(
             pd()->block_indices_begins_md());
-    offset_t prompt_lens_off, subsequence_begins_off, block_indices_off,
+    offset_t past_lens_off, subsequence_begins_off, block_indices_off,
             block_indices_begins_off;
-    set_offsets(prompt_lens_mdw, prompt_lens_off);
+    set_offsets(past_lens_mdw, past_lens_off);
     set_offsets(subsequence_begins_mdw, subsequence_begins_off);
     set_offsets(block_indices_mdw, block_indices_off);
     set_offsets(block_indices_begins_mdw, block_indices_begins_off);
-    def_data_type(kernel_ctx, prompt_lens_mdw.data_type(), "INDEX");
+    def_data_type(kernel_ctx, past_lens_mdw.data_type(), "INDEX");
 
     def_data_type(kernel_ctx, key_mdw.data_type(), "KEY");
     def_data_type(kernel_ctx, qry_mdw.data_type(), "QRY");
@@ -641,6 +641,8 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     auto sg_per_wg = gemm_kq.getSetting("sg_per_wg_m")
             * gemm_kq.getSetting("sg_per_wg_n");
 
+    const auto &past_lens
+            = CTX_IN_STORAGE(DNNL_ARG_PAST_LENS);
     const auto &subsequence_begins
             = CTX_IN_STORAGE(DNNL_ARG_SUBSEQUENCE_BEGINS);
     const auto &block_indices = CTX_IN_STORAGE(DNNL_ARG_BLOCK_INDICES);
@@ -660,10 +662,11 @@ status_t micro_sdpa_t::execute(const exec_ctx_t &ctx) const {
     arg_list.set(9, key_zp);
     arg_list.set(10, value_scales);
     arg_list.set(11, value_zp);
-    arg_list.set(12, subsequence_begins);
-    arg_list.set(13, block_indices);
-    arg_list.set(14, block_indices_begins);
-    arg_list.set(15, pd()->desc()->context_len);
+    arg_list.set(12, past_lens);
+    arg_list.set(13, subsequence_begins);
+    arg_list.set(14, block_indices);
+    arg_list.set(15, block_indices_begins);
+    arg_list.set(16, pd()->desc()->context_len);
     // if (pd()->with_attn_mask()) arg_list.set(12, attn_mask);
 
     compute::range_t lws = {(size_t)pd()->sg_size(), (size_t)sg_per_wg, 1};

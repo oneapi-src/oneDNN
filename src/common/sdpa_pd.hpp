@@ -54,7 +54,7 @@ struct sdpa_pd_t : public primitive_desc_t {
                     DNNL_ARG_ATTR_SCALES | DNNL_ARG_VALUES,
                     DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_KEYS,
                     DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES,
-                    DNNL_ARG_PROMPT_LENS, DNNL_ARG_SUBSEQUENCE_BEGINS,
+                    DNNL_ARG_PAST_LENS, DNNL_ARG_SUBSEQUENCE_BEGINS,
                     DNNL_ARG_BLOCK_INDICES, DNNL_ARG_BLOCK_INDICES_BEGINS))
             return arg_usage_t::input;
 
@@ -70,7 +70,7 @@ struct sdpa_pd_t : public primitive_desc_t {
             case DNNL_ARG_KEYS: return src_md(1);
             case DNNL_ARG_VALUES: return src_md(2);
             case DNNL_ARG_ATTN_MASK: return src_md(3);
-            case DNNL_ARG_PROMPT_LENS: return src_md(4);
+            case DNNL_ARG_PAST_LENS: return src_md(4);
             case DNNL_ARG_SUBSEQUENCE_BEGINS: return src_md(5);
             case DNNL_ARG_BLOCK_INDICES: return src_md(6);
             case DNNL_ARG_BLOCK_INDICES_BEGINS: return src_md(7);
@@ -86,7 +86,7 @@ struct sdpa_pd_t : public primitive_desc_t {
             case 1: return &desc_.k_desc;
             case 2: return &desc_.v_desc;
             case 3: return &desc_.attn_mask_desc;
-            case 4: return &desc_.prompt_lens_desc;
+            case 4: return &desc_.past_lens_desc;
             case 5: return &desc_.subsequence_begins_desc;
             case 6: return &desc_.block_indices_desc;
             case 7: return &desc_.block_indices_begins_desc;
@@ -103,8 +103,8 @@ struct sdpa_pd_t : public primitive_desc_t {
     const memory_desc_t *val_md() const { return &desc_.v_desc; }
     const memory_desc_t *attn_mask_md() const { return &desc_.attn_mask_desc; }
 
-    const memory_desc_t *prompt_lens_md() const {
-        return &desc_.prompt_lens_desc;
+    const memory_desc_t *past_lens_md() const {
+        return &desc_.past_lens_desc;
     }
     const memory_desc_t *subsequence_begins_md() const {
         return &desc_.subsequence_begins_desc;

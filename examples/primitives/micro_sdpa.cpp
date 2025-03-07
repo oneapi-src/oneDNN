@@ -35,11 +35,11 @@
 #include "tensor_utils.hpp"
 
 #define div_up(x, y) (((x) + (y) - 1) / (y))
-#define FORT "/export/users/pryorgal-fort/"
+#define FORT "/home/pryorgal/pryorgal-fort/"
 
 void single_prompt_problem() {
 
-    tensor prompt_lens = cast(tensor({5}, {1, 1, 1, 1}), dt::s32);
+    tensor past_lens = cast(tensor({0}, {1, 1, 1, 1}), dt::s32);
     tensor subsequence_begins = cast(tensor({0, 5}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices = cast(tensor({0, 4}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices_begins = cast(tensor({0, 2}, {1, 1, 1, 2}), dt::s32);
@@ -49,9 +49,9 @@ void single_prompt_problem() {
     tensor value_cache = read(FORT "tensors/value_cache.txt");
     tensor output = zeros({1, 1, 5, 4}); // 5 queries with head size 4
     dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
-            global_engine, 5 * 4, // num pages * page size
+            global_engine, 5 * 4, // context_len = num pages * page size
             query.md_, key_cache.md_, value_cache.md_, output.md_, tensor().md_,
-            prompt_lens.md_, subsequence_begins.md_, block_indices.md_,
+            past_lens.md_, subsequence_begins.md_, block_indices.md_,
             block_indices_begins.md_);
     auto sdpa_prim = sdpa_micro(sdpa_pd);
 
@@ -60,7 +60,7 @@ void single_prompt_problem() {
     sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
     sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
     sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_PAST_LENS, past_lens.mem_});
     sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
     sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
     sdpa_args.insert(
@@ -73,7 +73,7 @@ void single_prompt_problem() {
 
 void single_prompt_single_page_problem() {
 
-    tensor prompt_lens = cast(tensor({5}, {1, 1, 1, 1}), dt::s32);
+    tensor past_lens = cast(tensor({0}, {1, 1, 1, 1}), dt::s32);
     tensor subsequence_begins = cast(tensor({0, 5}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices = cast(tensor({0}, {1, 1, 1, 1}), dt::s32);
     tensor block_indices_begins = cast(tensor({0, 1}, {1, 1, 1, 2}), dt::s32);
@@ -84,7 +84,7 @@ void single_prompt_single_page_problem() {
     tensor output = zeros({1, 1, 5, 4}); // 5 queries
     dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
             global_engine, 3, query.md_, key_cache.md_, value_cache.md_,
-            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
+            output.md_, tensor().md_, past_lens.md_, subsequence_begins.md_,
             block_indices.md_, block_indices_begins.md_);
     auto sdpa_prim = sdpa_micro(sdpa_pd);
 
@@ -93,7 +93,7 @@ void single_prompt_single_page_problem() {
     sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
     sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
     sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_PAST_LENS, past_lens.mem_});
     sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
     sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
     sdpa_args.insert(
@@ -107,7 +107,7 @@ void single_prompt_single_page_problem() {
 void single_prompt_two_page_problem() {
     const int num_queries = 5;
 
-    tensor prompt_lens = cast(tensor({5}, {1, 1, 1, 1}), dt::s32);
+    tensor past_lens = cast(tensor({0}, {1, 1, 1, 1}), dt::s32);
     tensor subsequence_begins = cast(tensor({0, 5}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices = cast(tensor({0}, {1, 1, 1, 1}), dt::s32);
     tensor block_indices_begins = cast(tensor({0, 1}, {1, 1, 1, 2}), dt::s32);
@@ -120,7 +120,7 @@ void single_prompt_two_page_problem() {
     tensor output = zeros({1, 1, num_queries, head_size});
     dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
             global_engine, 3, query.md_, key_cache.md_, value_cache.md_,
-            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
+            output.md_, tensor().md_, past_lens.md_, subsequence_begins.md_,
             block_indices.md_, block_indices_begins.md_);
     auto sdpa_prim = sdpa_micro(sdpa_pd);
 
@@ -129,7 +129,7 @@ void single_prompt_two_page_problem() {
     sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
     sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
     sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_PAST_LENS, past_lens.mem_});
     sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
     sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
     sdpa_args.insert(
@@ -143,7 +143,7 @@ void single_prompt_two_page_problem() {
 void two_prompt_two_page_problem() {
     const int num_queries = 5;
 
-    tensor prompt_lens = cast(tensor({3, 2}, {1, 1, 1, 2}), dt::s32);
+    tensor past_lens = cast(tensor({0, 3}, {1, 1, 1, 2}), dt::s32);
     tensor subsequence_begins = cast(tensor({0, 3, 5}, {1, 1, 1, 3}), dt::s32);
     tensor block_indices = cast(tensor({0, 0}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices_begins
@@ -158,7 +158,7 @@ void two_prompt_two_page_problem() {
     dnnl::sdpa_micro::primitive_desc sdpa_pd
             = sdpa_micro::primitive_desc(global_engine, 5 * 4,
                     query.md_, key_cache.md_, value_cache.md_, output.md_,
-                    tensor().md_, prompt_lens.md_, subsequence_begins.md_,
+                    tensor().md_, past_lens.md_, subsequence_begins.md_,
                     block_indices.md_, block_indices_begins.md_);
     auto sdpa_prim = sdpa_micro(sdpa_pd);
 
@@ -167,7 +167,7 @@ void two_prompt_two_page_problem() {
     sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
     sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
     sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_PAST_LENS, past_lens.mem_});
     sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
     sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
     sdpa_args.insert(
@@ -176,51 +176,6 @@ void two_prompt_two_page_problem() {
     global_engine_stream.wait();
 
     show(output);
-}
-
-void mask_check() {
-    printf("doing mask check\n");
-    /* need to check a few conditions:
-       - tile_m < page_size
-       - page_size < tile_m
-     */
-    const int seq_len = 384, page_size = 96, head_size = 4;
-
-    assert(seq_len % page_size == 0);
-    const int pages_num = seq_len / page_size;
-    const int heads_num = 1;
-
-    tensor query = zeros({1, 1, seq_len, head_size * heads_num});
-    tensor key_cache = zeros({pages_num, heads_num, head_size, page_size});
-    tensor value_cache = zeros({pages_num, heads_num, page_size, head_size});
-    tensor output = zeros({1, 1, seq_len, head_size});
-
-    tensor prompt_lens = cast(tensor({(float)seq_len}, {1, 1, 1, 1}), dt::s32);
-    tensor subsequence_begins
-            = cast(tensor({0, (float)seq_len}, {1, 1, 1, 2}), dt::s32);
-    tensor block_indices = cast(rand(pages_num), dt::s32);
-    tensor block_indices_begins
-            = cast(tensor({0, (float)pages_num}, {1, 1, 1, 2}), dt::s32);
-
-    dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
-            global_engine, seq_len, query.md_, key_cache.md_, value_cache.md_,
-            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
-            block_indices.md_, block_indices_begins.md_);
-    auto sdpa_prim = sdpa_micro(sdpa_pd);
-
-    std::unordered_map<int, memory> sdpa_args;
-    sdpa_args.insert({DNNL_ARG_QUERIES, query.mem_});
-    sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
-    sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
-    sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
-    sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
-    sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
-    sdpa_args.insert(
-            {DNNL_ARG_BLOCK_INDICES_BEGINS, block_indices_begins.mem_});
-
-    sdpa_prim.execute(global_engine_stream, sdpa_args);
-    global_engine_stream.wait();
 }
 
 void prefill(int seq_len, int head_size, int page_size) {
@@ -232,7 +187,7 @@ void prefill(int seq_len, int head_size, int page_size) {
     tensor value_cache = zeros({pages_num, heads_num, page_size, head_size});
     tensor output = zeros({1, 1, seq_len, head_size});
 
-    tensor prompt_lens = cast(tensor({(float)seq_len}, {1, 1, 1, 1}), dt::s32);
+    tensor past_lens = cast(tensor({0}, {1, 1, 1, 1}), dt::s32);
     tensor subsequence_begins
             = cast(tensor({0, (float)seq_len}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices = cast(rand(pages_num), dt::s32);
@@ -241,7 +196,7 @@ void prefill(int seq_len, int head_size, int page_size) {
 
     dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
             global_engine, seq_len, query.md_, key_cache.md_, value_cache.md_,
-            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
+            output.md_, tensor().md_, past_lens.md_, subsequence_begins.md_,
             block_indices.md_, block_indices_begins.md_);
     auto sdpa_prim = sdpa_micro(sdpa_pd);
 
@@ -250,7 +205,7 @@ void prefill(int seq_len, int head_size, int page_size) {
     sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
     sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
     sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_PAST_LENS, past_lens.mem_});
     sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
     sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
     sdpa_args.insert(
@@ -276,7 +231,7 @@ void generate(int seq_len, int head_size, int page_size) {
     tensor value_cache = zeros({pages_num, heads_num, page_size, head_size});
     tensor output = zeros({1, 1, 1, head_size});
 
-    tensor prompt_lens = cast(tensor({(float)1}, {1, 1, 1, 1}), dt::s32);
+    tensor past_lens = cast(tensor({(float)0}, {1, 1, 1, 1}), dt::s32);
     tensor subsequence_begins
             = cast(tensor({0, (float)1}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices = cast(rand(pages_num), dt::s32);
@@ -285,7 +240,7 @@ void generate(int seq_len, int head_size, int page_size) {
 
     dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
             global_engine, seq_len, query.md_, key_cache.md_, value_cache.md_,
-            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
+            output.md_, tensor().md_, past_lens.md_, subsequence_begins.md_,
             block_indices.md_, block_indices_begins.md_);
     auto sdpa_prim = sdpa_micro(sdpa_pd);
 
@@ -294,7 +249,7 @@ void generate(int seq_len, int head_size, int page_size) {
     sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
     sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
     sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_PAST_LENS, past_lens.mem_});
     sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
     sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
     sdpa_args.insert(
@@ -311,51 +266,6 @@ void generate(int seq_len, int head_size, int page_size) {
             seq_len, head_size, page_size, seconds * 1e3);
 }
 
-void generate_non_paged(int seq_len, int head_size, int page_size) {
-    const int pages_num = seq_len / page_size;
-    const int heads_num = 1;
-
-    tensor query = zeros({1, 1, 1, head_size * heads_num});
-    tensor key_cache = zeros({pages_num, heads_num, head_size, seq_len});
-    tensor value_cache = zeros({pages_num, heads_num, seq_len, head_size});
-    tensor output = zeros({1, 1, 1, head_size});
-
-    tensor prompt_lens = cast(tensor({(float)1}, {1, 1, 1, 1}), dt::s32);
-    tensor subsequence_begins
-            = cast(tensor({0, (float)1}, {1, 1, 1, 2}), dt::s32);
-    tensor block_indices = cast(rand(pages_num), dt::s32);
-    tensor block_indices_begins
-            = cast(tensor({0, (float)pages_num}, {1, 1, 1, 2}), dt::s32);
-
-    dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
-            global_engine, seq_len, query.md_, key_cache.md_, value_cache.md_,
-            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
-            block_indices.md_, block_indices_begins.md_);
-    auto sdpa_prim = sdpa_micro(sdpa_pd);
-
-    std::unordered_map<int, memory> sdpa_args;
-    sdpa_args.insert({DNNL_ARG_QUERIES, query.mem_});
-    sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
-    sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
-    sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
-    sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
-    sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
-    sdpa_args.insert(
-            {DNNL_ARG_BLOCK_INDICES_BEGINS, block_indices_begins.mem_});
-
-    sdpa_prim.execute(global_engine_stream, sdpa_args);
-    global_engine_stream.wait();
-
-    tic();
-    sdpa_prim.execute(global_engine_stream, sdpa_args);
-    global_engine_stream.wait();
-    float seconds = toc();
-    printf("generate_non_paged seq_len %d, head_size %d, page_size %d, "
-           "milliseconds %f\n",
-            seq_len, head_size, page_size, seconds * 1e3);
-}
-
 void combined(int context_len, int head_size, int page_size) {
     const int pages_num = context_len / page_size;
     const int heads_num = 1;
@@ -365,7 +275,7 @@ void combined(int context_len, int head_size, int page_size) {
     tensor value_cache = zeros({pages_num, heads_num, page_size, head_size});
     tensor output = zeros({1, 1, 129, head_size});
 
-    tensor prompt_lens = cast(tensor({128, 1}, {1, 1, 1, 1}), dt::s32);
+    tensor past_lens = cast(tensor({128, 1}, {1, 1, 1, 1}), dt::s32);
     tensor subsequence_begins = cast(tensor({0, 128}, {1, 1, 1, 2}), dt::s32);
     tensor block_indices
             = cast(::concat(rand(pages_num), rand(pages_num)), dt::s32);
@@ -376,7 +286,7 @@ void combined(int context_len, int head_size, int page_size) {
     dnnl::sdpa_micro::primitive_desc sdpa_pd
             = sdpa_micro::primitive_desc(global_engine, context_len, query.md_,
                     key_cache.md_, value_cache.md_, output.md_, tensor().md_,
-                    prompt_lens.md_, subsequence_begins.md_, block_indices.md_,
+                    past_lens.md_, subsequence_begins.md_, block_indices.md_,
                     block_indices_begins.md_);
     auto sdpa_prim = sdpa_micro(sdpa_pd);
 
@@ -385,7 +295,7 @@ void combined(int context_len, int head_size, int page_size) {
     sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
     sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
     sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
+    sdpa_args.insert({DNNL_ARG_PAST_LENS, past_lens.mem_});
     sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
     sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
     sdpa_args.insert(
@@ -401,51 +311,6 @@ void combined(int context_len, int head_size, int page_size) {
     printf("combined context_len %d, head_size %d, page_size %d, milliseconds "
            "%f\n",
             context_len, head_size, page_size, seconds * 1e3);
-}
-
-void prefill_non_paged(int seq_len, int head_size, int page_size) {
-    // assert(seq_len % page_size == 0);
-    const int pages_num = seq_len / page_size;
-    const int heads_num = 1;
-
-    tensor query = zeros({1, 1, seq_len, head_size * heads_num});
-    tensor key_cache = zeros({1, heads_num, head_size, seq_len});
-    tensor value_cache = zeros({1, heads_num, seq_len, head_size});
-    tensor output = zeros({1, 1, seq_len, head_size});
-
-    tensor prompt_lens = cast(tensor({(float)seq_len}, {1, 1, 1, 1}), dt::s32);
-    tensor subsequence_begins
-            = cast(tensor({0, (float)seq_len}, {1, 1, 1, 2}), dt::s32);
-    tensor block_indices = cast(rand(pages_num), dt::s32);
-    tensor block_indices_begins
-            = cast(tensor({0, (float)pages_num}, {1, 1, 1, 2}), dt::s32);
-
-    dnnl::sdpa_micro::primitive_desc sdpa_pd = sdpa_micro::primitive_desc(
-            global_engine, seq_len, query.md_, key_cache.md_, value_cache.md_,
-            output.md_, tensor().md_, prompt_lens.md_, subsequence_begins.md_,
-            block_indices.md_, block_indices_begins.md_);
-    auto sdpa_prim = sdpa_micro(sdpa_pd);
-
-    std::unordered_map<int, memory> sdpa_args;
-    sdpa_args.insert({DNNL_ARG_QUERIES, query.mem_});
-    sdpa_args.insert({DNNL_ARG_KEYS, key_cache.mem_});
-    sdpa_args.insert({DNNL_ARG_VALUES, value_cache.mem_});
-    sdpa_args.insert({DNNL_ARG_DST, output.mem_});
-    sdpa_args.insert({DNNL_ARG_PROMPT_LENS, prompt_lens.mem_});
-    sdpa_args.insert({DNNL_ARG_SUBSEQUENCE_BEGINS, subsequence_begins.mem_});
-    sdpa_args.insert({DNNL_ARG_BLOCK_INDICES, block_indices.mem_});
-    sdpa_args.insert(
-            {DNNL_ARG_BLOCK_INDICES_BEGINS, block_indices_begins.mem_});
-
-    sdpa_prim.execute(global_engine_stream, sdpa_args);
-    global_engine_stream.wait();
-
-    tic();
-    sdpa_prim.execute(global_engine_stream, sdpa_args);
-    global_engine_stream.wait();
-    float seconds = toc();
-    printf("prefill_non_paged, seq_len %d, head_size %d, milliseconds %f\n",
-            seq_len, head_size, seconds * 1e3);
 }
 
 int main(int argc, char **argv) {
@@ -465,6 +330,27 @@ int main(int argc, char **argv) {
     //      0  0  1  0  0
     //      0  0  0  1  0
     two_prompt_two_page_problem();
+
+    // // prefill
+    // for (int head_size : {128}) {
+    //     for (int seq_len : {384, 512, 1024, 2048, 4096}) {
+    //         prefill(seq_len, head_size, 64);
+    //     }
+    // }
+
+    // // generate
+    // for (int head_size : {128}) {
+    //     for (int seq_len : {385, 513, 1025, 2049, 4097}) {
+    //         generate(seq_len, head_size, 64);
+    //     }
+    // }
+
+    // // combined
+    // for (int head_size : {128}) {
+    //     for (int context_len : {384, 1024, 2048, 4096}) {
+    //         combined(context_len, head_size, 64); // query len 129
+    //     }
+    // }
 
     return 0;
 }
