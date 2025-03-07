@@ -1038,6 +1038,7 @@ grid_t create_thread_grid(const kernel_desc_t &desc) {
         case prop_kind::backward_weights:
             grid.add_mapping(pvars::oc, 0);
             grid.add_mapping(pvars::ic, 1);
+            grid.add_mapping(pvars::kh, 2);
             break;
         default: gpu_error_not_expected();
     }
