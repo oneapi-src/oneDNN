@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -89,6 +89,14 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
     const memory_desc_wrapper bia_d(bias_md_);
     const memory_desc_wrapper dst_d(dst_md_);
 
+    cpu::matmul::matmul_helper_t helper(src_d, wei_d, dst_d);
+    const dim_t M = helper.M();
+    const dim_t N = helper.N();
+    const dim_t K = helper.K();
+    const dim_t dst_batch = helper.batch();
+    const dim_t src_batch = helper.src_batch();
+    const dim_t wei_batch = helper.wei_batch();
+
     using namespace data_type;
 
     // Note that has_default_values checks the argument for default zero
@@ -107,39 +115,64 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
             VERBOSE_UNSUPPORTED_DT_CFG);
     almc_.dst_is_s8 = dst_d.data_type() == s8;
 
-    VDISPATCH_MATMUL(src_d.matches_tag(format_tag::ab)
-                    && wei_d.matches_tag(format_tag::ab)
-                    && dst_d.matches_tag(format_tag::ab),
-            VERBOSE_UNSUPPORTED_TAG);
+    // reject in case the op is running in a Neoverse-N1.
+    VDISPATCH_MATMUL(
+            arm_compute::CPUInfo::get().has_i8mm() || dst_d.data_type() != s8,
+            "Neoverse-N1 not supported");
 
-    VDISPATCH_MATMUL_SC(
-            memory_desc_init_by_tag(bias_md_, bias_md_.ndims, bias_md_.dims,
-                    bias_md_.data_type, format_tag::ab),
+    using namespace format_tag;
+    auto src_tag = memory_desc_matches_one_of_tag(src_md_, abcd, abc, ab);
+    auto wei_tag = memory_desc_matches_one_of_tag(weights_md_, abcd, abc, ab);
+    auto dst_tag = memory_desc_matches_one_of_tag(dst_md_, abcd, abc, ab);
+
+    ACL_CHECK_SUPPORT(
+            utils::one_of(format_tag::undef, src_tag, wei_tag, dst_tag),
+            "Format tag is undefined");
+
+    VDISPATCH_MATMUL_SC(memory_desc_init_by_tag(bias_md_, bias_md_.ndims,
+                                bias_md_.dims, bias_md_.data_type, dst_tag),
             VERBOSE_UNSUPPORTED_BIAS_CFG);
 
     // We set the QuantizationInfo to be dynamic because it is re-set in run()
-    almc_.src_tensor_info
-            = arm_compute::TensorInfo(arm_compute::TensorShape(K(), M()), 1,
-                    arm_compute::DataType::QASYMM8_SIGNED,
-                    arm_compute::QuantizationInfo(1.0, 0, true));
+    almc_.src_tensor_info = arm_compute::TensorInfo(
+            arm_compute::TensorShape(K, M, 1, src_batch), 1,
+            arm_compute::DataType::QASYMM8_SIGNED,
+            arm_compute::QuantizationInfo(1.0, 0, true));
     almc_.src_tensor_info.set_are_values_constant(false);
 
     almc_.wei_tensor_info
-            = arm_compute::TensorInfo(arm_compute::TensorShape(N(), K()), 1,
-                    arm_compute::DataType::QASYMM8_SIGNED,
+            = arm_compute::TensorInfo(arm_compute::TensorShape(N, K, wei_batch),
+                    1, arm_compute::DataType::QASYMM8_SIGNED,
                     arm_compute::QuantizationInfo(1.0, 0, true));
     almc_.wei_tensor_info.set_are_values_constant(false);
 
     almc_.bia_tensor_info = arm_compute::TensorInfo(
             arm_compute::TensorShape(), 1, arm_compute::DataType::F32);
     almc_.with_bias = bia_d.format_kind() != format_kind::undef;
+
     if (almc_.with_bias) {
-        // This is not currently guarded in ACL
-        VDISPATCH_MATMUL(bia_d.ndims() == 2 && bia_d.dims()[0] == 1
-                        && bia_d.dims()[1] == N(),
-                "Only 1xN bias is supported");
-        almc_.bia_tensor_info.set_tensor_shape(
-                arm_compute::TensorShape(bia_d.dims()[1], bia_d.dims()[0]));
+        switch (bia_d.ndims()) {
+            case 2:
+                VDISPATCH_MATMUL(bia_d.dims()[0] == 1 && bia_d.dims()[1] == N,
+                        "Only 1xN bias is supported for 2D input");
+                almc_.bia_tensor_info.set_tensor_shape(
+                        arm_compute::TensorShape(bia_d.dims()[1], 1));
+                break;
+            case 3:
+                VDISPATCH_MATMUL(bia_d.dims()[0] == 1 && bia_d.dims()[1] == 1
+                                && bia_d.dims()[2] == N,
+                        "Only 1x1xN bias is supported for 3D input");
+                almc_.bia_tensor_info.set_tensor_shape(
+                        arm_compute::TensorShape(bia_d.dims()[2], 1, 1));
+                break;
+            case 4:
+                VDISPATCH_MATMUL(bia_d.dims()[0] == 1 && bia_d.dims()[1] == 1
+                                && bia_d.dims()[2] == 1 && bia_d.dims()[3] == N,
+                        "Only 1x1x1xN bias is supported for 4D input");
+                almc_.bia_tensor_info.set_tensor_shape(
+                        arm_compute::TensorShape(bia_d.dims()[3], 1, 1, 1));
+                break;
+        }
     }
 
     // We can fuse sum if it is the first post op
@@ -173,14 +206,15 @@ status_t acl_lowp_matmul_t::pd_t::init(engine_t *engine) {
             almc_.gemm_info.accumulate() ? 1 : 0));
 
     almc_.dst_tensor_info = arm_compute::TensorInfo(
-            arm_compute::TensorShape(N(), M()), arm_compute::Format::F32);
+            arm_compute::TensorShape(N, M, 1, dst_batch),
+            arm_compute::Format::F32);
 
     almc_.dst_cast_tensor_info = almc_.dst_tensor_info;
 
-    almc_.dst_s8_tensor_info
-            = arm_compute::TensorInfo(arm_compute::TensorShape(N(), M()), 1,
-                    arm_compute::DataType::QASYMM8_SIGNED,
-                    arm_compute::QuantizationInfo(1.0, 0, true));
+    almc_.dst_s8_tensor_info = arm_compute::TensorInfo(
+            arm_compute::TensorShape(N, M, 1, dst_batch), 1,
+            arm_compute::DataType::QASYMM8_SIGNED,
+            arm_compute::QuantizationInfo(1.0, 0, true));
 
     ACL_CHECK_VALID(arm_compute::NEGEMMLowpMatrixMultiplyCore::validate(
             &almc_.src_tensor_info, &almc_.wei_tensor_info,
