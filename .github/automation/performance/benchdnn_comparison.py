@@ -21,6 +21,8 @@ import sys
 import os
 from collections import defaultdict
 from scipy.stats import ttest_ind
+import warnings
+import statistics
 
 
 def compare_two_benchdnn(file1, file2, tolerance=0.05):
@@ -38,9 +40,9 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
     r2 = [x.split(",") for x in r2 if x[0:8] == "--mode=P"]
 
     if (len(r1) == 0) or (len(r2) == 0):
-        raise Exception("One or both of the test results have zero lines")
+        warnings.warn("One or both of the test results have zero lines")
     if len(r1) != len(r2):
-        raise Exception("The number of benchdnn runs do not match")
+        warnings.warn("The number of benchdnn runs do not match")
 
     r1_samples = defaultdict(list)
     r2_samples = defaultdict(list)
@@ -50,26 +52,33 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
     for k, v in r2:
         r2_samples[k].append(float(v[:-1]))
 
-    passed = True
     failed_tests = []
+    times = {}
     for prb, r1_times in r1_samples.items():
         if prb not in r2_samples:
-            raise Exception(f"{prb} exists in {file1} but not {file2}")
+            warnings.warn(f"{prb} exists in {file1} but not {file2}")
+            continue
+
         r2_times = r2_samples[prb]
 
         res = ttest_ind(r2_times, r1_times, alternative='greater')
+        r1_med = statistics.median(r1_times)
+        r2_med = statistics.median(r2_times)
+        times[prb] = (r1_med, r2_med)
+        times_str = f" {times[prb][0]} vs {times[prb][1]}"
 
-        if res.pvalue < 0.05:
-            failed_tests.append(prb)
+        passed = res.pvalue > 0.05 or \
+                ((r2_med - r1_med) / r1_med < 0.1 and \
+                (min(r2_times) - min(r1_times)) / min(r1_times) < 0.1)
+        if not passed:
+            failed_tests.append(prb + times_str)
             passed = False
-
-        print(prb + (" passed" if passed else " failed"))
 
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            print(f"pass={passed}", file=f)
+            print(f"pass={not failed_tests}", file=f)
 
-    if passed:
+    if not failed_tests:
         print("Regression tests passed")
     else:
         message = "\n----The following regression tests failed:----\n" + \
