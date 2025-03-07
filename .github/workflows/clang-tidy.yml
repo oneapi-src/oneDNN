@@ -57,7 +57,10 @@ jobs:
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.(c|cpp)$'); 
           do
             if grep -q "$file" "build/compile_commands.json"; then
+              echo Analyzing $file
               clang-tidy -p build $file 2>&1 | tee -a source-check.log
+            else
+              echo Skipped $file as it's not built in x64 OpenMP/OpenCL configuration.
             fi
           done
           grep -i "warning:" source-check.log | sort -u
