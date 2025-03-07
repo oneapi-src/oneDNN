@@ -27,7 +27,7 @@ namespace jit {
 
 class buffer_offset_lifter_t : public ir_mutator_t {
 public:
-    object_t _mutate(const func_call_t &obj) {
+    object_t _mutate(const func_call_t &obj) override {
         if (!obj.func.is<send_t>()) return ir_mutator_t::_mutate(obj);
 
         auto &mem_buf = send_t::arg_mem_buf(obj);
@@ -56,7 +56,7 @@ class send_injector_t : public ir_mutator_t {
 public:
     send_injector_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
 
-    object_t _mutate(const func_call_t &obj) {
+    object_t _mutate(const func_call_t &obj) override {
         auto *send = obj.func.as_ptr<send_t>();
         if (!send) return ir_mutator_t::_mutate(obj);
 
