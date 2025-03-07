@@ -132,7 +132,7 @@ struct conditional<false, T, F> {
 };
 
 template <bool, typename, bool, typename, typename>
-struct conditional3 {};
+struct conditional3 {}; // NOLINT(readability-identifier-naming)
 template <typename T, typename FT, typename FF>
 struct conditional3<true, T, false, FT, FF> {
     using type = T;
@@ -147,7 +147,7 @@ struct conditional3<false, T, false, FT, FF> {
 };
 
 template <bool, typename U, U, U>
-struct conditional_v {};
+struct conditional_v {}; // NOLINT(readability-identifier-naming)
 template <typename U, U t, U f>
 struct conditional_v<true, U, t, f> {
     static constexpr U value = t;
@@ -190,6 +190,7 @@ std::unique_ptr<T> make_unique(Args &&...args) {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
+// NOLINTBEGIN(performance-unnecessary-value-param)
 template <typename T, typename P>
 constexpr bool everyone_is(T val, P item) {
     return val == item;
@@ -198,7 +199,9 @@ template <typename T, typename P, typename... Args>
 constexpr bool everyone_is(T val, P item, Args... item_others) {
     return val == item && everyone_is(val, item_others...);
 }
+// NOLINTEND(performance-unnecessary-value-param)
 
+// NOLINTBEGIN(performance-unnecessary-value-param)
 template <typename T, typename P>
 constexpr bool one_of(T val, P item) {
     return val == item;
@@ -207,6 +210,7 @@ template <typename T, typename P, typename... Args>
 constexpr bool one_of(T val, P item, Args... item_others) {
     return val == item || one_of(val, item_others...);
 }
+// NOLINTEND(performance-unnecessary-value-param)
 
 template <typename T, typename P>
 constexpr P map(T pat, P def) {
@@ -260,7 +264,7 @@ inline void array_set(T *arr, const U &val, size_t size) {
 
 namespace product_impl {
 template <size_t>
-struct int2type {};
+struct int2type {}; // NOLINT(readability-identifier-naming)
 
 template <typename T>
 constexpr int product_impl(const T *arr, int2type<0>) {
@@ -487,11 +491,10 @@ T pick_by_prop_kind(prop_kind_t prop_kind, const T &val_fwd, const T &val_bwd_d,
 }
 
 template <typename Telem, size_t Tdims>
-struct array_offset_calculator {
+struct array_offset_calculator { // NOLINT(readability-identifier-naming)
     template <typename... Targs>
-    array_offset_calculator(Telem *base, Targs... Fargs) : _dims {Fargs...} {
-        _base_ptr = base;
-    }
+    array_offset_calculator(Telem *base, Targs... Fargs)
+        : _base_ptr(base), _dims {Fargs...} {}
 
     template <typename... Targs>
     array_offset_calculator(std::nullptr_t, Targs... Fargs) = delete;
@@ -730,7 +733,7 @@ public:
     constexpr setting_t(const T init) : value_ {init}, initialized_ {false} {}
     bool initialized() { return initialized_; }
     T get() { return value_; }
-    void set(T new_value) {
+    void set(const T &new_value) {
         value_ = new_value;
         initialized_ = true;
     }
@@ -832,16 +835,10 @@ using maybe_unique_ptr = std::unique_ptr<T, nop_deleter_t>;
 struct nibble2_t {
 
     // constructs a nibble pair from a pair of uint8_t values
-    nibble2_t(uint8_t low_, uint8_t high_) {
-        low = low_;
-        high = high_;
-    }
+    nibble2_t(uint8_t low_, uint8_t high_) : low(low_), high(high_) {}
 
     // constructs a nibble pairs from an uin8_t, taking its low and high part
-    nibble2_t(uint8_t pack_) {
-        low = pack_ & 0xf;
-        high = (pack_ >> 4) & 0xf;
-    }
+    nibble2_t(uint8_t pack_) : low(pack_ & 0xf), high((pack_ >> 4) & 0xf) {}
 
     // sets low (idx=0) or high (idx=1)  nibble.
     inline void set(uint8_t val, int idx) {
@@ -877,7 +874,7 @@ static_assert(sizeof(nibble2_t) == 1, "nibble2_t must be 1 byte");
 ///     printf("%d\t", idx);
 /// }
 /// output: 0  2  3
-class mask_iterator {
+class mask_iterator { // NOLINT(readability-identifier-naming)
     int mask_;
     int index_;
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -58,7 +58,7 @@ public:
 
     optional_t(const nullopt_t nullopt_) : has_value_(false), dummy {} {}
     optional_t() : optional_t(nullopt) {}
-    optional_t(T object) : has_value_(true), value_(object) {}
+    optional_t(const T &object) : has_value_(true), value_(object) {}
     optional_t(const optional_t &other)
         : has_value_(other.has_value_), dummy {} {
         if (has_value_) new (std::addressof(value_)) T(other.value_);

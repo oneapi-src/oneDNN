@@ -57,10 +57,10 @@ struct gemm_desc_t : public op_desc_t {
         return utils::make_unique<gemm_desc_t>(*this);
     }
 
-    memory_desc_t a_desc {};
-    memory_desc_t b_desc {};
-    memory_desc_t c_desc {};
-    memory_desc_t bias_desc {};
+    memory_desc_t a_desc;
+    memory_desc_t b_desc;
+    memory_desc_t c_desc;
+    memory_desc_t bias_desc;
     // Type for accumulating A*B.
     dnnl_data_type_t acc_type {};
     // Sum across k dimension in either A or B tensor
