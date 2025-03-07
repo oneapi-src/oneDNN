@@ -48,7 +48,7 @@ struct gemm_with_post_ops_t : public gpu_gemm_t {
         bool use_reorder = false;
         compute::dispatch_t dispatch_;
         attr_info_t attr_info_;
-        bool subbyte_pack_;
+        bool subbyte_pack_ = false;
     };
 
     status_t init(impl::engine_t *engine) override {

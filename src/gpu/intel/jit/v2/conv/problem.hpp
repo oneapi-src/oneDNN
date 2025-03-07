@@ -100,7 +100,7 @@ private:
     layout_tag_t dst_tag_;
     type_t bias_type_;
     pvar_tile_t shape_;
-    std::array<int, 3> dhw_map_;
+    std::array<int, 3> dhw_map_ = {0};
     bool with_post_ops_ = false;
     bool deterministic_ = false;
 };
