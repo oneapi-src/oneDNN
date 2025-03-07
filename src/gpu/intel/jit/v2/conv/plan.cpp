@@ -513,12 +513,15 @@ private:
             virt_grid.add(kv.first, kv.second);
         }
         // Try 2D messages first.
-        auto params = get_send_params(
-                abc, send_op_t::prefetch, view, send_kind_t::_2d);
-        prefetch = create_send_plan(params, view, /*allow_fail=*/true);
-        if (!prefetch || !reqs_.implies(prefetch.reqs())) {
+        bool try_2d = can_use_2d(desc_, abc);
+        if (try_2d) {
+            auto params = get_send_params(
+                    abc, send_op_t::prefetch, view, send_kind_t::_2d);
+            prefetch = create_send_plan(params, view, /*allow_fail=*/true);
+        }
+        if (!try_2d || !prefetch || !reqs_.implies(prefetch.reqs())) {
             // If 2D failed, try compressed prefetch.
-            params = get_send_params(abc, send_op_t::prefetch, view,
+            auto params = get_send_params(abc, send_op_t::prefetch, view,
                     send_kind_t::compressed_prefetch);
             prefetch = try_create_send_plan(__func__, params, view);
             if (!prefetch) return false;

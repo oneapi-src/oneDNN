@@ -148,15 +148,12 @@ block_2d_params_t to_block_2d_params(const prop_kind_t &prop,
 void generate_2d_reqs(const kernel_desc_t &desc, tensor_kind_t tensor_kind,
         prb_reqs_t &reqs) {
     using ir_utils::safe_div;
-    if (to_abc(desc.prop, tensor_kind) == tensor_kind_t::c
-            && desc.use_stream_k) {
-        // No block 2D access with atomics.
-        return;
-    }
+    if (!can_use_2d(desc, tensor_kind)) return;
     bool is_fwd = (desc.prop == prop_kind::forward);
     bool is_bwd_w = (desc.prop == prop_kind::backward_weights);
     auto tag = append_groups(
             tensor_kind, desc.layout_tag(tensor_kind), desc.is_dw);
+    if (tag.raw_tag().is_blocked()) return;
     pvar_map_t<stride_t> strides;
     stride_t stride(1);
     for (int i = tag.raw_tag().nentries() - 1; i >= 0; i--) {
