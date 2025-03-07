@@ -98,14 +98,15 @@ public:
             }
             expr_binding_.bind(obj.buf, rbd);
         }
-        gpu_trace() << "codegen:bind " << obj.buf << " -> "
-                    << expr_binding_.get(obj.buf);
+        host_->comment(
+                obj.line_str() + " -> " + expr_binding_.get(obj.buf).str());
         visit(obj.body);
         if (do_alloc) expr_binding_.unbind(obj.buf);
         if (use_bc_alloc) release_bank_conflict_allocation(obj);
     }
 
     void _visit(const for_t &obj) override {
+        host_->comment(obj.line_str());
         auto scope = register_scope();
         auto var_op = scope.alloc_reg_data(obj.var.type());
         bool dynamic_loop = !is_const(obj.init) || !is_const(obj.bound);
@@ -113,10 +114,12 @@ public:
         auto bound_op = eval(obj.bound, scope);
         auto step_op = eval(obj.step, scope);
 
-        host_->emov(1, var_op, init_op);
         expr_binding_.bind(obj.var, var_op);
-        gpu_trace() << "codegen:bind " << obj.var << " -> "
-                    << expr_binding_.get(obj.var);
+        host_->comment(
+                obj.var.str() + " -> " + expr_binding_.get(obj.var).str());
+
+        host_->emov(1, var_op, init_op);
+
         // For dynamic loops use standard format otherwise
         // use do-while format.
         if (dynamic_loop) {
@@ -141,9 +144,11 @@ public:
         }
 
         expr_binding_.unbind(obj.var);
+        host_->comment("end " + obj.line_str());
     }
 
     void _visit(const func_call_t &obj) override {
+        host_->comment(obj.line_str());
         auto scope = register_scope();
 
         auto &func = obj.func;
@@ -202,6 +207,7 @@ public:
 
     void _visit(const if_t &obj) override {
         gpu_assert(obj.cond.type().elems() == simd_size_);
+        host_->comment(obj.line_str());
 
         bool has_else = !obj.else_body.is_empty();
         auto scope = register_scope();
@@ -213,18 +219,20 @@ public:
                 has_else ? l_else : l_endif, l_endif);
         visit(obj.body);
         if (has_else) {
+            host_->comment("else // " + obj.line_str());
             host_->else_(simd_size_, l_endif, l_endif);
             host_->mark(l_else);
             visit(obj.else_body);
         }
         host_->mark(l_endif);
         host_->endif(simd_size_);
+        host_->comment("end " + obj.line_str());
     }
 
     void _visit(const let_t &obj) override {
         if (obj.value.is_empty()) {
             auto var_op = expr_binding_.get(obj.var);
-            gpu_trace() << "codegen:bind " << obj.var << " -> " << var_op;
+            host_->comment(obj.line_str() + " -> " + var_op.str());
             // External variable, must be already bound.
             gpu_assert(expr_binding_.is_bound(obj.var))
                     << "Variable is not defined: " << obj.var;
@@ -233,6 +241,7 @@ public:
         }
 
         auto scope = register_scope();
+        host_->comment(obj.line_str());
         if (is_const(obj.value) || is_shuffle_const(obj.value)
                 || obj.var.type() != obj.value.type()) {
             auto &var_type = obj.var.type();
@@ -247,7 +256,7 @@ public:
         }
 
         auto var_op = expr_binding_.get(obj.var);
-        gpu_trace() << "codegen:bind " << obj.var << " -> " << var_op;
+        host_->comment(obj.var.str() + " -> " + var_op.str());
 
         // At this point the scope contains allocations for temporary
         // expressions. We need to 1) query and later re-claim the allocation
@@ -279,6 +288,7 @@ public:
     }
 
     void _visit(const store_t &obj) override {
+        host_->comment(obj.line_str());
         auto scope = register_scope();
         auto buf_op = eval(obj.buf, scope);
         auto off = to_cpp<int>(obj.off);
@@ -303,6 +313,7 @@ public:
     }
 
     void _visit(const while_t &obj) override {
+        host_->comment(obj.line_str());
         auto scope = register_scope();
 
         ngen::Label loop_end_label;
@@ -314,6 +325,7 @@ public:
         visit(obj.body);
         host_->jmpi(1, loop_begin_label);
         host_->mark(loop_end_label);
+        host_->comment("end " + obj.line_str());
     }
 
 private:
@@ -1567,15 +1579,19 @@ template <typename ngen_generator_t>
 void convert_ir_to_ngen_impl(const stmt_t &body, ngen_generator_t *host,
         const walk_order_t *kernel_grid_walk_order) {
     expr_binding_t expr_binding(host->getHardware());
+    host->comment("Prologue");
     host->generate_prologue();
+
     host->bind_external_vars(body, expr_binding);
     if (kernel_grid_walk_order)
         host->bind_kernel_grid_walk_order(
                 *kernel_grid_walk_order, expr_binding);
 
+    host->comment("IR");
     ir_to_ngen_t<ngen_generator_t> visitor(host, expr_binding);
     visitor.visit(body);
 
+    host->comment("Epilogue");
     host->generate_epilogue();
 }
 

@@ -2075,6 +2075,12 @@ public:
                 : 0;
     }
 
+    std::string line_str() const {
+        std::ostringstream out;
+        out << "alloc " << buf.as<var_t>().name << "[" << size << "]";
+        return out.str();
+    }
+
     IR_DECLARE_TRAVERSERS()
 
     expr_t buf;
@@ -2148,6 +2154,17 @@ public:
 
     bool has_default_stride() const { return stride == default_stride; }
 
+    std::string line_str() const {
+        std::ostringstream out;
+        out << load_t::make(value.type(), buf, off, stride);
+        out << " = " << value;
+        if (!mask.is_empty()) {
+            out << ", mask = " << mask.str();
+            if (fill_mask0) out << " [FILL]";
+        }
+        return out.str();
+    }
+
     IR_DECLARE_TRAVERSERS()
 
     static const int default_stride = -1;
@@ -2207,6 +2224,14 @@ public:
         return ir_utils::get_hash(var, init, bound, body, step, unroll);
     }
 
+    std::string line_str() const {
+        std::ostringstream out;
+        out << "for (" << var << " = " << init << "; " << var << " < " << bound
+            << "; " << var << " += " << step << ") ";
+        if (unroll != 1) out << "[unroll: " << unroll << "] ";
+        return out.str();
+    }
+
     IR_DECLARE_TRAVERSERS()
 
     expr_t var;
@@ -2256,6 +2281,12 @@ public:
         return ir_utils::get_hash(cond, body, else_body);
     }
 
+    std::string line_str() const {
+        std::ostringstream oss;
+        oss << "if (" << cond << ")";
+        return oss.str();
+    }
+
     IR_DECLARE_TRAVERSERS()
 
     expr_t cond;
@@ -2303,6 +2334,12 @@ public:
         if (value.is_empty()) return 0;
         return utils::rnd_up(var.type().size(), reg_allocator_t::granularity);
     };
+
+    std::string line_str() const {
+        std::ostringstream out;
+        out << var << "." << var.type() << " = " << value;
+        return out.str();
+    }
 
     IR_DECLARE_TRAVERSERS()
 
@@ -2498,6 +2535,12 @@ public:
 
     size_t get_hash() const override { return ir_utils::get_hash(cond, body); }
 
+    std::string line_str() const {
+        std::ostringstream out;
+        out << "while (" << cond << ")";
+        return out.str();
+    }
+
     IR_DECLARE_TRAVERSERS()
 
     expr_t cond;
@@ -2659,6 +2702,13 @@ public:
     }
 
     size_t get_hash() const override { return ir_utils::get_hash(args, attr); }
+
+    std::string line_str() const {
+        std::ostringstream out;
+        out << func << "(" << ir_utils::make_seq_print_helper(args) << ")";
+        if (!attr.is_empty()) out << " " << attr;
+        return out.str();
+    }
 
     IR_DECLARE_TRAVERSERS()
 
