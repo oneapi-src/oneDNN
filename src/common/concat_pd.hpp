@@ -37,6 +37,7 @@
 namespace dnnl {
 namespace impl {
 
+// NOLINTBEGIN(google-default-arguments)
 struct concat_pd_t : public primitive_desc_t {
     const concat_desc_t *desc() const { return &desc_; }
     const op_desc_t *op_desc() const override {
@@ -265,6 +266,7 @@ private:
             desc_.src_mds.push_back(&md);
     }
 };
+// NOLINTEND(google-default-arguments)
 
 #define DECLARE_CONCAT_PD_t(impl_name, ...) \
     static status_t create(concat_pd_t **concat_pd, \

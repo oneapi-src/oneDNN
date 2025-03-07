@@ -156,6 +156,7 @@ private:
     const memory_desc_t &src_desc() const { return desc_.src_desc; }
 };
 
+// NOLINTBEGIN(google-default-arguments)
 struct layer_normalization_fwd_pd_t : public layer_normalization_pd_t {
     using base_class = layer_normalization_fwd_pd_t;
     using hint_class = layer_normalization_fwd_pd_t;
@@ -265,7 +266,9 @@ protected:
         return ok;
     }
 };
+// NOLINTEND(google-default-arguments)
 
+// NOLINTBEGIN(google-default-arguments)
 struct layer_normalization_bwd_pd_t : public layer_normalization_pd_t {
     using base_class = layer_normalization_bwd_pd_t;
     using hint_class = layer_normalization_fwd_pd_t;
@@ -376,6 +379,7 @@ protected:
         return false;
     }
 };
+// NOLINTEND(google-default-arguments)
 
 } // namespace impl
 } // namespace dnnl
