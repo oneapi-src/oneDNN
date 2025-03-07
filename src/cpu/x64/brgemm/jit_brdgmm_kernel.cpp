@@ -513,7 +513,7 @@ void jit_brdgmm_kernel_base_t<Wmm>::store_accumulators_apply_post_ops(
                         if (brg.is_bf16_emu)
                             bf16_emu_->vcvtneps2bf16(vmm_low, vmm);
                         else
-                            vcvtneps2bf16(vmm_low, vmm, get_encoding());
+                            vcvtneps2bf16(vmm_low, vmm);
                         if (mask_flag)
                             vmovdqu16(addr, r_vmm_low);
                         else

@@ -948,7 +948,7 @@ inline void jit_uni_pool_kernel<isa>::avg_step(int ur_w, int ur_bc, int pad_l,
                 if (jpp.is_bf16) {
                     if (isa == avx2_vnni_2) {
                         auto accxr = xreg(accr_i);
-                        vcvtneps2bf16(accxr, accyr, Xbyak::VexEncoding);
+                        vcvtneps2bf16(accxr, accyr);
                     } else {
                         const auto acczr = zreg(accr_i);
                         if (!isa_has_bf16(jpp.isa))
@@ -1121,7 +1121,7 @@ inline void jit_uni_pool_kernel<isa>::max_step_fwd(int ur_w, int ur_bc,
         if (jpp.is_bf16) {
             if (isa == avx2_vnni_2) {
                 auto accxr = xreg(accr_i);
-                vcvtneps2bf16(accxr, accyr, Xbyak::VexEncoding);
+                vcvtneps2bf16(accxr, accyr);
             } else {
                 auto acczr = zreg(accr_i);
                 if (!isa_has_bf16(jpp.isa))

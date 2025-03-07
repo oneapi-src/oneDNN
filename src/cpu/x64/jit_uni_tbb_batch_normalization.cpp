@@ -429,7 +429,7 @@ struct helper_vmovups_data_t {
 
                 // convert f32 output to bf16
                 if (!bf16_emu_)
-                    h_->vcvtneps2bf16(dst_reg, src_reg, h_->get_encoding());
+                    h_->vcvtneps2bf16(dst_reg, src_reg);
                 else
                     bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
 

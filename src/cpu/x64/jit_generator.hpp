@@ -2582,7 +2582,7 @@ private:
                 store_bytes(vmm, reg, offset, store_size);
                 break;
             case data_type::bf16:
-                vcvtneps2bf16(xmm, vmm, get_encoding());
+                vcvtneps2bf16(xmm, vmm);
                 store_bytes(vmm, reg, offset, sizeof(bfloat16_t) * store_size);
                 break;
             case data_type::f16:

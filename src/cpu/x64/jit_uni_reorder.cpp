@@ -354,8 +354,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                                 assert(!"invalid isa for fp8 emulation");
                         }
                         if (is_superset(isa_, avx2_vnni_2)) {
-                            vcvtneps2bf16(
-                                    Xmm(ymm.getIdx()), ymm, Xbyak::VexEncoding);
+                            vcvtneps2bf16(Xmm(ymm.getIdx()), ymm);
                         } else if (mayiuse(avx512_core_bf16)) {
                             vcvtneps2bf16(Xmm(ymm.getIdx()), ymm);
                         } else {
@@ -648,7 +647,7 @@ struct jit_uni_reorder_kernel_f32_t : public kernel_t, public jit_generator {
                                 assert(!"invalid isa for fp8 emulation");
                         }
                         if (is_superset(isa_, avx2_vnni_2)) {
-                            vcvtneps2bf16(xmm, xmm, Xbyak::VexEncoding);
+                            vcvtneps2bf16(xmm, xmm);
                         } else if (mayiuse(avx512_core_bf16)) {
                             vcvtneps2bf16(xmm, xmm);
                         } else {

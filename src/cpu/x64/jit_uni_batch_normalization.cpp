@@ -624,7 +624,7 @@ struct jit_bnorm_t : public jit_generator {
 
                 // convert f32 output to bf16
                 if (!use_bf16_emulation())
-                    vcvtneps2bf16(dst_reg, src_reg, get_encoding());
+                    vcvtneps2bf16(dst_reg, src_reg);
                 else
                     bf16_emu_->vcvtneps2bf16(dst_reg, src_reg);
 

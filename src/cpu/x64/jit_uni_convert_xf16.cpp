@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2023 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -192,11 +192,10 @@ void jit_uni_cvt_ps_to_xf16_t<avx2_vnni_2>::cvt_ps_to_xf16(
     switch (output_dt_) {
         case data_type::bf16:
             if (is_tail)
-                vcvtneps2bf16(vmm_output, vmm_input, Xbyak::VexEncoding);
+                vcvtneps2bf16(vmm_output, vmm_input);
             else
-                vcvtneps2bf16(vmm_output,
-                        yword[reg_input + sizeof(float) * idx],
-                        Xbyak::VexEncoding);
+                vcvtneps2bf16(
+                        vmm_output, yword[reg_input + sizeof(float) * idx]);
             break;
         case data_type::f16:
             if (is_tail)
