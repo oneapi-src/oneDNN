@@ -282,8 +282,8 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
 
     std::vector<expr_t> kernel_grid_vars;
     kernel_grid_vars.push_back(oc_tile.grid_idx());
-    kernel_grid_vars.push_back(od);
-    kernel_grid_vars.push_back(oh);
+    kernel_grid_vars.push_back(std::move(od));
+    kernel_grid_vars.push_back(std::move(oh));
     kernel_grid_vars.push_back(ow_tile.grid_idx());
     kernel_grid_vars.push_back(g_tile.grid_idx());
     kernel_grid_vars.push_back(mb_tile.grid_idx());
@@ -661,8 +661,8 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     kernel_grid_vars.push_back(od_tile.grid_idx());
     kernel_grid_vars.push_back(oh_tile.grid_idx());
     kernel_grid_vars.push_back(ow_tile.grid_idx());
-    kernel_grid_vars.push_back(kd);
-    kernel_grid_vars.push_back(kh);
+    kernel_grid_vars.push_back(std::move(kd));
+    kernel_grid_vars.push_back(std::move(kh));
     kernel_grid_vars.push_back(kw_tile.grid_idx());
     kernel_grid_vars.push_back(ic_tile.grid_idx());
     kernel_grid_vars.push_back(mb_tile.grid_idx());
@@ -2167,7 +2167,7 @@ private:
 
         auto &direct_view
                 = (abc == abc_kind_t::a ? a_direct_view_ : b_direct_view_);
-        auto load_view = direct_view ? direct_view.get() : gmem_view;
+        const auto &load_view = direct_view ? direct_view.get() : gmem_view;
 
         auto params = get_send_params(cfg_.exec_cfg(), send_op_t::load,
                 send_address_t::a64, cfg_.fma_kind(), abc, load_view,

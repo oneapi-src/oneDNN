@@ -1109,7 +1109,7 @@ struct send_group_t {
             if (bounds.contains(subtile_idx, b.reg_off)) {
                 auto bb = b;
                 bb.reg_off = bounds.normalize_reg_off(subtile_idx, b.reg_off);
-                new_blocks.push_back(bb);
+                new_blocks.push_back(std::move(bb));
             }
         }
 
@@ -2278,6 +2278,8 @@ public:
     }
 
     ir_send_plan_t(const ir_send_plan_t &) = delete;
+    ir_send_plan_t &operator=(const ir_send_plan_t &) = delete;
+    ~ir_send_plan_t() override = default;
 
     const send_params_t &send_params() const override { return send_params_; }
 

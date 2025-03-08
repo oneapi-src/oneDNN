@@ -702,7 +702,7 @@ void fold_const_nary_op_args(op_kind_t op_kind, const std::vector<expr_t> &args,
     }
     if (op_kind == op_kind_t::_mul && is_one(c)) return;
     if (op_kind == op_kind_t::_add && is_zero(c)) return;
-    new_args.push_back(c);
+    new_args.push_back(std::move(c));
 }
 
 expr_t cvt_mul_to_nary_op(const expr_t &a, const expr_t &b) {
@@ -808,7 +808,7 @@ public:
                 }
             }
             if (new_args.empty()) {
-                new_args = i_args;
+                new_args = std::move(i_args);
                 continue;
             }
             std::vector<expr_t> next_args;
@@ -1095,7 +1095,7 @@ private:
             e_const = e_const * abs(e);
         }
         if (sign) e_const = -e_const;
-        factors.push_back(e_const);
+        factors.push_back(std::move(e_const));
     }
 
     void init_factors(const expr_t &e) {
@@ -2235,8 +2235,8 @@ expr_t simplify_propagate_shuffle(const expr_t &e) {
                     ok = false;
                     break;
                 }
-                a.push_back(op_a);
-                b.push_back(op_b);
+                a.push_back(std::move(op_a));
+                b.push_back(std::move(op_b));
             } else if (op_kind == op_kind_t::_and) {
                 // Replace with expression true <op_kind> elem to allow matching
                 // this op against future binary operation.

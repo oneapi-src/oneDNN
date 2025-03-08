@@ -161,7 +161,7 @@ bool reorder_ir_builder_t::try_build(
             ordered.insert(ordered.begin(), outer);
         }
         schedule.reorder(ordered);
-        fused_idxs[grid_idx].push_back(v);
+        fused_idxs[grid_idx].push_back(std::move(v));
     }
 
     for (dim_idx_t i = 0; i < into<dim_idx_t>(fused_idxs.size()); i++) {

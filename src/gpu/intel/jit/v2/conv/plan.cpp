@@ -326,9 +326,9 @@ private:
         a_inner_ = to_v2_layout(dpas.b_layout(), a_desc,
                 std::vector<fused_dim_t> {k_dim, m_dim});
         b_inner_ = to_v2_layout(dpas.a_layout(), b_desc,
-                std::vector<fused_dim_t> {n_dim, k_dim});
+                std::vector<fused_dim_t> {n_dim, std::move(k_dim)});
         c_inner_ = to_v2_layout(dpas.c_layout(), c_desc,
-                std::vector<fused_dim_t> {n_dim, m_dim});
+                std::vector<fused_dim_t> {std::move(n_dim), std::move(m_dim)});
         return true;
     }
 
@@ -678,7 +678,7 @@ private:
             auto store_layout = store.reg_layout();
             if (bias_reg_layout != store_layout) {
                 plan.bias_reorder = reorder_plan_t(hw_);
-                plan.bias_reorder.src = std::move(bias_reg_layout);
+                plan.bias_reorder.src = bias_reg_layout;
                 plan.bias_reorder.dst = std::move(store_layout);
             }
         }
@@ -813,10 +813,10 @@ private:
         gpu_check(
                 init_slm_reduce_plan(c_fma_layout, virt_grid, plan.slm_reduce));
         auto &c_mapper = dim_mapper_manager_.mapper(tensor_kind_t::c);
-        auto c_reg_layout
+        const auto &c_reg_layout
                 = (plan.slm_reduce ? plan.slm_reduce.c_layout : c_fma_layout);
-        auto c_coord = (plan.slm_reduce ? plan.slm_reduce.c_coord
-                                        : coord_info_.iter_coord());
+        const auto &c_coord = (plan.slm_reduce ? plan.slm_reduce.c_coord
+                                               : coord_info_.iter_coord());
         auto c_tile = c_reg_layout.int_dim_sizes();
         auto c_mem_view = view_t(c_mapper, c_layout_, c_coord, c_tile);
         plan.c_reg_layout = c_reg_layout;

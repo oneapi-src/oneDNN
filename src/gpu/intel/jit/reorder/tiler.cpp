@@ -269,7 +269,7 @@ std::vector<tensor_t> tiles(const hw_t &hw, layout_t a, layout_t b) {
         if (tile.elems() > max_elems) break;
         if (get_grf_layout_size(tile) > max_layout_size) continue;
         if (candidate_tiles.empty() || !tile.is_equal(candidate_tiles.back()))
-            candidate_tiles.push_back(tile);
+            candidate_tiles.push_back(std::move(tile));
     }
     gpu_assert(!candidate_tiles.empty());
 

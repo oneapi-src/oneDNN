@@ -438,7 +438,7 @@ std::string generateShim(const Package &package, HostLanguage language,
             varg.copy = options.copyScalarArgs;
             varg.name = pargs[i].name;
             if (byPtr) varg.name = '*' + varg.name;
-            vargList.push_back(varg);
+            vargList.push_back(std::move(varg));
         }
     }
 
@@ -537,7 +537,7 @@ std::string generateShim(const Package &package, HostLanguage language,
         clobber.name = (vargs[i].copy ? "COPY" : "%") + std::to_string(i);
         clobber.arg = false; // Reuse 'arg' field as flag
         clobber.preclobbered = vargs[i].copy && vargs[i].in;
-        vargClobbers.push_back(clobber);
+        vargClobbers.push_back(std::move(clobber));
     }
 
     std::sort(vargClobbers.begin(), vargClobbers.end(),

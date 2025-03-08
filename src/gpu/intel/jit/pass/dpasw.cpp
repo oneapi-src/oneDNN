@@ -280,7 +280,7 @@ private:
                 auto it = buf2send.find(buf);
                 if (it != buf2send.end()) prev_send = it->second;
                 buf2send[buf] = s;
-                send_infos_.push_back(send_info);
+                send_infos_.push_back(std::move(send_info));
                 if (!prev_send.is_empty()) {
                     send_infos_.back().set_prev_send(prev_send);
                 }

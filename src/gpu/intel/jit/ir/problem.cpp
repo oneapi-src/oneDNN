@@ -44,7 +44,7 @@ const expr_t &pvar_t::index_var() const {
     static thread_local pvar_map_t<expr_t> vars;
     if (!vars.has(*this)) {
         auto var = var_t::make(type_t::s32(), name_ + "_idx");
-        vars[*this] = var;
+        vars[*this] = std::move(var);
     }
     return vars[*this];
 }

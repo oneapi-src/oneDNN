@@ -47,7 +47,7 @@ status_t gpu_reorder_pd_t::maybe_create_zp_precompute_conv_pd(
     auto gpu_align = utils::downcast<gpu::engine_t *>(dst_engine)
                              ->get_buffer_alignment();
     auto scratchpad = scratchpad_registry().registrar();
-    auto registry = zp_precomp_conv_pd_->scratchpad_registry();
+    const auto &registry = zp_precomp_conv_pd_->scratchpad_registry();
     memory_desc_wrapper wspace((is_bwd_d) ? zp_precomp_conv_pd_->diff_dst_md()
                                           : zp_precomp_conv_pd_->src_md());
     scratchpad.book(key_conv_tr_src, wspace.size(), 1, gpu_align);

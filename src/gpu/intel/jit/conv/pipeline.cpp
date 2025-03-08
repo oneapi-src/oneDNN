@@ -278,7 +278,7 @@ public:
             }
             auto let_info = create_let_info(
                     let, is_preload_let(_let), is_mul_let(_let));
-            let_infos.push_back(let_info);
+            let_infos.push_back(std::move(let_info));
             seen.insert(_let);
         };
         for (auto &_let : inner_let_stmts_)

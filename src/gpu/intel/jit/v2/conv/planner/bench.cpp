@@ -538,7 +538,7 @@ std::vector<problem_t> generate_problems(const bench_input_params_t &params) {
         auto prb = params.problem();
         prb.set_shape(shape);
         if (!params.reqs.fits(prb.shape())) continue;
-        ret.push_back(prb);
+        ret.push_back(std::move(prb));
         if ((int)ret.size() >= params.nprbs) break;
     }
     if ((int)ret.size() < params.nprbs) {
@@ -617,9 +617,8 @@ public:
         }
     }
 
-    bench_data_t bench(const kernel_desc_t &_kernel_desc) {
+    bench_data_t bench(const kernel_desc_t &kernel_desc) {
         if (tasks_.empty()) return bench_data_t();
-        auto kernel_desc = _kernel_desc;
         if (!create_conv_plan(kernel_desc, bench_mger_.hw())) return {};
         return planner::bench(bench_mger_, kernel_desc, tasks_, &mem_pool_);
     }
@@ -639,8 +638,7 @@ bench_data_t bench_runner_t::bench(const kernel_desc_t &kernel_desc) {
 }
 
 bench_data_t bench(const bench_manager_t &bench_mger,
-        const kernel_desc_t &_kernel_desc, int nprbs) {
-    auto kernel_desc = _kernel_desc;
+        const kernel_desc_t &kernel_desc, int nprbs) {
     if (!create_conv_plan(kernel_desc, bench_mger.hw())) return {};
     bench_runner_t runner(bench_mger,
             bench_input_params_t(kernel_desc, bench_mger.hw(), nprbs));
@@ -652,7 +650,7 @@ bool try_create(
     bench_input_params_t params(kernel_desc, bench_mger.hw(), /*nprbs=*/1);
     bench_task_t task(generate_problems(params)[0]);
     auto engine = bench_mger.get_engine();
-    auto guard = debug_t::instance().make_kernel_desc_setter(kernel_desc);
+    auto guard = debug_t::make_kernel_desc_setter(kernel_desc);
     return task.init_primitive(engine);
 }
 

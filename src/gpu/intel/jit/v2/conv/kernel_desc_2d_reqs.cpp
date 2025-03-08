@@ -84,13 +84,12 @@ struct stride_t {
             }
             if (found) new_pvars.push_back(a);
         }
-        pvars = new_pvars;
+        pvars = std::move(new_pvars);
     }
 };
 
 struct block_2d_params_t {
     stride_t base_stride;
-    dim_t x_stride;
     expr_t y_stride;
     pvar_t w_dim;
     pvar_t h_dim;
@@ -125,10 +124,10 @@ block_2d_params_t to_block_2d_params(const prop_kind_t &prop,
         if (d.is_undef()) continue;
         if (strides.at(d).is_one()) {
             gpu_assert(params.w_dim.is_undef());
-            params.w_dim = d;
+            params.w_dim = std::move(d);
         } else {
             gpu_assert(params.h_dim.is_undef());
-            params.h_dim = d;
+            params.h_dim = std::move(d);
         }
     }
     gpu_assert(!params.w_dim.is_undef());

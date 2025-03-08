@@ -27,7 +27,7 @@ namespace jit {
 
 class buffer_offset_lifter_t : public ir_mutator_t {
 public:
-    object_t _mutate(const func_call_t &obj) {
+    object_t _mutate(const func_call_t &obj) override {
         if (!obj.func.is<send_t>()) return ir_mutator_t::_mutate(obj);
 
         auto &mem_buf = send_t::arg_mem_buf(obj);
@@ -56,7 +56,7 @@ class send_injector_t : public ir_mutator_t {
 public:
     send_injector_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
 
-    object_t _mutate(const func_call_t &obj) {
+    object_t _mutate(const func_call_t &obj) override {
         auto *send = obj.func.as_ptr<send_t>();
         if (!send) return ir_mutator_t::_mutate(obj);
 
@@ -104,7 +104,7 @@ public:
 
         auto new_call = func_call_t::make(obj.func,
                 {mem_buf, header_buf, reg_buf, mask, expr_t(), expr_t(),
-                        pattern},
+                        std::move(pattern)},
                 obj.attr);
         auto body = stmt_seq_t::make(off_store, new_call);
 
@@ -147,7 +147,7 @@ public:
             if (!c.as<func_call_t>().func.as<send_t>().is_2d()) continue;
             auto header_buf = send_t::arg_mem_off(c);
             gpu_assert(is_var(header_buf)) << header_buf;
-            header_bufs_.insert(header_buf);
+            header_bufs_.insert(std::move(header_buf));
         }
     }
 

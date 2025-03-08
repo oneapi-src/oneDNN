@@ -21,6 +21,9 @@
 namespace dnnl {
 namespace impl {
 
+constexpr data_type_t scales_t::default_data_type_;
+constexpr data_type_t zero_points_t::default_data_type_;
+
 const quant_entry_t &default_quant_entry() {
     static const quant_entry_t default_quant_entry;
     return default_quant_entry;

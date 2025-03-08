@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -84,16 +84,13 @@ struct combined_reduction_t : public gpu_primitive_t {
     status_t init(impl::engine_t *engine) override {
         auto &phases = pd()->phases;
 
-        status_t status;
         for (auto &phase : phases) {
             compute::kernel_ctx_t kernel_ctx(pd()->attr());
-            status = pd()->init_kernel_ctx(kernel_ctx, phase);
-            CHECK(status);
+            CHECK(pd()->init_kernel_ctx(kernel_ctx, phase));
             compute::kernel_t kernel;
-            status = create_kernel(
-                    engine, &kernel, "combined_reduce", kernel_ctx);
-            CHECK(status);
-            kernels_.push_back(kernel);
+            CHECK(create_kernel(
+                    engine, &kernel, "combined_reduce", kernel_ctx));
+            kernels_.push_back(std::move(kernel));
         }
 
         return status::success;

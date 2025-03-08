@@ -78,7 +78,7 @@ static auto specialization_mode_names = nstl::to_array({
 GPU_DEFINE_PARSE_ENUM(specialization_mode_t, specialization_mode_names)
 
 struct specialization_t {
-    specialization_mode_t mode;
+    specialization_mode_t mode = specialization_mode_t::none;
     // Dimension values to specialize (e.g. kw1).
     pvar_tile_t dim_values;
     // Dimension modulus to specialize (e.g. oc@64)

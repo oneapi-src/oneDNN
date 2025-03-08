@@ -46,7 +46,7 @@ reorder_config_t::reorder_config_t(
     tiles_.assign(rev_tiles.rbegin(), rev_tiles.rend());
 
     dim_idx_t ndims = src.ndims();
-    auto thr_tile = tiles_.front();
+    const auto &thr_tile = tiles_.front();
 
     pvar_tile_t iter_tile;
     pvar_tile_t loop_tile;

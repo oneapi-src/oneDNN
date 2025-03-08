@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ struct gpu_resource_t : public resource_t {
     using mapped_memory_t = std::unique_ptr<memory_storage_t>;
 
     gpu_resource_t() = default;
+    ~gpu_resource_t() override = default;
 
     void add_memory_storage(key_memory_t idx, mapped_memory_t &&m) {
         assert(idx_to_memory_storage_.count(idx) == 0);

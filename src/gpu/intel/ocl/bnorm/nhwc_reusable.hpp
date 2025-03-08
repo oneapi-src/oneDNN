@@ -188,7 +188,7 @@ struct nhwc_reusable_batch_normalization_fwd_t : public gpu_primitive_t {
 
     status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
-        auto kernel_names = pd()->cmpl_conf.get_kernel_names();
+        const auto &kernel_names = pd()->cmpl_conf.get_kernel_names();
         CHECK(create_kernels(engine, kernels_, kernel_names, pd()->cmpl_conf));
         return status::success;
     }
@@ -270,7 +270,7 @@ struct nhwc_reusable_batch_normalization_bwd_t : public gpu_primitive_t {
 
     status_t init(impl::engine_t *engine) override {
         if (pd()->has_zero_dim_memory()) return status::success;
-        auto kernel_names = pd()->cmpl_conf.get_kernel_names();
+        const auto &kernel_names = pd()->cmpl_conf.get_kernel_names();
         CHECK(create_kernels(engine, kernels_, kernel_names, pd()->cmpl_conf));
         return status::success;
     }

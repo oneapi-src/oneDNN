@@ -43,7 +43,7 @@ plan_registry_t::plan_registry_t(const char **entries) {
             }
         }
 #endif
-        entries_.push_back(e);
+        entries_.push_back(std::move(e));
         entries++;
     }
 }
@@ -63,7 +63,7 @@ kernel_desc_t plan_registry_t::find_best(const problem_t &prb) const {
         time = e.model_set.time(prb, desc);
         if (time < min_time) {
             min_time = time;
-            best = desc;
+            best = std::move(desc);
         }
     }
     return best;

@@ -137,7 +137,7 @@ struct conv_stride_layout_t : public stride_layout_t<pvar_t> {
                                     || prb.id < prb.od * prb.sd
                                                     + (prb.kd - 1)
                                                             * (prb.dd + 1));
-                    auto x_dim = !prb.is_bwd_d ? pvars::od : pvars::id;
+                    const auto &x_dim = !prb.is_bwd_d ? pvars::od : pvars::id;
                     auto x = !prb.is_bwd_d ? prb.od : prb.id;
                     auto xas = !prb.is_bwd_d ? prb.sd : prb.sd == 1;
                     auto kx = prb.kd;
@@ -151,7 +151,7 @@ struct conv_stride_layout_t : public stride_layout_t<pvar_t> {
                                     || prb.ih < prb.oh * prb.sh
                                                     + (prb.kh - 1)
                                                             * (prb.dh + 1));
-                    auto x_dim = !prb.is_bwd_d ? pvars::oh : pvars::ih;
+                    const auto &x_dim = !prb.is_bwd_d ? pvars::oh : pvars::ih;
                     auto x = !prb.is_bwd_d ? prb.oh : prb.ih;
                     auto xas = !prb.is_bwd_d ? prb.sh : prb.sh == 1;
                     auto kx = prb.kh;
@@ -163,7 +163,7 @@ struct conv_stride_layout_t : public stride_layout_t<pvar_t> {
                         && (prb.pw
                                 || prb.iw < prb.ow * prb.sw
                                                 + (prb.kw - 1) * (prb.dw + 1));
-                auto x_dim = !prb.is_bwd_d ? pvars::ow : pvars::iw;
+                const auto &x_dim = !prb.is_bwd_d ? pvars::ow : pvars::iw;
                 auto x = !prb.is_bwd_d ? prb.ow : prb.iw;
                 auto xas = !prb.is_bwd_d ? prb.sw : prb.sw == 1;
                 auto kx = prb.kw;

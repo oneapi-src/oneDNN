@@ -644,13 +644,13 @@ stmt_t inject_compute_loop_label(const stmt_t &s) {
 }
 
 void conv_ir_builder_t::build() {
-    auto &prb = cfg_.prb();
+    const auto &prb = cfg_.prb();
 
     trace_reset();
 
     std::vector<stmt_t> init_stmts;
-    auto &plan = cfg_.plan();
-    auto gemm_schedule = plan.gemm_schedule;
+    const auto &plan = cfg_.plan();
+    const auto &gemm_schedule = plan.gemm_schedule;
     auto init_cset = plan.init_cset;
     init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(), cfg_.simd(),
             init_cset, init_stmts);

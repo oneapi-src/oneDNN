@@ -246,6 +246,7 @@ public:
     kernel_bundle_t &operator=(const kernel_bundle_t &other) = delete;
     kernel_bundle_t(kernel_bundle_t &&other) = default;
     kernel_bundle_t &operator=(kernel_bundle_t &&other) = default;
+    ~kernel_bundle_t() = default;
 
     status_t get_kernels(std::vector<kernel_t> &kernels,
             const std::vector<const char *> &kernel_names) const {

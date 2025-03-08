@@ -232,7 +232,7 @@ private:
                 return inv_var;
             }
 
-            other_args.push_back(inv_var);
+            other_args.push_back(std::move(inv_var));
             cur_expr = sum_expr_t::make_add(other_args, type);
         }
         return cur_expr.expr();

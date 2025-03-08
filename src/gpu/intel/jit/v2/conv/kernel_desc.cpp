@@ -213,7 +213,7 @@ int estimate_grf_usage_bytes(const kernel_desc_t &desc) {
     dim_t a_elems = b_iter * m_iter * k_iter;
     dim_t b_elems = b_iter * k_iter * n_iter;
     dim_t c_elems = m_iter * n_iter;
-    auto iter_outer_dim
+    const auto &iter_outer_dim
             = (desc.iter_outer_tile.is_empty() ? pvar_t()
                                                : *desc.iter_outer_tile.begin());
     auto bmnk = to_gemm(iter_outer_dim, desc.prop);
@@ -986,7 +986,7 @@ void kernel_desc_t::show_help() {
 
 grid_t create_thread_group_grid(const kernel_desc_t &desc) {
     grid_t grid(jit::ir_builder_t::tg_idx);
-    auto set = [&](const pvar_t dim, int idx) {
+    auto set = [&](const pvar_t &dim, int idx) {
         grid.add_mapping(dim, desc.use_stream_k ? 0 : idx);
     };
     switch (desc.prop) {

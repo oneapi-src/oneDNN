@@ -102,7 +102,7 @@ void slm_reduce_builder_t::build() {
         read_start[i] = local_thr_tile.start(i);
         auto cond = read_start[i] < slm_layout.dims()[i];
         if (reduce_cond_.is_empty())
-            reduce_cond_ = cond;
+            reduce_cond_ = std::move(cond);
         else
             reduce_cond_ &= cond;
     }

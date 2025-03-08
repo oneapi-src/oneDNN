@@ -192,12 +192,12 @@ constexpr bool everyone_is(T val, P item, Args... item_others) {
 }
 
 template <typename T, typename P>
-constexpr bool one_of(T val, P item) {
+constexpr bool one_of(T &&val, P &&item) {
     return val == item;
 }
 template <typename T, typename P, typename... Args>
-constexpr bool one_of(T val, P item, Args... item_others) {
-    return val == item || one_of(val, item_others...);
+constexpr bool one_of(T &&val, P &&item, Args &&...item_others) {
+    return val == item || one_of(val, std::forward<Args>(item_others)...);
 }
 
 template <typename T, typename P>

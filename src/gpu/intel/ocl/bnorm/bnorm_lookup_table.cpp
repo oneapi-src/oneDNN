@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -602,7 +602,7 @@ std::string get_nhwc_desc_str(const params_t &conf) {
 
 const char *bnorm_lookup_table_t::find(
         const params_t &conf, const gpu_arch_t &gpu_arch) const {
-    auto key
+    const auto &key
             = is_nhwc_impl(conf) ? get_nhwc_desc_str(conf) : get_desc_str(conf);
     auto it = map_.find(key);
     if (it == map_.end()) return nullptr;

@@ -367,7 +367,7 @@ public:
 
         reg_layout_ = slm_reduce_builder_.reg_layout();
 
-        auto new_tile = slm_reduce_builder_.thr_tile();
+        const auto &new_tile = slm_reduce_builder_.thr_tile();
         info_ = info_.create_sub_tensor(new_tile);
 
         auto &slm_allocs = slm_reduce_builder_.allocs();
@@ -740,7 +740,7 @@ public:
                 gpu_assert(c_po_idx_ == -1);
                 c_po_idx_ = tensor_idx;
             }
-            post_op_tensors_.push_back(po_tensor);
+            post_op_tensors_.push_back(std::move(po_tensor));
             tensor_idx++;
         }
 

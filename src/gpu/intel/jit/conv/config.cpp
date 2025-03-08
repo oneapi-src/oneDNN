@@ -646,9 +646,9 @@ void init_data_tags(const conv_config_t &cfg, const memory_desc_t &src_md,
 
     // Use plain tags for user-facing activations for small-channel tensors.
     if (!matches_tag(src_md, src_tag) && is_small_ic_g1)
-        user_src_tag = (user_src_req.empty() ? "axb" : std::move(user_src_req));
+        user_src_tag = (user_src_req.empty() ? "axb" : user_src_req);
     if (!matches_tag(dst_md, dst_tag) && is_small_oc_g1)
-        user_dst_tag = (user_dst_req.empty() ? "axb" : std::move(user_dst_req));
+        user_dst_tag = (user_dst_req.empty() ? "axb" : user_dst_req);
 
     // Avoid reorder for small shapes
     if (!user_src_tag.empty() && !user_dst_tag.empty() && prb.g == 1
@@ -1118,7 +1118,7 @@ bool post_op_layouts_ok(const conv_problem_t &prb) {
                             po.binary.src1_desc.dims, prb.ndims, true);
             // These cases don't have message-related limitations.
             if ((mask & (1 << 1)) == 0 || mask == (1 << 1)) continue;
-            auto rhs_layout = po.is_prelu()
+            const auto &rhs_layout = po.is_prelu()
                     ? layout_t(type_t::f32(), 0,
                             get_prelu_weights_dims(po.prelu.mask, output_md))
                     : layout_t(po.binary.src1_desc);
@@ -1573,7 +1573,7 @@ public:
             e.tile_size = tile[d];
             if (!utils::one_of(bmnk, pvars::m, pvars::n)) continue;
             e.mn_kind = (bmnk == pvars::m ? 'm' : 'n');
-            entries_.push_back(e);
+            entries_.push_back(std::move(e));
         }
         // Put through spatial dimensions first and order spatial accordingly
         // (WHD, width is first).

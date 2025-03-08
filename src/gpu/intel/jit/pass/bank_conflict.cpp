@@ -78,9 +78,9 @@ public:
             auto src2_buf = ptr_base(obj.args[3]);
 
             // src0 may be null in some cases, skip it.
-            if (!src0_buf.is_empty()) bufs_.insert(src0_buf);
-            bufs_.insert(src1_buf);
-            bufs_.insert(src2_buf);
+            if (!src0_buf.is_empty()) bufs_.insert(std::move(src0_buf));
+            bufs_.insert(std::move(src1_buf));
+            bufs_.insert(std::move(src2_buf));
 
             instructions_.emplace_back(obj);
         } else if (is_load) {

@@ -35,7 +35,7 @@ public:
             if (!is_func_call<send_t>(c)) continue;
             auto header_buf = send_t::arg_mem_off(c);
             gpu_assert(is_var(header_buf)) << header_buf;
-            header_bufs_.insert(header_buf);
+            header_bufs_.insert(std::move(header_buf));
         }
     }
 
