@@ -1027,24 +1027,23 @@ void cell_common_inner(const_wei_layer_cell_t wei_layer,
                 store_vanilla_rnn(gates.ptr, gates.strides.mb, states.ptr,
                         states.strides.mb, dims.dhc, n, c, g);
             } else if (CELL_KIND == LBR_GRU) {
-			  // AUX and SCRATCH data type is same for fwd prop
 			    __global AUX_DATA_T *scratch_cell = (__global AUX_DATA_T *)(scr_cell);
 			    __global WS_STATE_DATA_T *src_iter = h_states_tm_l;
-
-			    lbr_gru_gates_t gates = compute_gates_lbr_gru(scratch_gates, scratch_cell,
-			            bias, tm_scales, scratch_gates_ld, dhc, i, j);
+				//TODO: check arguments below
+			    lbr_gru_gates_t gates = compute_gates_lbr_gru(scratch_gates, ctx.lbr_gru.scratch_cell.ptr,
+			            ctx.lbr_gru.bias, ctx.lbr_gru.tm_scales, scratch_gates_ld, dims.dhc, n, c);
 			    float Wh_b = gates.Wh_b;
 			    float G0 = gates.G[0];
 			    float G1 = gates.G[1];
 			    float G2 = gates.G[2];
-
-			    float Ht = G0 * TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)])
+				//TODO: confirm this reference
+			    float Ht = G0 * TO_REF(ctx.lbr_gru.scratch_cell);//TO_REF(src_iter[cell_ws_state(states_ws_ld, i, j)])
 			            + (1 - G0) * G2;
 
-			    h_states_t_l[cell_ws_state(states_ws_ld, i, j)] = TO_WS_STATE(Ht);
+			    /*h_states_t_l[cell_ws_state(states_ws_ld, i, j)]*/ ctx.lbr_gru.hidden_state = TO_WS_STATE(Ht);
 
-				//store result
-				store_lbr_gru(gates.ptr, gates.strides.mb, states.ptr, states.strides.mb, dims.dhc, n, c, h_states_t_l);
+				//TODO: store result
+				store_lbr_gru(gates.ptr, gates.strides.mb, states.ptr, states.strides.mb, dims.dhc, n, c, gates);
 			}
         }
     }
@@ -1081,6 +1080,9 @@ simple_rnn_cell_fwd(__global const WEI_LAYER_DATA_T *wei_layer_,
         __global AUX_DATA_T *c_states_, dim_t c_states_off,
         __global const AUX_DATA_T *c_states_iter_, dim_t c_states_iter_off,
         float tm_cscale,
+#elif CELL_KIND == LBR_GRU
+		__global WS_STATE_DATA_T *h_states_tm_l_, dim_t h_states_tm_l_off,
+		__global char *scr_cell,
 #endif
 #if NEED_SCRATCH_GATES
         __global AUX_DATA_T *scratch_gates_, dim_t scratch_gates_off,
@@ -1167,7 +1169,7 @@ simple_rnn_cell_fwd(__global const WEI_LAYER_DATA_T *wei_layer_,
 
 #elif CELL_KIND == LBR_GRU
 	 cell_ctx_t cell_ctx = {
-			.lbr_gru = {}};
+			.lbr_gru = {.hidden_state = h_states_tm_l_ + h_states_tm_l_off + states_strides.iter * iter, .scrate_cell = scr_cell + states_strides.iter * iter, .bias = bias, .tm_scales = tm_scales}};
 #endif
 
         cell_common(wei_layer, wei_iter, cell_layer, cell_iter, gates, states,
