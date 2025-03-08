@@ -70,7 +70,7 @@ void reorder_ir_builder_t::build() {
             gpu_info() << "  Destination layout:  " << cfg_.dst_layout().user();
             gpu_info() << "  Iteration blocks:    " << iter_tile;
             gpu_info() << "  Loop blocks:         " << loop_tile;
-            gpu_info() << "  Thread group blocks: " << cfg_.thread_group_dims();
+            gpu_info() << "  Thread blocks:       " << cfg_.thread_dims();
             return;
         }
     }
@@ -93,7 +93,7 @@ bool reorder_ir_builder_t::try_build(
     }
 
     std::vector<stmt_t> init_stmts;
-    init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(),
+    init_thread_grids(cfg_.thread_group_grid(), cfg_.thread_grid(),
             cfg_.exec_cfg().simd(), init_cset, init_stmts);
 
     view_t src_view(vars, ndims);
@@ -113,7 +113,7 @@ bool reorder_ir_builder_t::try_build(
     dst_view.set_tmasks(string_map);
 
     gemm_schedule_t schedule(
-            init_cset, cfg_.kernel_grid(), cfg_.thread_group_grid());
+            init_cset, cfg_.thread_group_grid(), cfg_.thread_grid());
 
     schedule.set_view(src_view);
     schedule.set_view(dst_view);
@@ -135,7 +135,7 @@ bool reorder_ir_builder_t::try_build(
         auto grid_idx = find_grid_idx(d);
         const auto &iter_dim = iter_tile[d];
         const auto &loop_dim = loop_tile[d];
-        const auto &tg_dim = cfg_.thread_group_dims().get(d);
+        const auto &thr_dim = cfg_.thread_dims().get(d);
         if (iter_dim != 1) {
             expr_t outer, inner;
             schedule.split(v, iter_dim, outer, inner);
@@ -151,11 +151,11 @@ bool reorder_ir_builder_t::try_build(
             ordered.insert(ordered.begin(), inner);
             ordered.insert(ordered.begin(), outer);
         }
-        if (tg_dim != 1) {
+        if (thr_dim != 1) {
             if (!ordered.empty()) ordered.erase(ordered.begin());
             expr_t outer, inner;
-            schedule.split(v, tg_dim, outer, inner);
-            schedule.bind(inner, cfg_.thread_group_grid().idx(grid_idx));
+            schedule.split(v, thr_dim, outer, inner);
+            schedule.bind(inner, cfg_.thread_grid().idx(grid_idx));
             v = outer;
             ordered.insert(ordered.begin(), inner);
             ordered.insert(ordered.begin(), outer);
@@ -168,7 +168,7 @@ bool reorder_ir_builder_t::try_build(
         auto &vec = fused_idxs[i];
         if (vec.empty()) continue;
         auto var = (vec.size() == 1 ? vec[0] : schedule.fuse(vec));
-        schedule.bind(var, cfg_.kernel_grid().idx(i));
+        schedule.bind(var, cfg_.thread_group_grid().idx(i));
     }
 
     schedule.finalize();

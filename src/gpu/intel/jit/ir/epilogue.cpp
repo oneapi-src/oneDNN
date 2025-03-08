@@ -353,11 +353,11 @@ public:
         return stmt;
     }
 
-    stmt_t build_slm_store_stmt(const grid_info_t &tg_grid) {
+    stmt_t build_slm_store_stmt(const grid_info_t &thr_grid) {
         gpu_assert(needs_store());
         tensor_t tile(mem_view().vdims());
         slm_reduce_builder_ = slm_reduce_builder_t(
-                *ir_ctx_, tg_grid, reg_buf_, reg_layout_, tile, 1);
+                *ir_ctx_, thr_grid, reg_buf_, reg_layout_, tile, 1);
         return slm_reduce_builder_.store_stmt();
     }
 
@@ -898,7 +898,7 @@ private:
 
         // TODO: Generalize the condition. Iterate through output tensor masks
         // and ensure C is distributed accordingly in thread group.
-        bool use_slm_reduction = (gemm_schedule_.tg_grid().dim(1) > 1);
+        bool use_slm_reduction = (gemm_schedule_.thr_grid().dim(1) > 1);
 
         // Generate reduce and store statements for output post-op tensors.
         stmt_t thr_reduce_stmt;
@@ -911,7 +911,7 @@ private:
             thr_reduce_stmt = thr_reduce_stmt.append(t.build_reduce_stmt());
             if (use_slm_reduction) {
                 auto store_stmt
-                        = t.build_slm_store_stmt(gemm_schedule_.tg_grid());
+                        = t.build_slm_store_stmt(gemm_schedule_.thr_grid());
                 auto load_stmt = t.build_slm_load_stmt();
                 slm_store_stmt = slm_store_stmt.append(store_stmt);
                 slm_load_stmt = slm_load_stmt.append(load_stmt);
@@ -959,7 +959,7 @@ private:
         }
 
         // S_y -> GMEM.
-        auto send_op = gemm_schedule_.with_kernel_grid_k_slicing()
+        auto send_op = gemm_schedule_.with_thread_group_grid_k_slicing()
                 ? send_op_t::atomic_fadd
                 : send_op_t::store;
         auto offset = c_mem_tile_view.tlayout().offset_in_bytes();

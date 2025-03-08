@@ -35,21 +35,21 @@ namespace jit {
 
 // Represents hierarchy of tile levels and corresponding loop/grid indices.
 //
-// | Tile level | Nesting level | Maps to                |
-// |------------|---------------|------------------------|
-// | grid_dim   | 0             | Thread group           |
-// | loop_dim   | 1             | Loop in thread         |
-// | tg_dim     | 2             | Thread in thread group |
-// | iter_dim   | 3             | Iteration in loop      |
+// | Extent   | Nesting level | One iteration maps to  |
+// |----------|---------------|------------------------|
+// | tg_dim   | 0             | Thread group           |
+// | loop_dim | 1             | Loop in thread         |
+// | thr_dim  | 2             | Thread in thread group |
+// | iter_dim | 3             | Iteration in loop      |
 class dim_tile_t {
 public:
-    const expr_t &grid_idx() const { return not_empty(grid_idx_); }
     const expr_t &tg_idx() const { return not_empty(tg_idx_); }
+    const expr_t &thr_idx() const { return not_empty(thr_idx_); }
     const expr_t &loop_idx() const { return not_empty(loop_idx_); }
     const expr_t &iter_idx() const { return not_empty(iter_idx_); }
 
-    void set_grid_idx(const expr_t &idx) { grid_idx_ = idx; }
     void set_tg_idx(const expr_t &idx) { tg_idx_ = idx; }
+    void set_thr_idx(const expr_t &idx) { thr_idx_ = idx; }
     void set_loop_idx(const expr_t &idx) { loop_idx_ = idx; }
     void set_iter_idx(const expr_t &idx) { iter_idx_ = idx; }
 
@@ -59,8 +59,8 @@ private:
         return v;
     }
 
-    expr_t grid_idx_;
     expr_t tg_idx_;
+    expr_t thr_idx_;
     expr_t loop_idx_;
     expr_t iter_idx_;
 };
@@ -71,24 +71,24 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
     auto &name = dim.as<var_t>().name;
     auto conv_dim = pvar_t(name);
     dim_t loop_dim = cfg.loop_dim(conv_dim);
-    dim_t tg_dim = cfg.thread_group_dim(conv_dim);
+    dim_t thr_dim = cfg.thread_dim(conv_dim);
     dim_t iter_dim = cfg.iter_dim(conv_dim);
 
-    std::vector<dim_t> dims = {1, loop_dim, tg_dim, iter_dim};
+    std::vector<dim_t> dims = {1, loop_dim, thr_dim, iter_dim};
     dim_idx_t ndims = into<dim_idx_t>(dims.size());
     std::vector<expr_t> idxs(ndims);
 
     static const char *suffixes[]
-            = {"_grid_idx", "_loop_idx", "_tg_idx", "_iter_idx"};
+            = {"_tg_idx", "_loop_idx", "_thr_idx", "_iter_idx"};
     auto &dim_name = dim.as<var_t>().name;
 
     auto has_block = [&](int dim_idx) {
-        bool is_thr = (dim_idx == 1);
-        bool is_tg = (dim_idx == 2);
+        bool is_loop = (dim_idx == 1);
+        bool is_thr = (dim_idx == 2);
         bool is_iter = (dim_idx == 3);
-        if (is_thr || is_iter) return true;
-        auto grid = is_tg ? get_thread_group_grid_conv_dims(cfg)
-                          : get_kernel_grid_conv_dims(cfg);
+        if (is_loop || is_iter) return true;
+        auto grid = is_thr ? get_thread_grid_conv_dims(cfg)
+                           : get_thread_group_grid_conv_dims(cfg);
         for (auto &tile : grid)
             for (auto &d : tile)
                 if (dim_name == d.name()) return true;
@@ -107,17 +107,17 @@ static dim_tile_t create_tile(gemm_schedule_t &gemm_schedule,
     }
     idxs[0] = std::move(idx);
 
-    tile.set_grid_idx(idxs[0]);
+    tile.set_tg_idx(idxs[0]);
     tile.set_loop_idx(idxs[1]);
-    tile.set_tg_idx(idxs[2]);
+    tile.set_thr_idx(idxs[2]);
     tile.set_iter_idx(idxs[3]);
 
     return tile;
 }
 
-void bind_thread_group_grid_idx(const conv_config_t &cfg,
+void bind_thread_grid_idx(const conv_config_t &cfg,
         gemm_schedule_t &gemm_schedule, const expr_t &var) {
-    auto grid_dims = get_thread_group_grid_conv_dims(cfg);
+    auto grid_dims = get_thread_grid_conv_dims(cfg);
     int grid_id = -1;
     for (auto &v : gemm_schedule.get_root_vars(var)) {
         auto v_dim = pvar_t(v.as<var_t>().name);
@@ -129,10 +129,10 @@ void bind_thread_group_grid_idx(const conv_config_t &cfg,
         }
     }
     gpu_assert(grid_id != -1);
-    gemm_schedule.bind(var, cfg.thread_group_grid().idx(grid_id));
+    gemm_schedule.bind(var, cfg.thread_grid().idx(grid_id));
 }
 
-void bind_kernel_grid(
+void bind_thread_group_grid(
         gemm_schedule_t &gemm_schedule, const std::vector<expr_t> &vars) {
     for (auto &v : vars) {
         if (gemm_schedule.var_bound(v) == 1) continue;
@@ -140,7 +140,7 @@ void bind_kernel_grid(
         gpu_assert((int)root_vars.size() == 1);
         auto v_dim = pvar_t(root_vars[0].as<var_t>().name);
         auto dummy_grid_var
-                = gemm_schedule.kernel_grid_walk_order().grid_var(v_dim);
+                = gemm_schedule.tg_grid_walk_order().grid_var(v_dim);
         gemm_schedule.bind(v, dummy_grid_var);
     }
 }
@@ -278,20 +278,21 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto ic_tile = create_tile(gemm_schedule, cfg_, ic);
     auto kw_tile = create_tile(gemm_schedule, cfg_, kw);
 
-    auto mb_ow_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), ow_tile.tg_idx());
+    auto mb_ow_thr_idx
+            = gemm_schedule.fuse(mb_tile.thr_idx(), ow_tile.thr_idx());
 
-    std::vector<expr_t> kernel_grid_vars;
-    kernel_grid_vars.push_back(oc_tile.grid_idx());
-    kernel_grid_vars.push_back(od);
-    kernel_grid_vars.push_back(oh);
-    kernel_grid_vars.push_back(ow_tile.grid_idx());
-    kernel_grid_vars.push_back(g_tile.grid_idx());
-    kernel_grid_vars.push_back(mb_tile.grid_idx());
-    bind_kernel_grid(gemm_schedule, kernel_grid_vars);
+    std::vector<expr_t> thread_group_grid_vars;
+    thread_group_grid_vars.push_back(oc_tile.tg_idx());
+    thread_group_grid_vars.push_back(od);
+    thread_group_grid_vars.push_back(oh);
+    thread_group_grid_vars.push_back(ow_tile.tg_idx());
+    thread_group_grid_vars.push_back(g_tile.tg_idx());
+    thread_group_grid_vars.push_back(mb_tile.tg_idx());
+    bind_thread_group_grid(gemm_schedule, thread_group_grid_vars);
 
-    bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
-    bind_thread_group_grid_idx(cfg_, gemm_schedule, mb_ow_tg_idx);
-    bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
+    bind_thread_grid_idx(cfg_, gemm_schedule, oc_tile.thr_idx());
+    bind_thread_grid_idx(cfg_, gemm_schedule, mb_ow_thr_idx);
+    bind_thread_grid_idx(cfg_, gemm_schedule, ic_tile.thr_idx());
 
     gemm_schedule.tensorize(g_tile.iter_idx());
     gemm_schedule.tensorize(oc_tile.iter_idx());
@@ -301,8 +302,8 @@ void init_fwd(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     gemm_schedule.tensorize(ic_tile.iter_idx());
 
     gemm_schedule.reorder({ic_tile.loop_idx(), std::move(kd), std::move(kh),
-            kw_tile.loop_idx(), oc_tile.tg_idx(), std::move(mb_ow_tg_idx),
-            ic_tile.tg_idx()});
+            kw_tile.loop_idx(), oc_tile.thr_idx(), std::move(mb_ow_thr_idx),
+            ic_tile.thr_idx()});
 }
 
 void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
@@ -346,9 +347,9 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
         // Apply mapping to iw to ensure each thread group has the same
         // stride condition when evaluating skip conditions.
         iw_mapping = [&](const expr_t &e) {
-            dim_t iw_tg_blk = cfg_.thread_group_dim(pvars::iw)
-                    * cfg_.iter_dim(pvars::iw);
-            dim_t iw_bound = utils::rnd_up(prb_.iw, iw_tg_blk);
+            dim_t iw_thr_blk
+                    = cfg_.thread_dim(pvars::iw) * cfg_.iter_dim(pvars::iw);
+            dim_t iw_bound = utils::rnd_up(prb_.iw, iw_thr_blk);
             dim_t iw_same_mod_blk = ir_utils::safe_divide(iw_bound, prb_.sw);
             return (e % iw_same_mod_blk) * prb_.sw + (e / iw_same_mod_blk);
         };
@@ -461,19 +462,20 @@ void init_bwd_d(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto iw_tile = create_tile(gemm_schedule, cfg_, iw);
     auto oc_tile = create_tile(gemm_schedule, cfg_, oc);
 
-    std::vector<expr_t> kernel_grid_vars;
-    kernel_grid_vars.push_back(ic_tile.grid_idx());
-    kernel_grid_vars.push_back(id);
-    kernel_grid_vars.push_back(ih);
-    kernel_grid_vars.push_back(iw_tile.grid_idx());
-    kernel_grid_vars.push_back(g_tile.grid_idx());
-    kernel_grid_vars.push_back(mb_tile.grid_idx());
-    bind_kernel_grid(gemm_schedule, kernel_grid_vars);
+    std::vector<expr_t> thread_group_grid_vars;
+    thread_group_grid_vars.push_back(ic_tile.tg_idx());
+    thread_group_grid_vars.push_back(id);
+    thread_group_grid_vars.push_back(ih);
+    thread_group_grid_vars.push_back(iw_tile.tg_idx());
+    thread_group_grid_vars.push_back(g_tile.tg_idx());
+    thread_group_grid_vars.push_back(mb_tile.tg_idx());
+    bind_thread_group_grid(gemm_schedule, thread_group_grid_vars);
 
-    auto mb_iw_tg_idx = gemm_schedule.fuse(mb_tile.tg_idx(), iw_tile.tg_idx());
-    bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
-    bind_thread_group_grid_idx(cfg_, gemm_schedule, mb_iw_tg_idx);
-    bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
+    auto mb_iw_thr_idx
+            = gemm_schedule.fuse(mb_tile.thr_idx(), iw_tile.thr_idx());
+    bind_thread_grid_idx(cfg_, gemm_schedule, ic_tile.thr_idx());
+    bind_thread_grid_idx(cfg_, gemm_schedule, mb_iw_thr_idx);
+    bind_thread_grid_idx(cfg_, gemm_schedule, oc_tile.thr_idx());
 
     gemm_schedule.tensorize(g_tile.iter_idx());
     gemm_schedule.tensorize(ic_tile.iter_idx());
@@ -656,21 +658,21 @@ void init_bwd_w(const conv_config_t &cfg_, gemm_schedule_t &gemm_schedule,
     auto ow_tile = create_tile(gemm_schedule, cfg_, ow);
     auto kw_tile = create_tile(gemm_schedule, cfg_, kw);
 
-    std::vector<expr_t> kernel_grid_vars;
-    kernel_grid_vars.push_back(oc_tile.grid_idx());
-    kernel_grid_vars.push_back(od_tile.grid_idx());
-    kernel_grid_vars.push_back(oh_tile.grid_idx());
-    kernel_grid_vars.push_back(ow_tile.grid_idx());
-    kernel_grid_vars.push_back(kd);
-    kernel_grid_vars.push_back(kh);
-    kernel_grid_vars.push_back(kw_tile.grid_idx());
-    kernel_grid_vars.push_back(ic_tile.grid_idx());
-    kernel_grid_vars.push_back(mb_tile.grid_idx());
-    kernel_grid_vars.push_back(g_tile.grid_idx());
-    bind_kernel_grid(gemm_schedule, kernel_grid_vars);
+    std::vector<expr_t> thread_group_grid_vars;
+    thread_group_grid_vars.push_back(oc_tile.tg_idx());
+    thread_group_grid_vars.push_back(od_tile.tg_idx());
+    thread_group_grid_vars.push_back(oh_tile.tg_idx());
+    thread_group_grid_vars.push_back(ow_tile.tg_idx());
+    thread_group_grid_vars.push_back(kd);
+    thread_group_grid_vars.push_back(kh);
+    thread_group_grid_vars.push_back(kw_tile.tg_idx());
+    thread_group_grid_vars.push_back(ic_tile.tg_idx());
+    thread_group_grid_vars.push_back(mb_tile.tg_idx());
+    thread_group_grid_vars.push_back(g_tile.tg_idx());
+    bind_thread_group_grid(gemm_schedule, thread_group_grid_vars);
 
-    bind_thread_group_grid_idx(cfg_, gemm_schedule, oc_tile.tg_idx());
-    bind_thread_group_grid_idx(cfg_, gemm_schedule, ic_tile.tg_idx());
+    bind_thread_grid_idx(cfg_, gemm_schedule, oc_tile.thr_idx());
+    bind_thread_grid_idx(cfg_, gemm_schedule, ic_tile.thr_idx());
 
     gemm_schedule.reorder({od_tile.loop_idx(), oh_tile.loop_idx(),
             ow_tile.loop_idx(), mb_tile.loop_idx()});
@@ -2020,8 +2022,8 @@ private:
                 && cfg_.is_dp_fma())
             return false;
         bmnk_dim_helper_t h(cfg_);
-        dim_t k_tg = h.thread_group_dim(pvars::k);
-        if (k_tg != 1) return false;
+        dim_t k_thr = h.thread_dim(pvars::k);
+        if (k_thr != 1) return false;
         return true;
     }
 
@@ -2039,9 +2041,9 @@ private:
         if (!allow_slm_) return false;
         if (cfg_.hw() >= ngen::HW::XeHPC) return false;
 
-        auto &tg = cfg_.thread_group_grid();
-        int tg_idx = (is_a ? 0 : 1);
-        if (tg[tg_idx] == 1) return false;
+        auto &thr = cfg_.thread_grid();
+        int thr_idx = (is_a ? 0 : 1);
+        if (thr[thr_idx] == 1) return false;
 
         auto &direct_view = (is_a ? a_direct_view_ : b_direct_view_);
         if ((bool)direct_view) return false;
@@ -2056,11 +2058,11 @@ private:
             reduce_plan_t *reduce = nullptr,
             tensor_t *reduce_tile = nullptr) const {
         if (!use_slm(abc)) return plan_status_t::success;
-        auto &tg = cfg_.thread_group_grid();
+        auto &thr = cfg_.thread_grid();
         slm_layout = get_slm_layout(
-                fma_ctx_, abc, gemm_schedule_.bmnk_mapper(), tg_view, tg);
+                fma_ctx_, abc, gemm_schedule_.bmnk_mapper(), tg_view, thr);
         if (slm_layout == layout_t()) return plan_status_t::invalid_slm_layout;
-        auto thr_tile = slm_layout.split(tg, &grid);
+        auto thr_tile = slm_layout.split(thr, &grid);
         auto abs_thr_tile = tg_view.vtile().create_sub_tensor(thr_tile);
         auto slm_thr_layout = slm_layout.map(thr_tile);
         auto slm_thr_view = view_t(slm_thr_layout);
@@ -2111,8 +2113,8 @@ private:
     plan_status_t init_x_prefetch_plan(abc_kind_t abc, const view_t &tg_view,
             grid_info_t &grid, send_plan_t &prefetch) const {
         if (!use_prefetch(abc)) return plan_status_t::success;
-        auto &tg = cfg_.thread_group_grid();
-        auto thr_view = tg_view.split(tg, &grid);
+        auto &thr = cfg_.thread_grid();
+        auto thr_view = tg_view.split(thr, &grid);
         auto params = get_send_params(cfg_.exec_cfg(), send_op_t::prefetch,
                 send_address_t::a64, fma_kind_t::undef, abc, thr_view,
                 gemm_schedule_);
@@ -2211,29 +2213,29 @@ private:
 
     plan_status_t verify_slm_k_slicing() const {
         bmnk_dim_helper_t h(cfg_);
-        dim_t k_tg = h.thread_group_dim(pvars::k);
-        if (k_tg == 1) return plan_status_t::success;
+        dim_t k_thr = h.thread_dim(pvars::k);
+        if (k_thr == 1) return plan_status_t::success;
 
         auto l = plan_.fma.c_prb_layout;
         int ndims = l.ndims();
         auto blocks = l.blocks();
         l = layout_t(l.type(), ndims + 1, l.offset(), blocks);
-        l = l.add_outer_block(ndims, k_tg);
+        l = l.add_outer_block(ndims, k_thr);
         int outer = 1;
         auto rem_dims = l.dims();
         for (int i = (int)blocks.size() - 1; i >= 0; i--) {
             auto &b = blocks[i];
             for (dim_t j = 2; j <= b.block; j++) {
                 if (b.block % j != 0) continue;
-                if (outer * j > k_tg) break;
-                if (outer * j == k_tg || j == b.block) {
+                if (outer * j > k_thr) break;
+                if (outer * j == k_thr || j == b.block) {
                     rem_dims[b.dim_idx] /= j;
                     outer *= j;
                     break;
                 }
             }
         }
-        if (outer != k_tg) return plan_status_t::invalid_slm_k_slicing;
+        if (outer != k_thr) return plan_status_t::invalid_slm_k_slicing;
 
         if (plan_.hw < ngen::HW::XeHPG) {
             // Verifies that SLM loads after k-slicing are at GRF granularity.
@@ -2400,8 +2402,8 @@ private:
 
         // Reject cfgs that require unsupported f64 fadd emulation vec_size on
         // XeLPG. F64 fadd emulation is only reliable with vec_size 8 on XeLPG.
-        bool requires_fadd
-                = prb_.is_bwd_w && gemm_schedule_.with_kernel_grid_k_slicing();
+        bool requires_fadd = prb_.is_bwd_w
+                && gemm_schedule_.with_thread_group_grid_k_slicing();
         if (!cfg_.hw().has_fp64_atomic_support() && requires_fadd
                 && c_layout.elems() % 8 != 0 && c_type == type_t::f64()) {
             return plan_status_t::invalid_c_layout;
@@ -2465,8 +2467,8 @@ private:
 
         auto &init_cset = plan.init_cset;
         auto &gemm_schedule = plan.gemm_schedule;
-        gemm_schedule = gemm_schedule_t(init_cset, cfg_.kernel_grid(),
-                cfg_.thread_group_grid(), cfg_.walk_order());
+        gemm_schedule = gemm_schedule_t(init_cset, cfg_.thread_group_grid(),
+                cfg_.thread_grid(), cfg_.walk_order());
         view_t a_view;
         view_t b_view;
         view_t c_view;
