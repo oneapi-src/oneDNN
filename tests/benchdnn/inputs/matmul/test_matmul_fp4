@@ -8,7 +8,7 @@
 --attr-post-ops=
 
 ## plain fp4
---dt=f4_e2m1,f4_e2m1:f4_e2m1:f32,f4_e2m1:f4_e2m1:bf16,f4_e2m1:f4_e3m0:f4_e2m1
+--dt=f4_e2m1,f4_e3m0,f4_e2m1:f4_e2m1:f32,f4_e2m1:f4_e2m1:bf16,f4_e2m1:f4_e3m0:f4_e2m1,f4_e2m1:f4_e2m1:f4_e3m0
 --attr-scales=
 --batch=shapes_4bit
 
