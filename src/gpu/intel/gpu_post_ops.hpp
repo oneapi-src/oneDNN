@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -264,7 +264,7 @@ struct sum_t {
     bool operator==(const sum_t &) const = default;
 #endif
 
-    void serialize(serialized_data_t &s) const {
+    void serialize(serialization_stream_t &s) const {
         s.append(dt);
         s.append(inline_scale);
         s.append(inline_zero_point);
@@ -306,7 +306,7 @@ struct eltwise_t {
     bool operator==(const eltwise_t &) const = default;
 #endif
 
-    void serialize(serialized_data_t &s) const {
+    void serialize(serialization_stream_t &s) const {
         s.append(alg);
         s.append(inline_scale);
         s.append(inline_alpha);
@@ -533,7 +533,7 @@ struct gpu_post_ops_t {
         }
 #endif
 
-        void serialize(serialized_data_t &s) const {
+        void serialize(serialization_stream_t &s) const {
             s.append(kind_);
             switch (kind_) {
                 case (post_op::kind_t::sum): s.append(sum_); break;
@@ -594,7 +594,7 @@ struct gpu_post_ops_t {
     entry_t &operator[](size_t idx) { return ops_[idx]; }
     void pop_back() { return ops_.pop_back(); }
 
-    void serialize(serialized_data_t &s) const { s.append(ops_); }
+    void serialize(serialization_stream_t &s) const { s.append(ops_); }
 
     static gpu_post_ops_t deserialize(deserializer_t &d) {
         gpu_post_ops_t po;
@@ -606,7 +606,7 @@ struct gpu_post_ops_t {
     bool operator==(const gpu_post_ops_t &) const = default;
 #else
     bool operator==(const gpu_post_ops_t &other) const {
-        return serialized_t(*this) == serialized_t(other);
+        return serialization_stream_t(*this) == serialization_stream_t(other);
     };
 #endif
 

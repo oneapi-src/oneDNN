@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 #define GPU_INTEL_GPU_PRIMITIVE_ATTR_HPP
 
 #include "common/primitive_attr.hpp"
-#include "common/serialization_stream.hpp"
+#include "common/serialization.hpp"
 
 namespace dnnl {
 namespace impl {
