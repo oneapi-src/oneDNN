@@ -251,7 +251,7 @@ static cudnn_frontend::Tensor createQKBMM(int64_t b, int64_t h, int64_t s_q,
     auto matmul_1_Desc = cudnn_frontend::MatMulDescBuilder()
                                  .setComputeType(CUDNN_DATA_FLOAT)
                                  .build();
-    std::cout << matmul_1_Desc.describe() << std::endl;
+    //std::cout << matmul_1_Desc.describe() << std::endl;
 
     // Create a matmul 1 Node
     auto matmul_op1 = cudnn_frontend::OperationBuilder(
@@ -262,7 +262,7 @@ static cudnn_frontend::Tensor createQKBMM(int64_t b, int64_t h, int64_t s_q,
                               .setmatmulDesc(matmul_1_Desc)
                               .build();
 
-    std::cout << matmul_op1.describe() << std::endl;
+    //std::cout << matmul_op1.describe() << std::endl;
 
     ops.push_back(std::move(matmul_op1));
 
