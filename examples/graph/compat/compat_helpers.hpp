@@ -114,7 +114,9 @@ public:
 
 namespace compat_0_x {
 
+int64_t op_id = 0;
 using lt = dnnl::graph::logical_tensor;
+using op = dnnl::graph::op;
 using Operation = dnnl::graph::op;
 using DataType_t = logical_tensor::data_type;
 //using Tensor = dnnl::graph::logical_tensor;
@@ -330,9 +332,10 @@ public:
     //! constructs the Tensor_v8 by calling the cudnn API
     //! Throws the appropriate error message
     Tensor_v8 &&build() {
-        m_tensor.internal_lt = dnnl::graph::logical_tensor(m_tensor.getId(),
+        auto lt_tmp = dnnl::graph::logical_tensor(m_tensor.getId(),
                 m_tensor.getDataType(), m_tensor.getDim(),
                 m_tensor.getStride());
+        m_tensor.internal_lt = &lt_tmp;
         return std::move(m_tensor);
     }
 
@@ -349,7 +352,7 @@ private:
 using Tensor = Tensor_v8;
 using TensorBuilder = TensorBuilder_v8;
 
-class Operation_v8 : public BackendDescriptor {
+class Operation_v8 {
 public:
     friend class OperationBuilder_v8;
     // std::string describe() const override {
@@ -388,17 +391,32 @@ private:
     Operation_v8(Operation_v8 const &) = delete;
     Operation_v8 &operator=(Operation_v8 const &) = delete;
 
-    DescriptorType_t op_mode = DescriptorType_t::NOT_SET;
+    op::kind op_kind = op::kind::MatMul;
 
     lt *amatdesc = nullptr;
     lt *bmatdesc = nullptr;
     lt *cmatdesc = nullptr;
+
+    op *internal_op = nullptr;
 };
 
 class OperationBuilder_v8 {
 private:
     Operation_v8 m_operation;
-    Operation_v8 &&build_matmul_op() {}
+
+    OperationBuilder_v8(op::kind op_kind) { m_operation.op_kind = op_kind; }
+
+    Operation_v8 &&build_matmul_op() {
+
+        // score = query x key.T
+        //auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
+        auto bmm1 = op(op_id++, op::kind::MatMul, "bmm1");
+        bmm1.set_attr<bool>(op::attr::transpose_b, true);
+        bmm1.add_inputs({m_operation.amatdesc, m_operation.bmatdesc});
+        bmm1.add_outputs({m_operation.cmatdesc});
+        m_operation.internal_op = &bmm1;
+        return std::move(m_operation);
+    }
 
 public:
     auto setaMatDesc(Tensor_v8 const &tensor) -> OperationBuilder_v8 & {
@@ -417,133 +435,122 @@ public:
     //! constructs the backend Operation_v8 by calling the cudnn API
     //! Throws the appropriate error message
     Operation_v8 &&build() {
-        if (m_operation.status != CUDNN_STATUS_SUCCESS) {
-            set_error_and_throw_exception(&m_operation, m_operation.status,
-                    "CUDNN_BACKEND_OPERATION: Operation not initialized "
-                    "properly");
-            return std::move(m_operation);
-        }
-
-        Message_t msg = nullptr;
-        cudnnStatus_t status_ = CUDNN_STATUS_SUCCESS;
-        if (is_convolution_op) {
-            status_ = validate_convolution_op(msg);
-        } else if (is_pointwise_op) {
-            status_ = validate_pointwise_op(msg);
-        } else if (is_matmul_op) {
-            status_ = validate_matmul_op(msg);
-        } else if (is_reduction_op) {
-            status_ = validate_reduction_op(msg);
-        } else if (is_genstats_op) {
-            status_ = CUDNN_STATUS_SUCCESS;
-        } else if (is_bn_finalize_op) {
-            status_ = CUDNN_STATUS_SUCCESS;
-        } else if (is_bn_bwd_weight) {
-            status_ = validate_bn_bwd_weight_op(msg);
-        } else if (is_resample_fwd_op) {
-            status_ = validate_resample_op(msg);
-        } else if (is_resample_bwd_op) {
-            status_ = validate_resample_op(msg);
-        } else if (is_rng_op) {
-            status_ = validate_rng_op(msg);
-        } else if (is_norm_forward_op || is_norm_backward_op) {
-            status_ = validate_norm_op(msg);
-        } else if (is_reshape_op) {
-            status_ = validate_reshape_op(msg);
-        } else if (is_paged_cache_load_op) {
-            status_ = CUDNN_STATUS_SUCCESS;
-        } else {
-            status_ = CUDNN_STATUS_BAD_PARAM;
-            msg = "CUDNN_BACKEND_OPERATION_DESCRIPTOR: Unsupported cudnn "
-                  "backend descriptor type. Check and set "
-                  "CUDNN_BACKEND_OPERATION_*_DESCRIPTOR";
-        }
-        if (status_ != CUDNN_STATUS_SUCCESS) {
-            set_error_and_throw_exception(&m_operation, status_, msg);
-            return std::move(m_operation);
-        }
-
-        // Create the descriptor.
-        cudnnBackendDescriptorType_t cudnn_backend_descriptor_type;
-        auto status = detail::convert_to_cudnn_type(
-                m_operation.op_mode, cudnn_backend_descriptor_type);
-        if (status != CUDNN_STATUS_SUCCESS) {
-            std::stringstream ss;
-            ss << "CUDNN_BACKEND_OPERATION: unable to identify backend "
-                  "operation for "
-               << m_operation.op_mode;
-            set_error_and_throw_exception(
-                    &m_operation, status, (ss.str()).c_str());
-            return std::move(m_operation);
-        }
-        status = m_operation.initialize_managed_backend_pointer(
-                cudnn_backend_descriptor_type);
-        if (status != CUDNN_STATUS_SUCCESS) {
-            set_error_and_throw_exception(&m_operation, status,
-                    "CUDNN_BACKEND_OPERATION: cudnnCreate Failed");
-            return std::move(m_operation);
-        }
-
-        if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_CONVOLUTION_FORWARD_DESCRIPTOR) {
-            return build_conv_forward();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::
-                        OPERATION_CONVOLUTION_BACKWARD_FILTER_DESCRIPTOR) {
-            return build_conv_backward_filter();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::
-                        OPERATION_CONVOLUTION_BACKWARD_DATA_DESCRIPTOR) {
-            return build_conv_backward_data();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_POINTWISE_DESCRIPTOR) {
-            return build_pointwise_op();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_MATMUL_DESCRIPTOR) {
+        if (m_operation.op_kind == op::kind::MatMul) {
             return build_matmul_op();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_REDUCTION_DESCRIPTOR) {
-            return build_reduction_op();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_GEN_STATS_DESCRIPTOR) {
-            return build_genstats_op();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::
-                        OPERATION_BN_FINALIZE_STATISTICS_DESCRIPTOR) {
-            return build_bn_finalize_op();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_BN_BWD_WEIGHTS_DESCRIPTOR) {
-            return build_bn_bwd_weight_op();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_RESAMPLE_FWD_DESCRIPTOR) {
-            return build_resample_fwd_operation();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_NORM_FORWARD_DESCRIPTOR) {
-            return build_norm_forward();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_NORM_BACKWARD_DESCRIPTOR) {
-            return build_norm_backward();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_RESAMPLE_BWD_DESCRIPTOR) {
-            return build_resample_bwd_operation();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_RNG_DESCRIPTOR) {
-            return build_rng_operation();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_PAGED_CACHE_LOAD_DESCRIPTOR) {
-            return build_paged_cache_load_op();
-        } else if (m_operation.op_mode
-                == DescriptorType_t::OPERATION_RESHAPE_DESCRIPTOR) {
-            return build_reshape_operation();
-        } else {
-            set_error_and_throw_exception(&m_operation, status,
-                    "CUDNN_BACKEND_OPERATION: unimplemented operation in "
-                    "frontend");
         }
-        CUDNN_FE_LOG_LABEL_ENDL(m_operation);
         return std::move(m_operation);
     }
-}
+};
+
+using Operation = Operation_v8;
+using OperationBuilder = OperationBuilder_v8;
+
+///
+/// OperationGraph_v8 Class
+/// This class tells the properties of the Tensor_v8 on which the operation will be
+/// performed
+/// Properties:
+///    - handle
+///    - operation
+///
+/// Use OperationGraphBuilder_v8 to build this class.
+/// Describe returns a string describing the tensor class
+///
+class OperationGraph_v8 : public BackendDescriptor {
+public:
+    friend class OperationGraphBuilder_v8;
+    // std::string describe() const override {
+    //     std::stringstream ss;
+    //     ss << "CUDNN_BACKEND_OPERATIONGRAPH_DESCRIPTOR has " << numOps
+    //        << " operations." << std::endl;
+    //     ss << "Tag: " << opGraphTag << std::endl;
+    //     return ss.str();
+    // }
+
+    OperationGraph_v8(OperationGraph_v8 &&from) = default;
+    OperationGraph_v8 &operator=(OperationGraph_v8 &&from) = default;
+
+    ~OperationGraph_v8() = default;
+
+    uint64_t getOpCount() const { return numOps; }
+
+    const std::array<ManagedOpaqueDescriptor, MAX_OPGRAPH_OPS> &getOps() const {
+        return ops;
+    }
+
+private:
+    OperationGraph_v8() = default;
+    OperationGraph_v8(OperationGraph_v8 const &) = delete;
+    OperationGraph_v8 &operator=(OperationGraph_v8 const &) = delete;
+
+    cudnnHandle_t handle = nullptr;
+    std::array<ManagedOpaqueDescriptor, MAX_OPGRAPH_OPS> ops {};
+    int64_t numOps = -1;
+};
+
+///
+/// OperationGraphBuilder_v8 Class
+/// Helper class used to build OperationGraph_v8 class
+class OperationGraphBuilder_v8 {
+public:
+    /** @defgroup OperationGraphBuilder_v8
+     *  Set individual property of OperationGraph_v8 class
+     *  @{
+     */
+
+    auto setHandle(Handle handle_) -> OperationGraphBuilder_v8 & {
+        m_operationGraph.handle = handle_;
+        return *this;
+    }
+
+    //! Set numoperations and the operations
+    auto setOperationGraph(int64_t numOps_, Operation_v8 const **ops_)
+            -> OperationGraphBuilder_v8 & {
+        m_operationGraph.numOps = numOps_;
+        for (auto i = 0u; i < numOps_; i++) {
+            m_operationGraph.ops[i] = ops_[i]->get_desc();
+        }
+        return *this;
+    }
+
+    //! Set numoperations and the operations
+    auto setOperationGraph(std::vector<Operation> const &ops_)
+            -> OperationGraphBuilder_v8 & {
+        m_operationGraph.numOps = ops_.size();
+        m_operationGraph.feature_vectors.resize(ops_.size());
+        for (auto i = 0u; i < ops_.size(); i++) {
+            m_operationGraph.ops[i] = ops_[i].get_desc();
+            m_operationGraph.opGraphTag += ops_[i].getTag() + '_';
+            m_operationGraph.feature_vectors[i] = ops_[i].getFeatureVector();
+        }
+        return *this;
+    }
+
+    auto addOperation(ManagedOpaqueDescriptor desc)
+            -> OperationGraphBuilder_v8 & {
+        m_operationGraph.ops[m_operationGraph.numOps] = desc;
+        ++m_operationGraph.numOps;
+        return *this;
+    }
+    /** @} */
+
+    //! constructs the OperationGraph_v8 by calling the cudnn API
+    //! Throws the appropriate error message
+    OperationGraph_v8 &&build() { return std::move(m_operationGraph); }
+
+    explicit OperationGraphBuilder_v8() = default;
+    ~OperationGraphBuilder_v8() = default;
+    OperationGraphBuilder_v8(OperationGraphBuilder_v8 &&) = delete;
+    OperationGraphBuilder_v8(OperationGraphBuilder_v8 const &) = delete;
+    OperationGraphBuilder_v8 &operator=(OperationGraphBuilder_v8 const &)
+            = delete;
+
+private:
+    OperationGraph_v8 m_operationGraph;
+};
+
+using OperationGraph = OperationGraph_v8;
+using OperationGraphBuilder = OperationGraphBuilder_v8;
 
 } // namespace compat_0_x
 

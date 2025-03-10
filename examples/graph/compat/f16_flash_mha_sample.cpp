@@ -248,9 +248,9 @@ static cudnn_frontend::Tensor createQKBMM(int64_t b, int64_t h, int64_t s_q,
             s_stride, true, false); // is virtual
 
     // Define the matmul 1 desc
-    auto matmul_1_Desc = cudnn_frontend::MatMulDescBuilder()
-                                 .setComputeType(CUDNN_DATA_FLOAT)
-                                 .build();
+    //     auto matmul_1_Desc = cudnn_frontend::MatMulDescBuilder()
+    //                                  .setComputeType(CUDNN_DATA_FLOAT)
+    //                                  .build();
     //std::cout << matmul_1_Desc.describe() << std::endl;
 
     // Create a matmul 1 Node
@@ -259,7 +259,7 @@ static cudnn_frontend::Tensor createQKBMM(int64_t b, int64_t h, int64_t s_q,
                               .setaMatDesc(qTensor)
                               .setbMatDesc(kTransposeTensor)
                               .setcMatDesc(sTensor)
-                              .setmatmulDesc(matmul_1_Desc)
+                              //.setmatmulDesc(matmul_1_Desc)
                               .build();
 
     //std::cout << matmul_op1.describe() << std::endl;
@@ -834,123 +834,6 @@ static cudnn_frontend::Tensor createSoftmaxBackward(int64_t b, int64_t h,
     return dxTensor;
 }
 
-void run_f16_flash_attention_fprop_cudnn(int64_t b, int64_t h, int64_t s_q,
-        int64_t s_kv, int64_t d, MHA_Layout layout, float scaling_factor,
-        bool isTraining, double dropout_probability, void *devPtrQ,
-        void *devPtrK, void *devPtrV, void *devPtrSoftmaxStats, void *devPtrO,
-        void *devPtrDropoutSeed, void *devPtrDropoutOffset,
-        cudnnDataType_t tensorType) {
-    // Create a unique_ptr for the cuDNN handle
-    auto handle_ptr = create_cudnn_handle();
-    auto handle_ = *handle_ptr;
-
-    std::vector<cudnn_frontend::Operation const *> all_ops;
-    std::vector<cudnn_frontend::Operation> ops;
-    std::set<std::pair<uint64_t, void *>> data_ptrs;
-
-    // Q * K^T
-    auto sTensor = createQKBMM(b, h, s_q, s_kv, d, layout, tensorType, ops);
-
-    // Q * K^T * bmmScale
-    auto sScaleTensor = createScale(
-            b, h, s_q, s_kv, d, layout, CUDNN_DATA_FLOAT, sTensor, ops);
-
-    // Causual mask
-    float negInfinity
-            = -1.0E+20f; // change this if you have access to float_min
-    auto sAfterMaskTensor = createCausalMask(
-            b, h, s_q, s_kv, d, layout, tensorType, ops, sScaleTensor);
-
-    cudnn_frontend::throw_if(dropout_probability != 0.0f && !isTraining,
-            "Dropout probability should be 0.0f for inference mode",
-            CUDNN_STATUS_BAD_PARAM);
-    cudnn_frontend::throw_if(dropout_probability == 1.0f,
-            "Dropout probability cannot be 1.0", CUDNN_STATUS_BAD_PARAM);
-
-    // needs to be bf16 (Please change)
-    half1 scale_dropout = cpu_float2half_rn(
-            static_cast<float>(1 / (1 - dropout_probability)));
-
-    auto softmax_output = createSoftmaxForward(
-            b, h, s_q, s_kv, isTraining, ops, sAfterMaskTensor);
-
-    // Dropout(softmax)
-    auto dropout_output = createDropoutForward(b, h, s_q, s_kv, d,
-            dropout_probability, tensorType, ops, softmax_output);
-    createSVBMM(b, h, s_q, s_kv, d, layout, tensorType, ops, dropout_output);
-
-    std::cout << "Total ops created: " << ops.size() << std::endl;
-
-    for (unsigned int i = 0; i < ops.size(); i++) {
-        all_ops.push_back(&ops[i]);
-    }
-
-    // Create an Operation Graph
-    auto opGraph = cudnn_frontend::OperationGraphBuilder()
-                           .setHandle(handle_)
-                           .setOperationGraph(all_ops.size(), all_ops.data())
-                           .build();
-
-    cudnn_frontend::EngineConfigList filtered_configs;
-    auto statuses
-            = cudnn_frontend::get_heuristics_list<1>({"heuristics_instant"},
-                    opGraph, ::allowAllConfig, filtered_configs, true);
-
-    if (filtered_configs.size() == 0) {
-        cudnn_frontend::set_error_and_throw_exception(nullptr,
-                CUDNN_STATUS_NOT_SUPPORTED,
-                "run_mha_fprop: No config returned by the heuristics");
-    }
-
-    auto plan = cudnn_frontend::ExecutionPlanBuilder()
-                        .setHandle(handle_)
-                        .setEngineConfig(filtered_configs[0], opGraph.getTag())
-                        .build();
-
-    std::cout << "Plan tag: " << plan.getTag() << std::endl;
-
-    auto workspace_size = plan.getWorkspaceSize();
-    std::cout << plan.describe() << " requires workspace " << workspace_size
-              << std::endl;
-
-    void *workspace_ptr = nullptr;
-    if (workspace_size > 0) {
-        checkCudaErr(cudaMalloc(&workspace_ptr, workspace_size));
-    }
-
-    // add all the data pointers to be used in the variant pack
-    data_ptrs.insert(std::pair<uint64_t, void *>(Q_ID, devPtrQ));
-    data_ptrs.insert(std::pair<uint64_t, void *>(K_ID, devPtrK));
-    data_ptrs.insert(std::pair<uint64_t, void *>(V_ID, devPtrV));
-    data_ptrs.insert(std::pair<uint64_t, void *>(MASK_VAL_ID, &negInfinity));
-    data_ptrs.insert(std::pair<uint64_t, void *>(S_CONST_ID, &scaling_factor));
-    data_ptrs.insert(std::pair<uint64_t, void *>(O_ID, devPtrO));
-    data_ptrs.insert(std::pair<uint64_t, void *>(D_SEED_ID, devPtrDropoutSeed));
-    data_ptrs.insert(
-            std::pair<uint64_t, void *>(D_OFFSET_ID, devPtrDropoutOffset));
-    data_ptrs.insert(std::pair<uint64_t, void *>(D_CONST_ID, &scale_dropout));
-
-    // If training mode, we write out softmax stats
-    if (isTraining) {
-        data_ptrs.insert(
-                std::pair<uint64_t, void *>(S_STATS_ID, devPtrSoftmaxStats));
-    }
-
-    auto variantPack = cudnn_frontend::VariantPackBuilder()
-                               .setWorkspacePointer(workspace_ptr)
-                               .setDataPointers(data_ptrs)
-                               .build();
-    std::cout << "variantPack " << variantPack.describe() << std::endl;
-    cudnnStatus_t status = cudnnBackendExecute(
-            handle_, plan.get_raw_desc(), variantPack.get_raw_desc());
-    checkCudaErr(cudaDeviceSynchronize());
-    if (workspace_size > 0) { checkCudaErr(cudaFree(workspace_ptr)); }
-
-    cudnn_frontend::throw_if(
-            [status]() { return (status != CUDNN_STATUS_SUCCESS); },
-            "Plan execute error", status);
-}
-
 void run_f16_flash_attention_fprop(int64_t b, int64_t h, int64_t s_q,
         int64_t s_kv, int64_t d, MHA_Layout layout, float scaling_factor,
         bool isTraining, double dropout_probability, void *devPtrQ,
@@ -967,34 +850,6 @@ void run_f16_flash_attention_fprop(int64_t b, int64_t h, int64_t s_q,
     // Q * K^T
     auto sTensor = createQKBMM(b, h, s_q, s_kv, d, layout, tensorType, ops);
 
-    // Q * K^T * bmmScale
-    auto sScaleTensor = createScale(
-            b, h, s_q, s_kv, d, layout, CUDNN_DATA_FLOAT, sTensor, ops);
-
-    // Causual mask
-    float negInfinity
-            = -1.0E+20f; // change this if you have access to float_min
-    auto sAfterMaskTensor = createCausalMask(
-            b, h, s_q, s_kv, d, layout, tensorType, ops, sScaleTensor);
-
-    cudnn_frontend::throw_if(dropout_probability != 0.0f && !isTraining,
-            "Dropout probability should be 0.0f for inference mode",
-            CUDNN_STATUS_BAD_PARAM);
-    cudnn_frontend::throw_if(dropout_probability == 1.0f,
-            "Dropout probability cannot be 1.0", CUDNN_STATUS_BAD_PARAM);
-
-    // needs to be bf16 (Please change)
-    half1 scale_dropout = cpu_float2half_rn(
-            static_cast<float>(1 / (1 - dropout_probability)));
-
-    auto softmax_output = createSoftmaxForward(
-            b, h, s_q, s_kv, isTraining, ops, sAfterMaskTensor);
-
-    // Dropout(softmax)
-    auto dropout_output = createDropoutForward(b, h, s_q, s_kv, d,
-            dropout_probability, tensorType, ops, softmax_output);
-    createSVBMM(b, h, s_q, s_kv, d, layout, tensorType, ops, dropout_output);
-
     std::cout << "Total ops created: " << ops.size() << std::endl;
 
     for (unsigned int i = 0; i < ops.size(); i++) {
@@ -1003,7 +858,7 @@ void run_f16_flash_attention_fprop(int64_t b, int64_t h, int64_t s_q,
 
     // Create an Operation Graph
     auto opGraph = cudnn_frontend::OperationGraphBuilder()
-                           .setHandle(handle_)
+                           .setHandle(handle)
                            .setOperationGraph(all_ops.size(), all_ops.data())
                            .build();
 
