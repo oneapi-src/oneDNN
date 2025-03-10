@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 * Copyright 2023 FUJITSU LIMITED
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
@@ -28,6 +28,7 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
         // s8 -> s8
         {{s8, s8, 2}, {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::brgemm_matmul_copy_reorder_t))
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_direct_copy_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(s8, oi, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
@@ -50,6 +51,7 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
         // s8 -> s8
         {{s8, s8, 3}, {
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::brgemm_matmul_copy_reorder_t))
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_direct_copy_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(s8, any, s8, wio, fmt_order::keep, spec::conv_req_comp))
@@ -88,6 +90,7 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
             nullptr,
         }},
         {{s8, s8, 4}, {
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_direct_copy_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(s8, any, s8, hwio, fmt_order::keep, spec::conv_req_comp))
@@ -137,6 +140,7 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
             nullptr,
         }},
         {{s8, s8, 5}, {
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_direct_copy_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(s8, any, s8, hwigo, fmt_order::keep, spec::conv_req_comp))
@@ -183,6 +187,7 @@ const impl_list_map_t &comp_s8_s8_impl_list_map() {
             nullptr,
         }},
         {{s8, s8, 6}, {
+            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_direct_copy_t))
             DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
             DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
             DNNL_NON_X64_ONLY(REG_SR(s8, any, s8, dhwigo, fmt_order::keep, spec::conv_req_comp))

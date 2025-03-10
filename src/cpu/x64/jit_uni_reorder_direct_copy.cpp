@@ -309,9 +309,13 @@ status_t jit_uni_reorder_direct_copy_t::pd_t::init(
     VDISPATCH_REORDER(src_d.similar_to(dst_d, true, false, 0),
             VERBOSE_TENSOR_FORMAT_MISMATCH, "src", "dst");
 
-    VDISPATCH_REORDER(
-            utils::everyone_is(0UL, src_d.extra().flags, dst_d.extra().flags),
-            VERBOSE_UNSUPPORTED_MD_FLAG);
+    VDISPATCH_REORDER(src_d.extra().flags == dst_d.extra().flags,
+            VERBOSE_UNSUPPORTED_MD_FLAG, "src or dst");
+
+    VDISPATCH_REORDER(IMPLICATION(src_d.extra().flags > 0UL,
+                              src_d.additional_buffer_size()
+                                      == dst_d.additional_buffer_size()),
+            VERBOSE_UNSUPPORTED_MD_FLAG, "src or dst");
 
     VDISPATCH_REORDER(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
@@ -373,6 +377,17 @@ status_t jit_uni_reorder_direct_copy_t::execute(const exec_ctx_t &ctx) const {
         (*kernel_)(in + (start + src_d.offset0()) * src_dt_size,
                 out + (start + dst_d.offset0()) * dst_dt_size, end - start);
     });
+
+    if (src_d.is_additional_buffer()) {
+        // Verified in pd_t::init();
+        assert(src_d.extra().flags == dst_d.extra().flags);
+
+        const auto additional_size = src_d.additional_buffer_size();
+        const auto data_size = src_d.size(/* index = */ 0,
+                /* include_additional_size = */ false);
+        std::memcpy(out + data_size * dst_dt_size, in + data_size * src_dt_size,
+                additional_size);
+    }
 
     return status::success;
 }
