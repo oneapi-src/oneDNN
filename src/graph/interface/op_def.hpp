@@ -817,7 +817,7 @@ DNNL_GRAPH_OP_SCHEMA(PagedCacheLoad, 1,
                 .set_input(0, "src", "T1")
                 .set_input(1, "block_table", "T2")
                 .set_output(0, "dst", "T1")
-                .set_attr(op_attr::seq_lens, true, attribute_kind::is)
+                .set_attr(op_attr::seq_len, true, attribute_kind::i)
                 .set_type_constraints(
                         "T1", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_type_constraints("T2", {data_type::s32})

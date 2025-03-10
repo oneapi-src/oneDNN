@@ -1813,12 +1813,12 @@ void paged_cache_load_executable_t ::execute(const stream &stream,
             = static_cast<int32_t *>(block_table.get_data_handle());
     const auto seq_num = output_dims_[0];
     const auto head_num = output_dims_[1];
-    const auto max_seq_len = output_dims_[2];
+    const auto seq_len = output_dims_[2];
     const auto head_size = output_dims_[3];
     const auto block_size_ = cache_dims_[2];
 
     //     std::cout << "seq_num: " << seq_num << " head_num: " << head_num
-    //               << " max_seq_len: " << max_seq_len << " head_size: " << head_size
+    //               << " seq_len: " << seq_len << " head_size: " << head_size
     //               << " block_size: " << block_size_ << std::endl;
     //     std::cout << " output strides: " << output_strides_[3] << " "
     //               << output_strides_[2] << " " << output_strides_[1] << " "
@@ -1829,19 +1829,15 @@ void paged_cache_load_executable_t ::execute(const stream &stream,
     //     std::cout << " block_table strides: " << block_table_strides_[1] << " "
     //               << block_table_strides_[0] << std::endl;
 
-    // kv[seq_num, head_num, max_seq_len, head_size] = cache[block_table[seq_num, seq_len/block_size], head_num, k%block_size, head_size]
+    // kv[seq_num, head_num, seq_len, head_size] = cache[block_table[seq_num, seq_len/block_size], head_num, k%block_size, head_size]
     // #pragma omp parallel for collapse(4)
     for (int i = 0; i < seq_num; i++) {
         for (int j = 0; j < head_num; j++) {
-            for (int k = 0; k < max_seq_len; k++) {
+            for (int k = 0; k < seq_len; k++) {
                 for (int l = 0; l < head_size; l++) {
                     auto output_offset = i * output_strides_[0]
                             + j * output_strides_[1] + k * output_strides_[2]
                             + l * output_strides_[3];
-                    if (seq_lens_[i] < k) {
-                        // padding to the max_seq_len
-                        output_ptr[output_offset] = 0;
-                    } else {
                         auto block_num = block_table_ptr[i
                                         * block_table_strides_[0]
                                 + (k / block_size_) * block_table_strides_[1]];
@@ -1851,14 +1847,13 @@ void paged_cache_load_executable_t ::execute(const stream &stream,
                                 + l * cache_strides_[3];
                         output_ptr[output_offset] = cache_ptr[input_offset];
                         // std::cout << "seq_num: " << i << " head_num: " << j
-                        //           << " max_seq_len: " << k
+                        //           << " seq_len: " << k
                         //           << " head_size: " << l
                         //           << " block_num: " << block_num
                         //           << " input_offset: " << input_offset
                         //           << " output_offset: " << output_offset
                         //           << " value: " << output_ptr[output_offset]
                         //           << std::endl;
-                    }
                 }
             }
         }

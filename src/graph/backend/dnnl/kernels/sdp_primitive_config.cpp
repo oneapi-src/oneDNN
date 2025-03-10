@@ -441,11 +441,11 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
         ;
         md_block_indices_begin = make_dnnl_memory_desc(block_indices_begin_lt);
 
-        // prompt_lens [query_num + 1]
+        // prompt_lens [query_num]
         // 1D tensor with the same number of elements as query[1,1,query_num,head_num*head_size];
         logical_tensor_t prompt_lens_lt;
         prompt_lens_lt.ndims = 1;
-        prompt_lens_lt.dims[0] = q_lt.dims[0] + 1;
+        prompt_lens_lt.dims[0] = q_lt.dims[0];
         prompt_lens_lt.data_type = dnnl_data_type_t::dnnl_s32;
         prompt_lens_lt.layout_type = layout_type::strided;
         prompt_lens_lt.layout.strides[0] = 1;
@@ -454,11 +454,10 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
         md_prompt_lens = make_dnnl_memory_desc(prompt_lens_lt);
 
         // subsequence_begins [seq_num + 1]
-        // 1D tensor for the lenth of seq_lens of KV;
+        // 1D tensor for the lenth of seq_len of KV;
         //K&&V should have the same seq_len
         k_paged_cache_load_->has_same_attr_values(*v_paged_cache_load_);
-        auto seq_lens = k_paged_cache_load_->get_attr<std::vector<int64_t>>(
-                op_attr::seq_lens);
+        auto seq_len = k_paged_cache_load_->get_attr<int64_t>(op_attr::seq_len);
         logical_tensor_t subsequence_begins_lt;
         subsequence_begins_lt.ndims = 1;
         subsequence_begins_lt.dims[0] = q_lt.dims[0] + 1;
@@ -506,11 +505,9 @@ status_t sdp_primitive_config_t::init(std::shared_ptr<subgraph_t> &sg,
                 md_block_indices_begin.get()));
         status = sdpa_pd_->create_primitive(sdpa_prim_, p_engine.get());
     } else {
-        const auto seq_lens
-                = k_paged_cache_load_->get_attr<std::vector<int64_t>>(
-                        op_attr::seq_lens);
-        const auto context_len
-                = std::accumulate(seq_lens.begin(), seq_lens.end(), int64_t(0));
+        const auto seq_len
+                = k_paged_cache_load_->get_attr<int64_t>(op_attr::seq_len);
+        const auto context_len = seq_len * q_->get_logical_tensor().dims[0];
         paged_sdpa_pd_ = std::make_shared<dnnl::sdpa_micro::primitive_desc>(
                 p_engine, context_len, md_q_pa, md_k_cache, md_v_cache, md_dst,
                 md_mask, md_prompt_lens, md_subsequence_begins,

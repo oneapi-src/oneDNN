@@ -298,6 +298,8 @@ typedef enum {
     dnnl_graph_op_attr_begin_norm_axis,
     /// Specifies a groups attribute to an op.
     dnnl_graph_op_attr_groups,
+    /// Specifies a len of sequence to an op.
+    dnnl_graph_op_attr_seq_len,
 
     // int64_t vector attributes. The value of these attributes can be a vector
     // of int64 numbers.
@@ -318,8 +320,6 @@ typedef enum {
     dnnl_graph_op_attr_pads_begin,
     /// Specifies a pads_end attribute to an op.
     dnnl_graph_op_attr_pads_end,
-    /// Specifies a lens of sequences to an op.
-    dnnl_graph_op_attr_seq_lens,
     /// Specifies a shape attribute to an op.
     dnnl_graph_op_attr_shape,
     /// Specifies a sizes attribute to an op.

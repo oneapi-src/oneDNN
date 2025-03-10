@@ -2543,10 +2543,9 @@ struct paged_cache_load_executable_t : public op_executable_t {
         block_table_strides_[0] = block_table_lt.layout.strides[0];
         block_table_strides_[1] = block_table_lt.layout.strides[1];
         const auto &output_lt = op->get_output_value(0)->get_logical_tensor();
-        const auto seq_lens = op->get_attr<std::vector<int64_t>>(
-                dnnl::impl::graph::op_attr::seq_lens);
+        seq_len_ = op->get_attr<int64_t>(dnnl::impl::graph::op_attr::seq_len);
+
         for (int i = 0; i < ndims_; i++) {
-            seq_lens_[i] = seq_lens[i];
             cache_dims_[i] = cache_lt.dims[i];
             cache_strides_[i] = cache_lt.layout.strides[i];
             output_dims_[i] = output_lt.dims[i];
@@ -2579,8 +2578,9 @@ struct paged_cache_load_executable_t : public op_executable_t {
 
 private:
     int nelems_, ndims_;
-    dims_t seq_lens_, cache_dims_, cache_strides_, block_table_strides_,
-            output_dims_, output_strides_;
+    dim seq_len_;
+    dims_t cache_dims_, cache_strides_, block_table_strides_, output_dims_,
+            output_strides_;
 };
 
 } // namespace dnnl_impl

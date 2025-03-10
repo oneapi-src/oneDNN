@@ -270,7 +270,7 @@ const op_attr_t weights_format = dnnl_graph_op_attr_weights_format;
 const op_attr_t mode = dnnl_graph_op_attr_mode;
 const op_attr_t qtype = dnnl_graph_op_attr_qtype;
 const op_attr_t rounding_type = dnnl_graph_op_attr_rounding_type;
-const op_attr_t seq_lens = dnnl_graph_op_attr_seq_lens;
+const op_attr_t seq_len = dnnl_graph_op_attr_seq_len;
 // Used to indicate the end of all external attributes, note all the new
 // attribute should be added above this one.
 const op_attr_t end = dnnl_graph_op_attr_end;

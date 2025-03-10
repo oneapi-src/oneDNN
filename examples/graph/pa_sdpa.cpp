@@ -38,7 +38,7 @@ using dims = logical_tensor::dims;
 
 struct pa_sdpa_dims_t {
     dim mb;
-    dims seq_lens;
+    dim seq_len;
     dim head_num;
     dim head_size;
     dim query_num;
@@ -114,10 +114,8 @@ const char *get_type_string(logical_tensor::data_type dt) {
 
 void print_test_case(logical_tensor::data_type dt, const pa_sdpa_dims_t &p) {
     std::cout << '[' << std::setw(4) << get_type_string(dt);
-    std::cout << " mb = " << p.mb << ", seq_lens = ";
-    for (const auto &seq_len : p.seq_lens)
-        std::cout << seq_len << " ";
-    std::cout << ", head_num = " << p.head_num
+    std::cout << " mb = " << p.mb << ", seq_len = " << p.seq_len
+              << ", head_num = " << p.head_num
               << ", head_size = " << p.head_size
               << ", query_num = " << p.query_num;
     std::cout << "] " << std::flush;
@@ -135,19 +133,17 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // Create dnnl::stream.
     dnnl::stream strm(eng);
 
-    const auto max_seq_len
-            = *std::max_element(p.seq_lens.begin(), p.seq_lens.end());
-    const auto max_block_per_seq
-            = (max_seq_len + p.block_size - 1) / p.block_size;
+    const auto seq_len = p.seq_len;
+    const auto max_block_per_seq = (seq_len + p.block_size - 1) / p.block_size;
     // Prepare input and output shapes to construct the sdpa graph.
     const dims qv_sz = {p.mb, p.head_num, p.query_num, p.head_size};
     const dims kv_cache_sz
             = {p.block_num, p.head_num, p.block_size, p.head_size};
     const dims block_table_sz = {p.mb, max_block_per_seq};
-    const dims k_sz = {p.mb, p.head_num, max_seq_len, p.head_size};
-    const dims score_sz = {p.mb, p.head_num, p.query_num, max_seq_len};
+    const dims k_sz = {p.mb, p.head_num, seq_len, p.head_size};
+    const dims score_sz = {p.mb, p.head_num, p.query_num, seq_len};
     const dims scale_sz = {1};
-    const dims mask_sz = {p.mb, 1, p.query_num, max_seq_len};
+    const dims mask_sz = {p.mb, 1, p.query_num, seq_len};
     // Incremental IDs used to create logical tensors and operations.
     size_t id = 0;
 
@@ -161,8 +157,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     k_paged_cache_load.add_inputs({k_cache});
     k_paged_cache_load.add_inputs({k_block_table});
     k_paged_cache_load.add_outputs({key});
-    k_paged_cache_load.set_attr<std::vector<int64_t>>(
-            op::attr::seq_lens, p.seq_lens);
+    k_paged_cache_load.set_attr<int64_t>(op::attr::seq_len, p.seq_len);
 
     // score = query x key.T
     auto query = logical_tensor(id++, dt, qv_sz, layout_type::strided);
@@ -204,8 +199,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
             = op(id++, op::kind::PagedCacheLoad, "v_pagedCacheLoad");
     v_paged_cache_load.add_inputs({v_cache, v_block_table});
     v_paged_cache_load.add_outputs({value});
-    v_paged_cache_load.set_attr<std::vector<int64_t>>(
-            op::attr::seq_lens, p.seq_lens);
+    v_paged_cache_load.set_attr<int64_t>(op::attr::seq_len, p.seq_len);
 
     // attention_output = attention_probs x value
     auto output = logical_tensor(id++, dt, qv_sz, layout_type::strided);
@@ -261,7 +255,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     fill_random(query_data);
     fill_random(k_cache_data);
     fill_random(v_cache_data);
-    fill_mask(mask_data, static_cast<size_t>(max_seq_len));
+    fill_mask(mask_data, static_cast<size_t>(seq_len));
     fill_random_int(k_block_table_data, p.block_num);
     fill_random_int(v_block_table_data, p.block_num);
 
@@ -317,7 +311,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
 
 void bad_args() {
     std::cerr << "Usage: graph-pa-sdpa-cpp [cpu|gpu]\n"
-                 "       graph-pa-sdpa-cpp [cpu|gpu] <mb> <seq_len[mb]> "
+                 "       graph-pa-sdpa-cpp [cpu|gpu] <mb> <seq_len> "
                  "<head_num> <head_size> <query_num>\n\n"
                  "On CPU, it's recommended to test with numactl and memory "
                  "allocation tools like jemalloc or tcmalloc.\n\n";
@@ -342,7 +336,7 @@ void bench(engine::kind ekind, dnnl_data_type_t dt, const pa_sdpa_dims_t &p,
 
 // struct pa_sdpa_dims_t {
 //     dim mb;
-//     dims seq_lens;
+//     dim seq_len;
 //     dim head_num;
 //     dim head_size;
 //     dim query_num;
@@ -352,17 +346,16 @@ void bench(engine::kind ekind, dnnl_data_type_t dt, const pa_sdpa_dims_t &p,
 
 void sdpa_perf(engine::kind ekind, int argc, char **argv) {
     // default testing parameters
-    pa_sdpa_dims_t params = {4, {8, 8, 8, 8}, 16, 64, 1, 256, 32};
+    pa_sdpa_dims_t params = {4, 8, 16, 64, 1, 256, 32};
 
     if (argc > 2) {
-        params.mb = std::atoi(argv[2]);
+        int i = 2;
+        params.mb = std::atoi(argv[i++]);
         if (params.mb <= 0 || argc != 7 + params.mb) { bad_args(); }
 
-        for (int i = 0; i < params.mb; i++) {
-            params.seq_lens.push_back(std::atoi(argv[3 + i]));
-            if (params.seq_lens[i] <= 0) { bad_args(); }
-        }
-        int i = 3 + params.mb;
+        params.seq_len = std::atoi(argv[i++]);
+        if (params.seq_len <= 0) { bad_args(); }
+
         params.query_num = std::atoi(argv[i++]);
         params.head_num = std::atoi(argv[i++]);
         params.head_size = std::atoi(argv[i++]);

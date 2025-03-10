@@ -1740,7 +1740,7 @@ status_t infer_groupnorm_output_shape(op_t *n,
 // input 0: cache tensor, shape [block_num, head_num, block_size, head_size]
 // input 1: indices tensor, shape [batch_size, max_block]
 // output: output tensor, shape [batch_size, head_num, max_seq_len, head_size]
-// attributes: seq_lens, shape [batch_size]
+// attributes: seq_len, shape [batch_size]
 status_t infer_paged_cache_load_output_shape(op_t *n,
         std::vector<logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
@@ -1750,9 +1750,9 @@ status_t infer_paged_cache_load_output_shape(op_t *n,
     const auto cache_dims = cache.vdims();
     const auto indices_dims = indices.vdims();
     const auto out_dims = out.vdims();
-    const auto seq_lens = n->has_attr(op_attr::seq_lens)
-            ? n->get_attr<std::vector<int64_t>>(op_attr::seq_lens)
-            : std::vector<int64_t> {};
+    const auto seq_len = n->has_attr(op_attr::seq_len)
+            ? n->get_attr<int64_t>(op_attr::seq_len)
+            : 0;
 
     VCHECK_INVALID_SHAPE((cache_dims.size() == 4),
             "%s, cache should have 4 dims, given dims: %zu ",
@@ -1762,16 +1762,11 @@ status_t infer_paged_cache_load_output_shape(op_t *n,
             "%s, indices should have 2 dims, given dims: %zu ",
             op_t::kind2str(n->get_kind()).c_str(), indices_dims.size());
 
-    VCHECK_INVALID_SHAPE((seq_lens.size() == indices_dims[0]),
-            "%s, seq_lens should have the same size as indices[0], given "
-            "seq_lens size: %zu, indices[0]: %d ",
-            op_t::kind2str(n->get_kind()).c_str(), seq_lens.size(),
-            indices_dims[0]);
+    VCHECK_INVALID_SHAPE((seq_len > 0),
+            "%s, seq_len should be greater than 0, given seq_len: %d ",
+            op_t::kind2str(n->get_kind()).c_str(), seq_len);
 
-    const auto max_seq_len
-            = *std::max_element(seq_lens.begin(), seq_lens.end());
-    dims output_dims
-            = {indices_dims[0], cache_dims[1], max_seq_len, cache_dims[3]};
+    dims output_dims = {indices_dims[0], cache_dims[1], seq_len, cache_dims[3]};
 
     // check if output shape is already known
     if (!out.is_shape_unknown()) {

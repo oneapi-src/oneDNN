@@ -884,6 +884,8 @@ public:
         begin_norm_axis = dnnl_graph_op_attr_begin_norm_axis,
         /// Specifies a groups attribute to an op.
         groups = dnnl_graph_op_attr_groups,
+        /// Specifies the sequence length of an op.
+        seq_len = dnnl_graph_op_attr_seq_len,
 
         // int64_t vector attributes. The value of these attributes can be a
         // vector of int64 numbers.
@@ -922,8 +924,6 @@ public:
         /// size, which indicates the number of elements that will share the
         /// same scaling factor.
         group_shape = dnnl_graph_op_attr_group_shape,
-        /// Specifies the sequence lengths of an op.
-        seq_lens = dnnl_graph_op_attr_seq_lens,
 
         // bool attributes. The value of these attributes can be any single bool
         // value.

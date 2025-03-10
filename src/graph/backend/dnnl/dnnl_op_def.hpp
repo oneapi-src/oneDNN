@@ -1141,7 +1141,7 @@ DNNL_GRAPH_OP_SCHEMA(dnnl_paged_cache_load, 1,
                 .set_input(0, "input")
                 .set_input(1, "block_table")
                 .set_output(0, "output")
-                .set_attr(op_attr::seq_lens, true, attribute_kind::is)
+                .set_attr(op_attr::seq_len, true, attribute_kind::i)
                 .SET_ATTR_IS_CONSTANT // used for constant prop and cache
                 // Analysis rules
                 .set_shape_inference_function(
