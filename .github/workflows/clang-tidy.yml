@@ -53,7 +53,7 @@ jobs:
 
       - name: Check source files
         run: |
-          echo -e "Checking $(clang-tidy --version)\n"
+          echo -e "Checking Clang-Tidy $(clang-tidy --version)\n"
           touch source-check.log
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp$'); 
           do
@@ -71,7 +71,7 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          echo -e "Checking $(clang-tidy --version)\n"
+          echo -e "Checking Clang-Tidy $(clang-tidy --version)\n"
           touch headers-check.log
           for file in $(git diff --name-only ${{ github.event.pull_request.base.sha }} | grep -E '\.cpp$'); 
           do
