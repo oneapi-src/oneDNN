@@ -220,6 +220,9 @@ status_t mqa_decomp_kernel_t<quantized, dt>::execute_impl(
         //reorder3
         auto &sub_dst_user_tid = res->mem_map[mqa_cfg_.sub_dst_user.get()][tid];
 
+        // matmul2
+        auto &sub_mm2_dst_tid = res->mem_map[mqa_cfg_.sub_mm2_dst.get()][tid];
+
         const size_t sub_src1_offset
                 = bo * M1 * K1 * get_mem_dt_size(sub_src1_tid);
         const size_t sub_wei1_offset = (bo * MBI * K1 * N1 + bi * N1)
@@ -238,6 +241,14 @@ status_t mqa_decomp_kernel_t<quantized, dt>::execute_impl(
                 post_add_user_pointer + sub_post_add_offset);
         sub_dst_user_tid.set_data_handle(
                 dst2_user_pointer + sub_dst_user_offset);
+
+        // If the last reorder is inplace, it means we don't have to do
+        // extra reorder, thus we should set matmul's output to the user's
+        // output directly.
+        if (mqa_cfg_.sub_reorder3.get_inplace()) {
+            sub_mm2_dst_tid.set_data_handle(
+                    dst2_user_pointer + sub_dst_user_offset);
+        }
 
         // in parallel region - these primitives should use single thread.
         mqa_cfg_.sub_reorder0.execute(strm, res->sub_reorder0_args[tid]);

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,6 +48,8 @@ public:
         reorder_ = dnnl::reorder(pd);
         return status::success;
     }
+
+    bool get_inplace() const { return is_inplace_; }
 
     status_t execute(const dnnl::stream &astream,
             const std::unordered_map<int, dnnl::memory> &args) const {
