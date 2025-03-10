@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -39,7 +39,10 @@ flag_t str2flag(const char *str) {
     else if (sub.compare("zp_comp") == 0)
         flag = FLAG_ZP_COMP;
     else {
-        assert(!"unknown flag");
+        BENCHDNN_PRINT(0,
+                "Error: unsupported flag value \'%s\'. Supported values are "
+                "\'s8s8_comp\' and \'zp_comp\'.\n",
+                sub.c_str());
         SAFE_V(FAIL);
     }
 
