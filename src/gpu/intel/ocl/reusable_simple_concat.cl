@@ -242,24 +242,28 @@ reusable_simple_concat(__global DATA_T *dst, const ulong dst_offset0,
 #define BBLOCK_WRITE BLOCK_WRITE
 #define DDATA_T DATA1_T
 #define AS_VEC as_ulong
+#define ITEMMASK(n) (0xFFFFFFFFFFFFFFFFUL)
 #elif DATA_TYPE_SIZE == 4
 #define NPERSG 2
 #define BBLOCK_READ BLOCK_READ2
 #define BBLOCK_WRITE BLOCK_WRITE2
 #define DDATA_T DATA2_T
 #define AS_VEC as_uint2
+#define ITEMMASK(n) (0xFFFFFFFFUL << ((n)*DATA_TYPE_SIZE * 8))
 #elif DATA_TYPE_SIZE == 2
 #define NPERSG 4
 #define BBLOCK_READ BLOCK_READ4
 #define BBLOCK_WRITE BLOCK_WRITE4
 #define DDATA_T DATA4_T
 #define AS_VEC as_ushort4
+#define ITEMMASK(n) (0xFFFFUL << ((n)*DATA_TYPE_SIZE * 8))
 #elif DATA_TYPE_SIZE == 1
 #define NPERSG 8
 #define BBLOCK_READ BLOCK_READ8
 #define BBLOCK_WRITE BLOCK_WRITE8
 #define DDATA_T DATA8_T
 #define AS_VEC as_uchar8
+#define ITEMMASK(n) (0xFFUL << ((n)*DATA_TYPE_SIZE * 8))
 #endif
 
 /*
@@ -287,7 +291,7 @@ internal_padding_block_concat2(__global DATA_T *dst,
         const idx_t src_concat_axis1, const idx_t src_padded_concat_axis1,
         const idx_t inner_dim) {
 
-    const size_t dtsize = DATA_TYPE_SIZE;
+    const int dtsize = DATA_TYPE_SIZE;
     const int loads_per_sg = NPERSG;
     const int elems_per_sg = SIMD * loads_per_sg;
 
@@ -297,10 +301,10 @@ internal_padding_block_concat2(__global DATA_T *dst,
     const unsigned B0 = 1;
 #endif
 
-    const size_t first_boundary_block
+    const idx_t first_boundary_block
             = ((DIV_UP(src_concat_axis0, B0) - 1) * inner_dim);
-    const size_t last_boundary_block = first_boundary_block + inner_dim - 1;
-    const size_t tot_boundary_block
+    const idx_t last_boundary_block = first_boundary_block + inner_dim - 1;
+    const idx_t tot_boundary_block
             = (DIV_UP(dst_padded_concat_axis, B0) * inner_dim);
 
     // TODO: host side check, if blocks_per_sg > #blocks in src0, use legacy method instead
@@ -315,33 +319,34 @@ internal_padding_block_concat2(__global DATA_T *dst,
     __global const DATA_T *src;
 
     // within block idx, ex: 0-7, 0-15, 0-23, 0-31
-    size_t blid = get_local_id(0) % B0;
+    idx_t blid = get_local_id(0) % B0;
 
-    size_t id_start = get_group_id(0) * elems_per_sg + get_local_id(0);
-    long bii = id_start / B0;
+    idx_t id_start = get_group_id(0) * elems_per_sg + get_local_id(0);
+    idx_t bii = id_start / B0;
 
-    size_t sg_first_bii = get_group_id(0) * elems_per_sg / B0;
+    idx_t sg_first_bii = get_group_id(0) * elems_per_sg
+            / B0; //TODO: replace elems/B0 w/blocks_per_subgroup?
 
     // index along concat dimension
-    long ic = (bii / inner_dim) * B0 + blid;
-    long ic_end = ((bii + blocks_per_sg) / inner_dim) * B0 + blid;
+    idx_t ic = (bii / inner_dim) * B0 + blid;
+    idx_t ic_end = ((bii + blocks_per_sg) / inner_dim) * B0 + blid;
 
-    size_t sg_last_bii = sg_first_bii + blocks_per_sg
+    idx_t sg_last_bii = sg_first_bii + blocks_per_sg
             - 1; //TODO: verify w/B0 > sg_tot_elems
 
-    size_t ccsz
+    idx_t ccsz
             = src_concat_axis0; // (31) padded concat dimension for calculating batched src
-    size_t padded_ccsz
+    idx_t padded_ccsz
             = padded_offset1; // (32) padded concat dimension for calculating batched src
 
-    size_t cutoff
+    idx_t cutoff
             = 0; // determines boundary offset for write sg that spans multiple layout blocks
     bool boundary = false; // current sg spans boundary between two inputs?
 
-    size_t batch_offset = inner_dim * padded_ccsz * get_global_id(1);
-    size_t batch_offset1
+    idx_t batch_offset = inner_dim * padded_ccsz * get_global_id(1);
+    idx_t batch_offset1
             = inner_dim * src_padded_concat_axis1 * get_global_id(1);
-    size_t ext_batch_offset
+    idx_t ext_batch_offset
             = inner_dim * dst_padded_concat_axis * get_global_id(1);
 
     // completely aligned r/w blocks, no boundary src case nor misaligned reads
@@ -350,14 +355,16 @@ internal_padding_block_concat2(__global DATA_T *dst,
         DDATA_T val = BBLOCK_READ(src0 + batch_offset + sg_first_bii * B0);
         BBLOCK_WRITE(dst + ext_batch_offset + sg_first_bii * B0, val);
     } else if (sg_first_bii > last_boundary_block) {
+
         // if sg_bii0 fully within second source, update src_bii+other idx vars to match src1
-        long src_blid = (ic - src_concat_axis0) % B0;
-        long src_bii = sg_first_bii
+        idx_t src_blid = (ic - src_concat_axis0) % B0;
+        idx_t src_bii = sg_first_bii
                 - ((padded_offset1 / B0)
                         * inner_dim); // update inner logical block idx to 0-nblocks read range for src1
         if (src_bii < 0) { src_bii += inner_dim; }
 
-        long sg_last_src_bii = src_bii + blocks_per_sg - 1;
+        idx_t sg_last_src_bii = src_bii + blocks_per_sg - 1;
+
         ccsz = src_concat_axis1 - src_concat_axis0;
         // TODO change dst_padded_concat_axis to padded_offset2? //TODO!!!! THIS IS WRONG
         padded_ccsz = dst_padded_concat_axis
@@ -366,13 +373,13 @@ internal_padding_block_concat2(__global DATA_T *dst,
 
         cutoff = (B0 + (offset1 - padded_offset1) % B0)
                 % B0; // positive modulo( offset/padded_offset , block size) |-|-------|
-                // this cutoff will continue in following misaligned(multi-cacheline/ block src)
+        // this cutoff will continue in following misaligned(multi-cacheline/ block src)
 
         DDATA_T aVal = BBLOCK_READ(src1 + batch_offset1 + src_bii * B0);
-        long next_block = src_bii
+        idx_t next_block = src_bii
                 + inner_dim; //offset to read next required block for second half of cutoff
-        long next_last_block = next_block + blocks_per_sg - 1;
-        const size_t tot_src1_block
+        idx_t next_last_block = next_block + blocks_per_sg - 1;
+        const idx_t tot_src1_block
                 = (DIV_UP(src_padded_concat_axis1, B0) * inner_dim);
         DDATA_T bVal;
         if (next_last_block > tot_src1_block) {
@@ -411,17 +418,20 @@ internal_padding_block_concat2(__global DATA_T *dst,
             aVal = bVal;
         }
 
-        if (ic >= dst_concat_axis) {
-            aVal = 0;
-        } //depends todo: depends where each read falls, whether in range or not TODO: match for loop in BB case
+        const unsigned blocks_per_simd1
+                = SIMD / B0; // WRONG! TODO: what if SIMD > B0?
+        if (ic >= dst_concat_axis) { aVal = 0; }
 
-        unsigned blocks_per_simd1 = SIMD / B0; //WRONG! TODO: what if SIMD > B0?
-        if (ic_end >= dst_concat_axis) {
+        if (ic < dst_concat_axis && ic_end >= dst_concat_axis) {
 #if NPERSG > 1 // TODO: reformulate as &= 0x00FFFF...
-            for (int i = 0; i < NPERSG; ++i) {
+            unroll_for(int i = 0; i < NPERSG; ++i) {
                 if ((((bii + i * blocks_per_simd1) / inner_dim) * B0 + blid)
                         >= dst_concat_axis) {
-                    aVal[i] = 0; // NOT OK! slow af
+                    //aVal = AS_VEC(as_ulong(aVal) & ITEMMASK(i)); // aVal[i] element access is slow, especially per-byte (u8)
+                    aVal = AS_VEC(as_ulong(aVal)
+                            & 0xFFFFFFFFFFFFFFFF >> i * DATA_TYPE_SIZE
+                                            * 8); // aVal[i] element access is slow, especially per-byte (u8)
+                    break;
                 }
             }
 #else
@@ -451,8 +461,8 @@ internal_padding_block_concat2(__global DATA_T *dst,
         DDATA_T aVal = BBLOCK_READ(src0 + batch_offset + sg_first_bii * B0);
         // since these are "boundary" blocks load corresponding blocks from next source, TODO: what if sg span > boundary? due to long sg reads, maybe set minimum problem sized to avoid edge case logic?
 
-        long next_blid = (ic - src_concat_axis0) % B0;
-        long next_bii = sg_first_bii
+        idx_t next_blid = (ic - src_concat_axis0) % B0;
+        idx_t next_bii = sg_first_bii
                 - ((padded_offset1 / B0)
                         * inner_dim); // update inner logical block idx to 0-nblocks read range for src1
         if (next_bii < 0) {
@@ -470,7 +480,7 @@ internal_padding_block_concat2(__global DATA_T *dst,
                 ? sg_last_bii - last_boundary_block
                 : 0; //sg span ends after boundary span
 
-        long sg_last_next_bii
+        idx_t sg_last_next_bii
                 = next_bii + blocks_per_sg - 1; //sg span in next src
 
         ccsz = src_concat_axis1 - src_concat_axis0;
@@ -481,7 +491,7 @@ internal_padding_block_concat2(__global DATA_T *dst,
 
         cutoff = (B0 + (offset1 - padded_offset1) % B0)
                 % B0; // positive modulo( offset/padded_offset , block size) |-|-------|
-                // this cutoff will continue in following misaligned(multi-cacheline/ block src)
+        // this cutoff will continue in following misaligned(multi-cacheline/ block src)
 
         unsigned blocks_per_simd1 = SIMD / B0; //WRONG! TODO: what if SIMD > B0?
         DDATA_T bVal = BBLOCK_READ(src1 + batch_offset1 + next_bii * B0);
@@ -502,7 +512,7 @@ internal_padding_block_concat2(__global DATA_T *dst,
         DDATA_T cVal;
         if (trailing_boundary_shift) {
             // long trailing_bii = sg_last_next_bii - blocks_per_sg - trailing_boundary_shift;
-            long trailing_bii = 0;
+            idx_t trailing_bii = 0;
             cVal = BBLOCK_READ(src1 + batch_offset1 + trailing_bii * B0);
 
             int block_dt = (blocks_per_sg - trailing_boundary_shift);
@@ -526,7 +536,6 @@ internal_padding_block_concat2(__global DATA_T *dst,
             trailmask = (0xFFFFFFFFFFFFFFFF << (ntrail * DATA_TYPE_SIZE * 8))
                     >> (ntrail * DATA_TYPE_SIZE
                             * 8); // explicitly ignore any reads past boundary blocks
-
             if (cutoff > 0
                     && (ic % B0)
                             >= cutoff) { // TODO: should change together with sg_shuffle_dt sizeof(B0)
@@ -534,9 +543,8 @@ internal_padding_block_concat2(__global DATA_T *dst,
                 aVal |= offset_vec_data;
             }
 
-            if (cutoff > 0
-                    && (ic % B0)
-                            < cutoff) { // TODO: should change together with sg_shuffle_dt sizeof(B0)
+            if (cutoff > 0 && (ic % B0) < cutoff) {
+                // TODO: should change together with sg_shuffle_dt sizeof(B0)
                 aVal = AS_VEC(as_ulong(aVal) & trailmask);
             }
 
@@ -549,15 +557,20 @@ internal_padding_block_concat2(__global DATA_T *dst,
             if (cutoff > 0
                     && (get_local_id(0) % B0)
                             < cutoff) { // TODO: should change together with sg_shuffle_dt sizeof(B0)
-                aVal |= cVal;
+                aVal = AS_VEC(as_ulong(aVal) | (as_ulong(cVal) & ~trailmask));
             }
 
-            if (ic_end >= dst_concat_axis) {
-#if NPERSG > 1 // TODO: reformulate as &= 0x00FFFF...
+            // TODO: doublecheck needed
+            if (ic > dst_concat_axis) { aVal = 0; } // TODO: doublecheck needed
+            if (ic < dst_concat_axis && ic_end >= dst_concat_axis) {
+#if NPERSG > 1
                 for (int i = 0; i < NPERSG; ++i) {
                     if ((((bii + i) / inner_dim) * B0 + blid)
                             >= dst_concat_axis) {
-                        aVal[i] = 0;
+                        aVal = AS_VEC(as_ulong(aVal)
+                                & 0xFFFFFFFFFFFFFFFF >> i * DATA_TYPE_SIZE
+                                                * 8); // aVal[i] element access is slow, especially per-byte (u8)
+                        break;
                     }
                 }
 #else

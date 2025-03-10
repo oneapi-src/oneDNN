@@ -122,9 +122,7 @@ public:
             padding_type_ = padding_t::external;
 
         if (padding_type_ == padding_t::internal) {
-            // may use different kernel, requires different partition for blocks
             chunk_size_ = math::gcd(chunk_size_, source_chunk);
-            //chunk_size_ = 1;
         } else {
             chunk_size_ = math::gcd(chunk_size_, pdim);
             padded_chunk_size_ = math::gcd(padded_chunk_size_, source_chunk);
@@ -134,6 +132,7 @@ public:
 
     data_type_t data_type() const { return data_type_; }
     size_t data_type_size() const { return types::data_type_size(data_type_); }
+    void set_pessimistic_chunk_size() { chunk_size_ = 1; }
 
     dim_t max_write_size() const {
         dim_t write_size = 1;
