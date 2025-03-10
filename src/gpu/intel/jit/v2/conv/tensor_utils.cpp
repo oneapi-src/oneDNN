@@ -136,7 +136,8 @@ layout_tag_t append_groups(
         }
     }
     auto desc = make_conv_layout_desc(tensor_kind, /*src_dst_with_group=*/true);
-    return layout_tag_t(desc, layout_tag.type(), new_raw_tag);
+    return layout_tag_t(
+            desc, layout_tag.type(), new_raw_tag, layout_tag.is_strided());
 }
 
 uint32_t append_groups(tensor_kind_t tensor_kind, uint32_t mask, bool is_dw) {
@@ -174,7 +175,12 @@ layout_t make_conv_layout(tensor_kind_t tensor_kind, const layout_tag_t &_tag,
         } else {
             block_size_expr = rem_size(dim, blocks);
         }
-        ret.add_block(dim, block_size_expr);
+        if (tag.is_strided() && it != entries.rbegin()) {
+            auto stride = prb_stride(dim, tensor_kind);
+            ret.add_block(dim, block_size_expr,
+                    stride.is_undef() ? expr_t(0) : stride.var());
+        } else
+            ret.add_block(dim, block_size_expr);
     }
     return ret;
 }
@@ -201,18 +207,27 @@ std::string blocked_to_str_tag(const memory_desc_t &md) {
     for (int i = 0; i < ndims; i++) {
         bool found = false;
         dim_t min_dim = std::numeric_limits<dim_t>::max();
+        dim_t min_stride = std::numeric_limits<dim_t>::max();
         for (int j = 0; j < ndims; j++) {
-            if (!seen[j] && blk.strides[j] == stride) {
-                min_dim = std::min(min_dim, rem_dims[j]);
+            if (!seen[j]
+                    && ((blk.strides[j] == stride)
+                            || (blk.strides[j] > stride))) {
+                if (blk.strides[j] < min_stride)
+                    min_dim = rem_dims[j];
+                else if (blk.strides[j] == min_stride)
+                    min_dim = std::min(min_dim, rem_dims[j]);
+                min_stride = std::min(min_stride, blk.strides[j]);
             }
         }
         for (int j = ndims - 1; j >= 0; j--) {
-            if (!seen[j] && blk.strides[j] == stride) {
+            if (!seen[j]
+                    && (blk.strides[j] == stride
+                            || blk.strides[j] == min_stride)) {
                 // Size-one blocks have to be added first.
                 if (min_dim == 1 && rem_dims[j] != min_dim) continue;
                 bool is_blocked = (full_inner_blks[j] != 1);
                 parts.push_back(std::string(1, dim_idx::as_tag(j, is_blocked)));
-                stride *= rem_dims[j];
+                stride = rem_dims[j] * blk.strides[j];
                 seen[j] = true;
                 found = true;
                 break;
@@ -247,13 +262,15 @@ layout_tag_t make_conv_layout_tag(tensor_kind_t tensor_kind,
     bool is_any = (md.format_kind == format_kind::any);
     bool is_blocked = (md.format_kind == format_kind::blocked);
     gpu_assert(is_any || is_blocked);
+    memory_desc_wrapper mdw(md);
+    bool is_strided = (mdw.is_plain() && !mdw.is_dense());
     auto desc = make_conv_layout_desc(tensor_kind);
     type_t type(md.data_type);
     if (is_any) return layout_tag_t(desc, type, layout_raw_tag_t::any());
     auto str_tag = blocked_to_str_tag(md);
     auto raw_tag = layout_raw_tag_t(str_tag);
     raw_tag = normalize_conv_tag(tensor_kind, conv_ndims, raw_tag);
-    return layout_tag_t(desc, type, raw_tag);
+    return layout_tag_t(desc, type, raw_tag, is_strided);
 }
 
 dim_mapper_manager_t::dim_mapper_manager_t(

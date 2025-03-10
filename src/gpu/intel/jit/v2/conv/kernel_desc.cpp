@@ -246,7 +246,11 @@ bool is_grf_usage_ok(const kernel_desc_t &desc) {
 }
 
 prb_reqs_t kernel_desc_t::reqs() const {
-    return generate_2d_reqs(*this);
+    auto reqs = generate_2d_reqs(*this);
+    set_stride_reqs(tensor_kind_t::src, src_tag, reqs);
+    set_stride_reqs(tensor_kind_t::wei, wei_tag, reqs);
+    set_stride_reqs(tensor_kind_t::dst, dst_tag, reqs);
+    return reqs;
 }
 
 bool kernel_desc_t::is_supported(const hw_t &hw, const problem_t *prb) const {
@@ -327,6 +331,23 @@ void kernel_desc_t::set_defaults() {
     }
 }
 
+void kernel_desc_t::set_stride_reqs(tensor_kind_t kind,
+        const layout_tag_t &desc_tag, prb_reqs_t &reqs) const {
+    if (desc_tag.is_strided()) {
+        std::vector<pvar_t> dims;
+        auto tag = append_groups(kind, desc_tag, is_dw);
+        auto entries = tag.raw_tag().entries();
+        for (auto it = entries.rbegin(); it != entries.rend(); it++) {
+            auto dim = tag.desc().prb_dim(it->index());
+            if (prb_stride(dim, kind).is_undef()) continue;
+            if (it == entries.rbegin())
+                reqs.add(prb_stride(dim, kind).var() == expr_t(1));
+            reqs.add_stride_reqs(prb_stride(dim, kind), dims);
+            dims.push_back(dim);
+        }
+    }
+}
+
 bool is_compatible(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
         const problem_t &prb, bool exact) {
     auto &desc_tag = kernel_desc.layout_tag(abc);
@@ -340,8 +361,10 @@ bool is_compatible(tensor_kind_t abc, const kernel_desc_t &kernel_desc,
             && kernel_desc.ext.has(extensions_t::out_size(prb_type.size())))
         type_ok = true;
     if (!type_ok && is_out && kernel_desc.use_stream_k) type_ok = true;
-    gpu_check(type_ok) << to_string(abc) << " tag " << prb_tag
-                       << " does not match kernel descriptor tag " << desc_tag;
+    gpu_check(type_ok
+            && prb_tag.matches(desc_tag, prb.shape(), /*check_type=*/false))
+            << to_string(abc) << " tag " << prb_tag
+            << " does not match kernel descriptor tag " << desc_tag;
     return true;
 }
 
@@ -396,8 +419,11 @@ void fit_tag_to(
     bool is_out_stream_k
             = (abc == tensor_kind_t::c) && kernel_desc.use_stream_k;
     if (desc_tag.type() != prb_tag.type() && !is_out_stream_k) {
-        desc_tag = layout_tag_t(
-                desc_tag.desc(), prb_tag.type(), desc_tag.raw_tag());
+        desc_tag = layout_tag_t(desc_tag.desc(), prb_tag.type(),
+                desc_tag.raw_tag(), prb_tag.is_strided());
+    } else if (prb_tag.is_strided()) {
+        desc_tag = layout_tag_t(desc_tag.desc(), prb_tag.type(),
+                desc_tag.raw_tag(), prb_tag.is_strided());
     }
 }
 
@@ -703,6 +729,23 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
         kernel_iface.register_arg(var);
         if (d == pvars::sw)
             kernel_iface.register_arg("sw_magic", type_t::u64());
+        if (!is_conv_index(d)) continue;
+        for (auto &t_kind :
+                {tensor_kind_t::src, tensor_kind_t::wei, tensor_kind_t::dst}) {
+            auto tag = src_tag;
+            if (t_kind == tensor_kind_t::wei)
+                tag = wei_tag;
+            else if (t_kind == tensor_kind_t::dst)
+                tag = dst_tag;
+            if (!tag.is_strided()) continue;
+            auto inner_dim = tag.raw_tag().entries().back();
+            if (prb_stride(d, t_kind).is_undef()
+                    || tag.desc().prb_dim(inner_dim.index()) == d)
+                continue;
+            auto stride_var
+                    = var_t::make(type_t::s32(), prb_stride(d, t_kind).str());
+            kernel_iface.register_arg(stride_var);
+        }
     }
     if (use_stream_k) {
         kernel_iface.register_arg("sk_iters_per_tile", type_t::s32());
@@ -930,7 +973,9 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
         auto user_layout = jit::layout_t(md, /*do_normalize=*/false);
         bool is_out_stream_k = use_stream_k && t.is_output;
         bool zero_out = is_out_stream_k;
-        if (compute_layout != user_layout) {
+        if (compute_layout != user_layout
+                && !compute_layout.normalize().is_strictly_equal(
+                        user_layout.normalize(), true, false)) {
             user_name += "_user";
             scratchpad_key++;
             pd->scratchpad_registry().registrar().book(
@@ -943,7 +988,8 @@ status_t kernel_desc_t::init_primitive_plan(primitive_init_plan_t &plan,
         plan.add_user_buffer(user_name, user_layout, t.is_input, t.is_output,
                 t.arg_key, zero_out);
         if (user_name == t.name) {
-            gpu_assert(user_layout == compute_layout)
+            gpu_assert(compute_layout.normalize().is_strictly_equal(
+                    user_layout.normalize(), true, false))
                     << "Incompatible user/kernel layouts. User: "
                     << user_layout.str()
                     << ", kernel: " << compute_layout.str();

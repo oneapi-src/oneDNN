@@ -299,6 +299,8 @@ public:
     prb_reqs_t reqs() const;
     void set(const std::string &s);
     void set_defaults();
+    void set_stride_reqs(tensor_kind_t kind, const layout_tag_t &tag,
+            prb_reqs_t &reqs) const;
     bool can_fit(const problem_t &prb) const;
     void fit_to(const problem_t &prb);
     status_t set_post_ops(const post_ops_t &post_ops,
@@ -476,6 +478,7 @@ dim_t stream_k_thread_groups(
 type_t accumulator_type(const type_t &a_type, const type_t &b_type);
 kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext = true);
 prb_reqs_t generate_2d_reqs(const kernel_desc_t &desc);
+kernel_desc_t handle_strides(const kernel_desc_t &desc_);
 
 class kernel_params_t : public kernel_params_base_t {
 public:

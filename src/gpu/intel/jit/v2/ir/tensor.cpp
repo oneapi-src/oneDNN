@@ -403,7 +403,7 @@ bool layout_tag_t::matches(const layout_tag_t &other, const pvar_tile_t &sizes,
 std::string layout_tag_t::str() const {
     if (is_empty()) return "x";
     std::ostringstream oss;
-    oss << raw_tag_ << ":" << type_;
+    oss << raw_tag_ << ":" << type_ << ":" << is_strided_;
     return oss.str();
 }
 
