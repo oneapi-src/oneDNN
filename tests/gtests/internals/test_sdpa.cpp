@@ -77,13 +77,13 @@ struct sdpa_tensors_t {
 
 std::ostream &operator<<(std::ostream &ss, const sdpa_dims_t &p) {
     ss << "mb_" << p.mb;
+    ss << "_head_num_" << p.head_num;
+    ss << "_D_" << p.head_size;
     if (p.with_key_transposed)
         ss << "_T";
     else
         ss << "_";
     ss << "K_" << p.seq_len;
-    ss << "_head_num_" << p.head_num;
-    ss << "_D_" << p.head_size;
     ss << "_Q_" << p.query_num;
     ss << "_Qdt_" << p.qdt;
     ss << "_Kdt_" << p.kdt;
@@ -127,9 +127,9 @@ std::string print_row(const sdpa_dims_t &p) {
     std::stringstream ss;
 
     ss << "|" << p.mb;
-    ss << "|" << p.seq_len;
     ss << "|" << p.head_num;
     ss << "|" << p.head_size;
+    ss << "|" << p.seq_len;
     ss << "|" << p.query_num;
     ss << "|" << p.kdt;
     if (p.kdt != mdt::f16 && p.vdt != mdt::bf16
@@ -926,10 +926,18 @@ void prim_sdpa_quant(const sdpa_dims_t &p, const sdpa_tensors_t &t,
                 = dequantize_prim(eng, mdt::f16, key.get_desc(), t.kq_mask,
                         t.kq_groups, p.ksdt, p.kzpdt);
 
-        key_dequantize_prim.execute(strm,
-                {{DNNL_ARG_FROM, key}, {DNNL_ARG_TO, key_dequantized},
-                        {DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM, key_scales},
-                        {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_FROM, key_zp}});
+        std::unordered_map<int, memory> key_dequantize_args = {
+                {DNNL_ARG_FROM, key},
+                {DNNL_ARG_TO, key_dequantized},
+        };
+        if (p.ksdt != mdt::undef) {
+            key_dequantize_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM]
+                    = key_scales;
+        }
+        if (p.kzpdt != mdt::undef)
+            key_dequantize_args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_FROM]
+                    = key_zp;
+        key_dequantize_prim.execute(strm, key_dequantize_args);
 
         strm.wait();
     } else {
@@ -946,10 +954,18 @@ void prim_sdpa_quant(const sdpa_dims_t &p, const sdpa_tensors_t &t,
                 = dequantize_prim(eng, mdt::f32, value.get_desc(), t.vs_mask,
                         t.vs_groups, p.vsdt, p.vzpdt);
 
-        value_dequantize_prim.execute(strm,
-                {{DNNL_ARG_FROM, value}, {DNNL_ARG_TO, value_dequantized},
-                        {DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM, value_scales},
-                        {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_FROM, value_zp}});
+        std::unordered_map<int, memory> value_dequantize_args = {
+                {DNNL_ARG_FROM, value},
+                {DNNL_ARG_TO, value_dequantized},
+        };
+        if (p.vsdt != mdt::undef) {
+            value_dequantize_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM]
+                    = value_scales;
+        }
+        if (p.vzpdt != mdt::undef)
+            value_dequantize_args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_FROM]
+                    = value_zp;
+        value_dequantize_prim.execute(strm, value_dequantize_args);
         strm.wait();
     } else {
         value_dequantized = as(strm, value, mdt::f32);
@@ -963,7 +979,7 @@ void prim_sdpa_quant(const sdpa_dims_t &p, const sdpa_tensors_t &t,
     auto bmm1_prim = matmul(bmm1_pd);
 
     primitive_attr softmax_attr;
-    softmax_attr.set_scratchpad_mode(scratchpad_mode::user);
+    softmax_attr.set_scratchpad_mode(scratchpad_mode::library);
     auto softmax_pd = softmax_forward::primitive_desc(eng,
             prop_kind::forward_inference, algorithm::softmax_accurate,
             score.get_desc(), score.get_desc(), 3, softmax_attr);
@@ -972,28 +988,13 @@ void prim_sdpa_quant(const sdpa_dims_t &p, const sdpa_tensors_t &t,
     // attention_output = attention_probs x value
     primitive_attr bmm2_attr;
 
-    bmm2_attr.set_scratchpad_mode(scratchpad_mode::user);
+    bmm2_attr.set_scratchpad_mode(scratchpad_mode::library);
     auto bmm2_pd = matmul::primitive_desc(eng, score.get_desc(),
             value_dequantized.get_desc(), output.get_desc(), bmm2_attr);
     auto bmm2_prim = matmul(bmm2_pd);
 
-    size_t max_scratchpad_size = 0;
-    auto bmm1_scratchpad = bmm1_pd.scratchpad_desc().get_size();
-    auto softmax_scratchpad = softmax_pd.scratchpad_desc().get_size();
-    auto bmm2_scratchpad = bmm2_pd.scratchpad_desc().get_size();
-    for (auto &sz : {bmm1_scratchpad, softmax_scratchpad, bmm2_scratchpad}) {
-        if (max_scratchpad_size < sz) max_scratchpad_size = sz;
-    }
-    auto scratchpad_md
-            = memory::desc({static_cast<memory::dim>(max_scratchpad_size)},
-                    memory::data_type::u8, memory::format_tag::a);
-
-    // allocate intermediate memory
-    auto m_scratchpad = memory(scratchpad_md, eng);
-
-    std::unordered_map<int, memory> bmm1_args
-            = {{DNNL_ARG_SRC, query}, {DNNL_ARG_WEIGHTS, key_dequantized},
-                    {DNNL_ARG_DST, score}, {DNNL_ARG_SCRATCHPAD, m_scratchpad}};
+    std::unordered_map<int, memory> bmm1_args = {{DNNL_ARG_SRC, query},
+            {DNNL_ARG_WEIGHTS, key_dequantized}, {DNNL_ARG_DST, score}};
 
     if (scale_dt != mdt::undef) {
         bmm1_args[DNNL_ARG_ATTR_MULTIPLE_POST_OP(0) | DNNL_ARG_SRC_1]
@@ -1018,15 +1019,19 @@ void prim_sdpa_quant(const sdpa_dims_t &p, const sdpa_tensors_t &t,
 
         //strm.wait();
         softmax_prim.execute(strm,
-                {{DNNL_ARG_SRC, score}, {DNNL_ARG_DST, score2},
-                        {DNNL_ARG_SCRATCHPAD, m_scratchpad}});
+                {
+                        {DNNL_ARG_SRC, score},
+                        {DNNL_ARG_DST, score2},
+                });
         //strm.wait();
         //print_mem(score2, "score2");
 
         bmm2_prim.execute(strm,
-                {{DNNL_ARG_SRC, score2}, {DNNL_ARG_WEIGHTS, value_dequantized},
+                {
+                        {DNNL_ARG_SRC, score2},
+                        {DNNL_ARG_WEIGHTS, value_dequantized},
                         {DNNL_ARG_DST, output},
-                        {DNNL_ARG_SCRATCHPAD, m_scratchpad}});
+                });
     };
 
     // Warmup run.
@@ -1152,12 +1157,16 @@ GPU_TEST_P(sdpa_test_t, compare) {
     bool k_is_16_bit_float = ((p.kdt == mdt::f16) || (p.kdt == mdt::bf16));
     bool v_is_16_bit_float = ((p.vdt == mdt::f16) || (p.vdt == mdt::bf16));
     if (!k_is_16_bit_float && p.qtype != quantize_type::no_quantization) {
-        s8_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_KEYS] = t.m_key_scales;
-        s8_args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_KEYS] = t.m_key_zp;
+        if (p.ksdt != mdt::undef)
+            s8_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_KEYS] = t.m_key_scales;
+        if (p.kzpdt != mdt::undef)
+            s8_args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_KEYS] = t.m_key_zp;
     }
     if (!v_is_16_bit_float && p.qtype != quantize_type::no_quantization) {
-        s8_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_VALUES] = t.m_value_scales;
-        s8_args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES] = t.m_value_zp;
+        if (p.vsdt != mdt::undef)
+            s8_args[DNNL_ARG_ATTR_SCALES | DNNL_ARG_VALUES] = t.m_value_scales;
+        if (p.vzpdt != mdt::undef)
+            s8_args[DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES] = t.m_value_zp;
     }
     if (mask_ptr) { s8_args[DNNL_ARG_ATTN_MASK] = t.m_mask; }
 
@@ -1318,32 +1327,9 @@ GPU_TEST_P(sdpa_test_t, perf) {
     if (mask_ptr) { f16_args[DNNL_ARG_ATTN_MASK] = t.m_mask; }
 
     auto loop_sdpa_f16 = [&] { sdpaf16_p.execute(strm, f16_args); };
-    auto loop_reorder_sdpa = [&] {
-        if (dequantize_k) {
-            key_dequantize_prim.execute(strm,
-                    {{DNNL_ARG_FROM, t.m_key}, {DNNL_ARG_TO, key_dequantized},
-                            {DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM,
-                                    t.m_key_scales},
-                            {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_FROM,
-                                    t.m_key_zp}});
-        }
-
-        if (dequantize_v) {
-            value_dequantize_prim.execute(strm,
-                    {{DNNL_ARG_FROM, t.m_value},
-                            {DNNL_ARG_TO, value_dequantized},
-                            {DNNL_ARG_ATTR_SCALES | DNNL_ARG_FROM,
-                                    t.m_value_scales},
-                            {DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_FROM,
-                                    t.m_value_zp}});
-        }
-
-        sdpaf16_p.execute(strm, f16_args);
-    };
 
     int iterations = 100;
     auto quantized_time = timeit(loop_quantized, strm, iterations);
-    auto reorder_time = timeit(loop_reorder_sdpa, strm, iterations);
     auto sdpa_f16_time = timeit(loop_sdpa_f16, strm, iterations);
 
     auto min_time = [](const std::vector<std::chrono::microseconds> &a) {
@@ -1352,7 +1338,6 @@ GPU_TEST_P(sdpa_test_t, perf) {
 
     std::cout << print_row(p) << "|"
               << min_time(quantized_time).count() / float(iterations) << "|"
-              << min_time(reorder_time).count() / float(iterations) << "|"
               << min_time(sdpa_f16_time).count() / float(iterations) << "|"
               << std::endl;
     strm.wait();
