@@ -17,6 +17,7 @@
 #include "gpu/intel/ocl/micro_sdpa.hpp"
 
 #include "common/c_types_map.hpp"
+#include "common/sdpa_utils.hpp"
 #include "common/type_helpers.hpp"
 #include "gpu/intel/compute/utils.hpp"
 #include "gpu/intel/jit/gemm/gen_gemm_kernel.hpp"
@@ -218,6 +219,43 @@ bool with_quantize_common(const zero_points_t &zp) {
 
 } /* anonymous namespace */
 
+status_t update_config_from_devenv_values(
+        sdpa_config_t *config, bool quantized) {
+    std::string q_config_str
+            = gpu_utils::dev_getenv("QUANTIZED_SDPA_CONFIG", std::string(""));
+    std::string config_str
+            = gpu_utils::dev_getenv("SDPA_CONFIG", std::string(""));
+    if ((!config_str.empty() && !quantized)
+            || (!q_config_str.empty() && quantized)) {
+        std::array<int, 8> config_values;
+        int i;
+        int num_values = 0;
+        if (!q_config_str.empty() && quantized) config_str = q_config_str;
+        std::stringstream ss(config_str);
+        while (ss >> i) {
+            config_values[num_values++] = i;
+            if (ss.peek() == ',') ss.ignore();
+        }
+        VCHECK_SDPA_COND(num_values == 8,
+                "(QUANTIZED_)SDPA_CONFIG(%s) is invalid. Must be 8 integers "
+                "separate by a comma: "
+                "<unroll_m_kq>,<unroll_n_kq>,<unroll_m_vs>,<unroll_n_vs>,<wg_m_"
+                "kq>,<wg_n_kq>,<wg_m_vs>,<wg_n_vs>",
+                config_str.c_str());
+        if (num_values == 8) {
+            config->unroll_m_kq = config_values[0];
+            config->unroll_n_kq = config_values[1];
+            config->unroll_m_vs = config_values[2];
+            config->unroll_n_vs = config_values[3];
+            config->wg_m_kq = config_values[4];
+            config->wg_n_kq = config_values[5];
+            config->wg_m_vs = config_values[6];
+            config->wg_n_vs = config_values[7];
+        }
+    }
+    return status::success;
+}
+
 status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     using namespace jit;
     using arch_t = compute::gpu_arch_t;
@@ -228,8 +266,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     arch_ = dev_info->gpu_arch();
     auto *d = desc();
 
-    VCONDCHECK(primitive, create, check, sdpa, mayiuse_microkernels(engine),
-            status::unimplemented,
+    VCHECK_SDPA_COND(mayiuse_microkernels(engine),
             "Microkernels not supported by the OpenCL driver.");
 
     /* Retrieve pre-tuned kernel configuration */
@@ -253,7 +290,20 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
 
     if (!config) return status::unimplemented;
 
-    VDISPATCH_SDPA(config->unroll_n_kq * config->wg_n_kq
+    auto status = update_config_from_devenv_values(config, quantized);
+    if (status != status::success) return status;
+
+    VDEBUGINFO(4, primitive, sdpa,
+            "kq_tile(%d, %d): unroll_m=%d unroll_n=%d wg_m=%d wg_n=%d, "
+            "vs_tile(%d, %d): unroll_m=%d unroll_n=%d wg_m=%d wg_n=%d",
+            config->unroll_m_kq * config->wg_m_kq,
+            config->unroll_n_kq * config->wg_n_kq, config->unroll_m_kq,
+            config->unroll_n_kq, config->wg_m_kq, config->wg_n_kq,
+            config->unroll_m_vs * config->wg_m_vs,
+            config->unroll_n_vs * config->wg_n_vs, config->unroll_m_vs,
+            config->unroll_n_vs, config->wg_m_vs, config->wg_n_vs);
+
+    VCHECK_SDPA_COND(config->unroll_n_kq * config->wg_n_kq
                             == config->unroll_n_vs * config->wg_n_vs
                     && config->unroll_n_kq % config->unroll_n_vs == 0,
             "[CONFIG] The config KQ work_group tile N(%d) axis must equal "
@@ -263,9 +313,10 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
             config->unroll_n_vs * config->wg_n_vs, config->unroll_n_kq,
             config->unroll_n_vs);
 
-    VDISPATCH_SDPA(config->unroll_m_vs * config->wg_m_vs >= d->head_size(),
-            "[CONFIG] The config work_group tile M(%d) axis must be "
+    VCHECK_SDPA_COND(config->unroll_m_vs * config->wg_m_vs >= d->head_size(),
+            "The vs matmul config work_group tile M(%d*%d=%d) axis must be "
             "greater than or equal to head size(%ld)",
+            config->unroll_m_vs, config->wg_m_vs,
             config->unroll_m_vs * config->wg_m_vs, d->head_size());
 
     /* Get device information */
@@ -296,7 +347,9 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     } else if (qry_md()->data_type == data_type::bf16) {
         problem.Ta = problem.Tb = Type::bf16;
     } else {
-        VDISPATCH_SDPA(false, "Data-type not supported for GEMM micro kernels");
+        VCHECK_SDPA_COND(utils::one_of(qry_md()->data_type, data_type::f16,
+                                 data_type::bf16),
+                "Q tensor's data type(%s) must be bf16 or f16");
     }
     problem.Tc = problem.Tc_ext = Type::f32;
     problem.Ts = problem.Tc;
@@ -365,7 +418,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         gemm_kq_ = selectGEMMMicrokernel(
                 opts_kq, hw_info, sizes, problem_kq, reqs_kq);
     } catch (const std::runtime_error &ex) {
-        VDISPATCH_SDPA(false,
+        VCHECK_SDPA_COND(false,
                 "gemm_kq microkernel generation failure with message: %s",
                 ex.what());
     }
@@ -436,10 +489,12 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         gemm_vs_ = selectGEMMMicrokernel(
                 opts_vs, hw_info, sizes, problem_vs, reqs_vs, adjust_vs);
     } catch (const std::runtime_error &ex) {
-        VDISPATCH_SDPA(false,
+        VCHECK_SDPA_COND(false,
                 "gemm_vs microkernel generation failure with message: %s",
                 ex.what());
     }
+    VDEBUGINFO(4, primitive, sdpa, "kq_gemm: %s, vs_gemm: %s,",
+            problem_kq.toString().c_str(), problem_vs.toString().c_str());
 
     return status::success;
 }
