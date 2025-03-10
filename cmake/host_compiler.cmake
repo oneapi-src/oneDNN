@@ -51,10 +51,6 @@ if(DPCPP_HOST_COMPILER_KIND MATCHES "^(GNU|CLANG)$")
         append(DPCPP_HOST_COMPILER_OPTS "${CMAKE_CXX_FLAGS_DEBUG}")
     endif()
 
-    # When a custom host compiler is used some deprecation warnings come
-    # from sycl.hpp header. Suppress the warnings for now.
-    append(DPCPP_HOST_COMPILER_OPTS "-Wno-deprecated-declarations")
-
     # Using single_task, cgh.copy, cgh.fill may cause the following warning:
     # "warning: `clang::sycl_kernel` scoped attribute directive ignored [-Wattributes]"
     # We don't have control over it so just suppress it for the time being.
