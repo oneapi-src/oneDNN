@@ -195,8 +195,15 @@ cold_cache_t::cold_cache_t(
                 dnnl_status_t status = dnnl_reorder_primitive_desc_create(
                         &reorder_pd, orig_cc_mem_md, query_engine(orig_mem),
                         orig_cc_mem_md, query_engine(dst_memory), nullptr);
-                assert(status == dnnl_success);
-                if (status != dnnl_success) { return; }
+                if (status != dnnl_success) {
+                    BENCHDNN_PRINT(0,
+                            "Error: cold-cache reorder failed for %s arg and "
+                            "%zu buffer (out of %zu).\n",
+                            data_kind2str(exec_arg2data_kind(arg)), i,
+                            n_buffers_);
+                    assert(status == dnnl_success);
+                    return;
+                }
                 reorder_pdw.reset(reorder_pd);
 
                 benchdnn_dnnl_wrapper_t<dnnl_primitive_t> reorder_w;
