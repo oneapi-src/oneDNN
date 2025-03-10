@@ -2110,6 +2110,14 @@ void BLASKernelGenerator<hw>::convert(const GRFMultirange &range, Type Told, Typ
         });
     }
 
+    // Special path: x32->FP.
+    if (one_of(Told, Type::s32, Type::u32) && Tnew.isFP()) {
+        map(hw, Told, range, range, strategy, [&](int esize, GRF r, GRF _) {
+            mov(esize, r.f(), r);
+        });
+        Told = Type::f32;
+    }
+
     // Special path: f32->bf8.
     if (hw >= HW::XeHPC && Told == Type::f32 && Tnew == Type::bf8) {
         int ne = elementsPerGRF<uint32_t>(hw);
