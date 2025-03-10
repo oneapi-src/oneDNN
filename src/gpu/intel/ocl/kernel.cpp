@@ -228,6 +228,7 @@ status_t kernel_t::parallel_for(impl::stream_t &stream,
     cl_uint ndims = static_cast<cl_uint>(range.ndims());
     if (range.is_zero()) { return status::success; }
 
+    check_global_range(range.global_range());
     xpu::ocl::wrapper_t<cl_event> event;
     if (ocl_stream->flags() & stream_flags::out_of_order) {
         const auto &event_wrappers = xpu::ocl::event_t::from(deps).events;

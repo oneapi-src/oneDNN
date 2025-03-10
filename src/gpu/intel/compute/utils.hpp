@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -154,6 +154,8 @@ private:
     range_t global_range_;
     range_t local_range_;
 };
+
+void check_global_range(const compute::range_t &range);
 
 } // namespace compute
 } // namespace intel
