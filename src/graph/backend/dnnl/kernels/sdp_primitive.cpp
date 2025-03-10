@@ -92,7 +92,6 @@ status_t sdp_primitive_kernel_t<quantized>::compile_impl(
 
     pipeline.reset_visualize_arg(true, false);
     BACKEND_DNNL_ADD_PASS(pipeline, infer_shape);
-    BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_transpose_to_matmul);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_transpose_to_matmul);
     BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
