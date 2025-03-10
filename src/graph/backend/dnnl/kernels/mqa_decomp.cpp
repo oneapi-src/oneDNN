@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -87,7 +87,6 @@ status_t mqa_decomp_kernel_t<quantized, dt>::compile_impl(
         BACKEND_DNNL_ADD_PASS(pipeline, remove_quant_data_with_no_effect);
     }
     pipeline.reset_visualize_arg(true, false);
-    BACKEND_DNNL_ADD_PASS(pipeline, fuse_src_transpose_to_matmul);
     BACKEND_DNNL_ADD_PASS(pipeline, fuse_dst_transpose_to_matmul);
     BACKEND_DNNL_ADD_PASS(pipeline, layout_propagation);
 
