@@ -17,10 +17,10 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <fstream>
 #include <memory>
 #include <numeric>
 #include <string>
-#include <fstream>
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -605,7 +605,8 @@ int dnn_mem_t::memset_rng(size_t size) const {
 
         assert(size <= UINT64_MAX);
         const uint64_t buffSize = static_cast<uint64_t>(size);
-        const uint64_t blockSize = std::max(MIN_BLOCK_SIZE, size / BLOCK_SIZE_DIVISOR);
+        const uint64_t blockSize
+                = std::max(MIN_BLOCK_SIZE, size / BLOCK_SIZE_DIVISOR);
         const size_t gws = size / blockSize + (size % blockSize > 0);
 
         switch (memory_kind) {
@@ -625,9 +626,13 @@ int dnn_mem_t::memset_rng(size_t size) const {
             case memory_kind_ext_t::usm_device:
             case memory_kind_ext_t::usm_shared: {
                 cl_platform_id platform;
-                clGetDeviceInfo(ocl_device, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, nullptr);
-                auto clSetKernelArgMemPointerINTEL = (clSetKernelArgMemPointerINTEL_fn)
-                    clGetExtensionFunctionAddressForPlatform(platform, "clSetKernelArgMemPointerINTEL");
+                clGetDeviceInfo(ocl_device, CL_DEVICE_PLATFORM,
+                        sizeof(cl_platform_id), &platform, nullptr);
+                auto clSetKernelArgMemPointerINTEL
+                        = (clSetKernelArgMemPointerINTEL_fn)
+                                clGetExtensionFunctionAddressForPlatform(
+                                        platform,
+                                        "clSetKernelArgMemPointerINTEL");
                 clSetKernelArgMemPointerINTEL(ocl_kernel, 0, mem_handle);
                 clSetKernelArg(ocl_kernel, 1, sizeof(uint64_t), &buffSize);
                 clSetKernelArg(ocl_kernel, 2, sizeof(uint64_t), &blockSize);

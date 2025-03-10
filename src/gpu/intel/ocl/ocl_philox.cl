@@ -45,12 +45,9 @@ inline uint philox_4x32(long idx, uint seed) {
 }
 
 __kernel void ocl_philox_kernel(
-        __global uint *data, 
-        ulong nbytes, 
-        ulong blockSize,
-        ulong seed) {
+        __global uint *data, ulong nbytes, ulong blockSize, ulong seed) {
     ulong gid = get_global_id(0);
-    
+
     // Compute number of elements from blockSize
     ulong blockSize_elements = blockSize / sizeof(uint);
     ulong startElement = gid * blockSize_elements;
@@ -58,7 +55,7 @@ __kernel void ocl_philox_kernel(
 
     // Compute total number of elements in the buffer
     ulong totalElements = nbytes / sizeof(uint);
-    
+
     // Clamp endElement to avoid buffer overflow
     if (startElement >= totalElements) return;
     if (endElement > totalElements) endElement = totalElements;
