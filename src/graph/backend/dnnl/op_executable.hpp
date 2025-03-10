@@ -2531,6 +2531,21 @@ struct genindex_executable_t : public op_executable_t {
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
             const std::vector<::sycl::event> &deps = {}) const override {
+        if (stream.get_engine().get_kind() == engine::kind::cpu) {
+            auto strm_t = stream.get();
+            auto *sycl_stream_impl = dnnl::impl::utils::downcast<
+                    dnnl::impl::xpu::sycl::stream_impl_t *>(strm_t->impl());
+
+            strm_t->before_exec_hook();
+            if (!deps.empty()) { sycl_stream_impl->sycl_ctx().set_deps(deps); }
+
+            execute(stream, args);
+
+            // return output event
+            ::sycl::event return_event = sycl_stream_impl->get_output_event();
+            strm_t->after_exec_hook();
+            return return_event;
+        }
 #if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE) \
         && (DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL)
         auto compute_stream
