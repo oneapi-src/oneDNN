@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <fstream>
 #include <functional>
 #include <string>
@@ -206,6 +207,7 @@ static void *zmalloc_protect(size_t size) {
     // Protect one page right after the block of size bytes
     int err = mprotect(ptr_protect, page_sz, PROT_NONE);
     if (err != 0) {
+        printf("Error: mprotect returned \'%s\'.\n", strerror(errno));
         ::free(ptr_start);
         return nullptr;
     }
