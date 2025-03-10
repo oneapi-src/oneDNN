@@ -20,6 +20,7 @@
 #include <memory>
 #include <numeric>
 #include <string>
+#include <fstream>
 
 #include "oneapi/dnnl/dnnl.h"
 
@@ -30,7 +31,7 @@
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #include "oneapi/dnnl/dnnl_ocl.hpp"
 #include "src/xpu/ocl/usm_utils.hpp"
-#include "utils/ocl_philox.h"
+
 #define OCL_TEST(x) \
     do { \
         cl_int s = (x); \
@@ -558,7 +559,7 @@ void dnn_mem_t::memset(int value, size_t size) const {
     SAFE_V(FAIL);
 }
 
-dnnl_status_t dnn_mem_t::memset_rng(size_t size) const {
+int dnn_mem_t::memset_rng(size_t size) const {
     bool is_opencl = is_opencl_engine(engine_);
     bool is_sycl = is_sycl_engine(engine_);
     auto mem = m_padded_ ? m_padded_ : m_;
@@ -577,54 +578,76 @@ dnnl_status_t dnn_mem_t::memset_rng(size_t size) const {
                 dnnl_ocl_interop_stream_get_command_queue(stream, &ocl_queue));
         DNN_SAFE_V(dnnl_ocl_interop_engine_get_context(engine_, &ocl_ctx));
         DNN_SAFE_V(dnnl_ocl_interop_get_device(engine_, &ocl_device));
+
+        std::string philox_kernel_source;
+        {
+            std::ifstream file("../../../src/gpu/intel/ocl/ocl_philox.cl");
+            if (!file.is_open()) {
+                std::cerr << "Failed to open ocl_philox.cl" << std::endl;
+                return dnnl_invalid_arguments;
+            }
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            philox_kernel_source = buffer.str();
+        }
+        const char *philox_rng_source = philox_kernel_source.c_str();
         philox_program = clCreateProgramWithSource(
                 ocl_ctx, 1, &philox_rng_source, nullptr, &err);
+        OCL_TEST(err);
         OCL_TEST(clBuildProgram(
                 philox_program, 1, &ocl_device, nullptr, nullptr, nullptr));
-        ocl_kernel = clCreateKernel(philox_program, "philox_fill_kernel", &err);
+        ocl_kernel = clCreateKernel(philox_program, "ocl_philox_kernel", &err);
+        OCL_TEST(err);
 
-        //TODO: generate random seed to avoid repeating values
-        uint64_t seed = 12345;
-        const uint64_t buffSize = (uint64_t)size;
-        const uint64_t blockSize = fmax(16, size / 65536);
-        const size_t gws = size / blockSize + (size % blockSize > 0 ? 1 : 0);
+        static constexpr uint64_t DEFAULT_SEED = -1;
+        static constexpr uint64_t MIN_BLOCK_SIZE = 16;
+        static constexpr uint64_t BLOCK_SIZE_DIVISOR = 65536;
+
+        assert(size <= UINT64_MAX);
+        const uint64_t buffSize = static_cast<uint64_t>(size);
+        const uint64_t blockSize = std::max(MIN_BLOCK_SIZE, size / BLOCK_SIZE_DIVISOR);
+        const size_t gws = size / blockSize + (size % blockSize > 0);
+
         switch (memory_kind) {
             case memory_kind_ext_t::buffer: {
                 auto buf = static_cast<cl_mem>(mem_handle);
                 clSetKernelArg(ocl_kernel, 0, sizeof(cl_mem), &buf);
                 clSetKernelArg(ocl_kernel, 1, sizeof(uint64_t), &buffSize);
                 clSetKernelArg(ocl_kernel, 2, sizeof(uint64_t), &blockSize);
-                clSetKernelArg(ocl_kernel, 3, sizeof(uint64_t), &seed);
+                clSetKernelArg(ocl_kernel, 3, sizeof(uint64_t), &DEFAULT_SEED);
                 clEnqueueNDRangeKernel(ocl_queue, ocl_kernel, 1, nullptr, &gws,
                         nullptr, 0, nullptr, nullptr);
 
-                DNN_SAFE_V(dnnl_stream_wait(stream));
-                return dnnl_status_t::dnnl_success;
+                DNN_SAFE(dnnl_stream_wait(stream), WARN);
+                return dnnl_success;
             }
             case memory_kind_ext_t::usm:
             case memory_kind_ext_t::usm_device:
             case memory_kind_ext_t::usm_shared: {
-                DNN_SAFE_V(dnnl::impl::xpu::ocl::usm::set_kernel_arg(
-                        engine_, ocl_kernel, 0, mem_handle));
+                cl_platform_id platform;
+                clGetDeviceInfo(ocl_device, CL_DEVICE_PLATFORM, sizeof(cl_platform_id), &platform, nullptr);
+                auto clSetKernelArgMemPointerINTEL = (clSetKernelArgMemPointerINTEL_fn)
+                    clGetExtensionFunctionAddressForPlatform(platform, "clSetKernelArgMemPointerINTEL");
+                clSetKernelArgMemPointerINTEL(ocl_kernel, 0, mem_handle);
                 clSetKernelArg(ocl_kernel, 1, sizeof(uint64_t), &buffSize);
                 clSetKernelArg(ocl_kernel, 2, sizeof(uint64_t), &blockSize);
-                clSetKernelArg(ocl_kernel, 3, sizeof(uint64_t), &seed);
-
+                clSetKernelArg(ocl_kernel, 3, sizeof(uint64_t), &DEFAULT_SEED);
                 clEnqueueNDRangeKernel(ocl_queue, ocl_kernel, 1, nullptr, &gws,
                         nullptr, 0, nullptr, nullptr);
-                DNN_SAFE_V(dnnl_stream_wait(stream));
-                return dnnl_status_t::dnnl_success;
+
+                DNN_SAFE(dnnl_stream_wait(stream), WARN);
+                return dnnl_success;
             }
         }
 #endif
     } else if (is_sycl) {
 #ifdef DNNL_WITH_SYCL
-        return dnnl_status_t::dnnl_unimplemented;
+        return dnnl_unimplemented;
 #endif
     }
-    if (is_cpu(engine_)) return dnnl_status_t::dnnl_unimplemented;
+    if (is_cpu(engine_)) return dnnl_unimplemented;
 
-    return dnnl_status_t::dnnl_last_impl_reached;
+    return dnnl_invalid_arguments;
 }
 
 dnn_mem_t dnn_mem_t::create_from_host_ptr(
@@ -978,7 +1001,7 @@ int dnn_mem_t::initialize(
 
     SAFE(initialize_memory_create(handle_info), CRIT);
 
-    if (handle_info.is_allocate()) {
+    if (handle_info.is_allocate() && !handle_info.skip_initialization) {
         if (!has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) map();
 
         const int nhandles = query_md_num_handles(md_);
@@ -999,14 +1022,7 @@ int dnn_mem_t::initialize(
                         || cold_cache_input.cold_cache_mode_
                                 != default_cold_cache_input()
                                            .cold_cache_mode_) {
-                    // Fill memory directly with random values
-                    // in case of fail set to default val
-                    if(handle_info.is_rng){
-                        DNN_SAFE_V(dnnl_stream_wait(this->memset_rng(sz)));
-                    }
-                    else{
-                        this->memset(dnnl_mem_default_value, sz);
-                    }
+                    this->memset_rng(sz);
                 } else {
                     // Fill memory with a magic number (NAN for fp data types)
                     // to catch possible uninitialized access.

@@ -36,12 +36,12 @@ struct dnn_mem_t {
     struct handle_info_t {
         bool is_host_ptr;
         void *ptr;
-        bool is_rng;
+        bool skip_initialization;
 
         bool is_allocate() const { return ptr == DNNL_MEMORY_ALLOCATE; }
 
-        static handle_info_t allocate() {
-            return {false, DNNL_MEMORY_ALLOCATE, true};
+        static handle_info_t allocate(bool skip_init = false) {
+            return {false, DNNL_MEMORY_ALLOCATE, skip_init};
         }
     };
 
@@ -153,7 +153,7 @@ struct dnn_mem_t {
     void unmap() const;
     void memset(int value, size_t size) const;
 
-    dnnl_status_t memset_rng(size_t size) const;
+    int memset_rng(size_t size) const;
 
     static dnn_mem_t create_from_host_ptr(
             const dnnl_memory_desc_t &md, dnnl_engine_t engine, void *host_ptr);

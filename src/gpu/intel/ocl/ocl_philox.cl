@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2025 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,8 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-static const char *philox_rng_source = R"CLC(
-// Mask bits 30 & 14: 0xBFFFFFFF & 0xFFFFBFFF => 0xBFFFBFFF:
 #define INF_NAN_MASK 0xBFFFBFFF
 
 inline uint philox_4x32(long idx, uint seed) {
@@ -46,7 +44,7 @@ inline uint philox_4x32(long idx, uint seed) {
     return ctr[~idx & 3L];
 }
 
-__kernel void philox_fill_kernel(
+__kernel void ocl_philox_kernel(
         __global uint *data, 
         ulong nbytes, 
         ulong blockSize,
@@ -65,9 +63,7 @@ __kernel void philox_fill_kernel(
     if (startElement >= totalElements) return;
     if (endElement > totalElements) endElement = totalElements;
 
-    // Process each element in the block
     for (ulong i = startElement; i < endElement; i++) {
         data[i] = philox_4x32(i * sizeof(uint), seed) & INF_NAN_MASK;
     }
 }
-)CLC";

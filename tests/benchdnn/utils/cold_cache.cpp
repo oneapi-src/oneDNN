@@ -163,9 +163,10 @@ cold_cache_t::cold_cache_t(
         auto &cc_entry = cache_[arg];
         cc_entry.resize(n_buffers_);
         auto orig_cc_mem_md = query_md(orig_mem);
+        const dnn_mem_t::handle_info_t no_rng_m_handle = {false, DNNL_MEMORY_ALLOCATE, true};
 
         for (size_t i = 0; i < n_buffers_; i++) {
-            cc_entry[i] = dnn_mem_t(orig_cc_mem_md, get_test_engine());
+            cc_entry[i] = dnn_mem_t(orig_cc_mem_md, get_test_engine(), no_rng_m_handle);
 
 #ifdef DNNL_EXPERIMENTAL_SPARSE
             // Sparse memories require this call to replicate the exact original
@@ -277,10 +278,13 @@ int cold_cache_t::thrash_reorder(size_t mem_size, size_t granularity) const {
     // Reduce the number of element by the the stride to keep the memory size
     // as requested.
     const dnnl_dims_t dims {div_up(nelems, stride)};
-    const dnnl_dims_t strides {stride};
+    const dims_t strides {stride};
 
-    dnn_mem_t src_m(1, dims, dnnl_f32, strides, engine);
-    dnn_mem_t dst_m(1, dims, dnnl_f32, strides, engine);
+    const dnn_mem_t::handle_info_t no_rng_handle
+                = {false, DNNL_MEMORY_ALLOCATE, true};
+    auto r_md = dnn_mem_t::init_md(1, dims, dnnl_f32, tag::any, strides);
+    dnn_mem_t src_m(r_md, engine, no_rng_handle);
+    dnn_mem_t dst_m(r_md, engine, no_rng_handle);
 
     dnnl_primitive_desc_t r_pd {};
     dnnl_primitive_attr_t attr {};
