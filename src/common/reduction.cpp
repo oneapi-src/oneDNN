@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2025 Intel Corporation
+* Copyright 2020-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -124,9 +124,6 @@ status_t reduction_attr_check(const reduction_desc_t &desc,
         // Check sum
         VCHECK_RED_UNIMPL(po.check_sum_consistency(dst_dt, false, true),
                 VERBOSE_UNSUPPORTED_POSTOP);
-
-        // Note: verbose support is inside the call.
-        CHECK(po.validate_binary_with_dst_consistency(&desc.dst_desc));
     }
 
     return status::success;

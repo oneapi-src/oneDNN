@@ -366,8 +366,7 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
 
         bool is_like_binary() const { return is_binary() || is_prelu(); }
 
-        dnnl::impl::status_t validate_binary_with_dst_consistency(
-                const dnnl::impl::memory_desc_t *dst_desc) const;
+        dnnl::impl::status_t set_depthwise_scales(const float *scales);
 
         bool operator==(const entry_t &rhs) const {
             using namespace dnnl::impl;
@@ -486,9 +485,6 @@ struct dnnl_post_ops : public dnnl::impl::c_compatible {
         return sum_ind == -1 || entry_[sum_ind].sum.dt == dnnl_data_type_undef
                 || entry_[sum_ind].sum.dt == dst_dt;
     }
-
-    dnnl::impl::status_t validate_binary_with_dst_consistency(
-            const dnnl::impl::memory_desc_t *dst_desc) const;
 
     bool contain(dnnl::impl::primitive_kind_t kind, int index) const {
         return find(kind, index, index + 1) == index;

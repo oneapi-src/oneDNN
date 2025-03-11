@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2016-2025 Intel Corporation
+* Copyright 2016-2023 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -136,9 +136,6 @@ status_t eltwise_attr_check(const eltwise_desc_t &desc, const engine_t *engine,
             using namespace primitive_kind;
             VCHECK_ELTWISE_IMPL(po.has_default_values({binary}),
                     VERBOSE_UNSUPPORTED_POSTOP);
-
-            // Note: verbose support is inside the call.
-            CHECK(po.validate_binary_with_dst_consistency(&desc.dst_desc));
         }
     } else {
         VCHECK_ELTWISE_IMPL(false, VERBOSE_UNSUPPORTED_ATTR);

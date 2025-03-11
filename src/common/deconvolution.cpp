@@ -219,9 +219,6 @@ status_t deconv_attr_check(const deconvolution_desc_t &desc,
             VCHECK_DECONV_UNIMPL(
                     po.check_sum_consistency(dst_dt, is_int8, true),
                     VERBOSE_UNSUPPORTED_POSTOP);
-
-            // Note: verbose support is inside the call.
-            CHECK(po.validate_binary_with_dst_consistency(&desc.dst_desc));
         }
     } else {
         auto bwd_attr_mask = smask_t::fpmath_mode;

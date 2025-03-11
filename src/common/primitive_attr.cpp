@@ -335,26 +335,6 @@ bool post_ops_t::check_sum_consistency(const data_type_t dst_dt,
             && check_sum_consistent_quantization(dst_dt, is_int8);
 }
 
-status_t post_ops_t::entry_t::validate_binary_with_dst_consistency(
-        const memory_desc_t *dst_md) const {
-    if (!is_binary()) return status::success;
-
-    VCHECK_ATTR(dst_md->ndims == binary.user_src1_desc.ndims,
-            VERBOSE_INCONSISTENT_NDIMS_WITH_VALS, "dst", "bin_po",
-            dst_md->ndims, binary.user_src1_desc.ndims);
-
-    return status::success;
-}
-
-status_t post_ops_t::validate_binary_with_dst_consistency(
-        const memory_desc_t *dst_md) const {
-    for (const auto &e : entry_) {
-        CHECK(e.validate_binary_with_dst_consistency(dst_md));
-    }
-
-    return status::success;
-}
-
 status_t primitive_attr_t::set_dropout(const memory_desc_t *user_dropout_desc) {
     if (any_null(user_dropout_desc)) return invalid_arguments;
     dropout_.user_dropout_desc_ = *user_dropout_desc;

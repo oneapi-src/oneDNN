@@ -903,33 +903,17 @@ void test_fwd_pd_attr_po_eltwise(const engine &eng, bool supports_po_eltwise,
 
 template <typename pd_t, typename... prim_params_t>
 void test_fwd_pd_attr_po_binary(const engine &eng, bool supports_po_binary,
-        const pd_t &pd, const prim_params_t &...prim_params) {
-    dnnl::primitive_attr attr_po_binary_good, attr_po_binary_bad;
-    dnnl::post_ops ops_binary_good, ops_binary_bad;
-
-    int dst_ndims = pd.dst_desc().get_ndims();
-    dnnl::memory::dims dims_good(dst_ndims, 1);
-    dnnl::memory::dims dims_bad(
-            dst_ndims > 1 ? dst_ndims - 1 : dst_ndims + 1, 1);
-
-    dnnl::memory::desc src1_desc_good(
-            dims_good, memory::data_type::f32, /* strides */ dims_good);
-    dnnl::memory::desc src1_desc_bad(
-            dims_bad, memory::data_type::s8, /* strides */ dims_bad);
-
-    ops_binary_good.append_binary(dnnl::algorithm::binary_mul, src1_desc_good);
-    ops_binary_bad.append_binary(dnnl::algorithm::binary_mul, src1_desc_bad);
-
-    attr_po_binary_good.set_post_ops(ops_binary_good);
-    attr_po_binary_bad.set_post_ops(ops_binary_bad);
-
-    if (!supports_po_binary) {
-        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_po_binary_good));
-        return;
-    }
-
-    EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_po_binary_bad));
-    EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_po_binary_good));
+        const prim_params_t &...prim_params) {
+    dnnl::post_ops ops_binary;
+    dnnl::memory::desc src1_desc(
+            {16}, memory::data_type::s8, memory::format_tag::x);
+    ops_binary.append_binary(dnnl::algorithm::binary_mul, src1_desc);
+    dnnl::primitive_attr attr_po_binary;
+    attr_po_binary.set_post_ops(ops_binary);
+    if (supports_po_binary)
+        EXPECT_NO_THROW(pd_t pd(eng, prim_params..., attr_po_binary));
+    else
+        EXPECT_ANY_THROW(pd_t pd(eng, prim_params..., attr_po_binary));
 }
 
 template <typename pd_t, typename... prim_params_t>
@@ -997,7 +981,7 @@ void test_fwd_pd_constructors(const pd_t &pd, const allows_attr_t &aa,
     // following ctors w/ attrs may throw based on pd support
     test_fwd_pd_attr_po_sum<pd_t>(eng, aa.po_sum, prim_params...);
     test_fwd_pd_attr_po_eltwise<pd_t>(eng, aa.po_eltwise, prim_params...);
-    test_fwd_pd_attr_po_binary<pd_t>(eng, aa.po_binary, pd, prim_params...);
+    test_fwd_pd_attr_po_binary<pd_t>(eng, aa.po_binary, prim_params...);
     test_fwd_pd_attr_po_prelu<pd_t>(eng, aa.po_prelu, prim_params...);
     test_fwd_pd_attr_zp<pd_t>(eng, aa.zp, prim_params...);
     test_fwd_pd_attr_scales<pd_t>(
