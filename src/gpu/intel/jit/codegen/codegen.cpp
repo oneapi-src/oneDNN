@@ -1263,9 +1263,8 @@ private:
     }
 
     void ebinary(const binary_op_t &obj, const ngen::InstructionModifier &mod,
-            const ngen_operand_t &_dst, const ngen_operand_t &_src0,
+            const ngen_operand_t &dst, const ngen_operand_t &_src0,
             const ngen_operand_t &_src1) {
-        auto dst = _dst;
         auto src0 = _src0;
         auto src1 = _src1;
         align_src_dst_offset(host_, scope_, mod, dst, src0, src1);
