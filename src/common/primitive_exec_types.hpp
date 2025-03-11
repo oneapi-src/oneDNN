@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include "c_types_map.hpp"
 #include "memory.hpp"
 #include "memory_storage.hpp"
+#include "resource.hpp"
 
 // __VA_ARGS__here is an index of the buffer. It is empty unless the memory
 // argument is sparse.
@@ -139,6 +140,10 @@ struct exec_ctx_t {
     const resource_mapper_t *get_resource_mapper() const;
     void set_resource_mapper(const resource_mapper_t *resource_mapper);
 
+    void set_ctx_resource(std::unique_ptr<resource_t> &&r) {
+        ctx_resource_ = std::move(r);
+    };
+
 private:
     stream_t *stream_;
     exec_args_t args_;
@@ -146,6 +151,8 @@ private:
     std::unordered_map<void *, void *> memory_mapping_;
     const resource_mapper_t *resource_mapper_ = nullptr;
     const memory_tracking::grantor_t *scratchpad_grantor_ = nullptr;
+    // This one is not tied to primitive, just execution context
+    std::unique_ptr<resource_t> ctx_resource_;
 };
 
 } // namespace impl
