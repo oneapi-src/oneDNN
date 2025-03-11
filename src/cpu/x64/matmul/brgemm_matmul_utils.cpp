@@ -523,7 +523,9 @@ brgemm_broadcast_t get_zp_type(const primitive_attr_t &attr, int arg) {
 
 struct matmul_amx_blocking_params_t : public brgemm_matmul_conf_t {
     matmul_amx_blocking_params_t()
-        : nthr_k_(0)
+        : nthr_m_(0)
+        , nthr_n_(0)
+        , nthr_k_(0)
         , nthr_mnb_(0)
         , nthr_(0)
         , n_blk_(0)
@@ -544,6 +546,8 @@ struct matmul_amx_blocking_params_t : public brgemm_matmul_conf_t {
 
     matmul_amx_blocking_params_t(const brgemm_matmul_conf_t &bgmmc)
         : brgemm_matmul_conf_t(bgmmc)
+        , nthr_m_(nstl::max(nthr_m, 1))
+        , nthr_n_(nstl::max(nthr_n, 1))
         , nthr_k_(nstl::max(nthr_k, 1))
         , nthr_mnb_(nthr / nthr_k_)
         , nthr_(nthr_mnb_ * nthr_k_)
@@ -571,8 +575,8 @@ struct matmul_amx_blocking_params_t : public brgemm_matmul_conf_t {
     static size_t L2_threshold();
 
 private:
-    // num threads for parallelism wrt k dimension
-    int nthr_k_;
+    // num threads for parallelism
+    int nthr_m_, nthr_n_, nthr_k_;
     // num threads for parallelism wrt m, n and batch dimensions
     int nthr_mnb_;
     int nthr_;
@@ -2255,6 +2259,8 @@ float matmul_amx_blocking_params_t::calculate_blocking_scores() {
 void matmul_amx_blocking_params_t::update_configuration(
         brgemm_matmul_conf_t &bgmmc) const {
     bgmmc.nthr_k = nthr_k_;
+    bgmmc.nthr_m = nthr_m_;
+    bgmmc.nthr_n = nthr_n_;
     bgmmc.M_blk = m_blk_;
     bgmmc.M_chunk_size = m_chunk_size_;
     bgmmc.N_blk = n_blk_;

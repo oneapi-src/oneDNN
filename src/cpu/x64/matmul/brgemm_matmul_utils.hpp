@@ -133,7 +133,7 @@ struct brgemm_matmul_conf_t {
     data_type_t orig_src_dt;
     data_type_t orig_wei_dt;
     int nthr;
-    int nthr_k;
+    int nthr_k = 1, nthr_m = 1, nthr_n = 1, nthr_b = 1;
 
     // Auxiliary values for init_config() and execute()
     dim_t a_dt_sz, b_dt_sz, c_dt_sz, acc_dt_sz, bias_dt_sz, reduce_dt_sz;

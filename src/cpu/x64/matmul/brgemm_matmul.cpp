@@ -457,11 +457,11 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     const int N_chunks = brgmm_ctx.get_N_chunks();
     const int N_chunk_tail = brgmm_ctx.get_N_chunk_tail();
     parallel(num_threads, [&](const int ithr, const int nthr) {
-        const int ithr_bmn = brgmm_ctx.get_thread_idx_for_bmn(ithr);
+        const int ithr_bmn = brgmm_ctx.get_thread_idx_for_bmn_gemm(ithr);
         const int ithr_k = brgmm_ctx.get_thread_idx_for_k(ithr);
         if (ithr_bmn < 0 || ithr_k < 0) return;
         int start {0}, end {0};
-        balance211(brgmm_ctx.get_parallel_work_amount(),
+        balance211(brgmm_ctx.get_parallel_work_amount_gemm(),
                 brgmm_ctx.get_num_threads_for_bmn(), ithr_bmn, start, end);
         int kc_start {0}, kc_end {bgmmc.K_chunks};
         if (brgmm_ctx.parallel_reduction_is_used())
@@ -472,14 +472,39 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
         brgemm_palettes_.maybe_tile_configure(
                 is_amx, prev_ker_idx, brgmm_ctx.get_base_brgemm_kernel_idx());
 
-        int b {0}, mc {0}, nc {0};
-        nd_iterator_init(start, b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
+        int b {0}, mc {0}, nc {0}, b_per_t {0}, mc_per_t {0}, nc_per_t {0},
+                bt {0}, mt {0}, nt {0};
+        int m_chunks_per_thread = div_up(M_chunks, bgmmc.nthr_m);
+        int n_chunks_per_thread = div_up(N_chunks, bgmmc.nthr_n);
+        int batch_per_thread = div_up(bgmmc.batch, bgmmc.nthr_b);
+        nd_iterator_init(start, bt, bgmmc.nthr_b, mt, bgmmc.nthr_m, nt,
+                bgmmc.nthr_n, b_per_t, batch_per_thread, mc_per_t,
+                m_chunks_per_thread, nc_per_t, n_chunks_per_thread);
+        mc = mt * m_chunks_per_thread + mc_per_t;
+        nc = nt * n_chunks_per_thread + nc_per_t;
+        b = bt * batch_per_thread + b_per_t;
+
+        auto advance_func = [&]() {
+            ++start;
+            nd_iterator_step(bt, bgmmc.nthr_b, mt, bgmmc.nthr_m, nt,
+                    bgmmc.nthr_n, b_per_t, batch_per_thread, mc_per_t,
+                    m_chunks_per_thread, nc_per_t, n_chunks_per_thread);
+            mc = mt * m_chunks_per_thread + mc_per_t;
+            nc = nt * n_chunks_per_thread + nc_per_t;
+            b = bt * batch_per_thread + b_per_t;
+        };
+
         int mc_prev = -1;
         int nb_prev = -1;
         int b_prev = -1;
         const char *a_batch_ptr = nullptr;
         const char *b_batch_ptr = nullptr;
         while (start < end) {
+            if (mc >= M_chunks || nc >= N_chunks || b >= bgmmc.batch) {
+                advance_func();
+                continue;
+            }
+
             auto m_start = mc * M_chunk_size;
             const bool m_chunk_tail = mc == M_chunks - 1 && M_chunk_tail > 0;
             auto m_end = m_start + (m_chunk_tail ? M_chunk_tail : M_chunk_size);
@@ -537,8 +562,7 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             }
             mc_prev = mc;
             b_prev = b;
-            ++start;
-            nd_iterator_step(b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
+            advance_func();
         }
         if (is_amx) { amx_tile_release(); }
     });
@@ -1418,6 +1442,15 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         }
         C_ptr_shift_b_ = bgmmc_.C_ptr_shift_b;
 
+        // create parallel work of amount that is divisible by nthr_m and nthr_n,
+        // the chunks that do not exist will be ignored in gemm execution
+        // In case of micro heuristics, nthr_m==nthr_n==nthr_b==1 (round up has no effect)
+        int m_chunks_per_thread = rnd_up(M_chunks_, bgmmc.nthr_m);
+        int n_chunks_per_thread = rnd_up(N_chunks_, bgmmc.nthr_n);
+        int b_per_thread = rnd_up(bgmmc.batch, bgmmc.nthr_b);
+        parallel_work_amount_gemm_
+                = b_per_thread * m_chunks_per_thread * n_chunks_per_thread;
+
         // parallelization
         parallel_work_amount_ = bgmmc.batch * M_chunks_ * N_chunks_;
 
@@ -1910,6 +1943,9 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     }
 
     int get_parallel_work_amount() const { return parallel_work_amount_; }
+    int get_parallel_work_amount_gemm() const {
+        return parallel_work_amount_gemm_;
+    }
     int get_num_threads_for_k() const { return nthr_k_; }
     bool parallel_reduction_is_used() const {
         return nthr_k_ > 1 && bgmmc_.K_chunks > 1;
@@ -1921,11 +1957,19 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         const int ithr_k = ithr / nthr_bmn_;
         return ithr_k < bgmmc_.K_chunks ? ithr_k : -1;
     }
+
+    int get_thread_idx_for_bmn_gemm(int ithr) const {
+        if (ithr >= num_threads_used_) return -1;
+        const int ithr_bmn = ithr % nthr_bmn_;
+        return ithr_bmn < parallel_work_amount_gemm_ ? ithr_bmn : -1;
+    }
+
     int get_thread_idx_for_bmn(int ithr) const {
         if (ithr >= num_threads_used_) return -1;
         const int ithr_bmn = ithr % nthr_bmn_;
         return ithr_bmn < parallel_work_amount_ ? ithr_bmn : -1;
     }
+
     int get_num_threads_for_parallelization() const {
         return num_threads_used_;
     }
@@ -2167,6 +2211,7 @@ private:
 
     // parallelization parameters
     int parallel_work_amount_;
+    int parallel_work_amount_gemm_;
     int nthr_, nthr_k_, nthr_bmn_, num_threads_used_;
     int last_brgemm_batch_size_;
     dim_t M_;
