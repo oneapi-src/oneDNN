@@ -1,0 +1,427 @@
+{
+  "version": "3.8.0",
+  "engine_kind": "cpu",
+  "fpmath_mode": "strict",
+  "fpmath_mode_apply_to_int": "false",
+  "input_ports": [
+    0, 
+    1, 
+    5, 
+    10
+  ],
+  "output_ports": [
+    11
+  ],
+  "graph": [
+    {
+      "id": 0,
+      "name": "matmul_1",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 0,
+          "dtype": "f32",
+          "shape": [
+            16, 
+            128, 
+            256
+          ],
+          "stride": [
+            32768, 
+            256, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 1,
+          "dtype": "f32",
+          "shape": [
+            16, 
+            256, 
+            128
+          ],
+          "stride": [
+            32768, 
+            128, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 1,
+      "name": "reshape_1",
+      "kind": "StaticReshape",
+      "attrs": {
+        "shape": {
+          "type": "s64[]",
+          "value": [
+            1, 
+            16, 
+            128, 
+            128, 
+            1
+          ]
+        },
+        "special_zero": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 2,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 2,
+      "name": "transpose_1",
+      "kind": "StaticTranspose",
+      "attrs": {
+        "order": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            1, 
+            4, 
+            3, 
+            2
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 3,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 4,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 3,
+      "name": "add",
+      "kind": "Add",
+      "attrs": {
+        "auto_broadcast": {
+          "type": "string",
+          "value": "numpy"
+        }
+      },
+      "inputs": [
+        {
+          "id": 4,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 5,
+          "dtype": "f32",
+          "shape": [
+            1, 
+            16, 
+            1, 
+            128, 
+            128
+          ],
+          "stride": [
+            262144, 
+            16384, 
+            16384, 
+            128, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 6,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 4,
+      "name": "softmax",
+      "kind": "SoftMax",
+      "attrs": {
+        "axis": {
+          "type": "s64",
+          "value": -1
+        }
+      },
+      "inputs": [
+        {
+          "id": 6,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 7,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 5,
+      "name": "transpose_2",
+      "kind": "StaticTranspose",
+      "attrs": {
+        "order": {
+          "type": "s64[]",
+          "value": [
+            0, 
+            1, 
+            4, 
+            2, 
+            3
+          ]
+        }
+      },
+      "inputs": [
+        {
+          "id": 7,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 8,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 6,
+      "name": "reshape_2",
+      "kind": "StaticReshape",
+      "attrs": {
+        "shape": {
+          "type": "s64[]",
+          "value": [
+            16, 
+            128, 
+            128
+          ]
+        },
+        "special_zero": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 8,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 9,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }, 
+    {
+      "id": 7,
+      "name": "matmul_2",
+      "kind": "MatMul",
+      "attrs": {
+        "transpose_a": {
+          "type": "bool",
+          "value": 0
+        },
+        "transpose_b": {
+          "type": "bool",
+          "value": 0
+        }
+      },
+      "inputs": [
+        {
+          "id": 10,
+          "dtype": "f32",
+          "shape": [
+            16, 
+            256, 
+            128
+          ],
+          "stride": [
+            32768, 
+            128, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }, 
+        {
+          "id": 9,
+          "dtype": "f32",
+          "shape": [
+            -9223372036854775808
+          ],
+          "stride": [
+            -9223372036854775808
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ],
+      "outputs": [
+        {
+          "id": 11,
+          "dtype": "f32",
+          "shape": [
+            16, 
+            256, 
+            128
+          ],
+          "stride": [
+            32768, 
+            128, 
+            1
+          ],
+          "layout_type": "strided",
+          "property_type": "undef"
+        }
+      ]
+    }
+  ]
+}
