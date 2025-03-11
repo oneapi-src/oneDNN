@@ -263,6 +263,8 @@ enum class ProductFamily : int {
     PVC,
     PVCVG,
     GenericXe2,
+    BMG,
+    LNL,
     GenericXe3,
 };
 
@@ -288,6 +290,7 @@ static inline constexpr14 PlatformType getPlatformType(ProductFamily family) {
         case ProductFamily::GenericGen11:
         case ProductFamily::MTL:
         case ProductFamily::ARL:
+        case ProductFamily::LNL:
             return PlatformType::Integrated;
         // Could be integrated or discrete
         case ProductFamily::GenericXeLP:
@@ -301,6 +304,7 @@ static inline constexpr14 PlatformType getPlatformType(ProductFamily family) {
         case ProductFamily::DG2:
         case ProductFamily::PVC:
         case ProductFamily::PVCVG:
+        case ProductFamily::BMG:
             return PlatformType::Discrete;
         case ProductFamily::Unknown:
             return PlatformType::Unknown;
