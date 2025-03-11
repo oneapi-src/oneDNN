@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -639,6 +639,11 @@ status_t jit_uni_x8s8s32x_1x1_conv_kernel<isa>::init_conf(
         primitive_attr_t &attr, int nthreads, bool reduce_src) {
     // disabling verbose dispatch messages for unsupported isa for better readability
     if (!mayiuse(isa)) return status::unimplemented;
+
+    // Big int (> INT_MAX) values are unsupported and jcp fields may overflow
+    // TODO: change data type of jcp fields to size_t
+    VDISPATCH_CONV_IC(!has_large_size(cd, src_d, weights_d, dst_d),
+            VERBOSE_BAD_PARAM, "Large size is not supported");
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
     const bool dt_not_ok
