@@ -883,172 +883,157 @@ void CopyPlan::planS4ToHF(CopyInstruction &i)
 void CopyPlan::planEmulatedHFToF4E2M1(CopyInstruction &i)
 {
     // Emulation sequence for mov y:f4 x:hf:
-    //   and (nz)fN.N   x:uw                0x7C00        /* NaN/inf check */
-    //   sel fN.N       t1:uw    x:uw       0x0
-    //   sel (lt)fN.N   t2:hf    t1:uw      0x4600:hf     /* Clamp/round */
-    //   mul t2:hf      t2:hf               0x400:hf
-    //   and (nz)fN.N   null     t2:uw      0x200
-    //   add            t2:uw    t2:uw      0x100
-    //   shr            t1:uw    x:uw       0x8
-    //   shr            t2:uw    t2:uw      0x5
-    //   bfn.0xCA       t2:uw    t2:uw      t1:uw  0x8000 /* copy sign */
-    //   and            t2:uw    t2:uw      0x00f0:uw     /* byte pack */
-    //   shr            t2:uw<2> t2:uw<2>   0x4:uw
-    //   or             t2:uw    t2.1:uw<2> t2:uw<2>
-    //   mov            t2:ub    t2:ub<2>
-    //   mov            y:uw     t2:ub
+    //        sel (lt)     t1:hf    (abs)x:hf  0x4600:hf     /* Clamp */
+    //        mul          t1:hf    t1:hf      0x400:hf
+    //        add          t1:uw    t1:uw      -0x100
+    //        and (nz)f0   null     t1:uw      0x3ff:uw
+    //   (f0) add          t1:uw    t1:uw      0x200
+    //        shl          t1:uw    t1:uw      3
+    //        bfn.0xCA     t1:uw    t1:uw      x:uw   0x8000 /* copy sign */
+    //        shr          t1:uw    t1:uw      8
+    //        and          t1:uw    t1:uw      0x00f0:uw     /* byte pack */
+    //        shr          t1:uw<2> t1:uw<2>   4
+    //        or           t1:uw    t1.1:uw<2> t1:uw<2>
+    //        mov          t1:ub    t1:ub<2>
+    //        mov          y:uw     t1:ub
     //
 
     if (i.src0.neg || i.sat || i.hasCMod()) stub("Unsupported modifier");
     int simd = i.simd;
 
-    auto ie = splitMultiple<14>(i);
+    auto ie = splitMultiple<13>(i);
     auto tmp = newTemp(DataType::ud, simd, 1);
-    auto tmp2 = newTemp(DataType::ud, simd, 1);
 
     auto convFlag = newFlag(simd);
-    auto ddst = CopyOperand(i.dst);
-    auto invSrc = CopyOperand(i.src0);
-    auto ssrc = CopyOperand(i.src0);
-    invSrc.inv = true;
-
-    // Check for NaN/infs.
-    ie[0]->op = Opcode::and_;
-    ie[0]->simd = simd;
-    ie[0]->flag = convFlag;
-    ie[0]->cmod = ConditionModifier::nz;
-    ie[0]->dst = CopyOperand();
-    ie[0]->dst.type = DataType::uw;
-    ie[0]->src0 = invSrc;
-    ie[0]->src0.type = DataType::uw;
-    ie[0]->src1 = Immediate::uw(0x7c00);
-
-    ie[1]->op = Opcode::sel;
-    ie[1]->flag = convFlag;
-    ie[1]->simd = simd;
-    ie[1]->dst = tmp;
-    ie[1]->dst.type = DataType::uw;
-    ie[1]->src0 = ssrc;
-    ie[1]->src0.type = DataType::uw;
-    ie[1]->src1 = Immediate::uw(0x0);
+    auto ddst = i.dst;
+    auto ssrc = i.src0;
 
     // Clamp and round.
-    ie[2]->op = Opcode::sel;
-    ie[2]->flag = convFlag;
-    ie[2]->cmod = ConditionModifier::lt;
+    ie[0]->op = Opcode::sel;
+    ie[0]->flag = convFlag;
+    ie[0]->cmod = ConditionModifier::lt;
+    ie[0]->simd = simd;
+    ie[0]->dst = tmp;
+    // Workaround for strange `mov` insertion issue
+    ie[0]->dst.type = DataType::w;
+    ie[0]->src0 = ssrc;
+    ie[0]->src0.type = DataType::w;
+    ie[0]->src0.abs = true;
+    ie[0]->src1 = Immediate::w(0x4600);
+
+    ie[1]->op = Opcode::mul;
+    ie[1]->simd = simd;
+    ie[1]->dst = tmp;
+    ie[1]->dst.type = DataType::hf;
+    ie[1]->src0 = tmp;
+    ie[1]->src0.type = DataType::hf;
+    ie[1]->src1 = Immediate::hf(0x0400);
+
+    ie[2]->op = Opcode::add;
     ie[2]->simd = simd;
-    ie[2]->dst = tmp2;
-    ie[2]->dst.type = DataType::hf;
+    ie[2]->dst = tmp;
+    ie[2]->dst.type = DataType::uw;
     ie[2]->src0 = tmp;
-    ie[2]->src0.type = DataType::hf;
-    ie[2]->src0.abs = true;
-    ie[2]->src1 = Immediate::hf(0x4600);
+    ie[2]->src0.type = DataType::uw;
+    ie[2]->src1 = Immediate::w(-0x0100);
 
-    ie[3]->op = Opcode::mul;
+    ie[3]->op = Opcode::and_;
     ie[3]->simd = simd;
-    ie[3]->dst = tmp2;
-    ie[3]->dst.type = DataType::hf;
-    ie[3]->src0 = tmp2;
-    ie[3]->src0.type = DataType::hf;
-    ie[3]->src1 = Immediate::hf(0x0400);
+    ie[3]->flag = convFlag;
+    ie[3]->cmod = ConditionModifier::nz;
+    ie[3]->dst = CopyOperand();
+    ie[3]->dst.type = DataType::uw;
+    ie[3]->src0 = tmp;
+    ie[3]->src0.type = DataType::uw;
+    ie[3]->src1 = Immediate::uw(0x03ff);
 
-    ie[4]->op = Opcode::and_;
+    ie[4]->op = Opcode::add;
     ie[4]->simd = simd;
     ie[4]->flag = convFlag;
-    ie[4]->cmod = ConditionModifier::nz;
-    ie[4]->dst = CopyOperand();
+    ie[4]->dst = tmp;
     ie[4]->dst.type = DataType::uw;
-    ie[4]->src0 = tmp2;
+    ie[4]->src0 = tmp;
     ie[4]->src0.type = DataType::uw;
     ie[4]->src1 = Immediate::uw(0x0200);
 
-    ie[5]->op = Opcode::add;
+    ie[5]->op = Opcode::shl;
     ie[5]->simd = simd;
-    ie[5]->flag = convFlag;
-    ie[5]->dst = tmp2;
+    ie[5]->dst = tmp;
     ie[5]->dst.type = DataType::uw;
-    ie[5]->src0 = tmp2;
+    ie[5]->src0 = tmp;
     ie[5]->src0.type = DataType::uw;
-    ie[5]->src1 = Immediate::uw(0x0100);
+    ie[5]->src1 = Immediate::uw(3);
 
-    ie[6]->op = Opcode::shr;
-    ie[6]->simd = simd;
+    // Restore sign.
+    ie[6]->op = Opcode::bfn;
     ie[6]->dst = tmp;
+    ie[6]->dst.stride = 1;
     ie[6]->dst.type = DataType::uw;
-    ie[6]->src0 = ssrc;
+    ie[6]->src0 = tmp;
     ie[6]->src0.type = DataType::uw;
-    ie[6]->src1 = Immediate::uw(8);
+    ie[6]->src1 = ssrc;
+    ie[6]->src1.type = DataType::uw;
+    ie[6]->src2 = 0x8000;
+    ie[6]->ctrl = 0xCA;
 
     ie[7]->op = Opcode::shr;
     ie[7]->simd = simd;
-    ie[7]->dst = tmp2;
+    ie[7]->dst = tmp;
     ie[7]->dst.type = DataType::uw;
-    ie[7]->src0 = tmp2;
+    ie[7]->src0 = tmp;
     ie[7]->src0.type = DataType::uw;
-    ie[7]->src1 = Immediate::uw(5);
-
-    // Restore sign.
-    ie[8]->op = Opcode::bfn;
-    ie[8]->dst = tmp2;
-    ie[8]->dst.stride = 1;
-    ie[8]->dst.type = DataType::uw;
-    ie[8]->src0 = tmp2;
-    ie[8]->src0.type = DataType::uw;
-    ie[8]->src1 = tmp;
-    ie[8]->src1.type = DataType::uw;
-    ie[8]->src2 = 0x80;
-    ie[8]->ctrl = 0xCA;
+    ie[7]->src1 = Immediate::uw(8);
 
     // Pack into byte.
-    ie[9]->op = Opcode::and_;
-    ie[9]->simd = simd;
-    ie[9]->dst = tmp2;
-    ie[9]->dst.type = DataType::uw;
-    ie[9]->src0 = tmp2;
-    ie[9]->src0.type = DataType::uw;
-    ie[9]->src1 = Immediate(0x00f0);
+    ie[8]->op = Opcode::and_;
+    ie[8]->simd = simd;
+    ie[8]->dst = tmp;
+    ie[8]->dst.type = DataType::uw;
+    ie[8]->src0 = tmp;
+    ie[8]->src0.type = DataType::uw;
+    ie[8]->src1 = Immediate(0x00f0);
 
-    ie[10]->op = Opcode::shr;
+    ie[9]->op = Opcode::shr;
+    ie[9]->simd = simd/2;
+    ie[9]->dst = tmp;
+    ie[9]->dst.type = DataType::uw;
+    ie[9]->dst.stride = 2;
+    ie[9]->src0 = tmp;
+    ie[9]->src0.type = DataType::uw;
+    ie[9]->src0.stride = 2;
+    ie[9]->src1 = Immediate::uw(4);
+
+    ie[10]->op = Opcode::or_;
     ie[10]->simd = simd/2;
-    ie[10]->dst = tmp2;
+    ie[10]->dst = tmp;
     ie[10]->dst.type = DataType::uw;
-    ie[10]->dst.stride = 2;
-    ie[10]->src0 = tmp2;
+    ie[10]->src0 = tmp;
+    ie[10]->src0.offset = 1;
     ie[10]->src0.type = DataType::uw;
     ie[10]->src0.stride = 2;
-    ie[10]->src1 = Immediate::uw(4);
+    ie[10]->src1 = tmp;
+    ie[10]->src1.type = DataType::uw;
+    ie[10]->src1.stride = 2;
 
-    ie[11]->op = Opcode::or_;
+    ie[11]->op = Opcode::mov;
     ie[11]->simd = simd/2;
-    ie[11]->dst = tmp2;
-    ie[11]->dst.type = DataType::uw;
-    ie[11]->src0 = tmp2;
-    ie[11]->src0.offset = 1;
-    ie[11]->src0.type = DataType::uw;
+    ie[11]->dst = tmp;
+    ie[11]->dst.stride = 1;
+    ie[11]->dst.type = DataType::ub;
+    ie[11]->src0 = tmp;
     ie[11]->src0.stride = 2;
-    ie[11]->src1 = tmp2;
-    ie[11]->src1.type = DataType::uw;
-    ie[11]->src1.stride = 2;
+    ie[11]->src0.type = DataType::ub;
 
     ie[12]->op = Opcode::mov;
     ie[12]->simd = simd/2;
-    ie[12]->dst = tmp2;
-    ie[12]->dst.stride = 1;
-    ie[12]->dst.type = DataType::ub;
-    ie[12]->src0 = tmp2;
-    ie[12]->src0.stride = 2;
-    ie[12]->src0.type = DataType::ub;
-
-    ie[13]->op = Opcode::mov;
-    ie[13]->simd = simd/2;
-    ie[13]->dst = ddst;
+    ie[12]->dst = ddst;
     if (ddst.inVS != 0)
-    ie[13]->dst.stride = ddst.inVS / ddst.inW;
-    ie[13]->dst.type = DataType::ub;
-    if (ie[13]->dst.offset != 0)
-            ie[13]->dst.offset /= 2;
-    ie[13]->src0 = tmp2;
-    ie[13]->src0.type = DataType::ub;
+    ie[12]->dst.stride = ddst.inVS / ddst.inW;
+    ie[12]->dst.type = DataType::ub;
+    if (ie[12]->dst.offset != 0)
+            ie[12]->dst.offset /= 2;
+    ie[12]->src0 = tmp;
+    ie[12]->src0.type = DataType::ub;
 
 }
 
