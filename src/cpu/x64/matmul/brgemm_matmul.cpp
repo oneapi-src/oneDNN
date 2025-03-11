@@ -299,6 +299,8 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
             brgattr.hint_expected_C_size = vM * vN * bs;
             if (bgmmc_.LDB2 != 0) brgattr.LDB2 = bgmmc_.LDB2;
 
+            brgattr.LDC2_N = bgmmc_.M_blk * bgmmc_.LDC;
+
             brgattr.hint_innermost_loop = brgemm_innermost_undef;
             brgattr.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf0;
         }
@@ -1663,8 +1665,16 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         }
         char *buf_C_ptr_local
                 = buf_C_ptr_ + ithr * bgmmc_.buffer_c_per_thread_sz;
-        const int n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
-        const int m_blk_local = m_blk_idx % get_M_chunk_size();
+
+        int n_blk_local = 0;
+        int m_blk_local = 0;
+
+        if (bgmmc_.is_runtime_N || bgmmc_.is_runtime_M
+                || bgmmc_.K_chunk_elems < bgmmc_.K) {
+            n_blk_local = n_blk_idx % bgmmc_.N_chunk_size;
+            m_blk_local = m_blk_idx % get_M_chunk_size();
+        }
+
         const bool runtime_M_tail = is_runtime_M_tail_chunk(m_blk_idx);
         const bool runtime_N_tail = is_runtime_N_tail_chunk(n_blk_idx);
 

@@ -1675,7 +1675,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             ? bgmmc.N
             : dst_d.blocking_desc().strides[bgmmc.ndims - 2];
     bgmmc.LDC = bgmmc.use_buffer_c && bgmmc.nthr_k <= 1
-            ? bgmmc.N_blk * (bgmmc.is_runtime_N ? bgmmc.N_chunk_size : 1)
+            ? (bgmmc.is_amx ? nstl::min((dim_t)32, bgmmc.N_blk) : bgmmc.N_blk)
+                    * (bgmmc.is_runtime_N ? bgmmc.N_chunk_size : 1)
             : bgmmc.LDD;
 
     bgmmc.is_src_batch_layout_trivial
@@ -1865,11 +1866,29 @@ void init_aux_values(brgemm_matmul_conf_t &bgmmc,
     bgmmc.brgemm_batch_tail_size
             = last_chunck_batch_size % bgmmc.brgemm_batch_size;
 
-    bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz
-            * (bgmmc.is_runtime_N ? bgmmc.N_blk : bgmmc.LDC)
-            * (bgmmc.nthr_k > 1 ? bgmmc.M : bgmmc.M_blk);
-    bgmmc.buffer_c_per_thread_sz = bgmmc.buffer_c_chunk_sz
-            * (bgmmc.nthr_k > 1 ? 1 : bgmmc.M_chunk_size * bgmmc.N_chunk_size);
+    if (!bgmmc.is_runtime_N && bgmmc.is_amx && bgmmc.nthr_k == 1) {
+        bgmmc.buffer_c_chunk_sz = rnd_up(bgmmc.N_blk, bgmmc.LDC) * bgmmc.M_blk
+                * bgmmc.acc_dt_sz;
+    } else {
+        bgmmc.buffer_c_chunk_sz = bgmmc.acc_dt_sz
+                * (bgmmc.is_runtime_N ? bgmmc.N_blk : bgmmc.LDC)
+                * (bgmmc.nthr_k > 1 ? bgmmc.M : bgmmc.M_blk);
+    }
+
+    if (bgmmc.nthr_k > 1) {
+        // c size == M * N (for reduction)
+        bgmmc.buffer_c_per_thread_sz = bgmmc.buffer_c_chunk_sz;
+
+    } else if (!bgmmc.is_runtime_N && !bgmmc.is_runtime_M
+            && bgmmc.K_chunk_elems >= bgmmc.K) {
+        // c size == BRGEMM size
+        bgmmc.buffer_c_per_thread_sz = bgmmc.buffer_c_chunk_sz;
+
+    } else {
+        // c size == chunk size
+        bgmmc.buffer_c_per_thread_sz = bgmmc.buffer_c_chunk_sz
+                * bgmmc.M_chunk_size * bgmmc.N_chunk_size;
+    }
 
     bgmmc.buffer_a_gb_stride = bgmmc.tr_a_dt_sz * bgmmc.M_blk
             * (bgmmc.use_buffer_a_tail_only ? bgmmc.wei_k_blk : bgmmc.LDA);
