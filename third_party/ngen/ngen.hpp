@@ -90,6 +90,7 @@ class BinaryCodeGenerator
 
 public:
     static constexpr HW hardware = hw;
+    static constexpr HW getHardware() { return hardware; }
 
 protected:
     class InstructionStream {
@@ -1369,6 +1370,7 @@ void requireGRF(int grfs) { scope::requireGRF(grfs); }
 
 #define NGEN_FORWARD_SCOPE_NO_ELF_OVERRIDES(scope)            \
 using scope::isGen12; \
+constexpr NGEN_NAMESPACE::HW getHardware() const { return scope::getHardware(); } \
 NGEN_FORWARD_SCOPE_DT_OP(add, scope) \
 NGEN_FORWARD_SCOPE_DT_OP(addc, scope) \
 NGEN_FORWARD_SCOPE_DT_OP(add3, scope) \

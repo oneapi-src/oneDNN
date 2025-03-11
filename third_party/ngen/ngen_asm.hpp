@@ -427,6 +427,9 @@ public:
         for (auto &s : streamStack)
             delete s;
     }
+
+    constexpr HW getHardware() const { return hardware; }
+
     inline void getCode(std::ostream &out);
     void enableLineNumbers(bool enable = true) { lineNumbers = enable; }
 
