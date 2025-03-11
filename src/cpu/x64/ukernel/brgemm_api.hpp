@@ -19,6 +19,8 @@
 
 #include <memory>
 
+#include "cpu/ukernel/c_types_map.hpp"
+
 #include "cpu/x64/matmul/brgemm_matmul_copy_utils.hpp"
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
 
@@ -31,14 +33,6 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
-
-using pack_type_t = dnnl_pack_type_t;
-namespace pack_type {
-const pack_type_t undef = dnnl_pack_type_undef;
-const pack_type_t no_trans = dnnl_pack_type_no_trans;
-const pack_type_t trans = dnnl_pack_type_trans;
-const pack_type_t pack32 = dnnl_pack_type_pack32;
-} // namespace pack_type
 
 using attr_params_t = dnnl_ukernel_attr_params;
 
@@ -97,7 +91,7 @@ struct dnnl_brgemm : public dnnl::impl::c_compatible {
     dnnl::impl::status_t finalize();
 
     static dnnl::impl::status_t get_B_pack_type(
-            dnnl::impl::cpu::x64::pack_type_t *pack_type,
+            dnnl::impl::cpu::ukernel::pack_type_t *pack_type,
             dnnl::impl::data_type_t dt_a, dnnl::impl::data_type_t dt_b);
 
     size_t get_scratchpad_size() const;
@@ -138,7 +132,7 @@ private:
 struct dnnl_transform : public dnnl::impl::c_compatible {
     // Ctor that follows a call to initialize matmul conf struct.
     dnnl_transform(dnnl::impl::dim_t K, dnnl::impl::dim_t N,
-            dnnl::impl::cpu::x64::pack_type_t in_pack_type,
+            dnnl::impl::cpu::ukernel::pack_type_t in_pack_type,
             dnnl::impl::dim_t in_ld, dnnl::impl::dim_t out_ld,
             dnnl::impl::data_type_t in_dt, dnnl::impl::data_type_t out_dt);
 
@@ -169,6 +163,29 @@ private:
     dnnl::impl::status_t create_verbose_info();
     std::string verbose_info_;
 };
+
+namespace dnnl {
+namespace impl {
+namespace cpu {
+namespace x64 {
+namespace ukernel {
+
+status_t dnnl_transform_create(dnnl_transform **transform, dim_t K, dim_t N,
+        dnnl::impl::cpu::ukernel::pack_type_t in_pack_type, dim_t in_ld,
+        dim_t out_ld, data_type_t in_dt, data_type_t out_dt);
+
+status_t dnnl_transform_generate(dnnl_transform *transform);
+
+status_t dnnl_transform_execute(
+        const dnnl_transform *transform, const void *in_ptr, void *out_ptr);
+
+status_t dnnl_transform_destroy(dnnl_transform *transform);
+
+} // namespace ukernel
+} // namespace x64
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl
 
 #endif
 

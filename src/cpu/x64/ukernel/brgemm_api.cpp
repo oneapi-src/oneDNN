@@ -35,9 +35,9 @@ using namespace dnnl::impl;
 using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::cpu::x64;
+using namespace dnnl::impl::cpu::ukernel;
 
 using brgemm_t = dnnl_brgemm;
-using transform_t = dnnl_transform;
 
 #define VCHECK_BRGEMM(cond, msg, ...) \
     VCONDCHECK(ukernel, create, check, brgemm, (cond), \
@@ -693,6 +693,12 @@ status_t dnnl_brgemm_destroy(brgemm_t *brgemm) {
 // Transform //
 ///////////////
 
+namespace dnnl {
+namespace impl {
+namespace cpu {
+namespace x64 {
+namespace ukernel {
+
 status_t dnnl_transform_create(transform_t **transform, dim_t K, dim_t N,
         pack_type_t in_pack_type, dim_t in_ld, dim_t out_ld, data_type_t in_dt,
         data_type_t out_dt) {
@@ -725,6 +731,12 @@ status_t dnnl_transform_destroy(transform_t *transform) {
     delete transform;
     return status::success;
 }
+
+} // namespace ukernel
+} // namespace x64
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl
 
 #endif
 
