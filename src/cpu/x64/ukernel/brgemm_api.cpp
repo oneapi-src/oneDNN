@@ -523,6 +523,12 @@ status_t transform_t::create_verbose_info() {
 // Attribute arguments //
 /////////////////////////
 
+namespace dnnl {
+namespace impl {
+namespace cpu {
+namespace x64 {
+namespace ukernel {
+
 status_t dnnl_ukernel_attr_params_create(attr_params_t **attr_params) {
     *attr_params = new attr_params_t();
     return status::success;
@@ -564,6 +570,12 @@ status_t dnnl_ukernel_attr_params_destroy(attr_params_t *attr_params) {
     delete attr_params;
     return status::success;
 }
+
+} // namespace ukernel
+} // namespace x64
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl
 
 ////////////
 // BRGeMM //

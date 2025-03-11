@@ -28,19 +28,6 @@
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
 
-// A section identical to c_map_types.hpp but just for brgemm ukernel so far.
-namespace dnnl {
-namespace impl {
-namespace cpu {
-namespace x64 {
-
-using attr_params_t = dnnl_ukernel_attr_params;
-
-} // namespace x64
-} // namespace cpu
-} // namespace impl
-} // namespace dnnl
-
 struct dnnl_ukernel_attr_params : public dnnl::impl::c_compatible {
     dnnl_ukernel_attr_params() = default;
 
@@ -108,7 +95,7 @@ struct dnnl_brgemm : public dnnl::impl::c_compatible {
     dnnl::impl::status_t execute(const void *A_ptr, const void *B_ptr,
             const dnnl::impl::dim_t *A_B_offsets, const void *C_ptr,
             void *D_ptr, void *scratchpad_ptr,
-            const dnnl::impl::cpu::x64::attr_params_t *attr_params) const;
+            const dnnl::impl::cpu::ukernel::attr_params_t *attr_params) const;
 
 private:
     // User's inputs.
@@ -169,6 +156,24 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 namespace ukernel {
+
+status_t dnnl_ukernel_attr_params_create(
+        dnnl_ukernel_attr_params **attr_params);
+
+status_t dnnl_ukernel_attr_params_set_post_ops_args(
+        dnnl_ukernel_attr_params *attr_params, const void **post_ops_args);
+
+status_t dnnl_ukernel_attr_params_set_A_scales(
+        dnnl_ukernel_attr_params *attr_params, const void *a_scales);
+
+status_t dnnl_ukernel_attr_params_set_B_scales(
+        dnnl_ukernel_attr_params *attr_params, const void *b_scales);
+
+status_t dnnl_ukernel_attr_params_set_D_scales(
+        dnnl_ukernel_attr_params *attr_params, const void *d_scales);
+
+status_t dnnl_ukernel_attr_params_destroy(
+        dnnl_ukernel_attr_params *attr_params);
 
 status_t dnnl_transform_create(dnnl_transform **transform, dim_t K, dim_t N,
         dnnl::impl::cpu::ukernel::pack_type_t in_pack_type, dim_t in_ld,
