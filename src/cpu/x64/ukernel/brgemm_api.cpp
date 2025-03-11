@@ -27,7 +27,7 @@
 #include "cpu/x64/brgemm/brgemm.hpp"
 #include "cpu/x64/brgemm/brgemm_utils.hpp"
 
-#include "cpu/x64/brgemm/capi/brgemm_api.hpp"
+#include "cpu/x64/ukernel/brgemm_api.hpp"
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
 
