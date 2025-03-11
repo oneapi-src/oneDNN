@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ uint8_t float2e2m1(float f) {
     // we convert with naive closest value computation out of 8
     float e2m1_val_table[8] = {0.0f, .5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f};
 
-    float abs_f = int2float(f_raw ^ sign);
+    float abs_f = fmin(e2m1_val_table[7], int2float(f_raw ^ sign));
 
     int idx = 0;
     float min_diff = ::fabsf(e2m1_val_table[idx] - abs_f);
@@ -102,7 +102,7 @@ uint8_t float2e3m0(float f) {
     // we convert with naive closest value computation out of 8
     float e3m0_val_table[8] = {0.0f, .25f, .5f, 1.0f, 2.0f, 4.0f, 8.0f, 16.0f};
 
-    float abs_f = int2float(f_raw ^ sign);
+    float abs_f = fmin(e3m0_val_table[7], int2float(f_raw ^ sign));
 
     int idx = 0;
     float min_diff = ::fabsf(e3m0_val_table[idx] - abs_f);

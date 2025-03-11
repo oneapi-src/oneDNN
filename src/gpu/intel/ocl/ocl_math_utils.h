@@ -717,7 +717,7 @@ uchar __attribute__((overloadable)) cvt_f32_to_f4_e3m0(float f) {
     // we convert with naive closest value computation out of 8
     float e3m0_val_table[8] = {0.0f, .25f, .5f, 1.0f, 2.0f, 4.0f, 8.0f, 16.0f};
 
-    float abs_f = as_float(f_raw ^ sign);
+    float abs_f = fmin(e3m0_val_table[7], as_float(f_raw ^ sign));
 
     int idx = 0;
     float min_diff = fabs(e3m0_val_table[idx] - abs_f);
