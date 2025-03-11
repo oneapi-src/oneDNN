@@ -16,6 +16,10 @@
 
 #include "graph/backend/dnnl/kernels/mqa_decomp_config.hpp"
 
+#define VCHECK_MQA_DECOMP(cond, status, msg, ...) \
+    VCONDCHECK(graph, create, check, mqa_decomp_kernel_t, (cond), status, msg, \
+            ##__VA_ARGS__);
+
 namespace dnnl {
 namespace impl {
 namespace graph {
@@ -25,7 +29,7 @@ bool mqa_decomp_config_t::initial_check(const std::shared_ptr<subgraph_t> &sg,
         const std::vector<logical_tensor_t> &inputs) {
     // The order of input logical tensors in inputs is not certain, we need
     // to record the input offset in a certain order of ops.
-    record_input_offset(sg, inputs);
+    CHECK_BOOL(record_input_offset(sg, inputs));
 
     // Key(3-dims): batch_size * seq_len * size_per_head
     memory::dims src1_user_dims = ltw(inputs[graph_inport[0]]).vdims();
@@ -144,7 +148,7 @@ status_t mqa_decomp_config_t::construct_params(std::shared_ptr<subgraph_t> &sg,
     auto mask_dt = static_cast<dnnl::memory::data_type>(
             ltw(inputs[graph_inport[2]]).data_type());
     sub_mm1_post_add_md
-            = memory::desc({1, seq_len, seq_len}, mask_dt, tag::abc);
+            = memory::desc({1, seq_len, seq_len}, mask_dt, tag::acb);
     auto ori_dnnl_pops = sub_matmul1_attr.get_post_ops();
     auto alg
             = static_cast<algorithm>(ori_dnnl_pops.get()->entry_[0].binary.alg);
@@ -166,7 +170,7 @@ status_t mqa_decomp_config_t::construct_params(std::shared_ptr<subgraph_t> &sg,
     sub_softmax_dst_md = memory::desc(sub_mm1_dst_dims, dt_src_user, tag::abc);
     auto sub_softmax_pd = softmax_forward::primitive_desc(p_engine,
             prop_kind::forward_inference, algorithm::softmax_accurate,
-            sub_mm1_dst_md, sub_softmax_dst_md, sub_mm1_dst_md.get_ndims() - 1,
+            sub_mm1_dst_md, sub_softmax_dst_md, sub_mm1_dst_md.get_ndims() - 2,
             sub_softmax_attr);
     sub_softmax_prim = softmax_forward(sub_softmax_pd);
 
@@ -336,6 +340,9 @@ status_t mqa_decomp_config_t::record_input_offset(
         auto post_op = get_post_op(cur_op);
         if (post_op != nullptr
                 && post_op->get_kind() == graph::op_kind::StaticReshape) {
+            auto val = post_op->get_output_value(0);
+            VCHECK_MQA_DECOMP(val->get_logical_tensor().ndims == 4,
+                    status::invalid_graph, "Currently only support 4d tensor");
             mm1 = cur_op;
             auto transpose = get_post_op(post_op);
             if (transpose != nullptr

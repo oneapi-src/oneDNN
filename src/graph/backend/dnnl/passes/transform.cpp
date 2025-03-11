@@ -170,8 +170,8 @@ status_t replace_quant_data_with_binary_post_op(
             auto algo = (quant_data_op->get_kind() == op_kind::dnnl_mul_scales)
                     ? dnnl::algorithm::binary_mul
                     : quant_data_op->get_kind() == op_kind::dnnl_add_zps
-                    ? dnnl::algorithm::binary_add
-                    : dnnl::algorithm::binary_sub;
+                            ? dnnl::algorithm::binary_add
+                            : dnnl::algorithm::binary_sub;
             op_ptr bin_op = std::make_shared<op_t>(op_kind::dnnl_binary);
             bin_op->set_attr<int64_t>(
                     op_attr::alg_kind, static_cast<int64_t>(algo));
@@ -3796,10 +3796,25 @@ impl::status_t fuse_src_transpose_to_matmul(std::shared_ptr<subgraph_t> &sg) {
             break;
         }
 
-        std::vector<int> axes = dnnl_impl::utils::fmap(order,
-                [](int64_t index) { return static_cast<int32_t>(index); });
+        /// The order in spec op is used as:
+        /// for (i = 0; i < ndims(); i++)
+        ///     new_shape[i] = org_shape[order[i]];
+        ///
+        /// The axes for permute_axes function is used as:
+        /// for (i = 0; i < ndims(); i++)
+        ///     new_shape[axes[i]] = org_shape[i];
+        ///
+        /// So, we need to convert the order to axes
+        std::vector<int> axes(order.size(), -1);
+        for (size_t i = 0; i < order.size(); i++) {
+            size_t new_shape_idx = i;
+            size_t org_shape_idx = order[i];
+            axes[org_shape_idx] = static_cast<int>(new_shape_idx);
+        }
         // calculate the expected transposed layout by permuting the md
-        auto expected_stride = get_dense_strides(ltw(in_lt).vdims());
+        // auto expected_stride = get_dense_strides(ltw(in_lt).vdims());
+        if (!ltw(in_lt).is_strided()) return impl::status::success;
+        auto expected_stride = ltw(in_lt).vstrides();
         auto &consumer = transpose_op->get_output_value(0)
                                  ->get_consumers()[0]
                                  .get_op();

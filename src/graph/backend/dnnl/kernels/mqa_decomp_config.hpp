@@ -49,6 +49,8 @@ public:
         return status::success;
     }
 
+    bool get_inplace() const { return is_inplace_; }
+
     status_t execute(const dnnl::stream &astream,
             const std::unordered_map<int, dnnl::memory> &args) const {
         // If the src and dst are the same, we just set the src arg to dst
