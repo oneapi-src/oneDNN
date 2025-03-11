@@ -133,6 +133,9 @@ private:
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     status_t execute_body(const exec_ctx_t &ctx) const;
+    void execute_body_internal(
+        const int ithr, const int nthr, std::shared_ptr<brg_matmul_exec_ctx_t> brgmm_ctx) const;
+
     void compute_kernel(const brg_matmul_exec_ctx_t &brgmm_ctx,
             const char *A_data_batch_ptr, const char *B_data_batch_ptr,
             int ithr, int b_idx, int m_blk_idx, int n_blk_idx, int k_blk_idx,

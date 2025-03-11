@@ -381,6 +381,89 @@ status_t brgemm_matmul_t<isa>::init(engine_t *engine) {
 }
 
 template <cpu_isa_t isa>
+void brgemm_matmul_t<isa>::execute_body_internal(
+    const int ithr, const int nthr, std::shared_ptr<brg_matmul_exec_ctx_t> brgmm_ctx) const {
+    const auto &bgmmc = pd()->get_brgemm_matmul_conf();
+    const bool use_buffer_a
+            = bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only;
+    const bool is_amx = is_superset(isa, avx512_core_amx);
+    const int M_chunks = brgmm_ctx->get_M_chunks();
+    const int M_chunk_size = brgmm_ctx->get_M_chunk_size();
+    const int M_chunk_tail = brgmm_ctx->get_M_chunk_tail();
+    const int N_chunks = brgmm_ctx->get_N_chunks();
+    const int N_chunk_tail = brgmm_ctx->get_N_chunk_tail();
+    const int ithr_bmn = brgmm_ctx->get_thread_idx_for_bmn(ithr);
+    const int ithr_k = brgmm_ctx->get_thread_idx_for_k(ithr);
+    if (ithr_bmn < 0 || ithr_k < 0) return;
+    int start {0}, end {0};
+    balance211(brgmm_ctx->get_parallel_work_amount(),
+            brgmm_ctx->get_num_threads_for_bmn(), ithr_bmn, start, end);
+    int kc_start {0}, kc_end {bgmmc.K_chunks};
+    if (brgmm_ctx->parallel_reduction_is_used())
+        balance211((int)bgmmc.K_chunks, brgmm_ctx->get_num_threads_for_k(),
+                ithr_k, kc_start, kc_end);
+
+    int prev_ker_idx = -1;
+    brgemm_palettes_.maybe_tile_configure(
+            is_amx, prev_ker_idx, brgmm_ctx->get_base_brgemm_kernel_idx());
+
+    int b {0}, mc {0}, nc {0};
+    nd_iterator_init(start, b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
+    int mc_prev = -1;
+    int nb_prev = -1;
+    int b_prev = -1;
+    const char *a_batch_ptr = nullptr;
+    const char *b_batch_ptr = nullptr;
+    while (start < end) {
+        auto m_start = mc * M_chunk_size;
+        const bool m_chunk_tail = mc == M_chunks - 1 && M_chunk_tail > 0;
+        auto m_end = m_start + (m_chunk_tail ? M_chunk_tail : M_chunk_size);
+        auto n_start = nc * bgmmc.N_chunk_size;
+        const bool n_chunk_tail = nc == N_chunks - 1 && N_chunk_tail > 0;
+        auto n_end
+                = n_start + (n_chunk_tail ? N_chunk_tail : bgmmc.N_chunk_size);
+        int kc_prev = -1;
+        if (b != b_prev) {
+            a_batch_ptr = brgmm_ctx->get_data_A_batch_ptr(b);
+            b_batch_ptr = brgmm_ctx->get_data_B_batch_ptr(b);
+        }
+        for_(int kc = kc_start; kc < kc_end; kc++)
+        for (int nb = n_start; nb < n_end; nb++) {
+            const bool bcast_across_all_batch_dims
+                    = bgmmc.bcast_B_desc.bcast_across_all_batch_dims;
+            const bool skip_copy_b
+                    = (nb_prev == nb && kc_prev == kc
+                              && (b_prev == b || bcast_across_all_batch_dims))
+                    && !bgmmc.packed_sparse_weights;
+            if (bgmmc.use_buffer_b && !skip_copy_b)
+                copy_b_chunk_in_buffer(
+                        *brgmm_ctx, b_batch_ptr, ithr, b, nb, kc);
+            for (int mb = m_start; mb < m_end; mb++) {
+                const bool skip_copy_a = mc_prev == mc && kc_prev == kc
+                        && (b_prev == b
+                                || bgmmc.bcast_A_desc
+                                           .bcast_across_all_batch_dims);
+                if (use_buffer_a && nb == n_start && !skip_copy_a)
+                    copy_a_chunk_in_buffer(
+                            *brgmm_ctx, a_batch_ptr, ithr, mb, kc);
+                compute_kernel(*brgmm_ctx, a_batch_ptr, b_batch_ptr, ithr, b,
+                        mb, nb, kc, kc == kc_start, prev_ker_idx);
+            }
+            kc_prev = kc;
+            nb_prev = nb;
+        }
+        mc_prev = mc;
+        b_prev = b;
+        ++start;
+        nd_iterator_step(b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
+    }
+    if (is_amx) { amx_tile_release(); }
+};
+
+// we can wrap execution context in shared_ptr, and use a custom
+// deleter that will submit to threadpool the freeing of it.
+
+template <cpu_isa_t isa>
 status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
@@ -413,82 +496,8 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
             helper);
     const int num_threads = brgmm_ctx->get_num_threads_for_parallelization();
 
-    parallel(num_threads, [&, brgmm_ctx](const int ithr, const int nthr) {
-        const bool use_buffer_a
-                = bgmmc.use_buffer_a || bgmmc.use_buffer_a_tail_only;
-        const bool is_amx = is_superset(isa, avx512_core_amx);
-        const int M_chunks = brgmm_ctx->get_M_chunks();
-        const int M_chunk_size = brgmm_ctx->get_M_chunk_size();
-        const int M_chunk_tail = brgmm_ctx->get_M_chunk_tail();
-        const int N_chunks = brgmm_ctx->get_N_chunks();
-        const int N_chunk_tail = brgmm_ctx->get_N_chunk_tail();
-        const int ithr_bmn = brgmm_ctx->get_thread_idx_for_bmn(ithr);
-        const int ithr_k = brgmm_ctx->get_thread_idx_for_k(ithr);
-        if (ithr_bmn < 0 || ithr_k < 0) return;
-        int start {0}, end {0};
-        balance211(brgmm_ctx->get_parallel_work_amount(),
-                brgmm_ctx->get_num_threads_for_bmn(), ithr_bmn, start, end);
-        int kc_start {0}, kc_end {bgmmc.K_chunks};
-        if (brgmm_ctx->parallel_reduction_is_used())
-            balance211((int)bgmmc.K_chunks, brgmm_ctx->get_num_threads_for_k(),
-                    ithr_k, kc_start, kc_end);
-
-        int prev_ker_idx = -1;
-        brgemm_palettes_.maybe_tile_configure(
-                is_amx, prev_ker_idx, brgmm_ctx->get_base_brgemm_kernel_idx());
-
-        int b {0}, mc {0}, nc {0};
-        nd_iterator_init(start, b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
-        int mc_prev = -1;
-        int nb_prev = -1;
-        int b_prev = -1;
-        const char *a_batch_ptr = nullptr;
-        const char *b_batch_ptr = nullptr;
-        while (start < end) {
-            auto m_start = mc * M_chunk_size;
-            const bool m_chunk_tail = mc == M_chunks - 1 && M_chunk_tail > 0;
-            auto m_end = m_start + (m_chunk_tail ? M_chunk_tail : M_chunk_size);
-            auto n_start = nc * bgmmc.N_chunk_size;
-            const bool n_chunk_tail = nc == N_chunks - 1 && N_chunk_tail > 0;
-            auto n_end = n_start
-                    + (n_chunk_tail ? N_chunk_tail : bgmmc.N_chunk_size);
-            int kc_prev = -1;
-            if (b != b_prev) {
-                a_batch_ptr = brgmm_ctx->get_data_A_batch_ptr(b);
-                b_batch_ptr = brgmm_ctx->get_data_B_batch_ptr(b);
-            }
-            for_(int kc = kc_start; kc < kc_end; kc++)
-            for (int nb = n_start; nb < n_end; nb++) {
-                const bool bcast_across_all_batch_dims
-                        = bgmmc.bcast_B_desc.bcast_across_all_batch_dims;
-                const bool skip_copy_b
-                        = (nb_prev == nb && kc_prev == kc
-                                  && (b_prev == b
-                                          || bcast_across_all_batch_dims))
-                        && !bgmmc.packed_sparse_weights;
-                if (bgmmc.use_buffer_b && !skip_copy_b)
-                    copy_b_chunk_in_buffer(
-                            *brgmm_ctx, b_batch_ptr, ithr, b, nb, kc);
-                for (int mb = m_start; mb < m_end; mb++) {
-                    const bool skip_copy_a = mc_prev == mc && kc_prev == kc
-                            && (b_prev == b
-                                    || bgmmc.bcast_A_desc
-                                               .bcast_across_all_batch_dims);
-                    if (use_buffer_a && nb == n_start && !skip_copy_a)
-                        copy_a_chunk_in_buffer(
-                                *brgmm_ctx, a_batch_ptr, ithr, mb, kc);
-                    compute_kernel(*brgmm_ctx, a_batch_ptr, b_batch_ptr, ithr,
-                            b, mb, nb, kc, kc == kc_start, prev_ker_idx);
-                }
-                kc_prev = kc;
-                nb_prev = nb;
-            }
-            mc_prev = mc;
-            b_prev = b;
-            ++start;
-            nd_iterator_step(b, bgmmc.batch, mc, M_chunks, nc, N_chunks);
-        }
-        if (is_amx) { amx_tile_release(); }
+    parallel(num_threads, [this, brgmm_ctx](int ithr, int nthr) {
+        this->execute_body_internal(ithr, nthr, brgmm_ctx);
     });
 
     parallel(1, [&, brgmm_ctx](const int ithr, const int nthr) {
