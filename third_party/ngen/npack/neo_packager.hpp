@@ -225,7 +225,8 @@ inline NGEN_NAMESPACE::ProductFamily decodeProductFamily(ProductFamily family)
     if (family == ProductFamily::MTL) return NGEN_NAMESPACE::ProductFamily::MTL;
     if (family == ProductFamily::PVC) return NGEN_NAMESPACE::ProductFamily::PVC;
     if (family == ProductFamily::ARL) return NGEN_NAMESPACE::ProductFamily::ARL;
-    if (family >= ProductFamily::LNL && family <= ProductFamily::LNL_M) return NGEN_NAMESPACE::ProductFamily::GenericXe2;
+    if (family == ProductFamily::BMG) return NGEN_NAMESPACE::ProductFamily::BMG;
+    if (family >= ProductFamily::LNL && family <= ProductFamily::LNL_M) return NGEN_NAMESPACE::ProductFamily::LNL;
     if (family >= ProductFamily::PTL) return ngen::ProductFamily::GenericXe3;
     return NGEN_NAMESPACE::ProductFamily::Unknown;
 }
@@ -297,7 +298,14 @@ inline NGEN_NAMESPACE::Product decodeHWIPVersion(uint32_t rawVersion)
             else if (version.release >= 73 && version.release <= 74)
                  outProduct.family = ngen::ProductFamily::ARL;
             break;
-        case 20: outProduct.family = ngen::ProductFamily::GenericXe2; break;
+        case 20:
+            if (version.release <= 2)
+                outProduct.family = ngen::ProductFamily::BMG;
+            else if (version.release == 4)
+                outProduct.family = ngen::ProductFamily::LNL;
+            else
+                outProduct.family = ngen::ProductFamily::GenericXe2;
+            break;
         case 30: outProduct.family = ngen::ProductFamily::GenericXe3; break;
         default: outProduct.family = ngen::ProductFamily::Unknown; break;
     }
