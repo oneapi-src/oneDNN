@@ -3,6 +3,6 @@
         "acl": "v25.02",
         "gcc": "13",
         "clang": "17",
-        "onednn-base": "v3.5.3"
+        "onednn-base": "v3.7"
     }
 }
