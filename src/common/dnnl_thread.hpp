@@ -184,13 +184,18 @@ inline int dnnl_get_current_num_threads() {
 #define OMP_GET_NUM_THREADS() 1
 #endif
 
-// MSVC still supports omp 2.0 only
-#if defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
+// Disabling OMP SIMD feature in the following scenarios:
+// * For MSVC as it only supports OpenMP 2.0
+// * In debug mode on Windows to avoid incorrect code generation
+//   by Intel(R) oneAPI DPC++/C++ Compiler
+#if defined(_MSC_VER) \
+        && ((!defined(__clang__) && !defined(__INTEL_COMPILER)) \
+                || defined(_DEBUG))
 #define collapse(x)
 #define PRAGMA_OMP_SIMD(...)
 #else
 #define PRAGMA_OMP_SIMD(...) PRAGMA_MACRO(CHAIN2(omp, simd __VA_ARGS__))
-#endif // defined(_MSC_VER) && !defined(__clang__) && !defined(__INTEL_COMPILER)
+#endif // defined(_MSC_VER) && ((!defined(__clang__) && !defined(__INTEL_COMPILER)) || defined(_DEBUG))
 
 namespace dnnl {
 namespace impl {
