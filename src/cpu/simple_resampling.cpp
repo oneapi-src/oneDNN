@@ -44,7 +44,7 @@ struct simple_resampling_kernel_t : public simple_resampling_base_t {
     using dst_data_t = typename prec_traits_t<dst_type>::type;
 
     status_t init() override;
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     using interpolate_fn_t
@@ -120,7 +120,7 @@ status_t simple_resampling_kernel_t<src_type, dst_type>::init() {
 
 template <data_type_t src_type, data_type_t dst_type>
 status_t simple_resampling_kernel_t<src_type, dst_type>::execute(
-        const exec_ctx_t &ctx) const {
+        exec_ctx_t &ctx) const {
     const int OD = pd_->OD();
     const int OH = pd_->OH();
     const int OW = pd_->OW();
@@ -616,7 +616,7 @@ status_t simple_resampling_fwd_t::init(engine_t *engine) {
     return kernel_->init();
 }
 
-status_t simple_resampling_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t simple_resampling_fwd_t::execute(exec_ctx_t &ctx) const {
     return kernel_->execute(ctx);
 }
 
@@ -630,7 +630,7 @@ status_t simple_resampling_bwd_t::init(engine_t *engine) {
     return kernel_->init();
 }
 
-status_t simple_resampling_bwd_t::execute(const exec_ctx_t &ctx) const {
+status_t simple_resampling_bwd_t::execute(exec_ctx_t &ctx) const {
     return kernel_->execute(ctx);
 }
 } // namespace cpu

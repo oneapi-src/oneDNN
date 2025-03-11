@@ -47,7 +47,7 @@ struct acl_matmul_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         if (pd()->weights_format_kind_ == format_kind::any) {
             return execute_forward<true>(ctx);
         } else {

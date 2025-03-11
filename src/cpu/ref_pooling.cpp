@@ -197,7 +197,7 @@ status_t ref_pooling_fwd_t<data_type, acc_type>::execute_forward(
     return status::success;
 }
 
-status_t ref_pooling_bwd_t::execute(const exec_ctx_t &ctx) const {
+status_t ref_pooling_bwd_t::execute(exec_ctx_t &ctx) const {
     status_t status = status::success;
 
     const auto diff_dst = CTX_IN_MEM(const void *, DNNL_ARG_DIFF_DST);

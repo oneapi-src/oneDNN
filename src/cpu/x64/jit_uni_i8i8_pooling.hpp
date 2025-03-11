@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2024 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ struct jit_uni_i8i8_pooling_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 

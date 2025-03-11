@@ -298,7 +298,7 @@ struct ref_deconvolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     void compute_fwd_bias_common(const exec_ctx_t &ctx, void *dst,
@@ -429,7 +429,7 @@ struct ref_deconvolution_bwd_data_t : public primitive_t {
     }
 #endif
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -560,7 +560,7 @@ struct ref_deconvolution_bwd_weights_t : public primitive_t {
         return pd()->conv_pd_->create_primitive(conv_p_, engine);
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

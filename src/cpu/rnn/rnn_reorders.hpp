@@ -293,7 +293,7 @@ private:
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         auto input = CTX_IN_MEM(const in_data_t *, DNNL_ARG_FROM);
         auto output = CTX_OUT_MEM(out_data_t *, DNNL_ARG_TO);
         const float scale = pd()->attr()->rnn_data_qparams_.scale_;
@@ -430,7 +430,7 @@ struct rnn_weights_reorder_s8_t : public primitive_t {
 private:
     using in_data_t = typename prec_traits_t<type_i>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         // TODO: trivial strides assumed here.
         //       Use proper strides where appropriate
 
@@ -618,7 +618,7 @@ private:
     using in_data_t = typename prec_traits_t<type_i>::type;
     using out_data_t = typename prec_traits_t<type_o>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         // TODO: trivial strides assumed here.
         //       Use proper strides where appropriate
 
@@ -841,7 +841,7 @@ private:
     using in_data_t = typename prec_traits_t<type_i>::type;
     using out_data_t = typename prec_traits_t<type_o>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         using namespace format_tag;
         using namespace data_type;
         using namespace utils;

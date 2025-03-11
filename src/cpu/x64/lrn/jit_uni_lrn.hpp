@@ -52,7 +52,7 @@ struct jit_uni_lrn_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -86,7 +86,7 @@ struct jit_uni_lrn_bwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
     }
 

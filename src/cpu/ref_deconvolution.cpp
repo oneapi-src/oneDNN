@@ -466,7 +466,7 @@ static status_t apply_src_zero_point(const exec_ctx_t &ctx,
     return status::success;
 }
 
-status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t ref_deconvolution_fwd_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
     const auto scratchpad = ctx.get_scratchpad_grantor();
     const bool ref_bias = pd()->with_bias() && !pd()->conv_supports_bias_;
@@ -551,7 +551,7 @@ status_t ref_deconvolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
-status_t ref_deconvolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+status_t ref_deconvolution_bwd_data_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
     const auto &args = ctx.args();
     exec_args_t conv_args;
@@ -711,7 +711,7 @@ void ref_deconvolution_bwd_weights_t::compute_bias(
     }
 }
 
-status_t ref_deconvolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
+status_t ref_deconvolution_bwd_weights_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
     const auto &args = ctx.args();
     exec_args_t conv_args;

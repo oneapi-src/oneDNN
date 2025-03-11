@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -855,8 +855,7 @@ status_t jit_avx512_core_resampling_bwd_t::init(engine_t *engine) {
     return kernel_->create_kernel();
 }
 
-status_t jit_avx512_core_resampling_bwd_t::execute(
-        const exec_ctx_t &ctx) const {
+status_t jit_avx512_core_resampling_bwd_t::execute(exec_ctx_t &ctx) const {
 
     const auto diff_dst = CTX_IN_MEM(const unsigned char *, DNNL_ARG_DIFF_DST);
     auto diff_src = CTX_OUT_MEM(unsigned char *, DNNL_ARG_DIFF_SRC);

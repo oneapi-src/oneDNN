@@ -104,7 +104,7 @@ struct matmul_inner_product_fwd_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -182,7 +182,7 @@ struct matmul_inner_product_bwd_data_t : public primitive_t {
         return pd()->matmul_pd_->create_primitive(matmul_, engine);
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -259,7 +259,7 @@ struct matmul_inner_product_bwd_weights_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

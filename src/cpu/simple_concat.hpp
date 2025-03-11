@@ -166,7 +166,7 @@ struct simple_concat_t : public primitive_t {
 
     simple_concat_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
     using data_t = typename prec_traits_t<data_type>::type;
 

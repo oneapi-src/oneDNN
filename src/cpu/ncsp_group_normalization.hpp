@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,7 +90,7 @@ struct ncsp_group_normalization_fwd_t : public primitive_t {
         int nthr_; // To not exceed the limit in execute used for set up.
     };
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 

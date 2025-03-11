@@ -1994,7 +1994,7 @@ rnn_weights_assign_sig((_ref_rnn_common_t<aprop, src_type, weights_type,
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
 status_t _ref_rnn_common_t<aprop, src_type, weights_type, acc_type>::execute(
-        const exec_ctx_t &ctx) const {
+        exec_ctx_t &ctx) const {
     const rnn_conf_t &rnn = this->pd()->rnn_;
     auto src_layer = CTX_IN_MEM(const src_layer_t *, DNNL_ARG_SRC_LAYER);
     auto augru_attention

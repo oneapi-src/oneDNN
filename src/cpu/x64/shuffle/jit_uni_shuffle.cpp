@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ jit_uni_shuffle_t<isa>::~jit_uni_shuffle_t() {
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_shuffle_t<isa>::execute(exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
 

@@ -972,7 +972,7 @@ void jit_uni_binary_t::execute_bcast_per_w_strategy(const data_t *src0,
     }
 }
 
-status_t jit_uni_binary_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_binary_t::execute(exec_ctx_t &ctx) const {
     const auto src0 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_0);
     const auto src1 = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC_1);
     auto dst = CTX_OUT_MEM(data_t *, DNNL_ARG_DST);

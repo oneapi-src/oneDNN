@@ -80,7 +80,7 @@ struct jit_sve_convolution_fwd_t : public primitive_t {
         return kernel_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         if (pd()->ndims() == 3)
             execute_forward_1d(ctx);
         else if (pd()->ndims() == 4)
@@ -152,7 +152,7 @@ struct jit_sve_convolution_bwd_data_t : public primitive_t {
         return kernel_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         if (pd()->ndims() == 3)
             execute_backward_data_1d(ctx);
         else if (pd()->ndims() == 4)
@@ -235,7 +235,7 @@ struct jit_sve_convolution_bwd_weights_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         execute_backward_weights(ctx);
         return status::success;
     }

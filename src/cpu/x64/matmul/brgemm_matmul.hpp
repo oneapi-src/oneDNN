@@ -124,7 +124,7 @@ struct brgemm_matmul_t : public primitive_t {
     status_t init(engine_t *engine) override;
     static constexpr data_type_t acc_type = data_type::s32;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_body(ctx);
     }
 
@@ -132,7 +132,7 @@ private:
     struct brg_matmul_exec_ctx_t;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
-    status_t execute_body(const exec_ctx_t &ctx) const;
+    status_t execute_body(exec_ctx_t &ctx) const;
     void execute_body_internal(
         const int ithr, const int nthr, std::shared_ptr<brg_matmul_exec_ctx_t> brgmm_ctx) const;
 

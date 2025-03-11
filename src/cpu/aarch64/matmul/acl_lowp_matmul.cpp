@@ -235,7 +235,7 @@ status_t acl_lowp_matmul_t::create_resource(
     return status::success;
 }
 
-status_t acl_lowp_matmul_t::execute(const exec_ctx_t &ctx) const {
+status_t acl_lowp_matmul_t::execute(exec_ctx_t &ctx) const {
     std::lock_guard<std::mutex> _lock {this->mtx};
     const auto scratchpad = ctx.get_scratchpad_grantor();
 

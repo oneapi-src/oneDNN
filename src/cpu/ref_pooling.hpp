@@ -83,7 +83,7 @@ struct ref_pooling_fwd_t : public primitive_t {
     using data_t = typename prec_traits_t<data_type>::type;
     using acc_data_t = typename prec_traits_t<acc_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -147,7 +147,7 @@ struct ref_pooling_bwd_t : public primitive_t {
 
     ref_pooling_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ namespace lrn {
 
 class i_lrn_executor_t {
 public:
-    virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+    virtual status_t execute(exec_ctx_t &ctx) const = 0;
     virtual ~i_lrn_executor_t() = default;
     virtual status_t create_kernel() = 0;
 };

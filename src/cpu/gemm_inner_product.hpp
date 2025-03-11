@@ -122,7 +122,7 @@ struct gemm_inner_product_fwd_t : public primitive_t {
 
     using data_t = typename prec_traits_t<data_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -165,7 +165,7 @@ struct gemm_inner_product_bwd_data_t : public primitive_t {
     gemm_inner_product_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
     using data_t = typename prec_traits_t<data_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 
@@ -210,7 +210,7 @@ struct gemm_inner_product_bwd_weights_t : public primitive_t {
     gemm_inner_product_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
     using data_t = typename prec_traits_t<data_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
     }
 

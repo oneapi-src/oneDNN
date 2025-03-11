@@ -104,7 +104,7 @@ struct ref_sum_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
 
         if (pd()->has_zero_dim_memory()) return status::success;

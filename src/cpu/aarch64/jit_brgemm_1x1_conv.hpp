@@ -88,7 +88,7 @@ struct brgemm_1x1_convolution_fwd_t : public primitive_t {
 
     ~brgemm_1x1_convolution_fwd_t() {}
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         execute_forward_all(ctx);
 
         if (pd()->wants_zero_pad_dst()) ctx.memory(DNNL_ARG_DST)->zero_pad(ctx);

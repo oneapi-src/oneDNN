@@ -174,7 +174,7 @@ struct _ref_rnn_common_t : public primitive_t {
     status_t init(engine_t *engine) override;
     virtual ~_ref_rnn_common_t() { delete rnn_postgemm_; }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 protected:
 #if DNNL_X64

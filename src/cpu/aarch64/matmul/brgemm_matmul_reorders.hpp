@@ -57,7 +57,7 @@ struct brgemm_matmul_matrix_B_reorder_t : public primitive_t {
 
 private:
     status_t execute_body(const exec_ctx_t &ctx) const;
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_body(ctx);
     }
 

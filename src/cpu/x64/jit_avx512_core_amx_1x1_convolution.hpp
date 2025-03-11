@@ -137,7 +137,7 @@ struct jit_avx512_core_amx_1x1_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
         if (_pd->jcp_.is_depthwise) return status::unimplemented;
         return execute_forward(ctx);

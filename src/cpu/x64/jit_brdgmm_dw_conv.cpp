@@ -578,7 +578,7 @@ status_t brdgmm_dw_convolution_fwd_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t brdgmm_dw_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t brdgmm_dw_convolution_fwd_t::execute(exec_ctx_t &ctx) const {
 
     const char *const __restrict src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
     const char *const __restrict weights

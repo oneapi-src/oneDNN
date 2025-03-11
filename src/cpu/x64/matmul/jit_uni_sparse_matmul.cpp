@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -345,7 +345,7 @@ jit_uni_sparse_matmul_t::jit_uni_sparse_matmul_t(const pd_t *apd)
     : primitive_t(apd) {}
 jit_uni_sparse_matmul_t::~jit_uni_sparse_matmul_t() = default;
 
-status_t jit_uni_sparse_matmul_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_sparse_matmul_t::execute(exec_ctx_t &ctx) const {
     const auto *weights = CTX_IN_MEM(const float *, DNNL_ARG_WEIGHTS);
     const auto *src_values = CTX_IN_MEM(const float *, DNNL_ARG_SRC, 0);
     const auto *src_indices = CTX_IN_MEM(const int32_t *, DNNL_ARG_SRC, 1);

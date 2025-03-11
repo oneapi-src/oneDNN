@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -153,7 +153,7 @@ struct jit_uni_x8s8s32x_1x1_deconvolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         nested_scratchpad_t ns(
                 ctx, memory_tracking::names::key_nested, conv_p_);
         // XXX: create a new ctx for convolution?

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace impl {
 namespace cpu {
 namespace matmul {
 
-status_t ref_sparse_matmul_t::execute(const exec_ctx_t &ctx) const {
+status_t ref_sparse_matmul_t::execute(exec_ctx_t &ctx) const {
     status_t status = status::success;
     auto dst = CTX_OUT_CLEAN_MEM(void *, DNNL_ARG_DST, status);
     CHECK(status);

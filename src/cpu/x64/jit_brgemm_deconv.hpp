@@ -103,7 +103,7 @@ struct brgemm_deconvolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override;
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const {

@@ -68,7 +68,7 @@ struct riscv_nchw_pooling_fwd_t : public primitive_t {
 
     using data_t = typename prec_traits_t<d_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 

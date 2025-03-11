@@ -55,7 +55,7 @@ struct acl_binary_t : public primitive_t {
 
     acl_binary_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     status_t init(engine_t *engine) override;

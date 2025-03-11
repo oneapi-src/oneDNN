@@ -376,7 +376,7 @@ status_t matmul_inner_product_bwd_weights_t::pd_t::init_matmul_params(
     return status::success;
 }
 
-status_t matmul_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t matmul_inner_product_fwd_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
 
     exec_args_t matmul_args = ctx.args();
@@ -388,7 +388,7 @@ status_t matmul_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
     return matmul_->execute(matmul_ctx);
 }
 
-status_t matmul_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+status_t matmul_inner_product_bwd_data_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
 
     exec_args_t matmul_args;
@@ -404,8 +404,7 @@ status_t matmul_inner_product_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     return matmul_->execute(matmul_ctx);
 }
 
-status_t matmul_inner_product_bwd_weights_t::execute(
-        const exec_ctx_t &ctx) const {
+status_t matmul_inner_product_bwd_weights_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
 
     exec_args_t matmul_args;

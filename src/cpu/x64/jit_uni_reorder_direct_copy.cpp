@@ -346,7 +346,7 @@ status_t jit_uni_reorder_direct_copy_t::init(engine_t *engine) {
     return kernel_->create_kernel();
 }
 
-status_t jit_uni_reorder_direct_copy_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_reorder_direct_copy_t::execute(exec_ctx_t &ctx) const {
     const auto in = CTX_IN_MEM(const char *, DNNL_ARG_FROM);
     auto out = CTX_OUT_MEM(char *, DNNL_ARG_TO);
 

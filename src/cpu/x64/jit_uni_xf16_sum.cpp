@@ -402,7 +402,7 @@ void jit_uni_xf16_sum_kernel_t<Vmm>::generate() {
 
 template <data_type_t src_data_type, data_type_t dst_data_type, cpu_isa_t isa>
 status_t jit_xf16_sum_t<src_data_type, dst_data_type, isa>::execute(
-        const exec_ctx_t &ctx) const {
+        exec_ctx_t &ctx) const {
     auto output = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
     const memory_desc_wrapper o_d(pd()->dst_md());
     output += o_d.blk_off(0);

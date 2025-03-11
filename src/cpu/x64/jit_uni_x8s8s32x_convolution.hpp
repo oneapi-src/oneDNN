@@ -116,7 +116,7 @@ struct jit_uni_x8s8s32x_convolution_fwd_t : public primitive_t {
         return kernel_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
         const int ndims = _pd->ndims();
         const bool is_dw = _pd->jcp_.is_depthwise;

@@ -57,7 +57,7 @@ struct acl_gemm_convolution_fwd_t : public primitive_t {
     using dst_data_t = typename prec_traits_t<dst_type>::type;
     using bia_data_t = typename prec_traits_t<bia_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 

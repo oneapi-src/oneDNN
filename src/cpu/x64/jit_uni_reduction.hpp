@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2022 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -52,7 +52,7 @@ struct jit_uni_reduction_t : public primitive_t {
     virtual ~jit_uni_reduction_t() = default;
 
     status_t init(engine_t *engine) override;
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     status_t get_proper_kernel(

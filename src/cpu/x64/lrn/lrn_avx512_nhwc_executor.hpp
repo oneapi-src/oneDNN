@@ -46,7 +46,7 @@ public:
 
     status_t create_kernel() override { return ker_->create_kernel(); }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         status_t status = status::success;
         const auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
         const auto dst = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DST, status);
@@ -98,7 +98,7 @@ public:
 
     status_t create_kernel() override { return ker_->create_kernel(); }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         status_t status = status::success;
         auto src = CTX_IN_MEM(data_t *, DNNL_ARG_SRC);
         auto diff_src = CTX_OUT_CLEAN_MEM(data_t *, DNNL_ARG_DIFF_SRC, status);

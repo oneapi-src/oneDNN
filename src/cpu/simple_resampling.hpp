@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ struct simple_resampling_base_t {
     virtual ~simple_resampling_base_t() = default;
 
     virtual status_t init() = 0;
-    virtual status_t execute(const exec_ctx_t &ctx) const = 0;
+    virtual status_t execute(exec_ctx_t &ctx) const = 0;
 
 protected:
     const resampling_pd_t *pd_;
@@ -105,7 +105,7 @@ struct simple_resampling_fwd_t : public primitive_t {
     status_t init(engine_t *engine) override;
     ~simple_resampling_fwd_t() = default;
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -151,7 +151,7 @@ struct simple_resampling_bwd_t : public primitive_t {
     status_t init(engine_t *engine) override;
     ~simple_resampling_bwd_t() = default;
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

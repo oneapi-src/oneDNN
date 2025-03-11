@@ -71,7 +71,7 @@ struct ref_lrn_fwd_t : public primitive_t {
     ref_lrn_fwd_t(const pd_t *apd) : primitive_t(apd) {}
     using data_t = typename prec_traits_t<d_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         using namespace format_tag;
         switch (pd()->dat_tag_) {
             case nChw16c: return execute_forward<nChw16c>(ctx); break;
@@ -129,7 +129,7 @@ struct ref_lrn_bwd_t : public primitive_t {
     ref_lrn_bwd_t(const pd_t *apd) : primitive_t(apd) {}
     using data_t = typename prec_traits_t<d_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         using namespace format_tag;
         switch (pd()->dat_tag_) {
             case nChw16c: return execute_backward<nChw16c>(ctx); break;

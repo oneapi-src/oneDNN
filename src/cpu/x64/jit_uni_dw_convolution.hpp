@@ -93,7 +93,7 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
         return kernel_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         execute_forward(ctx);
         return status::success;
     }
@@ -163,7 +163,7 @@ struct jit_uni_dw_convolution_bwd_data_t : public primitive_t {
         return kernel_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         execute_backward_data(ctx);
         return status::success;
     }
@@ -258,7 +258,7 @@ struct jit_uni_dw_convolution_bwd_weights_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         switch (pd()->jcp_.harness) {
             case harness_nxc:
                 execute_backward_weights_nxc(ctx);

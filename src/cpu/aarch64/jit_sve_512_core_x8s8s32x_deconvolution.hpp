@@ -324,7 +324,7 @@ struct jit_sve_512_core_x8s8s32x_deconvolution_fwd_t : public primitive_t {
         return kernel_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         auto ndims = pd()->ndims();
         if (ndims == 3)
             return execute_forward_1d(ctx);

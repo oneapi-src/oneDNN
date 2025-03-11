@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -741,7 +741,7 @@ status_t jit_uni_batch_normalization_s8_fwd_t<isa>::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_s8_fwd_t<isa>::execute(
-        const exec_ctx_t &ctx) const {
+        exec_ctx_t &ctx) const {
 
     auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
     auto scale = CTX_IN_MEM(const float *, DNNL_ARG_SCALE);

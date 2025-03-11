@@ -2447,7 +2447,7 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::execute(
-        const exec_ctx_t &ctx) const {
+        exec_ctx_t &ctx) const {
 
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto scale = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_SCALE);
@@ -2580,7 +2580,7 @@ status_t jit_uni_batch_normalization_bwd_t<isa>::init(engine_t *engine) {
 
 template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_bwd_t<isa>::execute(
-        const exec_ctx_t &ctx) const {
+        exec_ctx_t &ctx) const {
     auto src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     auto mean = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_MEAN);
     auto var = CTX_IN_MEM(const acc_data_t *, DNNL_ARG_VARIANCE);

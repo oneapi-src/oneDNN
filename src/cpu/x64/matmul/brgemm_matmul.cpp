@@ -464,7 +464,7 @@ void brgemm_matmul_t<isa>::execute_body_internal(
 // deleter that will submit to threadpool the freeing of it.
 
 template <cpu_isa_t isa>
-status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
+status_t brgemm_matmul_t<isa>::execute_body(exec_ctx_t &ctx) const {
     DEFINE_ZERO_POINT_VALUE(src_zero_point, DNNL_ARG_SRC);
     DEFINE_ZERO_POINT_VALUE(wei_zero_point, DNNL_ARG_WEIGHTS);
     DEFINE_ZERO_POINT_VALUE(dst_zero_point, DNNL_ARG_DST);

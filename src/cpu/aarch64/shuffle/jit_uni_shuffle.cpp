@@ -164,7 +164,7 @@ jit_uni_shuffle_t<isa>::~jit_uni_shuffle_t() {
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_shuffle_t<isa>::execute(exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
 

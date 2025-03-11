@@ -21,7 +21,7 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-status_t acl_eltwise_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t acl_eltwise_fwd_t::execute(exec_ctx_t &ctx) const {
     return execute_forward(ctx);
 }
 

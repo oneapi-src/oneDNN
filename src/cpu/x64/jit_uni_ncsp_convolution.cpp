@@ -376,7 +376,7 @@ status_t jit_uni_ncsp_convolution_fwd_t::execute_matmul(
     return matmul_p_->execute(matmul_ctx);
 }
 
-status_t jit_uni_ncsp_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_ncsp_convolution_fwd_t::execute(exec_ctx_t &ctx) const {
     if (matmul_p_) return execute_matmul(ctx);
     if (nspc_conv_p_) return execute_convolution(ctx);
     return status::runtime_error;
@@ -532,7 +532,7 @@ status_t jit_uni_ncsp_convolution_bwd_weights_t::execute_convolution(
 }
 
 status_t jit_uni_ncsp_convolution_bwd_weights_t::execute(
-        const exec_ctx_t &ctx) const {
+        exec_ctx_t &ctx) const {
     return execute_convolution(ctx);
 }
 
@@ -749,8 +749,7 @@ status_t jit_uni_ncsp_convolution_bwd_data_t::execute_matmul(
     return matmul_diff_src_p_->execute(matmul_src_diff_ctx);
 }
 
-status_t jit_uni_ncsp_convolution_bwd_data_t::execute(
-        const exec_ctx_t &ctx) const {
+status_t jit_uni_ncsp_convolution_bwd_data_t::execute(exec_ctx_t &ctx) const {
     if (matmul_diff_src_p_)
         return execute_matmul(ctx);
     else

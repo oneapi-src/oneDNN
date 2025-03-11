@@ -692,8 +692,7 @@ status_t brgemm_convolution_bwd_strided_t<isa>::init(engine_t *engine) {
                                               : (f).blk_off(n, c, d, h, w)))
 
 template <cpu_isa_t isa>
-status_t brgemm_convolution_bwd_strided_t<isa>::execute(
-        const exec_ctx_t &ctx) const {
+status_t brgemm_convolution_bwd_strided_t<isa>::execute(exec_ctx_t &ctx) const {
     const auto _pd = pd();
     const auto &jcp = _pd->jcp_;
 

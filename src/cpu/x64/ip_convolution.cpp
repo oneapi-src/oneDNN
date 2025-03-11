@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ namespace impl {
 namespace cpu {
 namespace x64 {
 
-status_t ip_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t ip_convolution_fwd_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
 
     exec_args_t ip_args = ctx.args();
@@ -36,7 +36,7 @@ status_t ip_convolution_fwd_t::execute(const exec_ctx_t &ctx) const {
     return ip_p_->execute(conv_ctx);
 }
 
-status_t ip_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
+status_t ip_convolution_bwd_data_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
 
     exec_args_t ip_args = ctx.args();
@@ -49,7 +49,7 @@ status_t ip_convolution_bwd_data_t::execute(const exec_ctx_t &ctx) const {
     return ip_p_->execute(conv_ctx);
 }
 
-status_t ip_convolution_bwd_weights_t::execute(const exec_ctx_t &ctx) const {
+status_t ip_convolution_bwd_weights_t::execute(exec_ctx_t &ctx) const {
     using namespace memory_tracking::names;
 
     exec_args_t ip_args = ctx.args();

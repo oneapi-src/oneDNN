@@ -136,7 +136,7 @@ struct gemm_bf16_inner_product_fwd_t : public primitive_t {
         return (pp_kernel_) ? pp_kernel_->create_kernel() : status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -209,7 +209,7 @@ struct gemm_bf16_inner_product_bwd_data_t : public primitive_t {
     using diff_src_data_t = typename prec_traits_t<diff_src_data_type>::type;
     using wei_data_t = typename prec_traits_t<data_type::bf16>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 
@@ -321,7 +321,7 @@ struct gemm_bf16_inner_product_bwd_weights_t : public primitive_t {
     using src_data_t = typename prec_traits_t<data_type::bf16>::type;
     using diff_wei_data_t = typename prec_traits_t<diff_wei_data_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
     }
 

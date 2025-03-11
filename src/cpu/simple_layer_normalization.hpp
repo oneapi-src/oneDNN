@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ struct simple_layer_normalization_fwd_t : public primitive_t {
         reorder_->execute(r_ctx);
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         /* LN supports arbitrary layout for input/output statistics.
          * For best performance we compute LN with statistics in the same format
          * as data tensor (i.e. data in abcd, stats in abc) and user's
@@ -200,7 +200,7 @@ struct simple_layer_normalization_bwd_t : public primitive_t {
         reorder_->execute(r_ctx);
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         using namespace memory_tracking::names;
         /* LN supports arbitrary layout for input/output statistics.
          * For best performance we compute LN with statistics in the same format

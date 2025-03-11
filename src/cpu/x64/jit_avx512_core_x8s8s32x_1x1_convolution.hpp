@@ -333,7 +333,7 @@ struct jit_avx512_core_x8s8s32x_1x1_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 

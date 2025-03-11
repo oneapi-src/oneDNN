@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2024 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ status_t jit_prelu_fwd_t::init(engine_t *engine) {
     return kernel_->create_kernel();
 }
 
-status_t jit_prelu_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_prelu_fwd_t::execute(exec_ctx_t &ctx) const {
     using byte = unsigned char;
     const byte *const src = CTX_IN_MEM(const byte *, DNNL_ARG_SRC);
     const byte *const weights = CTX_IN_MEM(const byte *, DNNL_ARG_WEIGHTS);

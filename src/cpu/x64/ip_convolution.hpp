@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -257,7 +257,7 @@ struct ip_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -368,7 +368,7 @@ struct ip_convolution_bwd_data_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
@@ -481,7 +481,7 @@ struct ip_convolution_bwd_weights_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }

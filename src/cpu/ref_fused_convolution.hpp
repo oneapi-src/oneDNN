@@ -399,7 +399,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
     }
 #endif
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         engine_t *engine = ctx.stream()->engine();
         const auto scratchpad = ctx.get_scratchpad_grantor();
 

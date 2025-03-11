@@ -121,7 +121,7 @@ struct simple_sum_t : public primitive_t {
 
     simple_sum_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
     enum { max_num_arrs = 16 };
     using src_data_t = typename prec_traits_t<src_data_type>::type;

@@ -174,7 +174,7 @@ struct brgemm_convolution_fwd_t : public primitive_t {
 
     ~brgemm_convolution_fwd_t() = default;
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 protected:
     status_t init(engine_t *engine) override;

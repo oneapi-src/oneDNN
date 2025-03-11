@@ -53,7 +53,7 @@ struct acl_eltwise_fwd_t : public primitive_t {
     acl_eltwise_fwd_t(const pd_t *apd)
         : primitive_t(apd), act_(std::make_unique<Op>()) {}
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
     status_t init(engine_t *engine) override;
 

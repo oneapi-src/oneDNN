@@ -166,7 +166,7 @@ status_t acl_lowp_matmul_sq_t::create_resource(
     mapper.add(this, std::move(r));
     return status::success;
 }
-status_t acl_lowp_matmul_sq_t::execute(const exec_ctx_t &ctx) const {
+status_t acl_lowp_matmul_sq_t::execute(exec_ctx_t &ctx) const {
     std::lock_guard<std::mutex> _lock {this->mtx_};
     bool with_bias = pd()->almc_.with_bias;
     acl_lowp_matmul_sq_obj_t &acl_obj

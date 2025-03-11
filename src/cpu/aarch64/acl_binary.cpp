@@ -221,7 +221,7 @@ status_t acl_binary_t::execute_forward(const exec_ctx_t &ctx) const {
     return execute_forward(ctx, src0, src1, dst);
 }
 
-status_t acl_binary_t::execute(const exec_ctx_t &ctx) const {
+status_t acl_binary_t::execute(exec_ctx_t &ctx) const {
     return execute_forward(ctx);
 }
 

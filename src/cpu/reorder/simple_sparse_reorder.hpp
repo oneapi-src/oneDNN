@@ -250,7 +250,7 @@ struct simple_sparse_reorder_t : public primitive_t {
         return pd()->reorder_pd_->create_primitive(reorder_, engine);
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return simple_sparse_reorder_impl<
                 SIMPLE_SPARSE_REORDER_TEMPL_CALL>::execute(pd(), ctx, reorder_);
     }

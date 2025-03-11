@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -165,7 +165,7 @@ status_t jit_uni_reduction_t::init(engine_t *engine) {
     return status::success;
 }
 
-status_t jit_uni_reduction_t::execute(const exec_ctx_t &ctx) const {
+status_t jit_uni_reduction_t::execute(exec_ctx_t &ctx) const {
     const auto src = CTX_IN_MEM(const uint8_t *, DNNL_ARG_SRC);
     auto dst = CTX_OUT_MEM(uint8_t *, DNNL_ARG_DST);
 

@@ -119,7 +119,7 @@ struct jit_avx512_core_x8s8s32x_convolution_fwd_t : public primitive_t {
         return kernel_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         const auto &_pd = pd();
         if (_pd->ndims() == 3)
             return execute_forward_1d(ctx);

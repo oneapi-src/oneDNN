@@ -115,7 +115,7 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         const bool is_nspc = pd()->jcp_.is_nspc;
         return is_nspc ? execute_forward_nspc(ctx) : execute_forward_ncsp(ctx);
     }
@@ -279,7 +279,7 @@ struct gemm_bf16_convolution_bwd_data_t : public primitive_t {
     using diff_src_data_t = typename prec_traits_t<diff_src_data_type>::type;
     using wei_data_t = typename prec_traits_t<data_type::bf16>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         const bool is_nspc = pd()->jcp_.is_nspc;
         return is_nspc ? execute_backward_data_nspc(ctx)
                        : execute_backward_data_ncsp(ctx);
@@ -351,7 +351,7 @@ struct gemm_bf16_convolution_bwd_weights_t : public primitive_t {
         return acc_ker_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         const bool is_nspc = pd()->jcp_.is_nspc;
         return is_nspc ? execute_backward_weights_nspc(ctx)
                        : execute_backward_weights_ncsp(ctx);

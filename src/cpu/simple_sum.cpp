@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2022 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ namespace cpu {
 
 template <data_type_t src_data_type, data_type_t dst_data_type>
 status_t simple_sum_t<src_data_type, dst_data_type>::execute(
-        const exec_ctx_t &ctx) const {
+        exec_ctx_t &ctx) const {
     auto output = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
 
     const memory_desc_wrapper o_d(pd()->dst_md());

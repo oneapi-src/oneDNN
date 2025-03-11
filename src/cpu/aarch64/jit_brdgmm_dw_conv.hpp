@@ -55,7 +55,7 @@ struct brdgmm_dw_convolution_fwd_t : public primitive_t {
     brdgmm_dw_convolution_fwd_t(const pd_t *apd) : primitive_t(apd) {}
 
     status_t init(engine_t *engine) override;
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
 private:
     std::vector<std::unique_ptr<brgemm_kernel_t>> brdgmm_kernels_;

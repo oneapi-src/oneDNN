@@ -79,7 +79,7 @@ struct ref_reduction_t : public primitive_t {
     using acc_t = typename prec_traits_t<acc_type>::type;
     using dst_t = typename prec_traits_t<dst_type>::type;
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_ref(ctx);
     }
 

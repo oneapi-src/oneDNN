@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,7 +94,7 @@ struct ref_layer_normalization_fwd_t : public primitive_t {
         return status::success;
     };
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -148,7 +148,7 @@ struct ref_layer_normalization_bwd_t : public primitive_t {
 
     ref_layer_normalization_bwd_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_backward(ctx);
     }
 

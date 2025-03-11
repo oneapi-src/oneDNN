@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
-status_t ref_group_normalization_fwd_t::execute(const exec_ctx_t &ctx) const {
+status_t ref_group_normalization_fwd_t::execute(exec_ctx_t &ctx) const {
     status_t status = status::success;
 
     const memory_desc_wrapper src_d(pd()->src_md());
@@ -150,7 +150,7 @@ status_t ref_group_normalization_fwd_t::execute(const exec_ctx_t &ctx) const {
     return status::success;
 }
 
-status_t ref_group_normalization_bwd_t::execute(const exec_ctx_t &ctx) const {
+status_t ref_group_normalization_bwd_t::execute(exec_ctx_t &ctx) const {
     status_t status = status::success;
 
     const memory_desc_wrapper src_d(pd()->src_md());

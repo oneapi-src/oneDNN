@@ -320,7 +320,7 @@ struct jit_xf16_sum_t : public primitive_t {
         return kernel_->create_kernel();
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override;
+    status_t execute(exec_ctx_t &ctx) const override;
 
     using src_data_t = typename prec_traits_t<src_data_type>::type;
     using dst_data_t = typename prec_traits_t<dst_data_type>::type;

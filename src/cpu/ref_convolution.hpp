@@ -108,7 +108,7 @@ struct ref_convolution_fwd_t : public primitive_t {
         return status::success;
     }
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
     }
 
@@ -166,7 +166,7 @@ struct ref_convolution_bwd_data_t : public primitive_t {
 
     ref_convolution_bwd_data_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_backward_data(ctx);
     }
 
@@ -225,7 +225,7 @@ struct ref_convolution_bwd_weights_t : public primitive_t {
 
     ref_convolution_bwd_weights_t(const pd_t *apd) : primitive_t(apd) {}
 
-    status_t execute(const exec_ctx_t &ctx) const override {
+    status_t execute(exec_ctx_t &ctx) const override {
         return execute_backward_weights(ctx);
     }
 
