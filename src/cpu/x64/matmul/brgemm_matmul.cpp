@@ -303,6 +303,13 @@ status_t brgemm_matmul_t<isa>::pd_t::init(engine_t *engine) {
 
             brgattr.hint_innermost_loop = brgemm_innermost_undef;
             brgattr.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf0;
+
+            if (bgmmc_.set_nt) {
+                brgattr.hint_load_nt_A = bgmmc_.is_a_nt ? brgemm_hint_nt_true
+                                                        : brgemm_hint_nt_false;
+                brgattr.hint_load_nt_B = bgmmc_.is_b_nt ? brgemm_hint_nt_true
+                                                        : brgemm_hint_nt_false;
+            }
         }
 
         CHECK(brgemm_desc_set_attr(&brg, brgattr));
@@ -742,6 +749,8 @@ void brgemm_matmul_t<isa>::maybe_reduce_A(
         bool has_K_tail, bool do_K_tail) const {
 
     if (!pd()->with_reduce()) return;
+    //current state macro heuristics don't support reduce_A -> kb =1 -> kb == kc
+    assert(!pd()->get_brgemm_matmul_conf().is_macro_heuristics);
     const bool reduce_a = pd()->reduce_kind() == matmul_reduce_kind::src;
     // Only `matmul_reduce_kind::src` is supported for now.
     assert(reduce_a);

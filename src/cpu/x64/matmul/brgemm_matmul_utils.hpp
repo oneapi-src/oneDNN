@@ -94,6 +94,7 @@ struct brgemm_matmul_conf_t {
     int brgemm_batch_size, brgemm_batch_tail_size;
     int wei_n_blk, wei_k_blk;
     brgemm_batch_kind_t brg_type;
+    bool is_macro_heuristics;
 
     cpu_isa_t isa;
 
@@ -246,6 +247,12 @@ struct brgemm_matmul_conf_utils_t {
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
                         blocked_24n_B_layout_tag, blocked_16n_B_layout_tag,
                         blocked_8n_B_layout_tag);
+    }
+
+    inline bool check_b_layout_blocked_32_by_n(
+            format_tag_t matrix_b_tag) const {
+        return blocked_B_layouts_allowed && !bgmmc.is_runtime_N
+                && utils::one_of(matrix_b_tag, blocked_32n_B_layout_tag);
     }
 
     inline bool get_blocked_B() const {
