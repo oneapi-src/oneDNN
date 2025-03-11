@@ -98,8 +98,9 @@ sdpa_config_t xehpc_h128_s32 = {16, 16, 16, 16, 8, 2, 8, 2};
 sdpa_config_t xehpc_h128_2nd = {32, 32, 32, 16, 8, 1, 4, 2};
 
 sdpa_config_t xehpc_q_h128 = {32, 32, 16, 32, 8, 2, 8, 2};
-sdpa_config_t xehpc_q_h128_s512 = {16, 64, 16, 32, 16, 1, 8, 2};
-sdpa_config_t xehpc_q_h128_2nd = {16, 16, 16, 16, 8, 1, 8, 1};
+sdpa_config_t xehpc_q_h128_s512 = {32, 32, 16, 32, 8, 4, 8, 4};
+sdpa_config_t xehpc_q_h128_2nd = {16, 16, 16, 16, 16, 1, 16, 1};
+sdpa_config_t xehpc_q_h128_2nd_integrated = {16, 16, 16, 16, 8, 1, 8, 1};
 sdpa_config_t xehpc_q_h128_s32_2nd = {16, 32, 32, 16, 8, 1, 4, 2};
 
 sdpa_config_t xehpc_h256 = {16, 32, 32, 32, 8, 4, 8, 4};
@@ -155,8 +156,8 @@ sdpa_config_t *choose_config_xehpg(
     return nullptr;
 }
 
-sdpa_config_t *choose_config_xehpc(
-        dim_t head_size, dim_t seq, bool thin_q, bool quantized) {
+sdpa_config_t *choose_config_xehpc(dim_t head_size, dim_t seq, bool thin_q,
+        bool quantized, bool is_integrated) {
     if (head_size <= 32) {
         if (thin_q) return &xehpc_h32_2nd;
         if (seq <= 32) return &xehpc_h32_s32;
@@ -174,6 +175,7 @@ sdpa_config_t *choose_config_xehpc(
         if (quantized) {
             if (thin_q) {
                 if (seq <= 32) return &xehpc_q_h128_s32_2nd;
+                if (is_integrated) { return &xehpc_q_h128_2nd_integrated; }
                 return &xehpc_q_h128_2nd;
             }
             if (seq <= 512) return &xehpc_q_h128_s512;
@@ -274,6 +276,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     bool thin_q = (d->queries() <= 16);
     bool quantized = with_key_scales() || with_key_zp() || with_value_scales()
             || with_value_zp();
+    bool is_integrated = compute_engine->device_info()->is_integrated();
 
     switch (arch_) {
         case arch_t::xe_hpg:
@@ -283,8 +286,8 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
         case arch_t::xe_hpc:
         case arch_t::xe2:
         case arch_t::xe3:
-            config = choose_config_xehpc(
-                    d->head_size(), d->keys(), thin_q, quantized);
+            config = choose_config_xehpc(d->head_size(), d->keys(), thin_q,
+                    quantized, is_integrated);
         default: break;
     }
 
