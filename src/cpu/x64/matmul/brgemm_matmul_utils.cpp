@@ -676,7 +676,6 @@ struct matmul_avx512_blocking_params_t {
     }
 };
 
-
 float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils,
         const matmul_avx512_blocking_params_t::matmul_params_t &matmul,
@@ -1902,10 +1901,6 @@ void init_scratchpad(memory_tracking::registrar_t &scratchpad,
                 bgmmc.M_blk * bgmmc.N_blk * bgmmc.c_dt_sz * bgmmc.nthr,
                 default_data_align);
 }
-
-
-
-
 
 } // namespace matmul
 } // namespace x64

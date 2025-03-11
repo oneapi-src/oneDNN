@@ -1124,9 +1124,14 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
             auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
             uni_prefetch(ptr_D, pft, true);
         } else if (are_post_ops_applicable_) {
-            const auto c_offset = C_offset(bi, bdb, bd, ldb_pos);
-            auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
-            uni_prefetch(ptr_C, pft, true);
+            //            todo: split hints C and D hints
+            //              Using prefetchw for the C matrix is generally harmful
+            //              because the C matrix is frequently reused and remains in the cache.
+            //              However, it is very necessary for the D matrix
+
+            //            const auto c_offset = C_offset(bi, bdb, bd, ldb_pos);
+            //            auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
+            //            uni_prefetch(ptr_C, pft, true);
         } else {
             const auto d_offset = D_offset(bi, bdb, bd, ldb_pos);
             auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
