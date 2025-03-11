@@ -19,3 +19,9 @@
 --dir=FWD_D
 --dt=f32
 mb1_ic64oc256_ih200oh200kh1sh1dh0ph0_iw267ow267kw1sw1dw0pw0
+
+--reset
+--dir=FWD_D
+--dt=f32
+--attr-fpmath=bf16
+mb1_ic64oc256_ih200oh200kh1sh1dh0ph0_iw267ow267kw1sw1dw0pw0

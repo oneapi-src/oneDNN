@@ -21,4 +21,5 @@
 --dt=f32
 --alg=auto
 --dir=FWD_D,FWD_B
+--attr-fpmath=,bf16
 --batch=shapes_resnet_50

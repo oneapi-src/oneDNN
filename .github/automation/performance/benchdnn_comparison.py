@@ -67,6 +67,10 @@ def compare_two_benchdnn(file1, file2, tolerance=0.05):
         times[prb] = (r1_med, r2_med)
         times_str = f" {times[prb][0]} vs {times[prb][1]}"
 
+        # pass the test if:
+        # the t-test passes (i.e. pvalue > 0.05) OR
+        # both the median time and min time has not 
+        # slowed down by more than 10%
         passed = res.pvalue > 0.05 or \
                 ((r2_med - r1_med) / r1_med < 0.1 and \
                 (min(r2_times) - min(r1_times)) / min(r1_times) < 0.1)

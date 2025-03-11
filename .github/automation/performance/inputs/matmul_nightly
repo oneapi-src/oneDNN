@@ -26,6 +26,14 @@
 --bia_mask=4
 --batch=shapes_3d
 
+--dt=f32
+--bia-dt=f32,undef
+--bia_mask=2
+--attr-fpmath=bf16
+--batch=shapes_2d_ci
+--bia_mask=4
+--batch=shapes_3d
+
 #f16
 --dt=f16:f16:f16
 --bia-dt=undef

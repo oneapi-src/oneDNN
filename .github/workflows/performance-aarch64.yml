@@ -153,19 +153,12 @@ jobs:
         shell: bash
         run: |
           OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_nightly_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
-          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_fast_math_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base_fast.txt new_fast.txt
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
 
       - name: Compare 16 threads performance test results
         run: |
           python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base.txt new.txt
-      
-      - name: Compare fast math performance test results
-        if: success() || failure()
-        run: |
-          python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base_fast.txt new_fast.txt
-
 
   #* This job adds a check named "Nightly Performance AArch64" that represents overall
   #* workflow status and can be used in branch rulesets
