@@ -291,6 +291,7 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, convtranspose_weights_bwd_pass)
         });
 #endif
 
+DNNL_BACKEND_SINGLE_OP_TRANSFORM(gen_index_pass, GenIndex, genindex_t)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(matmul_pass, MatMul, float_matmul)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(max_pool_pass, MaxPool, float_pooling_fwd)
 DNNL_BACKEND_SINGLE_OP_TRANSFORM(prelu_pass, PReLU, float_prelu_fwd)
@@ -423,16 +424,6 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, reduce_pass)
         .set_attr<FCreateKernel>("FCreateKernel", []() -> kernel_ptr {
             return std::make_shared<float_reduction>();
         });
-
-DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, gen_index_pass)
-        .set_priority(DEFAULT_P)
-        .set_kind(partition_kind_t::misc_post_ops)
-        .set_attr<FCreatePattern>("FCreatePattern",
-                [](const std::shared_ptr<pb_graph_t> &pgraph) -> void {
-                    pgraph->append_op(graph::op_kind::GenIndex);
-                })
-        .set_attr<FCreateKernel>("FCreateKernel",
-                []() -> kernel_ptr { return std::make_shared<genindex_t>(); });
 
 // GreaterEqual currently is CPU only
 DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, greater_equal_pass)
