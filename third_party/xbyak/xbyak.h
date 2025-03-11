@@ -831,6 +831,9 @@ class Label;
 struct Reg8;
 struct Reg16;
 struct Reg32;
+struct Xmm;
+struct Ymm;
+struct Zmm;
 #ifdef XBYAK64
 struct Reg64;
 #endif
@@ -846,6 +849,9 @@ public:
 #ifdef XBYAK64
 	Reg64 cvt64() const;
 #endif
+	Xmm cvt128() const;
+	Ymm cvt256() const;
+	Zmm cvt512() const;
 	Reg operator|(const ApxFlagNF&) const { Reg r(*this); r.setNF(); return r; }
 	Reg operator|(const ApxFlagZU&) const { Reg r(*this); r.setZU(); return r; }
 };
@@ -982,6 +988,21 @@ inline Reg64 Reg::cvt64() const
 	return Reg64(changeBit(64).getIdx());
 }
 #endif
+
+inline Xmm Reg::cvt128() const
+{
+	return Xmm(changeBit(128).getIdx());
+}
+
+inline Ymm Reg::cvt256() const
+{
+	return Ymm(changeBit(256).getIdx());
+}
+
+inline Zmm Reg::cvt512() const
+{
+	return Zmm(changeBit(512).getIdx());
+}
 
 #ifndef XBYAK_DISABLE_SEGMENT
 // not derived from Reg
