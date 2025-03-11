@@ -143,6 +143,7 @@ enum {
     FlagKPartitioned = 0x4000,
     FlagDidBeta = 0x100,
     FlagSkipBetaCheck = 0x200,
+    FlagKSlice2 = 0x10000,
 };
 
 #include "internal/namespace_end.hxx"

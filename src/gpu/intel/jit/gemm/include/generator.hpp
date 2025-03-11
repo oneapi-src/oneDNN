@@ -203,6 +203,7 @@ protected:
     template <typename DT = void> void divDown(const ngen::Subregister &dst, const ngen::Subregister &src, uint16_t divisor, const CommonStrategy &strategy, CommonState &state);
     template <typename DT = void> void divDown(const ngen::Subregister &dst, const ngen::Subregister &src0, const ngen::Subregister &src1, const ngen::Subregister &src1Recip, const ngen::FlagRegister &flag, const CommonStrategy &strategy, CommonState &state);
     template <typename DT = void> void divUp(const ngen::Subregister &dst, const ngen::Subregister &src0, const ngen::Subregister &src1, const ngen::Subregister &src1Recip, const ngen::FlagRegister &flag, const CommonStrategy &strategy, CommonState &state);
+    void divMod(const ngen::Subregister &qot, const ngen::Subregister &rem, const ngen::Subregister &num, const ngen::Subregister &denom, const GEMMStrategy &strategy, CommonState &state, bool large = false);
 
     // common.cpp
     void duplicateScalar(SubregisterPair &val, CommonState &state);
@@ -456,15 +457,17 @@ protected:
     void gemmReorderLocalIDs(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
 
     // atomic_fusions.cpp
-    ngen::Subregister gemmCalcKPadding(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmStoreZeroC(GEMMProblem problem, GEMMStrategy strategy, GEMMState state, bool initialZeroing = true);
     void gemmFusedBetaPOInit(const ngen::Subregister &groupID, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmFusedBetaScale(GEMMProblem problem, GEMMStrategy strategy, GEMMState &state);
-    void gemmFusedBetaCalcWGCount(const ngen::Subregister &count, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmFusedBetaNotifyCompletion(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmFusedBetaWaitCompletion(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     bool gemmFusedPostOpsFinalize(ngen::Label &labelLateExit, GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
     void gemmRedirectToTempC(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+
+    // stream_k.cxx
+    void gemmStreamKPrepareSlice2(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+    void gemmStreamKSetup(ngen::Label &lKVPhaseDone, ngen::Label &lKernelDone, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
 
     // tlb_warmup.cxx
     void tlbWarmup(ngen::AddressBase base, const ngen::Subregister &ptr, const ngen::Subregister &bytes, const ngen::Subregister &lid, int whose, const CommonProblem &problem, const CommonStrategy &strategy, CommonState &state);

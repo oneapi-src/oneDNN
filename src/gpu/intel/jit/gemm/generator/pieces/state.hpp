@@ -211,7 +211,8 @@ struct GEMMState : public CommonState {
         ngen::Subregister groupCountMN;                     // ud
         ngen::Subregister gcMNRecip;                        // ud
         ngen::Subregister groupStride;                      // ud
-        ngen::Subregister kParallelStart, kRecip, k0Recip;  // ud
+        ngen::Subregister kvConfig, kRecip;                 // ud
+        ngen::Subregister kSlicedTiles, kSyncSlabs;         // uw
         ngen::Subregister hilbertVD, hilbertUVDRecip;       // ud
         ngen::Subregister hilbertBail;                      // ud
         ngen::Subregister bslice, bthresh;                  // d
@@ -283,7 +284,7 @@ struct GEMMState : public CommonState {
     std::vector<MaskAssignment> AB_masks, AB_masksCoop;
     ngen::GRFRange broadcast_regs;
     std::vector<ngen::GRFRange> tempMul_regs;
-    ngen::Subregister groupIDMN;                            // d
+    ngen::Subregister groupCountMN, groupIDMN;              // ud
     ngen::Subregister i0, j0, h0;                           // d
     ngen::Subregister wgI0, wgJ0;                           // d
     ngen::Subregister threadK0, k0Rem, wgK;                 // ud
