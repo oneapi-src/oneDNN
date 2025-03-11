@@ -71,8 +71,9 @@ inline int get_brg_kernel_index(const brgemm_matmul_conf_t &bgmmc,
             : bgmmc.N_blk;
     auto vK = (is_K_tail) ? bgmmc.K_tail : bgmmc.K_blk;
     if (vM == 0 || vN == 0 || vK == 0 || bs == 0 || bgmmc.LDA < vK
-            || bgmmc.LDB < vN
-            || (bgmmc.LDC < vN && !is_runtime_value(bgmmc.LDC)))
+            || (bgmmc.LDB < vN && !bgmmc.is_amx)
+            || ((bgmmc.LDC < vN && !bgmmc.is_amx)
+                    && !is_runtime_value(bgmmc.LDC)))
         return -1;
 
     int idx = 2 * max_n_ker_idx
@@ -113,6 +114,8 @@ struct brgemm_matmul_t : public primitive_t {
         const brgemm_matmul_conf_t &get_brgemm_matmul_conf() const {
             return bgmmc_;
         }
+
+        status_t maybe_set_LDB2();
 
     private:
         brgemm_desc_t brg_descs_[max_num_brg_kernels_matmul];
