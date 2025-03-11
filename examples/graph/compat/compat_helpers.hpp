@@ -117,7 +117,9 @@ namespace compat_0_x {
 int64_t op_id = 0;
 using lt = dnnl::graph::logical_tensor;
 using op = dnnl::graph::op;
-using Operation = dnnl::graph::op;
+using partition = dnnl::graph::partition;
+using compiled_partition = dnnl::graph::compiled_partition;
+using graph = dnnl::graph::graph;
 using DataType_t = logical_tensor::data_type;
 //using Tensor = dnnl::graph::logical_tensor;
 
@@ -486,6 +488,8 @@ private:
     cudnnHandle_t handle = nullptr;
     std::array<ManagedOpaqueDescriptor, MAX_OPGRAPH_OPS> ops {};
     int64_t numOps = -1;
+    graph *internal_graph = nullptr;
+    partition *internal_partition = nullptr;
 };
 
 ///
@@ -517,11 +521,8 @@ public:
     auto setOperationGraph(std::vector<Operation> const &ops_)
             -> OperationGraphBuilder_v8 & {
         m_operationGraph.numOps = ops_.size();
-        m_operationGraph.feature_vectors.resize(ops_.size());
         for (auto i = 0u; i < ops_.size(); i++) {
             m_operationGraph.ops[i] = ops_[i].get_desc();
-            m_operationGraph.opGraphTag += ops_[i].getTag() + '_';
-            m_operationGraph.feature_vectors[i] = ops_[i].getFeatureVector();
         }
         return *this;
     }
@@ -536,7 +537,24 @@ public:
 
     //! constructs the OperationGraph_v8 by calling the cudnn API
     //! Throws the appropriate error message
-    OperationGraph_v8 &&build() { return std::move(m_operationGraph); }
+    OperationGraph_v8 &&build() {
+
+        dnnl::graph::graph BMM1(m_operationGraph.handle.get_engine_kind());
+
+        for (auto i = 0u; i < m_operationGraph.numOps; i++) {
+            auto op = m_operationGraph.ops[i];
+            BMM1.add_op(op.internal_op);
+        }
+
+        BMM1.finalize();
+        m_operationGraph.internal_graph = &BMM1;
+
+        auto parts = BMM1.get_partitions();
+        if (parts.size() != 1) throw std::runtime_error("partition failed ...");
+        m_operationGraph.internal_partition = parts[0].get();
+
+        return std::move(m_operationGraph);
+    }
 
     explicit OperationGraphBuilder_v8() = default;
     ~OperationGraphBuilder_v8() = default;
@@ -551,6 +569,173 @@ private:
 
 using OperationGraph = OperationGraph_v8;
 using OperationGraphBuilder = OperationGraphBuilder_v8;
+
+class EngineConfig_v8 : public BackendDescriptor {
+public:
+    friend class EngineConfigBuilder_v8;
+
+    std::string describe() const override {
+        std::stringstream ss;
+        ss << "CUDNN_BACKEND_ENGINECFG_DESCRIPTOR :";
+        ss << " Number of knobs: " << numKnobs;
+        return ss.str();
+    }
+
+    EngineConfig_v8 &operator=(EngineConfig_v8 &&from) = default;
+
+    EngineConfig_v8(EngineConfig_v8 &&from) = default;
+
+    ~EngineConfig_v8() = default;
+
+    std::string const &getTag() const { return opGraphTag; }
+
+private:
+    EngineConfig_v8() = default;
+    EngineConfig_v8(EngineConfig_v8 const &) = delete;
+    EngineConfig_v8 &operator=(EngineConfig_v8 const &) = delete;
+    partition *internal_partition = nullptr;
+};
+
+static inline std::vector<cudnnStatus_t> get_heuristics_list(
+        std::vector<std::string> const &modes, OperationGraph_v8 &opGraph,
+        std::function<bool(cudnnBackendDescriptor_t)> filter_fn,
+        EngineConfigList &filtered_configs, bool evaluate_all = false,
+        int32_t sm_count = -1) {
+    std::vector<cudnnStatus_t> statuses;
+
+    auto parts = opGraph.internal_graph->get_partitions();
+    if (parts.size() != 1) throw std::runtime_error("partition failed ...");
+    filtered_configs.internal_configs = parts[0];
+    return statuses;
+}
+///
+/// ExecutionPlan_v8 Class
+/// This class tells the Configuration of the Engine in terms of the knob
+/// choices
+/// Properties:
+///    - num knobs
+///    - Choice
+///    - Engine
+///
+/// Use ExecutionPlanBuilder_v8 to build this class.
+/// Describe returns a string describing the tensor class
+///
+class ExecutionPlan_v8 : public BackendDescriptor {
+public:
+    friend class ExecutionPlanBuilder_v8;
+
+    ExecutionPlan_v8(ExecutionPlan_v8 &&from) = default;
+    ExecutionPlan_v8 &operator=(ExecutionPlan_v8 &&) = default;
+
+    ~ExecutionPlan_v8() = default;
+    /** @defgroup ExecutionPlanQuery
+     *  Query individual property of ExecutionPlan_v8 class
+     *  @{
+     */
+    //! Query the workspace requirement for the given plan
+
+    // std::string describe() const override {
+    //     std::stringstream ss;
+    //     ss << "CUDNN_BACKEND_EXECUTION_PLAN_DESCRIPTOR : ";
+    //     ss << getTag() << ", ";
+    //     ss << "numeric_notes:"
+    //        << "[";
+    //     for (auto note : numeric_notes_vec) {
+    //         ss << cudnn_frontend::to_string(note) << ",";
+    //     }
+    //     ss << "] behavior_notes:"
+    //        << "[";
+    //     for (auto note : behavior_notes_vec) {
+    //         ss << cudnn_frontend::to_string(note) << ",";
+    //     }
+    //     ss << "] workSpaceSize: " << workSpaceSize;
+    //     return ss.str();
+    // }
+
+    ExecutionPlan_v8(ExecutionPlan_v8 const &) = default;
+    ExecutionPlan_v8 &operator=(ExecutionPlan_v8 const &) = default;
+
+private:
+    ExecutionPlan_v8() = default;
+    ManagedOpaqueDescriptor engine_config = nullptr;
+    cudnnHandle_t handle = nullptr;
+    compiled_partition *internal_compiled_partition = nullptr;
+};
+
+///
+/// ExecutionPlanBuilder_v8 Class
+/// Helper class used to build ExecutionPlan_v8 class
+class ExecutionPlanBuilder_v8 {
+public:
+    /** @defgroup ExecutionPlanBuilder_v8
+     *  Set individual property of ExecutionPlan_v8 class
+     *  @{
+     */
+    //! Set engine for the ExecutionPlan_v8
+    auto setHandle(cudnnHandle_t handle_) -> ExecutionPlanBuilder_v8 & {
+        m_execution_plan.handle = handle_;
+        return *this;
+    }
+
+    auto setEngineConfig(ManagedOpaqueDescriptor &desc,
+            std::string const &opGraphTag_ = "") -> ExecutionPlanBuilder_v8 & {
+        m_execution_plan.engine_config = desc;
+        return *this;
+    }
+
+    //! constructs the Engine Config by calling the cudnn API
+    //! Throws the appropriate error message
+    ExecutionPlan_v8 &&build() {
+
+        auto partition = m_execution_plan.engine_config.internal_partition;
+
+        std::vector<logical_tensor> inputs
+                = partition
+                          .get_input_ports(); // Get the input ports of the partition
+        std::vector<logical_tensor> outputs
+                = partition
+                          .get_output_ports(); // Get the output ports of the partition
+        // Compile the partition with inputs, outputs, and an engine.
+        m_execution_plan.internal_compiled_partition = partition.compile(
+                inputs, {output}, *(m_execution_plan.handle.get_engine()));
+
+        return std::move(m_execution_plan);
+    }
+
+    explicit ExecutionPlanBuilder_v8() = default;
+    ~ExecutionPlanBuilder_v8() = default;
+    ExecutionPlanBuilder_v8(ExecutionPlanBuilder_v8 &&) = delete;
+    ExecutionPlanBuilder_v8(ExecutionPlanBuilder_v8 const &) = delete;
+    ExecutionPlanBuilder_v8 &operator=(ExecutionPlanBuilder_v8 const &)
+            = delete;
+
+private:
+    ExecutionPlan_v8 m_execution_plan;
+};
+
+using ExecutionPlan = ExecutionPlan_v8;
+using ExecutionPlanBuilder = ExecutionPlanBuilder_v8;
+
+void onednnGraphExecute(Handle handle, ExecutionPlan executionPlan,
+        std::set<std::pair<uint64_t, void *>> data_ptrs) {
+
+    auto eng = handle.get_engine();
+    std::vector<logical_tensor> inputs
+            = executionPlan.engine_config.internal_partition->get_input_ports();
+    std::vector<logical_tensor> outputs
+            = executionPlan.engine_config.internal_partition
+                      ->get_output_ports();
+    auto inputs_num = inputs.size();
+    query = inputs[Q_ID];
+    key = inputs[K_ID];
+    out = outputs[O_ID - inputs_num];
+    auto ts_q = tensor(query, *eng, data_ptrs[Q_ID]);
+    auto ts_k = tensor(key, *eng, data_ptrs[K_ID]);
+    auto ts_o = tensor(out, *eng, data_ptrs[O_ID]);
+
+    executionPlan.internal_compiled_partition->execute(
+            data_ptrs, *(handle.get_stream()));
+}
 
 } // namespace compat_0_x
 
