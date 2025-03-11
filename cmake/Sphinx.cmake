@@ -54,8 +54,9 @@ if (Python_FOUND AND SPHINX_FOUND)
             ${SPHINX_SOURCE_DIR}/_static
         COMMAND ${Python_EXECUTABLE}
             ${CMAKE_CURRENT_BINARY_DIR}/cleanup.py ${SPHINX_SOURCE_DIR}
-        COMMAND ${SPHINX_EXECUTABLE} -b ${SPHINX_GENERATOR}
-            -D release=v${PROJECT_VERSION} -j auto rst ${SPHINX_OUTPUT_DIR}
+        COMMAND ${CMAKE_COMMAND} -E env PROJECT_VERSION=v${PROJECT_VERSION}
+            ${SPHINX_EXECUTABLE} -b ${SPHINX_GENERATOR}
+            -j auto rst ${SPHINX_OUTPUT_DIR}
         COMMAND ${CMAKE_COMMAND} -E touch ${SPHINX_STAMP_FILE}
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/reference
         COMMENT "Generating API documentation with Sphinx" VERBATIM)

@@ -51,8 +51,10 @@ sys.path.insert(1, os.path.abspath(doxyrest_share_path))
 # -- Project information -----------------------------------------------------
 
 project = 'oneDNN'
-copyright = '2016-2024 Intel Corporation'
+copyright = '2016-2025 Intel Corporation'
 author = ''
+
+release = os.environ.get("PROJECT_VERSION", "unknown")
 
 # -- General configuration ---------------------------------------------------
 
@@ -116,6 +118,8 @@ imgmath_latex_preamble = '''\\usepackage[T1]{fontenc}
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
+source_suffix = '.rst'
+
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
@@ -135,12 +139,19 @@ html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
 #html_js_files = [('dnnl.js', {'defer': 'defer'})]
 
+html_logo = '_static/oneAPI-rgb-rev-100.png'
+html_favicon = '_static/favicons.png'
+
 html_theme_options = {
     "repository_url": "https://github.com/oneapi-src/oneDNN",
-    "repository_branch": "master",
+    "repository_branch": "main",
     "use_repository_button": True,
-    "use_download_button": False
+    "use_download_button": True,
+    "path_to_docs": "doc",
+    "use_issues_button": True
 }
+
+html_theme_options["logo"] = {"text": "oneDNN Documentation\n" + release}
 
 mathjax3_config = {
 'tex': {

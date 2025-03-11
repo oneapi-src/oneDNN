@@ -1,5 +1,5 @@
-oneAPI Deep Neural Network Library Developer Guide and Reference
-=======================================================================
+oneAPI Deep Neural Network Library (oneDNN) Developer Guide and Reference
+=========================================================================
 
 .. toctree::
    :maxdepth: 1
