@@ -186,6 +186,23 @@ void reorder_ir_builder_t::compute_blocks(const exec_config_t &exec_cfg,
     if (max_thr_tile_bytes <= 0)
         max_thr_tile_bytes = max_tile_size(exec_cfg.hw(), dst, src);
 
+    auto cfg = gpu_utils::dev_getenv("reorder_cfg", std::string());
+    auto to_vec = [](const std::string &s) {
+        std::vector<int> ret;
+        for (auto &p : gpu_utils::split(s, "x")) {
+            ret.push_back(std::stoi(p));
+        }
+        return ret;
+    };
+    if (!cfg.empty()) {
+        auto parts = gpu_utils::split(cfg, ",");
+        gpu_assert(parts.size() == 3);
+        iter_blocks = to_vec(parts[0]);
+        loop_blocks = to_vec(parts[1]);
+        tg_blocks = to_vec(parts[2]);
+        return;
+    }
+
     gpu_assert(src.ndims() == dst.ndims());
     dim_idx_t ndims = src.ndims();
     std::vector<dim_t> dims(ndims);
@@ -841,7 +858,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
         auto reorder_stmt = create_reorder_stmt(
                 read_layout, write_layout, reg_buf, tmp_buf);
         write_stmt = substitute(write_stmt, reg_buf, tmp_buf);
-        write_stmt = reorder_stmt.append(write_stmt);
+        //write_stmt = reorder_stmt.append(write_stmt);
     } else {
         read_buf_size = std::max(read_buf_size, write_buf_size);
     }
@@ -850,7 +867,7 @@ bool reorder_ir_builder_t::try_build(const std::vector<int> &iter_blocks,
 
     stmt_ = stmt_t();
     stmt_ = stmt_.append(read_stmt);
-    stmt_ = stmt_.append(write_stmt);
+    //stmt_ = stmt_.append(write_stmt);
 
     stmt_ = schedule.create_loop_nest(stmt_);
     stmt_ = schedule.create_bind_stmt(stmt_);

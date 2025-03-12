@@ -501,7 +501,8 @@ void dnn_mem_t::memset(int value, size_t size) const {
             }
             case memory_kind_ext_t::usm:
             case memory_kind_ext_t::usm_device:
-            case memory_kind_ext_t::usm_shared: {
+            case memory_kind_ext_t::usm_shared:
+            case memory_kind_ext_t::usm_host: {
                 DNN_SAFE_V(dnnl::impl::xpu::ocl::usm::memset(
                         stream, mem_handle, value, size));
                 DNN_SAFE_V(dnnl_stream_wait(stream));
@@ -531,7 +532,8 @@ void dnn_mem_t::memset(int value, size_t size) const {
             }
             case memory_kind_ext_t::usm:
             case memory_kind_ext_t::usm_device:
-            case memory_kind_ext_t::usm_shared: {
+            case memory_kind_ext_t::usm_shared:
+            case memory_kind_ext_t::usm_host: {
                 queue.submit([&](::sycl::handler &cgh) {
                     cgh.memset(mem_handle, value, size);
                 });
@@ -691,6 +693,7 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
             break;
         }
         case memory_kind_ext_t::usm_device:
+        case memory_kind_ext_t::usm_host:
         case memory_kind_ext_t::usm_shared: {
             SAFE(handle_info.is_allocate() ? OK : FAIL, CRIT);
             is_data_owner_ = true;
@@ -708,8 +711,10 @@ int dnn_mem_t::initialize_memory_create_sycl(const handle_info_t &handle_info) {
 #endif
                 if (memory_kind == memory_kind_ext_t::usm_device) {
                     data_.push_back(::sycl::malloc_device(sz, dev, ctx));
-                } else {
+                } else if (memory_kind == memory_kind_ext_t::usm_shared) {
                     data_.push_back(::sycl::malloc_shared(sz, dev, ctx));
+                } else {
+                    data_.push_back(::sycl::malloc_host(sz, dev, ctx));
                 }
                 if (sz > 0 && !data_[i]) {
                     for (void *p : data_)
@@ -788,6 +793,7 @@ int dnn_mem_t::initialize_memory_create_opencl(
             break;
         }
         case memory_kind_ext_t::usm_device:
+        case memory_kind_ext_t::usm_host:
         case memory_kind_ext_t::usm_shared: {
             is_data_owner_ = true;
 
@@ -801,8 +807,11 @@ int dnn_mem_t::initialize_memory_create_opencl(
                 if (memory_kind == memory_kind_ext_t::usm_device) {
                     data_.push_back(dnnl::impl::xpu::ocl::usm::malloc_device(
                             engine_, sz));
-                } else {
+                } else if (memory_kind == memory_kind_ext_t::usm_shared) {
                     data_.push_back(dnnl::impl::xpu::ocl::usm::malloc_shared(
+                            engine_, sz));
+                } else {
+                    data_.push_back(dnnl::impl::xpu::ocl::usm::malloc_host(
                             engine_, sz));
                 }
 
@@ -937,6 +946,7 @@ static int cleanup_sycl(
 #ifdef DNNL_WITH_SYCL
     switch (memory_kind) {
         case memory_kind_ext_t::usm_device:
+        case memory_kind_ext_t::usm_host:
         case memory_kind_ext_t::usm_shared: {
             auto eng = dnnl::engine(engine, true);
             auto ctx = dnnl::sycl_interop::get_context(eng);
@@ -956,6 +966,7 @@ static int cleanup_opencl(
     switch (memory_kind) {
         case memory_kind_ext_t::usm_device:
         case memory_kind_ext_t::usm_shared:
+        case memory_kind_ext_t::usm_host:
             for (void *p : data)
                 dnnl::impl::xpu::ocl::usm::free(engine, p);
             break;

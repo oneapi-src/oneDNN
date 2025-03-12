@@ -154,6 +154,7 @@ enum class memory_kind_ext_t {
     buffer, // Same as dnnl_sycl_interop_buffer
     usm_device, // USM allocated via malloc_device()
     usm_shared, // USM allocated via malloc_shared()
+    usm_host, // USM allocated via malloc_shared()
 };
 
 const memory_kind_ext_t default_memory_kind = memory_kind_ext_t::usm;

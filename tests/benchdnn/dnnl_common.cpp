@@ -1494,6 +1494,7 @@ memory_kind_ext_t str2memory_kind(const char *str) {
     CASE(buffer);
     CASE(usm_device);
     CASE(usm_shared);
+    CASE(usm_host);
 
 #undef CASE
 

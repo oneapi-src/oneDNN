@@ -31,7 +31,7 @@ namespace usm {
 enum class kind_t { unknown, host, device, shared };
 
 bool is_usm_supported(impl::engine_t *engine);
-void *malloc_host(impl::engine_t *engine, size_t size);
+void DNNL_API *malloc_host(impl::engine_t *engine, size_t size);
 void DNNL_API *malloc_device(impl::engine_t *engine, size_t size);
 void DNNL_API *malloc_shared(impl::engine_t *engine, size_t size);
 

@@ -869,6 +869,7 @@ std::ostream &operator<<(std::ostream &s, memory_kind_ext_t memory_kind) {
         case memory_kind_ext_t::buffer: s << "buffer"; break;
         case memory_kind_ext_t::usm_device: s << "usm_device"; break;
         case memory_kind_ext_t::usm_shared: s << "usm_shared"; break;
+        case memory_kind_ext_t::usm_host: s << "usm_host"; break;
         default: assert(!"unexpected"); break;
     }
     return s;
