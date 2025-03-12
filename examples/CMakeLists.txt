@@ -97,6 +97,7 @@ if(NOT ONEDNN_BUILD_GRAPH)
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gated_mlp.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gated_mlp_wei_combined.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/graph/gated_mlp_int4.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/graph/compat/f16_flash_mha_sample.cpp
         )
 endif()
 

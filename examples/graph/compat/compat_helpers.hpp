@@ -120,8 +120,26 @@ using op = dnnl::graph::op;
 using partition = dnnl::graph::partition;
 using compiled_partition = dnnl::graph::compiled_partition;
 using graph = dnnl::graph::graph;
-using DataType_t = logical_tensor::data_type;
-//using Tensor = dnnl::graph::logical_tensor;
+using DataType_t = lt::data_type;
+
+constexpr int64_t MAX_OPGRAPH_OPS = 50;
+
+enum class MHA_Layout {
+    NOT_INTERLEAVED = 0,
+    QKV_INTERLEAVED = 1,
+    KV_INTERLEAVED = 2,
+    SBH_INTERLEAVED = 3
+};
+
+enum class MHA_Matrix {
+    Q_Matrix = 0, // queries
+    K_Matrix = 1, // keys
+    K_Matrix_Transpose = 2, // keys tranposed
+    V_Matrix = 3, // values
+    V_Matrix_Transpose = 4, // values transposed
+    S_Matrix = 5, // output of GEMM1
+    O_Matrix = 6, // final output
+};
 
 // mimic cudnnHandle_t
 class Handle {
@@ -205,9 +223,131 @@ public:
     ~Surface() = default;
 };
 
-///
+typedef void *onednnBackendDescriptor_t;
 
-class Tensor_v8 {
+enum class BackendDescriptorType_t {
+    ENGINE_CONFIG_TYPE,
+    OPERATION_TYPE,
+    UNKNOWN
+};
+
+dnnl_status_t create_descriptor(
+        BackendDescriptorType_t type, onednnBackendDescriptor_t desc) {
+    if (desc == nullptr) return dnnl_invalid_arguments;
+    desc = nullptr;
+    return dnnl_success;
+}
+
+dnnl_status_t destroy_descriptor(onednnBackendDescriptor_t desc) {
+    return dnnl_success;
+}
+
+class OpaqueBackendPointer {
+    onednnBackendDescriptor_t m_desc = nullptr; //!< Raw void pointer
+    dnnl_status_t status
+            = dnnl_success; //!< status of creation of the Descriptor
+
+public:
+    OpaqueBackendPointer(const OpaqueBackendPointer &)
+            = delete; //!< Delete the copy constructor to prevent bad copies
+    OpaqueBackendPointer &operator=(const OpaqueBackendPointer &) = delete;
+    OpaqueBackendPointer(OpaqueBackendPointer &&) = default;
+
+    /**
+     * OpaqueBackendPointer constructor.
+     * Calls the cudnnBackendCreateDescriptor. Allocates memory according to the type.
+     */
+    OpaqueBackendPointer(BackendDescriptorType_t type) {
+        status = create_descriptor(type, &m_desc);
+    }
+    /**
+     * OpaqueBackendPointer destructor.
+     * Calls the cudnnBackendDestroyDescriptor. Frees memory allocated in the constructor.
+     */
+    ~OpaqueBackendPointer() { destroy_descriptor(m_desc); };
+    /**
+     * Accessor.
+     * Returns the const reference to raw underlying descriptor.
+     * Treat it like the data() function of a smart pointer. Can be freed behind the back.
+     */
+    onednnBackendDescriptor_t const &get_backend_descriptor() const {
+        return m_desc;
+    }
+    /**
+     * Accessor.
+     * Queries the status of the descriptor after calling the cudnnCreate.
+     */
+    dnnl_status_t get_status() const { return status; }
+    /**
+     * Accessor.
+     * Queries the status of the descriptor returns true if all good.
+     */
+    bool is_good() const { return status == dnnl_success; }
+};
+
+/*! \var A shared_ptr wrapper on top of the OpaqueBackendPointer */
+using ManagedOpaqueDescriptor = std::shared_ptr<OpaqueBackendPointer>;
+
+// /*! \fn A wrapper on top of the std::make_shared for the OpaqueBackendPointer */
+// static ManagedOpaqueDescriptor make_shared_backend_pointer(
+//         cudnnBackendDescriptorType_t type) {
+//     return std::make_shared<OpaqueBackendPointer>(type);
+// }
+
+///
+/// BackendDescriptor class
+/// Holds a Managed pointer to OpaqueBackendPointer class
+/// Contains the status and error message if set after any operation.
+/// If exception is disabled the user must query the status after
+/// build operation in order to check if the cudnn construct was built
+/// correctly.
+class BackendDescriptor {
+public:
+    //! Return a string describing the backend Descriptor
+    virtual std::string describe() const = 0;
+
+    //! Get a copy of the raw descriptor pointer. Ownership is reatined and
+    //! gets deleted when out of scope
+    onednnBackendDescriptor_t get_raw_desc() const {
+        return pointer->get_backend_descriptor();
+    }
+
+    //! Current status of the descriptor
+    dnnl_status_t get_status() const { return status; }
+
+    //! Set status of the descriptor
+    void set_status(dnnl_status_t const status_) const { status = status_; }
+
+    //! Set Diagonistic error message.
+    void set_error(const char *message) const { err_msg = message; }
+
+    //! Diagonistic error message if any
+    const char *get_error() const { return err_msg.c_str(); }
+
+    //! Returns a copy of underlying managed descriptor
+    ManagedOpaqueDescriptor get_desc() const { return pointer; }
+
+protected:
+    /**
+     * BackendDescriptor constructor.
+     * Initializes the member variables as passed.
+     */
+    BackendDescriptor(ManagedOpaqueDescriptor pointer_, dnnl_status_t status_,
+            std::string err_msg_)
+        : pointer(pointer_), status(status_), err_msg(err_msg_) {}
+    BackendDescriptor() = default;
+
+    virtual ~BackendDescriptor() {};
+
+    ManagedOpaqueDescriptor
+            pointer; //! Shared pointer of the OpaqueBackendPointer
+
+    mutable dnnl_status_t status
+            = dnnl_success; //!< Error code if any being set
+    mutable std::string err_msg; //!< Error message if any being set
+};
+
+class Tensor_v8 : public BackendDescriptor {
 public:
     friend class TensorBuilder_v8;
     //     std::string describe() const override {
@@ -271,8 +411,8 @@ private:
     Tensor_v8 &operator=(Tensor_v8 const &) = delete;
 
     DataType_t data_type = DataType_t::undef; //! Datatype of the elements
-    int64_t btensor_dimA[CUDNN_DIM_MAX + 1] = {-1}; //! n, g, c, d, h, w
-    int64_t btensor_strA[CUDNN_DIM_MAX + 1] = {-1}; //! n, g, c, d, h, w
+    int64_t btensor_dimA[DNNL_MAX_NDIMS + 1] = {-1}; //! n, g, c, d, h, w
+    int64_t btensor_strA[DNNL_MAX_NDIMS + 1] = {-1}; //! n, g, c, d, h, w
     int64_t id = -1; //! Unique id of the tensor
     int64_t alignment = -1; //! Alignment of the tensor.
     //! Certain engine config expect minimum alignment of 16B
@@ -354,7 +494,7 @@ private:
 using Tensor = Tensor_v8;
 using TensorBuilder = TensorBuilder_v8;
 
-class Operation_v8 {
+class Operation_v8 : public BackendDescriptor {
 public:
     friend class OperationBuilder_v8;
     // std::string describe() const override {
@@ -485,7 +625,7 @@ private:
     OperationGraph_v8(OperationGraph_v8 const &) = delete;
     OperationGraph_v8 &operator=(OperationGraph_v8 const &) = delete;
 
-    cudnnHandle_t handle = nullptr;
+    Handle handle = nullptr;
     std::array<ManagedOpaqueDescriptor, MAX_OPGRAPH_OPS> ops {};
     int64_t numOps = -1;
     graph *internal_graph = nullptr;
@@ -574,12 +714,12 @@ class EngineConfig_v8 : public BackendDescriptor {
 public:
     friend class EngineConfigBuilder_v8;
 
-    std::string describe() const override {
-        std::stringstream ss;
-        ss << "CUDNN_BACKEND_ENGINECFG_DESCRIPTOR :";
-        ss << " Number of knobs: " << numKnobs;
-        return ss.str();
-    }
+    // std::string describe() const override {
+    //     std::stringstream ss;
+    //     ss << "CUDNN_BACKEND_ENGINECFG_DESCRIPTOR :";
+    //     ss << " Number of knobs: " << numKnobs;
+    //     return ss.str();
+    // }
 
     EngineConfig_v8 &operator=(EngineConfig_v8 &&from) = default;
 
@@ -596,18 +736,20 @@ private:
     partition *internal_partition = nullptr;
 };
 
-static inline std::vector<cudnnStatus_t> get_heuristics_list(
+static inline std::vector<dnnl_status_t> get_heuristics_list(
         std::vector<std::string> const &modes, OperationGraph_v8 &opGraph,
-        std::function<bool(cudnnBackendDescriptor_t)> filter_fn,
-        EngineConfigList &filtered_configs, bool evaluate_all = false,
-        int32_t sm_count = -1) {
-    std::vector<cudnnStatus_t> statuses;
+        std::function<bool(onednnBackendDescriptor_t)> filter_fn,
+        EngineConfigList &filtered_configs, bool evaluate_all = false) {
+    std::vector<dnnl_status_t> statuses;
 
     auto parts = opGraph.internal_graph->get_partitions();
     if (parts.size() != 1) throw std::runtime_error("partition failed ...");
     filtered_configs.internal_configs = parts[0];
     return statuses;
 }
+
+using EngineConfig = EngineConfig_v8;
+
 ///
 /// ExecutionPlan_v8 Class
 /// This class tells the Configuration of the Engine in terms of the knob
@@ -657,8 +799,9 @@ public:
 
 private:
     ExecutionPlan_v8() = default;
+    //EngineConfig *engine_config;
     ManagedOpaqueDescriptor engine_config = nullptr;
-    cudnnHandle_t handle = nullptr;
+    Handle handle = nullptr;
     compiled_partition *internal_compiled_partition = nullptr;
 };
 
@@ -672,14 +815,15 @@ public:
      *  @{
      */
     //! Set engine for the ExecutionPlan_v8
-    auto setHandle(cudnnHandle_t handle_) -> ExecutionPlanBuilder_v8 & {
+    auto setHandle(Handle handle_) -> ExecutionPlanBuilder_v8 & {
         m_execution_plan.handle = handle_;
         return *this;
     }
 
-    auto setEngineConfig(ManagedOpaqueDescriptor &desc,
-            std::string const &opGraphTag_ = "") -> ExecutionPlanBuilder_v8 & {
-        m_execution_plan.engine_config = desc;
+    //! Set engine Config for the Plan
+    auto setEngineConfig(EngineConfig_v8 const &engine_config_)
+            -> ExecutionPlanBuilder_v8 & {
+        m_execution_plan.engine_config = engine_config_.get_desc();
         return *this;
     }
 
