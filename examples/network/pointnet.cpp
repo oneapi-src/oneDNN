@@ -38,7 +38,8 @@ static std::array<std::string, 10> object_map = {"bathtub", "bed", "chair",
 namespace helpers {
 
 template <typename T>
-void copy_to_device(std::vector<char> &inputs, T *dev_ptr, sycl::queue q) {
+void copy_to_device(
+        const std::vector<char> &inputs, T *dev_ptr, sycl::queue q) {
     q.submit([&](sycl::handler &cgh) {
          cgh.copy(inputs.data(), reinterpret_cast<char *>(dev_ptr),
                  inputs.size());
@@ -54,27 +55,6 @@ std::vector<char> read_binary_data(std::string const &name) {
     std::vector<char> output {std::istreambuf_iterator<char> {file}, {}};
     return output;
 }
-
-// read image data from disk
-template <typename DType, typename DeviceMem, typename Backend>
-DeviceMem read_image_data(
-        std::string const &name, Backend &backend, size_t size) {
-    sycl::range<1> r {size}; // resnet input size
-    sycl::buffer<DType> b {r};
-    auto data = read_binary_data(name);
-    assert(data.size() == size * sizeof(DType));
-    {
-        auto char_data = b.template reinterpret<char>(r * sizeof(DType));
-        auto event = backend.get_queue().submit([&](sycl::handler &cgh) {
-            auto acc = char_data.template get_access<
-                    sycl::access::mode::discard_write>(cgh);
-            cgh.copy(data.data(), acc);
-        });
-        event.wait_and_throw();
-    }
-    return DeviceMem {b, 0};
-}
-
 } // namespace helpers
 
 template <typename T>
@@ -605,15 +585,6 @@ struct Network {
         return output;
     }
 
-    void dump_output() {
-        auto output = get_output_as_host_vec();
-        std::cout << "Output:\n";
-        for (auto e : output) {
-            std::cout << e << ", ";
-        }
-        std::cout << "\n";
-    }
-
     std::vector<std::unique_ptr<Layer<T>>> layers;
 };
 
@@ -716,7 +687,6 @@ inline void add_fc_bias_bnorm_relu_block(Network<T> &net, dnnl::engine &engine,
             file_directory + bn_bias_file, file_directory + bn_mean_file,
             file_directory + bn_var_file, batch, out_c, 1, 1);
 }
-void pointnet(dnnl::engine::kind engine_kind) {}
 
 int main(int argc, char *argv[]) {
 
