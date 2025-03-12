@@ -35,6 +35,12 @@
 #endif
 #endif
 
+#if DT_F64 == 1
+#define POST_OP_LITERAL(x) x
+#else
+#define POST_OP_LITERAL(x) x##f
+#endif
+
 POST_OP_DATA_T relu_fwd(POST_OP_DATA_T s, float alpha) {
     return s > 0 ? s : s * alpha;
 }
@@ -60,18 +66,18 @@ POST_OP_DATA_T soft_relu_fwd(POST_OP_DATA_T s, float alpha) {
 }
 POST_OP_DATA_T soft_relu_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s, float alpha) {
     s = alpha * s;
-    return dd / ((POST_OP_DATA_T)1 + exp(-s));
+    return dd / (POST_OP_LITERAL(1.) + exp(-s));
 }
 
 POST_OP_DATA_T logistic_fwd(POST_OP_DATA_T s) {
-    return (AS_POST_OP_DATA_T(1.0)) / (AS_POST_OP_DATA_T(1.0) + exp(-s));
+    return (POST_OP_LITERAL(1.)) / (POST_OP_LITERAL(1.) + exp(-s));
 }
 POST_OP_DATA_T logistic_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     POST_OP_DATA_T v = logistic_fwd(s);
-    return dd * v * (1 - v);
+    return dd * v * (POST_OP_LITERAL(1.) - v);
 }
 POST_OP_DATA_T logistic_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
-    return dd * d * (1 - d);
+    return dd * d * (POST_OP_LITERAL(1.) - d);
 }
 
 POST_OP_DATA_T square_fwd(POST_OP_DATA_T s) {
@@ -85,10 +91,10 @@ POST_OP_DATA_T sqrt_fwd(POST_OP_DATA_T s) {
     return sqrt(s);
 }
 POST_OP_DATA_T sqrt_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
-    return dd / (2 * sqrt(s));
+    return dd / (POST_OP_LITERAL(2.) * sqrt(s));
 }
 POST_OP_DATA_T sqrt_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
-    return dd / (2 * d);
+    return dd / (POST_OP_LITERAL(2.) * d);
 }
 
 POST_OP_DATA_T abs_fwd(POST_OP_DATA_T s) {
@@ -103,22 +109,22 @@ POST_OP_DATA_T tanh_fwd(POST_OP_DATA_T s) {
 }
 POST_OP_DATA_T tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     POST_OP_DATA_T e = tanh_fwd(s);
-    return dd * (1 - e) * (1 + e);
+    return dd * (POST_OP_LITERAL(1.) - e) * (POST_OP_LITERAL(1.) + e);
 }
 POST_OP_DATA_T tanh_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
-    return dd * (1 - d) * (1 + d);
+    return dd * (POST_OP_LITERAL(1.) - d) * (POST_OP_LITERAL(1.) + d);
 }
 
 POST_OP_DATA_T mish_fwd(POST_OP_DATA_T s) {
-    return s * tanh_fwd(soft_relu_fwd(s, 1.f));
+    return s * tanh_fwd(soft_relu_fwd(s, POST_OP_LITERAL(1.)));
 }
 POST_OP_DATA_T mish_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
-    const POST_OP_DATA_T tanh = tanh_fwd(soft_relu_fwd(s, (POST_OP_DATA_T)1.0));
+    const POST_OP_DATA_T tanh = tanh_fwd(soft_relu_fwd(s, POST_OP_LITERAL(1.)));
     const POST_OP_DATA_T srelu_bwd
-            = soft_relu_bwd((POST_OP_DATA_T)1.0, s, (POST_OP_DATA_T)1.0);
+            = soft_relu_bwd(POST_OP_LITERAL(1.), s, POST_OP_LITERAL(1.));
     const POST_OP_DATA_T derivative = tanh
             + s * srelu_bwd
-                    * ((POST_OP_DATA_T)1 - pow(tanh, (POST_OP_DATA_T)2.0));
+                    * (POST_OP_LITERAL(1.) - pow(tanh, POST_OP_LITERAL(2.)));
     return dd * derivative;
 }
 
@@ -146,33 +152,33 @@ POST_OP_DATA_T exp_bwd_use_dst(POST_OP_DATA_T dd, POST_OP_DATA_T d) {
 
 POST_OP_DATA_T gelu_tanh_fwd(POST_OP_DATA_T s) {
     const POST_OP_DATA_T sqrt_2_over_pi
-            = AS_POST_OP_DATA_T(0.79788458347320556640625);
-    const POST_OP_DATA_T fitting_const = AS_POST_OP_DATA_T(0.044715);
+            = POST_OP_LITERAL(0.79788458347320556640625);
+    const POST_OP_DATA_T fitting_const = POST_OP_LITERAL(0.044715);
     const POST_OP_DATA_T g = sqrt_2_over_pi * s
-            * ((POST_OP_DATA_T)1.0 + fitting_const * s * s);
-    return ((POST_OP_DATA_T)0.5 * s * ((POST_OP_DATA_T)1.0 + tanh_fwd(g)));
+            * (POST_OP_LITERAL(1.) + fitting_const * s * s);
+    return (POST_OP_LITERAL(0.5) * s * (POST_OP_LITERAL(1.) + tanh_fwd(g)));
 }
 POST_OP_DATA_T gelu_tanh_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     const POST_OP_DATA_T sqrt_2_over_pi
-            = AS_POST_OP_DATA_T(0.79788458347320556640625);
-    const POST_OP_DATA_T fitting_const = AS_POST_OP_DATA_T(0.044715);
+            = POST_OP_LITERAL(0.79788458347320556640625);
+    const POST_OP_DATA_T fitting_const = POST_OP_LITERAL(0.044715);
     const POST_OP_DATA_T g = sqrt_2_over_pi * s
-            * ((POST_OP_DATA_T)1.0 + fitting_const * s * s);
+            * (POST_OP_LITERAL(1.) + fitting_const * s * s);
     const POST_OP_DATA_T dg = sqrt_2_over_pi
-            * ((POST_OP_DATA_T)1.0
-                    + (POST_OP_DATA_T)3.0 * fitting_const * s * s);
+            * (POST_OP_LITERAL(1.)
+                    + POST_OP_LITERAL(3.) * fitting_const * s * s);
     const POST_OP_DATA_T v = tanh_fwd(g);
-    return dd * (POST_OP_DATA_T)0.5 * ((POST_OP_DATA_T)1.0 + v)
-            * ((POST_OP_DATA_T)1.0 + s * ((POST_OP_DATA_T)1.0 - v) * dg);
+    return dd * POST_OP_LITERAL(0.5) * (POST_OP_LITERAL(1.) + v)
+            * (POST_OP_LITERAL(1.) + s * (POST_OP_LITERAL(1.) - v) * dg);
 }
 
 POST_OP_DATA_T swish_fwd(POST_OP_DATA_T s, float alpha) {
     POST_OP_DATA_T w = -alpha * s;
-    return s / ((POST_OP_DATA_T)1.0 + exp(w));
+    return s / (POST_OP_LITERAL(1.) + exp(w));
 }
 POST_OP_DATA_T swish_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s, float alpha) {
     POST_OP_DATA_T v = logistic_fwd(alpha * s);
-    return dd * (v + s * alpha * v * ((POST_OP_DATA_T)1.0 - v));
+    return dd * (v + s * alpha * v * (POST_OP_LITERAL(1.) - v));
 }
 
 POST_OP_DATA_T log_fwd(POST_OP_DATA_T s) {
@@ -217,19 +223,19 @@ POST_OP_DATA_T pow_bwd(
 
 POST_OP_DATA_T gelu_erf_fwd(POST_OP_DATA_T s) {
     const POST_OP_DATA_T sqrt_2_over_2
-            = AS_POST_OP_DATA_T(0.707106769084930419921875);
+            = POST_OP_LITERAL(0.707106769084930419921875);
     POST_OP_DATA_T v = s * sqrt_2_over_2;
-    return (POST_OP_DATA_T)0.5 * s * ((POST_OP_DATA_T)1.0 + erf(v));
+    return POST_OP_LITERAL(0.5) * s * (POST_OP_LITERAL(1.) + erf(v));
 }
 
 POST_OP_DATA_T gelu_erf_bwd(POST_OP_DATA_T dd, POST_OP_DATA_T s) {
     const POST_OP_DATA_T two_over_sqrt_pi
-            = AS_POST_OP_DATA_T(1.12837922573089599609375);
+            = POST_OP_LITERAL(1.12837922573089599609375);
     const POST_OP_DATA_T sqrt_2_over_2
-            = AS_POST_OP_DATA_T(0.707106769084930419921875);
+            = POST_OP_LITERAL(0.707106769084930419921875);
     POST_OP_DATA_T v = s * sqrt_2_over_2;
-    return dd * (POST_OP_DATA_T)0.5
-            * ((POST_OP_DATA_T)1.0 + erf(v)
+    return dd * POST_OP_LITERAL(0.5)
+            * (POST_OP_LITERAL(1.) + erf(v)
                     + v * two_over_sqrt_pi * exp(-v * v));
 }
 
@@ -239,9 +245,9 @@ float round_fwd(POST_OP_DATA_T s) {
 
 POST_OP_DATA_T hardsigmoid_fwd(POST_OP_DATA_T s, float alpha, float beta) {
     POST_OP_DATA_T v = (POST_OP_DATA_T)alpha * s + (POST_OP_DATA_T)beta;
-    return v <= AS_POST_OP_DATA_T(0.0)    ? AS_POST_OP_DATA_T(0.0)
-            : v >= AS_POST_OP_DATA_T(1.0) ? AS_POST_OP_DATA_T(1.0)
-                                          : v;
+    return v <= POST_OP_LITERAL(0.)    ? POST_OP_LITERAL(0.)
+            : v >= POST_OP_LITERAL(1.) ? POST_OP_LITERAL(1.)
+                                       : v;
 }
 POST_OP_DATA_T hardsigmoid_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, float alpha, float beta) {
@@ -255,7 +261,7 @@ POST_OP_DATA_T hardswish_fwd(POST_OP_DATA_T s, float alpha, float beta) {
 POST_OP_DATA_T hardswish_bwd(
         POST_OP_DATA_T dd, POST_OP_DATA_T s, float alpha, float beta) {
     POST_OP_DATA_T v = alpha * s + beta;
-    POST_OP_DATA_T w = 2.f * alpha * s + beta;
+    POST_OP_DATA_T w = POST_OP_LITERAL(2.) * alpha * s + beta;
     return (v <= 0.f ? 0.f : v >= 1.f ? dd : dd * w);
 }
 
