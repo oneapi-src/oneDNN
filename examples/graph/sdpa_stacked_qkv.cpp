@@ -142,6 +142,9 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // Incremental IDs used to create logical tensors and operations.
     size_t id = 0;
 
+    // Intermediate data type
+    const logical_tensor::data_type dt_inter = logical_tensor::data_type::f32;
+
     // This logical tensor is not part of the graph but is used to generate the
     // big chunk of device memory which should be already there in real user
     // application or framework.
@@ -152,7 +155,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     auto key = logical_tensor(id++, dt, qkv_sz, qkv_strides);
     // Though query and key are non-contiguous above, the output score is still
     // contiguous.
-    auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto score = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto bmm1 = op(id++, op::kind::MatMul, "bmm1");
     bmm1.set_attr<bool>(op::attr::transpose_b, true);
     bmm1.add_inputs({query, key});
@@ -161,7 +164,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // scaled_score = score / scale
     auto scale = logical_tensor(id++, dt, scale_sz, layout_type::strided);
     auto scaled_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
+            = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto scale_div = op(id++, op::kind::Divide, "scale_div");
     scale_div.add_inputs({score, scale});
     scale_div.add_outputs({scaled_score});
@@ -169,7 +172,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // masked_score = scaled_score + mask
     auto mask = logical_tensor(id++, dt, mask_sz, layout_type::strided);
     auto masked_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
+            = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto mask_add = op(id++, op::kind::Add, "mask_add");
     mask_add.add_inputs({scaled_score, mask});
     mask_add.add_outputs({masked_score});

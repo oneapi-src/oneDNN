@@ -96,6 +96,9 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     // Create dnnl::stream.
     dnnl::stream strm(eng);
 
+    // Intermediate data type
+    const memory::data_type dt_inter = memory::data_type::f32;
+
     // Prepare input and output shapes to construct the sdpa graph.
     const memory::dims q_sz = {p.mb, p.head_num, p.query_num, p.head_size};
     const memory::dims k_sz = {p.mb, p.head_num, p.head_size, p.seq_len};
@@ -110,9 +113,10 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     // All combined in a single matmul primitive.
     auto query_md = memory::desc(q_sz, dt, memory::format_tag::abcd);
     auto key_md = memory::desc(k_sz, dt, memory::format_tag::abdc);
-    auto score_md = memory::desc(score_sz, dt, memory::format_tag::abcd);
+    auto score_md = memory::desc(score_sz, dt_inter, memory::format_tag::abcd);
     auto scale_md = memory::desc(scale_sz, dt, memory::format_tag::abcd);
     auto mask_md = memory::desc(mask_sz, dt, memory::format_tag::abcd);
+    auto probs_md = memory::desc(score_sz, dt, memory::format_tag::abcd);
 
     primitive_attr bmm1_attr;
     bmm1_attr.set_scratchpad_mode(scratchpad_mode::user);
@@ -130,7 +134,7 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     softmax_attr.set_scratchpad_mode(scratchpad_mode::user);
     auto softmax_pd = softmax_forward::primitive_desc(eng,
             prop_kind::forward_inference, algorithm::softmax_accurate, score_md,
-            score_md, /* axis = */ score_md.get_ndims() - 1, softmax_attr);
+            probs_md, /* axis = */ score_md.get_ndims() - 1, softmax_attr);
     auto softmax_prim = softmax_forward(softmax_pd);
 
     // attention_output = attention_probs x value
@@ -139,7 +143,7 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
     primitive_attr bmm2_attr;
     bmm2_attr.set_scratchpad_mode(scratchpad_mode::user);
     auto bmm2_pd = matmul::primitive_desc(
-            eng, score_md, value_md, output_md, bmm2_attr);
+            eng, probs_md, value_md, output_md, bmm2_attr);
     auto bmm2_prim = matmul(bmm2_pd);
 
     // Create memory objects
@@ -183,6 +187,7 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
 
     // allocate intermediate memory
     auto m_score = memory(score_md, eng);
+    auto m_probs = memory(probs_md, eng);
     auto m_scratchpad = memory(scratchpad_md, eng);
 
     const auto loop = [&]() {
@@ -197,11 +202,11 @@ void bench_sdpa_primitives(engine::kind ekind, memory::data_type dt,
                         {DNNL_ARG_SCRATCHPAD, m_scratchpad}});
 
         softmax_prim.execute(strm,
-                {{DNNL_ARG_SRC, m_score}, {DNNL_ARG_DST, m_score},
+                {{DNNL_ARG_SRC, m_score}, {DNNL_ARG_DST, m_probs},
                         {DNNL_ARG_SCRATCHPAD, m_scratchpad}});
 
         bmm2_prim.execute(strm,
-                {{DNNL_ARG_SRC, m_score}, {DNNL_ARG_WEIGHTS, m_value},
+                {{DNNL_ARG_SRC, m_probs}, {DNNL_ARG_WEIGHTS, m_value},
                         {DNNL_ARG_DST, m_output},
                         {DNNL_ARG_SCRATCHPAD, m_scratchpad}});
     };
@@ -282,10 +287,13 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // Incremental IDs used to create logical tensors and operations.
     size_t id = 0;
 
+    // Intermediate data type
+    const logical_tensor::data_type dt_inter = logical_tensor::data_type::f32;
+
     // score = query x key.T
     auto query = logical_tensor(id++, dt, qv_sz, layout_type::strided);
     auto key = logical_tensor(id++, dt, k_sz, layout_type::strided);
-    auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
+    auto score = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto bmm1 = op(id++, op::kind::MatMul, "bmm1");
     bmm1.set_attr<bool>(op::attr::transpose_b, true);
     bmm1.add_inputs({query, key});
@@ -294,7 +302,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // scaled_score = score / scale
     auto scale = logical_tensor(id++, dt, scale_sz, layout_type::strided);
     auto scaled_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
+            = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto scale_div = op(id++, op::kind::Divide, "scale_div");
     scale_div.add_inputs({score, scale});
     scale_div.add_outputs({scaled_score});
@@ -302,7 +310,7 @@ void bench_sdpa(engine::kind ekind, logical_tensor::data_type dt,
     // masked_score = scaled_score + mask
     auto mask = logical_tensor(id++, dt, mask_sz, layout_type::strided);
     auto masked_score
-            = logical_tensor(id++, dt, score_sz, layout_type::strided);
+            = logical_tensor(id++, dt_inter, score_sz, layout_type::strided);
     auto mask_add = op(id++, op::kind::Add, "mask_add");
     mask_add.add_inputs({scaled_score, mask});
     mask_add.add_outputs({masked_score});
