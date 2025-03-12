@@ -427,6 +427,9 @@ public:
         for (auto &s : streamStack)
             delete s;
     }
+
+    constexpr HW getHardware() const { return hardware; }
+
     inline void getCode(std::ostream &out);
     void enableLineNumbers(bool enable = true) { lineNumbers = enable; }
 
@@ -863,8 +866,11 @@ protected:
         (void) uip.getID(labelManager);
         opX(Opcode::else_, DataType::invalid, mod, NoOperand(), jip, uip, NoOperand(), branchCtrl);
     }
+    void else_(InstructionModifier mod, Label &jip, Label &uip, SourceLocation loc = {}) {
+        else_(mod, jip, uip, false, loc);
+    }
     void else_(InstructionModifier mod, Label &jip, SourceLocation loc = {}) {
-        else_(mod, jip, jip);
+        else_(mod, jip, jip, false, loc);
     }
     void endif(const InstructionModifier &mod, Label &jip, SourceLocation loc = {}) {
         (void) jip.getID(labelManager);
@@ -911,13 +917,16 @@ protected:
     void halt(const InstructionModifier &mod, Label &jip, SourceLocation loc = {}) {
         halt(mod, jip, jip);
     }
-    void if_(const InstructionModifier &mod, Label &jip, Label &uip, bool branchCtrl = false, SourceLocation loc = {}) {
+    void if_(InstructionModifier mod, Label &jip, Label &uip, bool branchCtrl = false, SourceLocation loc = {}) {
         (void) jip.getID(labelManager);
         (void) uip.getID(labelManager);
         opX(Opcode::if_, DataType::invalid, mod, NoOperand(), jip, uip, NoOperand(), branchCtrl);
     }
+    void if_(const InstructionModifier &mod, Label &jip, Label &uip, SourceLocation loc = {}) {
+        if_(mod, jip, uip, false, loc);
+    }
     void if_(const InstructionModifier &mod, Label &jip, SourceLocation loc = {}) {
-        if_(mod, jip, jip);
+        if_(mod, jip, jip, false, loc);
     }
     void illegal(SourceLocation loc = {}) {
         opX(Opcode::illegal);
@@ -1524,6 +1533,10 @@ public:
     }
     void fencedep(Label &fenceLocation, SourceLocation loc = {}) {
         opX(Opcode::directive, DataType::ud, InstructionModifier::createAutoSWSB(), GRF(static_cast<int>(Directive::fencedep)), fenceLocation);
+    }
+
+    void disablePVCWARWA(SourceLocation loc) {
+        opX(Opcode::directive, DataType::ud, InstructionModifier::createAutoSWSB(), GRF(static_cast<int>(Directive::pvcwarwa)), NullRegister());
     }
 
     inline void mark(Label &label)          { streamStack.back()->mark(label, labelManager); }

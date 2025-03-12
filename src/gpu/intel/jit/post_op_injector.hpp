@@ -45,9 +45,9 @@ inline bool post_op_injector_is_supported(
     return is_supported;
 }
 
-template <gpu_gen_t hw>
+template <typename ngen_generator_t>
 struct post_op_injector_t {
-    post_op_injector_t(generator_t<hw> *host, data_type_t accumulator_type,
+    post_op_injector_t(ngen_generator_t *host, data_type_t accumulator_type,
             const post_ops_t &post_ops, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
@@ -63,7 +63,7 @@ struct post_op_injector_t {
         }
     }
 
-    post_op_injector_t(generator_t<hw> *host, data_type_t accumulator_type,
+    post_op_injector_t(ngen_generator_t *host, data_type_t accumulator_type,
             const gpu_post_ops_t &post_ops, int eu_count,
             const ngen::GRFRange &scratch = ngen::GRFRange(),
             bool is_fwd = true)
@@ -87,7 +87,7 @@ struct post_op_injector_t {
     void compute(const ngen::GRFRange &regs);
 
 private:
-    std::vector<eltwise_injector_f32_t<hw>> workers_;
+    std::vector<eltwise_injector_f32_t<ngen_generator_t>> workers_;
     bool is_fwd_;
     ngen::GRFRange scratch_;
 };

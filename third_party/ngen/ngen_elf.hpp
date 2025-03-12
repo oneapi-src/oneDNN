@@ -489,8 +489,7 @@ private:
 };
 
 #define NGEN_FORWARD_ELF(hw) \
-NGEN_FORWARD_NO_ELF_OVERRIDES(hw) \
-NGEN_FORWARD_ELF_EXTRA(hw) \
+    NGEN_FORWARD_SCOPE_NO_ELF_OVERRIDES(NGEN_NAMESPACE::BinaryCodeGenerator<hw>) \
 template <typename... Targs> void externalName(Targs&&... args) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::externalName(std::forward<Targs>(args)...); } \
 const std::string &getExternalName() const { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getExternalName(); } \
 int getSIMD() const { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getSIMD(); } \
@@ -527,8 +526,6 @@ template <typename... Targs> NGEN_NAMESPACE::Subregister getSIMD1LocalID(Targs&&
 template <typename... Targs> NGEN_NAMESPACE::Subregister getLocalSize(Targs&&... args) { return NGEN_NAMESPACE::ELFCodeGenerator<hw>::getLocalSize(std::forward<Targs>(args)...); } \
 void prologue() { NGEN_NAMESPACE::ELFCodeGenerator<hw>::prologue(); } \
 void epilogue(const NGEN_NAMESPACE::RegData &r0_info = NGEN_NAMESPACE::RegData()) { NGEN_NAMESPACE::ELFCodeGenerator<hw>::epilogue(r0_info); }
-
-#define NGEN_FORWARD_ELF_EXTRA(hw)
 
 template <HW hw>
 std::vector<uint8_t> ELFCodeGenerator<hw>::getBinary()

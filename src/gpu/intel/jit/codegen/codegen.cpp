@@ -51,15 +51,15 @@ inline ngen::ConditionModifier cmp_op_to_ngen(op_kind_t op_kind) {
 }
 
 // Lowers IR to nGEN.
-template <ngen::HW hw>
+template <typename ngen_generator_t>
 class ir_to_ngen_t : public ir_visitor_t {
 public:
-    ir_to_ngen_t(ir_kernel_t<hw> *host, const expr_binding_t &expr_binding)
+    ir_to_ngen_t(ngen_generator_t *host, const expr_binding_t &expr_binding)
         : host_(host)
         , expr_binding_(expr_binding)
         , simd_size_(host->getSIMD())
-        , eu_count_(host->exec_cfg_.hw().eu_count())
-        , with_atomic_fp64_(host->exec_cfg_.hw().has_fp64_atomic_support()) {}
+        , eu_count_(host->exec_cfg().hw().eu_count())
+        , with_atomic_fp64_(host->exec_cfg().hw().has_fp64_atomic_support()) {}
 
     ~ir_to_ngen_t() override
 #ifdef DNNL_DEV_MODE
@@ -72,6 +72,8 @@ public:
 #else
             = default;
 #endif
+
+    ngen::HW hw() const { return host_->getHardware(); }
 
     void _visit(const alloc_t &obj) override {
         auto scope = register_scope();
@@ -86,7 +88,8 @@ public:
             } else if (obj.size * 8 <= max_ngen_type_bits) {
                 rbd = scope.alloc_reg_data(type_t::u(obj.size * 8));
             } else {
-                const int regs = utils::div_up(obj.size, ngen::GRF::bytes(hw));
+                const int regs
+                        = utils::div_up(obj.size, ngen::GRF::bytes(hw()));
                 rbd = scope.alloc_reg_buf(regs);
             }
             if (obj.has_attr<grf_permute_attr_t>()) {
@@ -95,14 +98,15 @@ public:
             }
             expr_binding_.bind(obj.buf, rbd);
         }
-        gpu_trace() << "codegen:bind " << obj.buf << " -> "
-                    << expr_binding_.get(obj.buf);
+        host_->comment(
+                obj.line_str() + " -> " + expr_binding_.get(obj.buf).str());
         visit(obj.body);
         if (do_alloc) expr_binding_.unbind(obj.buf);
         if (use_bc_alloc) release_bank_conflict_allocation(obj);
     }
 
     void _visit(const for_t &obj) override {
+        host_->comment(obj.line_str());
         auto scope = register_scope();
         auto var_op = scope.alloc_reg_data(obj.var.type());
         bool dynamic_loop = !is_const(obj.init) || !is_const(obj.bound);
@@ -110,10 +114,12 @@ public:
         auto bound_op = eval(obj.bound, scope);
         auto step_op = eval(obj.step, scope);
 
-        host_->emov(1, var_op, init_op);
         expr_binding_.bind(obj.var, var_op);
-        gpu_trace() << "codegen:bind " << obj.var << " -> "
-                    << expr_binding_.get(obj.var);
+        host_->comment(
+                obj.var.str() + " -> " + expr_binding_.get(obj.var).str());
+
+        host_->emov(1, var_op, init_op);
+
         // For dynamic loops use standard format otherwise
         // use do-while format.
         if (dynamic_loop) {
@@ -138,9 +144,11 @@ public:
         }
 
         expr_binding_.unbind(obj.var);
+        host_->comment("end " + obj.line_str());
     }
 
     void _visit(const func_call_t &obj) override {
+        host_->comment(obj.line_str());
         auto scope = register_scope();
 
         auto &func = obj.func;
@@ -157,17 +165,16 @@ public:
             // If all channels are disabled for writing, quick return.
             if (all_of(mask, expr_t(false))) {
                 if (send_func.is_load() || send_func.is_load_2d()) {
-                    auto reg_buf_op = ir_to_ngen_t<hw>::eval(
-                            send_t::arg_reg_buf(args), scope);
-                    auto pattern_op = ir_to_ngen_t<hw>::eval(
-                            send_t::arg_fill_pattern(args), scope);
+                    auto reg_buf_op = eval(send_t::arg_reg_buf(args), scope);
+                    auto pattern_op
+                            = eval(send_t::arg_fill_pattern(args), scope);
                     fill_buf(reg_buf_op, send_func.payload_size(), pattern_op);
                 }
                 return;
             }
             // If all channels are enabled, do not use mask.
             if (all_of(mask, expr_t(true))) mask = expr_t();
-            auto arg_ops = ir_to_ngen_t<hw>::eval(args, scope);
+            auto arg_ops = eval(args, scope);
             send(scope, func.as<send_t>(), arg_ops, obj.attr);
         } else if (func.is<reorder_t>()) {
             auto arg_ops = eval(obj.args, scope);
@@ -200,6 +207,7 @@ public:
 
     void _visit(const if_t &obj) override {
         gpu_assert(obj.cond.type().elems() == simd_size_);
+        host_->comment(obj.line_str());
 
         bool has_else = !obj.else_body.is_empty();
         auto scope = register_scope();
@@ -211,18 +219,20 @@ public:
                 has_else ? l_else : l_endif, l_endif);
         visit(obj.body);
         if (has_else) {
+            host_->comment("else // " + obj.line_str());
             host_->else_(simd_size_, l_endif, l_endif);
             host_->mark(l_else);
             visit(obj.else_body);
         }
         host_->mark(l_endif);
         host_->endif(simd_size_);
+        host_->comment("end " + obj.line_str());
     }
 
     void _visit(const let_t &obj) override {
         if (obj.value.is_empty()) {
             auto var_op = expr_binding_.get(obj.var);
-            gpu_trace() << "codegen:bind " << obj.var << " -> " << var_op;
+            host_->comment(obj.line_str() + " -> " + var_op.str());
             // External variable, must be already bound.
             gpu_assert(expr_binding_.is_bound(obj.var))
                     << "Variable is not defined: " << obj.var;
@@ -231,6 +241,7 @@ public:
         }
 
         auto scope = register_scope();
+        host_->comment(obj.line_str());
         if (is_const(obj.value) || is_shuffle_const(obj.value)
                 || obj.var.type() != obj.value.type()) {
             auto &var_type = obj.var.type();
@@ -245,7 +256,7 @@ public:
         }
 
         auto var_op = expr_binding_.get(obj.var);
-        gpu_trace() << "codegen:bind " << obj.var << " -> " << var_op;
+        host_->comment(obj.var.str() + " -> " + var_op.str());
 
         // At this point the scope contains allocations for temporary
         // expressions. We need to 1) query and later re-claim the allocation
@@ -277,6 +288,7 @@ public:
     }
 
     void _visit(const store_t &obj) override {
+        host_->comment(obj.line_str());
         auto scope = register_scope();
         auto buf_op = eval(obj.buf, scope);
         auto off = to_cpp<int>(obj.off);
@@ -301,6 +313,7 @@ public:
     }
 
     void _visit(const while_t &obj) override {
+        host_->comment(obj.line_str());
         auto scope = register_scope();
 
         ngen::Label loop_end_label;
@@ -312,6 +325,7 @@ public:
         visit(obj.body);
         host_->jmpi(1, loop_begin_label);
         host_->mark(loop_end_label);
+        host_->comment("end " + obj.line_str());
     }
 
 private:
@@ -324,15 +338,15 @@ private:
             const ngen::RegData &_src0, const ngen::RegData &_src1,
             const ngen::RegData &_src2, bool is_dpas = false) {
         int esize = mod.getExecSize();
-        int hw_simd = (hw >= ngen::HW::XeHPC ? 16 : 8);
-        auto shift = [](const ngen::RegData &rd, int exec_off) {
+        int hw_simd = (hw() >= ngen::HW::XeHPC ? 16 : 8);
+        auto shift = [this](const ngen::RegData &rd, int exec_off) {
             if (exec_off == 0 || rd.isNull()) return rd;
             int type_size = ngen::getBytes(rd.getType());
             int w = (exec_off % rd.getWidth());
             int h = (exec_off / rd.getWidth());
             int off = rd.getByteOffset()
                     + (w * rd.getHS() + h * rd.getVS()) * type_size;
-            int grf_size = ngen::GRF::bytes(hw);
+            int grf_size = ngen::GRF::bytes(hw());
             int shifted_base = rd.getBase() + off / grf_size;
             int shifted_off = off % grf_size;
             auto ret = rd;
@@ -344,15 +358,15 @@ private:
             auto src0 = shift(_src0, i);
             auto src1 = shift(_src1, i);
             auto src2 = shift(_src2, i);
-            bool same_bank01 = ngen::Bundle::same_bank(hw, src0, src1);
-            bool same_bank02 = ngen::Bundle::same_bank(hw, src0, src2);
+            bool same_bank01 = ngen::Bundle::same_bank(hw(), src0, src1);
+            bool same_bank02 = ngen::Bundle::same_bank(hw(), src0, src2);
             if (is_dpas) {
                 if (same_bank02) bank_conflicts_++;
             } else {
                 if (same_bank01 && same_bank02) bank_conflicts_++;
-                if (ngen::Bundle::conflicts(hw, src0, src1)
-                        || ngen::Bundle::conflicts(hw, src0, src2)
-                        || ngen::Bundle::conflicts(hw, src1, src2)) {
+                if (ngen::Bundle::conflicts(hw(), src0, src1)
+                        || ngen::Bundle::conflicts(hw(), src0, src2)
+                        || ngen::Bundle::conflicts(hw(), src1, src2)) {
                     bundle_conflicts_++;
                 }
             }
@@ -370,8 +384,7 @@ private:
             it->second.retain();
             return it->second.get_reg_buf(alloc.buf);
         }
-        auto bca = bank_conflict_allocation_t::create(
-                host_->ra_, host_->regs_, bc_attr);
+        auto bca = bank_conflict_allocation_t::create(host_->ra_, bc_attr);
         if (bca.is_empty()) return {};
 
         auto ret = bc_allocations_.emplace(bc_attr, std::move(bca));
@@ -509,7 +522,7 @@ private:
             gpu_assert(dst.byte_offset() == src0.getByteOffset())
                     << "dst/src0 must be aligned to the same GRF offset.";
             align_src_dst_offset(host_, scope, mod, dst, src1, src2);
-            if (hw < ngen::HW::XeLP
+            if (hw() < ngen::HW::XeLP
                     && (ngen_is_dw(to_ngen(mad_func.dst_type))
                             || mad_func.dst_type == type_t::f64()
                             || (src1_width == 1 && src2_width == 1))) {
@@ -517,7 +530,7 @@ private:
                 // Use mul/add sequence instead.
                 auto tmp = scope.alloc_range(
                         (mad_func.exec_size * mad_func.dst_type.size())
-                        / ngen::GRF::bytes(hw));
+                        / ngen::GRF::bytes(hw()));
                 auto reg = tmp[0].setType(to_ngen(mad_func.dst_type));
                 host_->mul(mod, reg, src1, src2);
                 host_->add(mod, dst, reg, src0);
@@ -536,7 +549,7 @@ private:
             const ngen_operand_t &pattern = {}) const {
         auto &rd = buf_op.reg_buf_data();
         type_t type = (pattern.is_invalid() ? type_t::f32() : type_t::u32());
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         int step = 2 * grf_size;
         for (int i = 0; i < size; i += step) {
             step = std::min(step, size - i);
@@ -575,12 +588,12 @@ private:
                 || send_func.is_atomic());
 
         // Reorder buffer to a dense buffer for store.
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         int regs = utils::div_up(size, grf_size);
 
         auto tmp = scope.alloc_range(regs);
 
-        int dwords = ngen::GRF::bytes(hw) / sizeof(int32_t);
+        int dwords = ngen::GRF::bytes(hw()) / sizeof(int32_t);
         int max_step = 2;
         for (int i = 0; i < regs;) {
             auto sub_buf = buf.format(i * grf_size);
@@ -616,7 +629,7 @@ private:
         send_impl_t cmpwr(cmpwr_send);
         bool is_df = send_func.type.kind() == type_kind_t::qword;
 
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         int regs = utils::div_up(size, grf_size);
 
         auto new_val = scope.alloc_range(2 * regs);
@@ -691,8 +704,8 @@ private:
                 mod |= flag;
             }
         }
-        if ((hw <= ngen::HW::XeLP && send_func.is_atomic())
-                || (hw == ngen::HW::XeHPG && send_func.is_atomic()
+        if ((hw() <= ngen::HW::XeLP && send_func.is_atomic())
+                || (hw() == ngen::HW::XeHPG && send_func.is_atomic()
                         && send_func.type.kind() == type_kind_t::qword
                         && !with_atomic_fp64_)) {
             send_atomic_add_emu(
@@ -708,7 +721,7 @@ private:
         auto &src_op = reorder_t::arg_src_buf(args);
         auto &dst_op = reorder_t::arg_dst_buf(args);
 
-        reorder_impl_t reorder_impl(hw, reorder_func);
+        reorder_impl_t reorder_impl(hw(), reorder_func);
         reorder_impl.emit(
                 host_, scope, src_op.reg_buf_data(), dst_op.reg_buf_data());
     }
@@ -718,24 +731,24 @@ private:
         auto &src_op = reduce_t::arg_src_buf(args);
         auto &dst_op = reduce_t::arg_dst_buf(args);
 
-        reduce_impl_t reduce_impl(hw, reduce_func, simd_size_);
+        reduce_impl_t reduce_impl(hw(), reduce_func, simd_size_);
         reduce_impl.emit(
                 host_, scope, src_op.reg_buf_data(), dst_op.reg_buf_data());
     }
 
     void eltwise(ngen_register_scope_t &scope, const eltwise_t &func,
             const std::vector<ngen_operand_t> &args) {
-        int elems = to_cpp<int>(hw, eltwise_t::arg_elems(args));
+        int elems = to_cpp<int>(hw(), eltwise_t::arg_elems(args));
         auto &data_op = eltwise_t::arg_data(args);
         const auto &data_rd = data_op.reg_buf_data();
 
-        eltwise_injector_f32_t<hw> inj(host_, func.alg_kind, func.alpha,
-                func.beta, func.scale, eu_count_);
+        eltwise_injector_f32_t<ngen_generator_t> inj(host_, func.alg_kind,
+                func.alpha, func.beta, func.scale, eu_count_);
         auto scratch = scope.alloc_range(inj.preferred_scratch_regs());
         inj.set_scratch(scratch);
         inj.prepare();
 
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         int f_size = sizeof(float);
         int step = 2 * grf_size / f_size;
 
@@ -764,10 +777,10 @@ private:
                         = utils::rnd_up(cur_elems * f_size, grf_size) / f_size;
                 auto tmp = i_scope.alloc_reg_data(type_t::f32(full_elems));
                 emit_reorder_1d_tile(
-                        hw, host_, i_scope, cur_elems, rd, 1, tmp, 1);
+                        hw(), host_, i_scope, cur_elems, rd, 1, tmp, 1);
                 do_eltwise(tmp, full_elems * f_size / grf_size);
                 emit_reorder_1d_tile(
-                        hw, host_, i_scope, cur_elems, tmp, 1, rd, 1);
+                        hw(), host_, i_scope, cur_elems, tmp, 1, rd, 1);
             } else {
                 do_eltwise(rd, cur_elems * f_size / grf_size);
             }
@@ -778,18 +791,20 @@ protected:
     ngen_operand_t eval(const expr_t &e, ngen_register_scope_t &scope,
             const ngen_operand_t &dst_operand = ngen_operand_t(),
             bool fill_mask0 = false) const {
-        expr_evaluator_t<hw> expr_evaluator(host_, expr_binding_, scope);
+        expr_evaluator_t<ngen_generator_t> expr_evaluator(
+                host_, expr_binding_, scope);
         return expr_evaluator.eval(e, dst_operand, fill_mask0);
     }
 
     std::vector<ngen_operand_t> eval(const std::vector<expr_t> &exprs,
             ngen_register_scope_t &scope) const {
-        expr_evaluator_t<hw> expr_evaluator(host_, expr_binding_, scope);
+        expr_evaluator_t<ngen_generator_t> expr_evaluator(
+                host_, expr_binding_, scope);
         return expr_evaluator.eval(exprs);
     }
 
 private:
-    ir_kernel_t<hw> *host_;
+    ngen_generator_t *host_;
     expr_binding_t expr_binding_;
     int simd_size_;
     int eu_count_;
@@ -804,12 +819,14 @@ private:
 };
 
 // Evaluates expression by emitting instructions with nGEN.
-template <ngen::HW hw>
+template <typename ngen_generator_t>
 class expr_evaluator_t : public ir_visitor_t {
 public:
-    expr_evaluator_t(ir_kernel_t<hw> *host, const expr_binding_t &expr_binding,
+    expr_evaluator_t(ngen_generator_t *host, const expr_binding_t &expr_binding,
             ngen_register_scope_t &scope)
         : host_(host), expr_binding_(expr_binding), scope_(scope) {}
+
+    constexpr ngen::HW hw() const { return host_->getHardware(); }
 
     bool is_int_up_convert(const expr_t &e, type_t &type) const {
         auto it = int_up_converts_.find(e);
@@ -948,7 +965,7 @@ public:
                         // mul(q, d, d) instruction on XeHP. For some reason
                         // the result is incorrect when dst and src0 are
                         // accessed from the same register.
-                        if (hw > ngen::HW::XeLP)
+                        if (hw() > ngen::HW::XeLP)
                             host_->sync(ngen::SyncFunction::nop,
                                     ngen::SWSB<uint64_t>(1));
                     } else {
@@ -1246,9 +1263,8 @@ private:
     }
 
     void ebinary(const binary_op_t &obj, const ngen::InstructionModifier &mod,
-            const ngen_operand_t &_dst, const ngen_operand_t &_src0,
+            const ngen_operand_t &dst, const ngen_operand_t &_src0,
             const ngen_operand_t &_src1) {
-        auto dst = _dst;
         auto src0 = _src0;
         auto src1 = _src1;
         align_src_dst_offset(host_, scope_, mod, dst, src0, src1);
@@ -1284,7 +1300,7 @@ private:
             }
             case op_kind_t::_and: host_->eand(mod, dst, src0, src1); break;
             case op_kind_t::_prelu: {
-                int grf_size = ngen::GRF::bytes(hw);
+                int grf_size = ngen::GRF::bytes(hw());
                 int esize = mod.getExecSize();
                 int off = src0.reg_data().getByteOffset();
                 int regs = utils::div_up(
@@ -1380,7 +1396,7 @@ private:
             if (data_type != rbd.type()) return false;
         }
 
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         auto diff_bytes = [&](const ngen_operand_t &a,
                                   const ngen_operand_t &b) {
             auto a_rd = a.reg_data();
@@ -1409,7 +1425,7 @@ private:
             int regs = utils::div_up(stride_bytes * 2, grf_size);
             if (regs > 2) return false;
             rd.setRegion(stride_bytes / type_size, elems / 2, 0);
-            reg_buf_t rb(hw, ngen::GRFRange(rd.getBase(), regs));
+            reg_buf_t rb(hw(), ngen::GRFRange(rd.getBase(), regs));
             bind(obj, reg_buf_data_t(rb, rd));
             return true;
         }
@@ -1430,7 +1446,7 @@ private:
             int regs = utils::div_up(stride_bytes * elems / 2, grf_size);
             if (regs > 2) return false;
             rd.setRegion(0, elems / 2, stride_bytes / type_size);
-            reg_buf_t rb(hw, ngen::GRFRange(rd.getBase(), regs));
+            reg_buf_t rb(hw(), ngen::GRFRange(rd.getBase(), regs));
             bind(obj, reg_buf_data_t(rb, rd));
             return true;
         }
@@ -1512,7 +1528,7 @@ private:
         auto &dst_rbd = dst.reg_buf_data();
         int dst_stride = dst_rbd.hs();
         int w_size = sizeof(uint16_t);
-        int grf_size = ngen::GRF::bytes(hw);
+        int grf_size = ngen::GRF::bytes(hw());
         auto tmp = scope_.alloc_reg_buf_data(1);
         auto w_type = (use_uv) ? ngen::DataType::uw : ngen::DataType::w;
         for (int i = 0; i < obj.elems(); i += esize) {
@@ -1550,7 +1566,7 @@ private:
         return true;
     }
 
-    ir_kernel_t<hw> *host_;
+    ngen_generator_t *host_;
     expr_binding_t expr_binding_;
     ngen_register_scope_t &scope_;
     bool allow_vert_stride_region_ = true;
@@ -1558,32 +1574,67 @@ private:
     object_eq_map_t<expr_t, type_t> int_up_converts_;
 };
 
-template <ngen::HW hw>
-void convert_ir_to_ngen(const stmt_t &body, ir_kernel_t<hw> *host,
-        const expr_binding_t &expr_binding) {
-    ir_to_ngen_t<hw> visitor(host, expr_binding);
+template <typename ngen_generator_t>
+void convert_ir_to_ngen_impl(const stmt_t &body, ngen_generator_t *host,
+        const walk_order_t *kernel_grid_walk_order) {
+    expr_binding_t expr_binding(host->getHardware());
+    host->comment("Prologue");
+    host->generate_prologue();
+
+    host->bind_external_vars(body, expr_binding);
+    if (kernel_grid_walk_order)
+        host->bind_kernel_grid_walk_order(
+                *kernel_grid_walk_order, expr_binding);
+
+    host->comment("IR");
+    ir_to_ngen_t<ngen_generator_t> visitor(host, expr_binding);
     visitor.visit(body);
+
+    host->comment("Epilogue");
+    host->generate_epilogue();
+}
+
+std::string get_ngen_str(const stmt_t &body, ir_asm_kernel_t host,
+        const walk_order_t *kernel_grid_walk_order) {
+#ifdef NGEN_ASM
+    convert_ir_to_ngen_impl(body, &host, kernel_grid_walk_order);
+    return host.str();
+#else
+    return "";
+#endif
+}
+
+template <typename ngen_generator_t>
+void convert_ir_to_ngen(const stmt_t &body, ngen_generator_t *host,
+        const walk_order_t *kernel_grid_walk_order) {
+    gpu_trace() << get_ngen_str(body, *host, kernel_grid_walk_order);
+    convert_ir_to_ngen_impl(body, host, kernel_grid_walk_order);
 }
 
 REG_GEN9_ISA(template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::Gen9> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::Gen9> *host,
+        const walk_order_t *kernel_grid_walk_order));
 REG_GEN11_ISA(template void convert_ir_to_ngen(const stmt_t &body,
         ir_kernel_t<ngen::HW::Gen11> *host,
-        const expr_binding_t &expr_binding));
+        const walk_order_t *kernel_grid_walk_order));
 REG_XELP_ISA(template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::XeLP> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::XeLP> *host,
+        const walk_order_t *kernel_grid_walk_order));
 REG_XEHP_ISA(template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::XeHP> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::XeHP> *host,
+        const walk_order_t *kernel_grid_walk_order));
 REG_XEHPG_ISA(template void convert_ir_to_ngen(const stmt_t &body,
         ir_kernel_t<ngen::HW::XeHPG> *host,
-        const expr_binding_t &expr_binding));
+        const walk_order_t *kernel_grid_walk_order));
 REG_XEHPC_ISA(template void convert_ir_to_ngen(const stmt_t &body,
         ir_kernel_t<ngen::HW::XeHPC> *host,
-        const expr_binding_t &expr_binding));
+        const walk_order_t *kernel_grid_walk_order));
 REG_XE2_ISA(template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::Xe2> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::Xe2> *host,
+        const walk_order_t *kernel_grid_walk_order));
 REG_XE3_ISA(template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::Xe3> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::Xe3> *host,
+        const walk_order_t *kernel_grid_walk_order));
 
 } // namespace jit
 } // namespace intel

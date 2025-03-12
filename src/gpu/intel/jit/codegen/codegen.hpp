@@ -26,29 +26,34 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-template <ngen::HW hw>
-void convert_ir_to_ngen(const stmt_t &body, ir_kernel_t<hw> *host,
-        const expr_binding_t &expr_binding);
+template <typename ngen_generator_t>
+void convert_ir_to_ngen(const stmt_t &body, ngen_generator_t *host,
+        const walk_order_t *kernel_grid_walk_order = nullptr);
 
 REG_GEN9_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::Gen9> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::Gen9> *host,
+        const walk_order_t *kernel_grid_walk_order));
 REG_GEN11_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
         ir_kernel_t<ngen::HW::Gen11> *host,
-        const expr_binding_t &expr_binding));
+        const walk_order_t *kernel_grid_walk_order));
 REG_XELP_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::XeLP> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::XeLP> *host,
+        const walk_order_t *kernel_grid_walk_order));
 REG_XEHP_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::XeHP> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::XeHP> *host,
+        const walk_order_t *kernel_grid_walk_order));
 REG_XEHPG_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
         ir_kernel_t<ngen::HW::XeHPG> *host,
-        const expr_binding_t &expr_binding));
+        const walk_order_t *kernel_grid_walk_order));
 REG_XEHPC_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
         ir_kernel_t<ngen::HW::XeHPC> *host,
-        const expr_binding_t &expr_binding));
+        const walk_order_t *kernel_grid_walk_order));
 REG_XE2_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::Xe2> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::Xe2> *host,
+        const walk_order_t *kernel_grid_walk_order));
 REG_XE3_ISA(extern template void convert_ir_to_ngen(const stmt_t &body,
-        ir_kernel_t<ngen::HW::Xe3> *host, const expr_binding_t &expr_binding));
+        ir_kernel_t<ngen::HW::Xe3> *host,
+        const walk_order_t *kernel_grid_walk_order));
 
 } // namespace jit
 } // namespace intel
