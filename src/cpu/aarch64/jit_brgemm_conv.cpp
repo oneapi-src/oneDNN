@@ -2027,7 +2027,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
 #undef BRGEMM_CONV_KER_HEADER
 template struct brgemm_convolution_fwd_t<sve_512>;
+template struct brgemm_convolution_fwd_t<sve_512, true>;
 template struct brgemm_convolution_fwd_t<sve_256>;
+template struct brgemm_convolution_fwd_t<sve_256, true>;
 
 } // namespace aarch64
 
