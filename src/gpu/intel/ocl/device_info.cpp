@@ -191,18 +191,6 @@ std::string device_info_t::get_cl_ext_options() const {
             opts += std::string("-D") + ext2cl_str(ext) + " ";
     }
 
-#ifdef DNNL_DEV_MODE
-    // Preferably this would be in `kernel_ctx::set_default_options()`, but
-    // warnings are emitted for the automatic down conversions of double
-    // literals to float. This behavior is desirable to avoid duplicate
-    // implementations, so -Werror is disabled when fp64 support is not
-    // available instead.
-    bool enabled_werror = gpu_utils::dev_getenv(
-            "enable_ocl_werror", has(device_ext_t::khr_fp64));
-
-    if (enabled_werror) opts += "-Werror ";
-#endif
-
     return opts;
 }
 
