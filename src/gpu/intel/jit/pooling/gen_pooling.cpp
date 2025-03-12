@@ -26,7 +26,7 @@
 #include "gpu/intel/jit/pooling/pooling_kernel.hpp"
 #include "gpu/intel/jit/utils/utils.hpp"
 #include "gpu/intel/primitive_conf.hpp"
-#include "ngen/ngen_register_allocator.hpp"
+#include "ngen_register_allocator.hpp"
 
 namespace dnnl {
 namespace impl {
