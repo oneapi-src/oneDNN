@@ -628,12 +628,8 @@ int dnn_mem_t::memset_rng(size_t size) const {
                 cl_platform_id platform;
                 clGetDeviceInfo(ocl_device, CL_DEVICE_PLATFORM,
                         sizeof(cl_platform_id), &platform, nullptr);
-                auto clSetKernelArgMemPointerINTEL
-                        = (clSetKernelArgMemPointerINTEL_fn)
-                                clGetExtensionFunctionAddressForPlatform(
-                                        platform,
-                                        "clSetKernelArgMemPointerINTEL");
-                clSetKernelArgMemPointerINTEL(ocl_kernel, 0, mem_handle);
+                DNN_SAFE_V(dnnl::impl::xpu::ocl::usm::set_kernel_arg(
+                        engine_, ocl_kernel, 0, mem_handle));
                 clSetKernelArg(ocl_kernel, 1, sizeof(uint64_t), &buffSize);
                 clSetKernelArg(ocl_kernel, 2, sizeof(uint64_t), &blockSize);
                 clSetKernelArg(ocl_kernel, 3, sizeof(uint64_t), &DEFAULT_SEED);
