@@ -14,35 +14,16 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_X64_BRGEMM_CAPI_BRGEMM_API_HPP
-#define CPU_X64_BRGEMM_CAPI_BRGEMM_API_HPP
-
-#include <memory>
+#ifndef CPU_X64_UKERNEL_BRGEMM_HPP
+#define CPU_X64_UKERNEL_BRGEMM_HPP
 
 #include "cpu/ukernel/c_types_map.hpp"
 
-#include "cpu/x64/matmul/brgemm_matmul_copy_utils.hpp"
-#include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
-
 #include "cpu/x64/brgemm/brgemm_types.hpp"
 
+#include "cpu/x64/ukernel/attr_params.hpp"
+
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
-
-struct dnnl_ukernel_attr_params : public dnnl::impl::c_compatible {
-    dnnl_ukernel_attr_params() = default;
-
-    dnnl::impl::status_t set_post_ops_args(const void **post_ops_args);
-    const void *get_post_ops_args() const { return post_ops_args_; }
-
-    dnnl::impl::status_t set_scales(const void *scales, int arg);
-    const void *get_scales(int arg) const;
-
-private:
-    const void *post_ops_args_;
-    const void *a_scales_;
-    const void *b_scales_;
-    const void *d_scales_;
-};
 
 struct dnnl_brgemm : public dnnl::impl::c_compatible {
     dnnl_brgemm(dnnl::impl::dim_t M, dnnl::impl::dim_t N, dnnl::impl::dim_t K,
@@ -116,64 +97,11 @@ private:
     std::string verbose_info_;
 };
 
-struct dnnl_transform : public dnnl::impl::c_compatible {
-    // Ctor that follows a call to initialize matmul conf struct.
-    dnnl_transform(dnnl::impl::dim_t K, dnnl::impl::dim_t N,
-            dnnl::impl::cpu::ukernel::pack_type_t in_pack_type,
-            dnnl::impl::dim_t in_ld, dnnl::impl::dim_t out_ld,
-            dnnl::impl::data_type_t in_dt, dnnl::impl::data_type_t out_dt);
-
-    // Generates a transform kernel.
-    dnnl::impl::status_t generate();
-
-    // Executes a transform kernel.
-    dnnl::impl::status_t execute(const void *src, void *dst) const;
-
-private:
-    // User's inputs.
-    dnnl::impl::dim_t K_, N_;
-    dnnl::impl::dim_t in_ld_, out_ld_;
-    dnnl::impl::data_type_t in_dt_, out_dt_;
-    // Save `strides_` for `execute` to get proper source offset.
-    dnnl::impl::dims_t strides_;
-
-    // A transform kernel.
-    // Note: though it's a generic class for any kind of transformation, so far
-    // it's only matmul's copy_B.
-    dnnl::impl::cpu::x64::matmul::brgemm_matmul_conf_t bmc_;
-    // `unique_ptr` is required by API that generates a kernel.
-    std::unique_ptr<dnnl::impl::cpu::x64::matmul::jit_brgemm_matmul_copy_b_t>
-            pack_B_kernel_;
-
-    // Creates a `verbose_info_` string once during `generate()` call, and calls
-    // it during execute(). This is done to avoid string re-creation.
-    dnnl::impl::status_t create_verbose_info();
-    std::string verbose_info_;
-};
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace x64 {
 namespace ukernel {
-
-status_t dnnl_ukernel_attr_params_create(
-        dnnl_ukernel_attr_params **attr_params);
-
-status_t dnnl_ukernel_attr_params_set_post_ops_args(
-        dnnl_ukernel_attr_params *attr_params, const void **post_ops_args);
-
-status_t dnnl_ukernel_attr_params_set_A_scales(
-        dnnl_ukernel_attr_params *attr_params, const void *a_scales);
-
-status_t dnnl_ukernel_attr_params_set_B_scales(
-        dnnl_ukernel_attr_params *attr_params, const void *b_scales);
-
-status_t dnnl_ukernel_attr_params_set_D_scales(
-        dnnl_ukernel_attr_params *attr_params, const void *d_scales);
-
-status_t dnnl_ukernel_attr_params_destroy(
-        dnnl_ukernel_attr_params *attr_params);
 
 status_t dnnl_brgemm_create(dnnl_brgemm **brgemm, dim_t M, dim_t N, dim_t K,
         dim_t batch_size, dim_t lda, dim_t ldb, dim_t ldc, data_type_t a_dt,
@@ -218,17 +146,6 @@ status_t dnnl_brgemm_execute_postops(const dnnl_brgemm *brgemm,
         const dnnl_ukernel_attr_params *attr_params);
 
 status_t dnnl_brgemm_destroy(dnnl_brgemm *brgemm);
-
-status_t dnnl_transform_create(dnnl_transform **transform, dim_t K, dim_t N,
-        dnnl::impl::cpu::ukernel::pack_type_t in_pack_type, dim_t in_ld,
-        dim_t out_ld, data_type_t in_dt, data_type_t out_dt);
-
-status_t dnnl_transform_generate(dnnl_transform *transform);
-
-status_t dnnl_transform_execute(
-        const dnnl_transform *transform, const void *in_ptr, void *out_ptr);
-
-status_t dnnl_transform_destroy(dnnl_transform *transform);
 
 } // namespace ukernel
 } // namespace x64

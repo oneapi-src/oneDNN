@@ -19,7 +19,7 @@
 #include "cpu/ukernel/c_types_map.hpp"
 
 #if DNNL_X64
-#include "cpu/x64/ukernel/brgemm_api.hpp"
+#include "cpu/x64/ukernel/attr_params.hpp"
 #endif
 
 #ifdef DNNL_EXPERIMENTAL_UKERNEL
