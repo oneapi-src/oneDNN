@@ -351,7 +351,7 @@ struct FCLayer : public Layer<T> {
     void execute(dnnl::memory &in_mem) override {
 
         matmul_pd = dnnl::matmul::primitive_desc(
-                this->engine_, src_md, weights_md, this->out_desc_);
+                this->engine_, src_md, weights_md, bias_md, this->out_desc_);
 
         // Create the primitive.
         auto matmul_prim = dnnl::matmul(matmul_pd);
@@ -476,10 +476,10 @@ private:
     dnnl::binary::primitive_desc sum_pd;
 };
 template <typename T>
-struct SoftmaxLayer : public Layer<T> {
-    SoftmaxLayer(dnnl::engine &engine, dnnl::stream &stream, const int batch,
+struct LogSoftMaxLayer : public Layer<T> {
+    LogSoftMaxLayer(dnnl::engine &engine, dnnl::stream &stream, const int batch,
             const int channels, const int rows, const int cols,
-            dnnl::algorithm algo = dnnl::algorithm::softmax_accurate,
+            dnnl::algorithm algo = dnnl::algorithm::softmax_log,
             dnnl::memory::format_tag format = dnnl::memory::format_tag::nhwc,
             dnnl::memory::data_type data_type = dnnl::memory::data_type::f32)
         : Layer<T>(engine, stream) {
@@ -509,48 +509,12 @@ struct SoftmaxLayer : public Layer<T> {
         // Primitive execution.
         softmax_prim.execute(this->stream_, softmax_args);
     }
-    ~SoftmaxLayer() = default;
+    ~LogSoftMaxLayer() = default;
 
 private:
     dnnl::memory::desc src_md;
     dnnl::memory src_mem;
     dnnl::softmax_forward::primitive_desc softmax_pd;
-};
-
-template <typename T>
-struct LogLayer : public Layer<T> {
-    LogLayer(dnnl::engine &engine, dnnl::stream &stream, const int batch,
-            const int channels, const int rows, const int cols,
-            dnnl::memory::format_tag format = dnnl::memory::format_tag::nhwc,
-            dnnl::memory::data_type data_type = dnnl::memory::data_type::f32)
-        : Layer<T>(engine, stream) {
-
-        src_md = dnnl::memory::desc(
-                {batch, channels, rows, cols}, data_type, format);
-        this->out_desc_ = dnnl::memory::desc(
-                {batch, channels, rows, cols}, data_type, format);
-        this->out_mem_ = dnnl::memory(this->out_desc_, this->engine_);
-
-        eltwise_log_pd = dnnl::eltwise_forward::primitive_desc(this->engine_,
-                dnnl::prop_kind::forward_training, dnnl::algorithm::eltwise_log,
-                src_md, this->out_desc_);
-    }
-
-    void execute(dnnl::memory &in_mem) override {
-        auto eltwise_log = dnnl::eltwise_forward(eltwise_log_pd);
-
-        std::unordered_map<int, dnnl::memory> eltwise_args;
-        eltwise_args.insert({DNNL_ARG_SRC, in_mem});
-        eltwise_args.insert({DNNL_ARG_DST, this->out_mem_});
-
-        // Primitive execution: element-wise (ReLU).
-        eltwise_log.execute(this->stream_, eltwise_args);
-    }
-    ~LogLayer() = default;
-
-private:
-    dnnl::memory::desc src_md;
-    dnnl::eltwise_forward::primitive_desc eltwise_log_pd;
 };
 
 template <typename T>
@@ -635,18 +599,11 @@ inline void add_mm_layer(Network<T> &net, dnnl::engine &engine,
 }
 
 template <typename T>
-inline void add_softmax_layer(Network<T> &net, dnnl::engine &engine,
+inline void add_logsoftmax_layer(Network<T> &net, dnnl::engine &engine,
         dnnl::stream &stream, const int n, const int c, const int h,
         const int w) {
     net.add_layer(
-            std::make_unique<SoftmaxLayer<T>>(engine, stream, n, c, h, w));
-}
-
-template <typename T>
-inline void add_log_layer(Network<T> &net, dnnl::engine &engine,
-        dnnl::stream &stream, const int n, const int c, const int h,
-        const int w) {
-    net.add_layer(std::make_unique<LogLayer<T>>(engine, stream, n, c, h, w));
+            std::make_unique<LogSoftMaxLayer<T>>(engine, stream, n, c, h, w));
 }
 
 template <typename T>
@@ -862,9 +819,7 @@ int main(int argc, char *argv[]) {
             data_dir + "fc3.weight.bin", data_dir + "fc3.bias.bin", 32, 256,
             10);
 
-    add_softmax_layer(feature_transform_block, eng, stream, 32, 10, 1, 1);
-
-    add_log_layer(feature_transform_block, eng, stream, 32, 10, 1, 1);
+    add_logsoftmax_layer(feature_transform_block, eng, stream, 32, 10, 1, 1);
 
     input_transform_block.execute(in_mem);
     base_transform_block.execute(input_transform_block.get_output_mem());
