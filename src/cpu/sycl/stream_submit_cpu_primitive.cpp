@@ -43,7 +43,7 @@ void init_thunk_params(
         thunk_params_t *p, accessor_t acc, accessor_types... accessors) {
     p->native_pointers[N - sizeof...(accessor_types) - 1]
             = reinterpret_cast<uintptr_t>(&acc[0]);
-    init_thunk_params<N>(p, accessors...);
+    init_thunk_params<N>(p, std::move(accessors)...);
 }
 
 template <typename... param_types>
@@ -57,7 +57,7 @@ status_t submit_cpu_primitive_with_params_impl(
         constexpr size_t nparams = sizeof...(param_types);
 
         // Extract pointers from params
-        init_thunk_params<nparams>(&thunk_params, params...);
+        init_thunk_params<nparams>(&thunk_params, std::move(params)...);
 
         dnnl_impl_sycl_cpu_thunk(&thunk_params);
     });

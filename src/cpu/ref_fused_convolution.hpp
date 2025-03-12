@@ -196,7 +196,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                 arg_cache.append_inout_arg(
                         DNNL_ARG_FROM, sp_begin, from_md, true);
                 arg_cache.append_inout_arg(DNNL_ARG_TO, sp_end, to_md, false);
-                args_.push_back(arg_cache);
+                args_.push_back(std::move(arg_cache));
 
                 // Increment scratchpad offsets
                 sp_begin = sp_end;
@@ -340,7 +340,7 @@ struct ref_fused_convolution_fwd_t : public primitive_t {
                                         | DNNL_ARG_SRC_1));
                 }
 
-                args_.push_back(arg_cache);
+                args_.push_back(std::move(arg_cache));
 
                 while (++po_op_iter < end) {
                     if (utils::one_of(po.entry_[po_op_iter].kind,
