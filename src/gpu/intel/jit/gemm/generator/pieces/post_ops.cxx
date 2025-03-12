@@ -131,12 +131,19 @@ void BLASKernelGenerator<hw>::binaryOp(BinaryOp op, int simd, const RegData &dst
 
 // Apply binary operation to C with a scalar operand.
 template <HW hw>
-void BLASKernelGenerator<hw>::gemmScalarBinaryOpC(BinaryOp op, const Subregister &offset,
-                                                  const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+void BLASKernelGenerator<hw>::gemmScalarBinaryOpC(BinaryOp op, const GRFMultirange &offsets,
+                                                  const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, Type Tco)
 {
-    auto offsetTc = offset.reinterpret(0, state.Tacc.ngen());
-    if (offset != offsetTc)
-        emov(1, offsetTc, offset, strategy, state);
+    auto subOff = offsets[0].sub(0, Tco.ngen());
+    auto Tacc = state.Tacc;
+    auto offsetTc = subOff.reinterpret(0, Tacc.ngen());
+    if (subOff != offsetTc && !one_of(Tco, Type::f8_e8m0, Type::hf8)){
+        emov(1, offsetTc, subOff, strategy, state);
+    } else {
+        vector<RegisterBlock> repackLayout;
+        makeUnbackedRegLayout(Tacc, repackLayout, 1, 1, false);
+        copyRegisters(Tco, Tacc, repackLayout, repackLayout, offsets, offsets, strategy, state);
+    }
     if (op == BinaryOp::Div && one_of(state.Tacc, Type::f32, Type::f16)) {
         inv(1, offsetTc, offsetTc);
         op = BinaryOp::Mul;
@@ -322,7 +329,7 @@ bool BLASKernelGenerator<hw>::gemmBinaryOpC(BinaryOp op, bool row, bool column,
         });
 
         if (!row && !column)
-            gemmScalarBinaryOpC(op, CO_regs[0].sub(0, Tco.ngen()), problem, strategy, state);
+            gemmScalarBinaryOpC(op, CO_regs, problem, strategy, state, Tco);
         else
             gemmVectorBinaryOpC(op, column, CO_regs, Subregister(), problem, strategy, state, Tco, CO_layout);
     }
