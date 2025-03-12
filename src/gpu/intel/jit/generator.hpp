@@ -32,7 +32,7 @@
 #include "gpu/intel/ocl/engine.hpp"
 #include "xpu/utils.hpp"
 
-#include "ngen/ngen_opencl.hpp"
+#include "ngen_opencl.hpp"
 
 namespace dnnl {
 namespace impl {
