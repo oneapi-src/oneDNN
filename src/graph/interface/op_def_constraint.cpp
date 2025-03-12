@@ -124,6 +124,38 @@ bool check_softmax_dtype(const op_t *n) {
     return true;
 }
 
+// For binary operations (Add/Subtract/Multiply/Divide):
+// - if src_0 and src_1 have different data types, one of them should be f32.
+// - if src_0 and src_1 have different data types, dst should be f32.
+bool check_binary_dtype(const op_t *n) {
+    const auto inputs = n->get_input_values();
+    const auto outputs = n->get_output_values();
+
+    const auto &dt_0 = inputs[0]->get_logical_tensor().data_type;
+    const auto &dt_1 = inputs[1]->get_logical_tensor().data_type;
+    const auto &dt_2 = outputs[0]->get_logical_tensor().data_type;
+    if (dt_0 != dt_1) {
+        if ((dt_0 != data_type::f32 && dt_1 != data_type::f32)
+                || dt_2 != data_type::f32) {
+            VCHECK_SHAPE_INFER(false,
+                    "%s, %s src_0 %s src_1 %s dst is not supported",
+                    op_t::kind2str(n->get_kind()).c_str(), dnnl_dt2str(dt_0),
+                    dnnl_dt2str(dt_1), dnnl_dt2str(dt_2));
+        }
+    }
+
+    if (dt_2 != data_type::f32) {
+        if (dt_0 != dt_2 || dt_1 != dt_2) {
+            VCHECK_SHAPE_INFER(false,
+                    "%s, %s src_0 %s src_1 %s dst is not supported",
+                    op_t::kind2str(n->get_kind()).c_str(), dnnl_dt2str(dt_0),
+                    dnnl_dt2str(dt_1), dnnl_dt2str(dt_2));
+        }
+    }
+
+    return true;
+}
+
 // check function for data_type of LayerNorm and GroupNorm.
 // only when data is bf16, gamma/beta/mean/var can be bf16.
 // If data is bf16, gamma/beta/mean/var can be f32 or bf16.

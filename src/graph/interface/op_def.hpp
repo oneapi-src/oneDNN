@@ -54,15 +54,20 @@ DNNL_GRAPH_OP_SCHEMA(Add, 1,
                 .set_num_inputs(2)
                 .set_num_outputs(1)
                 .set_commutative_inputs()
-                .set_input(0, "src_0", "T")
-                .set_input(1, "src_1", "T")
-                .set_output(0, "dst", "T")
+                .set_input(0, "src_0", "T1")
+                .set_input(1, "src_1", "T2")
+                .set_output(0, "dst", "T3")
                 .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
                         "numpy", {"none", "numpy"})
                 .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints(
+                        "T2", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints(
+                        "T3", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
+                        infer_elemwise_arithmetic_output_shape)
+                .set_op_def_constraint_function(check_binary_dtype))
 
 DNNL_GRAPH_OP_SCHEMA(AvgPool, 1,
         op_schema_t()
@@ -369,7 +374,8 @@ DNNL_GRAPH_OP_SCHEMA(Divide, 1,
                 .set_type_constraints(
                         "T3", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
+                        infer_elemwise_arithmetic_output_shape)
+                .set_op_def_constraint_function(check_binary_dtype))
 
 DNNL_GRAPH_OP_SCHEMA(Elu, 1,
         op_schema_t()
@@ -791,9 +797,6 @@ DNNL_GRAPH_OP_SCHEMA(MishBackward, 1,
                         "T", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(infer_identity_output_shape))
 
-// TODO(Yixin): for Multiply. input and output needs to have the same dtypes
-// But in current pytorch bridge's type promotion system, there's no
-// such constraints. So this feature is postponed.
 DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
         op_schema_t()
                 .set_num_inputs(2)
@@ -811,7 +814,8 @@ DNNL_GRAPH_OP_SCHEMA(Multiply, 1,
                 .set_type_constraints(
                         "T3", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
+                        infer_elemwise_arithmetic_output_shape)
+                .set_op_def_constraint_function(check_binary_dtype))
 
 DNNL_GRAPH_OP_SCHEMA(Pow, 1,
         op_schema_t()
@@ -1127,15 +1131,20 @@ DNNL_GRAPH_OP_SCHEMA(Subtract, 1,
         op_schema_t()
                 .set_num_inputs(2)
                 .set_num_outputs(1)
-                .set_input(0, "src_0", "T")
-                .set_input(1, "src_1", "T")
-                .set_output(0, "dst", "T")
+                .set_input(0, "src_0", "T1")
+                .set_input(1, "src_1", "T2")
+                .set_output(0, "dst", "T3")
                 .set_attr(op_attr::auto_broadcast, false, attribute_kind::s,
                         "numpy", {"none", "numpy"})
                 .set_type_constraints(
-                        "T", {data_type::f32, data_type::bf16, data_type::f16})
+                        "T1", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints(
+                        "T2", {data_type::f32, data_type::bf16, data_type::f16})
+                .set_type_constraints(
+                        "T3", {data_type::f32, data_type::bf16, data_type::f16})
                 .set_shape_inference_function(
-                        infer_elemwise_arithmetic_output_shape))
+                        infer_elemwise_arithmetic_output_shape)
+                .set_op_def_constraint_function(check_binary_dtype))
 
 DNNL_GRAPH_OP_SCHEMA(Tanh, 1,
         op_schema_t()
