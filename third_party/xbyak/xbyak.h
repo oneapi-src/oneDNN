@@ -1916,6 +1916,7 @@ private:
 	static const uint64_t T_ZU = 1ull << 36; // ND=ZU
 	static const uint64_t T_F2 = 1ull << 37; // pp = 3
 	// T_66 = 1, T_F3 = 2, T_F2 = 3
+	static const uint64_t T_ALLOW_DIFF_SIZE = 1ull << 38; // allow difference reg size
 	static inline uint32_t getPP(uint64_t type) { return (type & T_66) ? 1 : (type & T_F3) ? 2 : (type & T_F2) ? 3 : 0; }
 	// @@@end of avx_type_def.h
 	static inline uint32_t getMap(uint64_t type) { return (type & T_0F) ? 1 : (type & T_0F38) ? 2 : (type & T_0F3A) ? 3 : 0; }
@@ -2111,7 +2112,6 @@ private:
 		}
 	}
 	LabelManager labelMgr_;
-	bool isInDisp16(uint32_t x) const { return 0xFFFF8000 <= x || x <= 0x7FFF; }
 	void writeCode(uint64_t type, const Reg& r, int code, bool rex2 = false)
 	{
 		if (!(type&T_APX || rex2)) {
@@ -2127,6 +2127,7 @@ private:
 	}
 	void opRR(const Reg& reg1, const Reg& reg2, uint64_t type, int code)
 	{
+		if (!(type & T_ALLOW_DIFF_SIZE) && reg1.isREG() && reg2.isREG() && reg1.getBit() != reg2.getBit()) XBYAK_THROW(ERR_BAD_SIZE_OF_REGISTER)
 		bool rex2 = rex(reg2, reg1, type);
 		writeCode(type, reg1, code, rex2);
 		setModRM(3, reg1.getIdx(), reg2.getIdx());
@@ -2370,10 +2371,13 @@ private:
 			opRO(static_cast<const Reg&>(op2), op1, 0, code, op1.getKind() == op2.getKind());
 		}
 	}
+	bool isInDisp16(uint32_t x) const { return 0xFFFF8000 <= x || x <= 0x7FFF; }
+	// allow add(ax, 0x8000);
+	bool isInDisp16relaxed(uint32_t x) const { uint32_t v = x & 0xffff0000; return v == 0 || v == 0xffff0000; }
 	uint32_t getImmBit(const Operand& op, uint32_t imm)
 	{
 		verifyMemHasSize(op);
-		uint32_t immBit = inner::IsInDisp8(imm) ? 8 : isInDisp16(imm) ? 16 : 32;
+		uint32_t immBit = inner::IsInDisp8(imm) ? 8 : isInDisp16relaxed(imm) ? 16 : 32;
 		if (op.isBit(8)) immBit = 8;
 		if (op.getBit() < immBit) XBYAK_THROW_RET(ERR_IMM_IS_TOO_BIG, 0)
 		if (op.isBit(32|64) && immBit == 16) immBit = 32; /* don't use MEM16 if 32/64bit mode */
@@ -2427,7 +2431,7 @@ private:
 		if (op.isREG() && op.hasRex2()) {
 			const Reg& r = static_cast<const Reg&>(op);
 			rex2(0, rexRXB(3, 0, Reg(), r), Reg(), r);
-			db(alt);
+			db(alt | (r.getIdx() & 7));
 			return;
 		}
 		int bit = op.getBit();
@@ -2497,7 +2501,7 @@ private:
 		if (op.isBit(32)) XBYAK_THROW(ERR_BAD_COMBINATION)
 		int w = op.isBit(16);
 		if (!(reg.isREG() && (reg.getBit() > op.getBit()))) XBYAK_THROW(ERR_BAD_COMBINATION)
-		opRO(reg, op, T_0F, code | w);
+		opRO(reg, op, T_0F | T_ALLOW_DIFF_SIZE, code | w);
 	}
 	void opFpuMem(const Address& addr, uint8_t m16, uint8_t m32, uint8_t m64, uint8_t ext, uint8_t m64ext)
 	{
@@ -2655,8 +2659,7 @@ private:
 		if (reg.isBit(8)) XBYAK_THROW(ERR_BAD_SIZE_OF_REGISTER)
 		bool is16bit = reg.isREG(16) && (op.isREG(16) || op.isMEM());
 		if (!is16bit && !(reg.isREG(i32e) && (op.isREG(reg.getBit()) || op.isMEM()))) XBYAK_THROW(ERR_BAD_COMBINATION)
-		if (is16bit) db(0x66);
-		opRO(reg.changeBit(i32e == 32 ? 32 : reg.getBit()), op, T_F3 | T_0F, code);
+		opRO(reg, op, T_F3 | T_0F, code);
 	}
 	void opGather(const Xmm& x1, const Address& addr, const Xmm& x2, uint64_t type, uint8_t code, int mode)
 	{
@@ -2742,7 +2745,7 @@ private:
 		}
 		if ((sel == 0 && enc != VexEncoding && enc != EvexEncoding) || (sel == 1 && enc != PreAVX10v2Encoding && enc != AVX10v2Encoding)) XBYAK_THROW_RET(ERR_BAD_ENCODING_MODE, VexEncoding)
 #ifdef XBYAK_DISABLE_AVX512
-		if (enc == EvexEncoding || enc == AVX10v2Encoding) XBYAK_THROW(ERR_EVEX_IS_INVALID)
+		if (enc == EvexEncoding || enc == AVX10v2Encoding) XBYAK_THROW_RET(ERR_EVEX_IS_INVALID, VexEncoding)
 #endif
 		return enc;
 	}
@@ -3160,11 +3163,11 @@ public:
 	}
 	void mov(const Operand& op, const Segment& seg)
 	{
-		opRO(Reg8(seg.getIdx()), op, 0, 0x8C, op.isREG(16|i32e));
+		opRO(Reg8(seg.getIdx()), op, T_ALLOW_DIFF_SIZE, 0x8C, op.isREG(16|i32e));
 	}
 	void mov(const Segment& seg, const Operand& op)
 	{
-		opRO(Reg8(seg.getIdx()), op.isREG(16|i32e) ? static_cast<const Operand&>(op.getReg().cvt32()) : op, 0, 0x8E, op.isREG(16|i32e));
+		opRO(Reg8(seg.getIdx()), op.isREG(16|i32e) ? static_cast<const Operand&>(op.getReg().cvt32()) : op, T_ALLOW_DIFF_SIZE, 0x8E, op.isREG(16|i32e));
 	}
 #endif
 

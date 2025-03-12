@@ -940,17 +940,17 @@ class StackFrame {
 #endif
 	static const int maxRegNum = 14; // maxRegNum = 16 - rsp - rax
 	Xbyak::CodeGenerator *code_;
-	int pNum_;
-	int tNum_;
-	bool useRcx_;
-	bool useRdx_;
-	int saveNum_;
-	int P_;
-	bool makeEpilog_;
 	Xbyak::Reg64 pTbl_[4];
 	Xbyak::Reg64 tTbl_[maxRegNum];
 	Pack p_;
 	Pack t_;
+	int pNum_;
+	int tNum_;
+	int saveNum_;
+	int P_;
+	bool useRcx_;
+	bool useRdx_;
+	bool makeEpilog_;
 	StackFrame(const StackFrame&);
 	void operator=(const StackFrame&);
 public:
@@ -976,10 +976,10 @@ public:
 		: code_(code)
 		, pNum_(pNum)
 		, tNum_(tNum & ~(UseRCX | UseRDX))
-		, useRcx_((tNum & UseRCX) != 0)
-		, useRdx_((tNum & UseRDX) != 0)
 		, saveNum_(0)
 		, P_(0)
+		, useRcx_((tNum & UseRCX) != 0)
+		, useRdx_((tNum & UseRDX) != 0)
 		, makeEpilog_(makeEpilog)
 		, p(p_)
 		, t(t_)
@@ -1014,7 +1014,7 @@ public:
 		make epilog manually
 		@param callRet [in] call ret() if true
 	*/
-	void close(bool callRet = true)
+	void makeEpilog(bool callRet = true)
 	{
 		using namespace Xbyak;
 		const Reg64& _rsp = code_->rsp;
@@ -1026,9 +1026,16 @@ public:
 
 		if (callRet) code_->ret();
 	}
-	~StackFrame()
+	// close() is automatically called in a destructor.
+	// It is not called if close() is explicitly called before.
+	void close(bool callRet = true)
 	{
 		if (!makeEpilog_) return;
+		makeEpilog(callRet);
+		makeEpilog_ = false;
+	}
+	~StackFrame()
+	{
 		close();
 	}
 private:
