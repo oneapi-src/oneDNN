@@ -1025,12 +1025,25 @@ static bool parse_engine(
               "`cpu` or `gpu`.\n    `INDEX` is an integer value specifying "
               "which engine to use if several were identified.\n";
 
+    // Note: this is a special case because index and engine kind are parsed
+    // into separate global objects instead of one under a common parsing
+    // function.
+    // TODO: fix this.
+    //
+    // Because of this fact, need to extract kind separated by `:`. `:` can be
+    // valid dangling for certain options in the command line (--strides=::).
+    // Thus, extract the kind allowing dangling. Verify, it's `--engine` option,
+    // and if yes, perform a safe check for dangling after.
     size_t start_pos = 0;
-    std::string kind_str = get_substr(str, start_pos, ':');
+    std::string kind_str = get_substr(str, start_pos, ':', true);
 
     if (!parse_single_value_option(engine_tgt_kind, dnnl_cpu, str2engine_kind,
                 kind_str.c_str(), option_name, help))
         return false;
+
+    // This is to catch a dangling `:` at the end of `--engine`.
+    start_pos = 0;
+    kind_str = get_substr(str, start_pos, ':');
 
     if (start_pos != std::string::npos) {
         std::string index_str(str + start_pos);
