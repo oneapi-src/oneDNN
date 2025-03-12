@@ -1014,7 +1014,7 @@ public:
 		make epilog manually
 		@param callRet [in] call ret() if true
 	*/
-	void makeEpilog(bool callRet = true)
+	void close(bool callRet = true)
 	{
 		using namespace Xbyak;
 		const Reg64& _rsp = code_->rsp;
@@ -1026,16 +1026,9 @@ public:
 
 		if (callRet) code_->ret();
 	}
-	// close() is automatically called in a destructor.
-	// It is not called if close() is explicitly called before.
-	void close(bool callRet = true)
-	{
-		if (!makeEpilog_) return;
-		makeEpilog(callRet);
-		makeEpilog_ = false;
-	}
 	~StackFrame()
 	{
+		if (!makeEpilog_) return;
 		close();
 	}
 private:
