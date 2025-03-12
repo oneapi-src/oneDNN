@@ -1017,7 +1017,6 @@ void prim_sdpa_quant(const sdpa_dims_t &p, const sdpa_tensors_t &t,
         //strm.wait();
         //print_mem(score, "score");
 
-        //strm.wait();
         softmax_prim.execute(strm,
                 {
                         {DNNL_ARG_SRC, score},
@@ -1037,6 +1036,7 @@ void prim_sdpa_quant(const sdpa_dims_t &p, const sdpa_tensors_t &t,
     // Warmup run.
     // Execute primitives of sdpa.
     loop();
+    strm.wait();
 }
 
 template <typename T>
@@ -1184,8 +1184,6 @@ GPU_TEST_P(sdpa_test_t, compare) {
             t.m_key_scales, t.m_key_zp, scale_dt, t.m_scale, t.m_mask,
             t.m_value_quantized, t.m_value_scales, t.m_value_zp, t.m_output,
             invert_scale);
-    strm.wait();
-
     strm.wait();
 
 #if 0
@@ -1340,5 +1338,4 @@ GPU_TEST_P(sdpa_test_t, perf) {
               << min_time(quantized_time).count() / float(iterations) << "|"
               << min_time(sdpa_f16_time).count() / float(iterations) << "|"
               << std::endl;
-    strm.wait();
 }
