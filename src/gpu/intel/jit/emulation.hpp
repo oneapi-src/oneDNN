@@ -312,6 +312,12 @@ struct EmulationImplementation { // NOLINT(readability-identifier-naming)
             dst.setType(DataType::ud);
             src0.setType(DataType::uw);
             g.shl(mod, dst, src0, 16, loc);
+        } else if (src0.getType() == DataType::bf8
+                && dst.getType() == DataType::f) {
+            RegData hfTmp = src0;
+            hfTmp.setType(DataType::uw);
+            g.shl(mod, hfTmp, src0.setType(DataType::ub), 8, loc);
+            g.mov(mod, dst, hfTmp.setType(DataType::hf), loc);
         } else
             g.mov(mod, dst, src0, loc);
     }
