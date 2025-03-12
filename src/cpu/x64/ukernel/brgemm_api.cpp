@@ -14,9 +14,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "oneapi/dnnl/dnnl_ukernel.h"
-
-#include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/verbose.hpp"
 
@@ -36,8 +33,6 @@ using namespace dnnl::impl::format_tag;
 using namespace dnnl::impl::status;
 using namespace dnnl::impl::cpu::x64;
 using namespace dnnl::impl::cpu::ukernel;
-
-using brgemm_t = dnnl_brgemm;
 
 #define VCHECK_BRGEMM(cond, msg, ...) \
     VCONDCHECK(ukernel, create, check, brgemm, (cond), \
@@ -581,6 +576,12 @@ status_t dnnl_ukernel_attr_params_destroy(attr_params_t *attr_params) {
 // BRGeMM //
 ////////////
 
+namespace dnnl {
+namespace impl {
+namespace cpu {
+namespace x64 {
+namespace ukernel {
+
 status_t dnnl_brgemm_create(brgemm_t **brgemm, dim_t M, dim_t N, dim_t K,
         dim_t batch_size, dim_t lda, dim_t ldb, dim_t ldc, data_type_t a_dt,
         data_type_t b_dt, data_type_t c_dt) {
@@ -638,7 +639,7 @@ status_t dnnl_brgemm_finalize(brgemm_t *brgemm) {
 }
 
 status_t dnnl_brgemm_get_B_pack_type(
-        dnnl_pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
+        pack_type_t *pack_type, data_type_t dt_a, data_type_t dt_b) {
     if (pack_type) { return brgemm_t::get_B_pack_type(pack_type, dt_a, dt_b); }
     return status::success;
 }
@@ -700,6 +701,12 @@ status_t dnnl_brgemm_destroy(brgemm_t *brgemm) {
     delete brgemm;
     return status::success;
 }
+
+} // namespace ukernel
+} // namespace x64
+} // namespace cpu
+} // namespace impl
+} // namespace dnnl
 
 ///////////////
 // Transform //

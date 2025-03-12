@@ -38,6 +38,7 @@ const pack_type_t pack32 = dnnl_pack_type_pack32;
 } // namespace pack_type
 
 using attr_params_t = dnnl_ukernel_attr_params;
+using brgemm_t = dnnl_brgemm;
 using transform_t = dnnl_transform;
 
 } // namespace ukernel

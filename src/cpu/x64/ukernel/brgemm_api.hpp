@@ -175,6 +175,50 @@ status_t dnnl_ukernel_attr_params_set_D_scales(
 status_t dnnl_ukernel_attr_params_destroy(
         dnnl_ukernel_attr_params *attr_params);
 
+status_t dnnl_brgemm_create(dnnl_brgemm **brgemm, dim_t M, dim_t N, dim_t K,
+        dim_t batch_size, dim_t lda, dim_t ldb, dim_t ldc, data_type_t a_dt,
+        data_type_t b_dt, data_type_t c_dt);
+
+status_t dnnl_brgemm_set_add_C(dnnl_brgemm *brgemm, int add_C);
+
+status_t dnnl_brgemm_set_post_ops(dnnl_brgemm *brgemm, dim_t ldd,
+        data_type_t d_dt, const post_ops_t *post_ops);
+
+status_t dnnl_brgemm_set_A_scales(dnnl_brgemm *brgemm, int a_scale_mask);
+
+status_t dnnl_brgemm_set_B_scales(dnnl_brgemm *brgemm, int b_scale_mask);
+
+status_t dnnl_brgemm_set_D_scales(dnnl_brgemm *brgemm, int d_scale_mask);
+
+status_t dnnl_brgemm_finalize(dnnl_brgemm *brgemm);
+
+status_t dnnl_brgemm_get_B_pack_type(
+        dnnl::impl::cpu::ukernel::pack_type_t *pack_type, data_type_t dt_a,
+        data_type_t dt_b);
+
+status_t dnnl_brgemm_get_scratchpad_size(
+        const dnnl_brgemm *brgemm, size_t *size);
+
+status_t dnnl_brgemm_is_execute_postops_valid(
+        const dnnl_brgemm *brgemm, int *valid);
+
+status_t dnnl_brgemm_set_hw_context(const dnnl_brgemm *brgemm);
+
+status_t dnnl_brgemm_release_hw_context();
+
+status_t dnnl_brgemm_generate(dnnl_brgemm *brgemm);
+
+status_t dnnl_brgemm_execute(const dnnl_brgemm *brgemm, const void *A_ptr,
+        const void *B_ptr, const dim_t *A_B_offsets, void *C_ptr,
+        void *scratchpad_ptr);
+
+status_t dnnl_brgemm_execute_postops(const dnnl_brgemm *brgemm,
+        const void *A_ptr, const void *B_ptr, const dim_t *A_B_offsets,
+        const void *C_ptr, void *D_ptr, void *scratchpad_ptr,
+        const dnnl_ukernel_attr_params *attr_params);
+
+status_t dnnl_brgemm_destroy(dnnl_brgemm *brgemm);
+
 status_t dnnl_transform_create(dnnl_transform **transform, dim_t K, dim_t N,
         dnnl::impl::cpu::ukernel::pack_type_t in_pack_type, dim_t in_ld,
         dim_t out_ld, data_type_t in_dt, data_type_t out_dt);
