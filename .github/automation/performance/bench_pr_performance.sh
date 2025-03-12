@@ -33,9 +33,11 @@ TESTS=(
         "$2 --reorder --mode=P --perf-template=%prb%,%-time% --batch=${SCRIPT_DIR}/inputs/reorder >> $4"
     )
 
-for i in {1..5}
+N=5
+
+for i in $( seq $N )
 do
-    echo "Testing loop ${i} / 5..."
+    echo "Testing loop ${i} / ${N}..."
 
     TESTS=( $(shuf -e "${TESTS[@]}") )
 
