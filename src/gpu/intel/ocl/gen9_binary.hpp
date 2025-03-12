@@ -53,12 +53,12 @@ struct gen9_binary_t : public gpu_primitive_t {
                     ((utils::everyone_is(
                               bf16, src_md(0)->data_type, src_md(1)->data_type)
                              && utils::one_of(dst_md()->data_type, bf16, u8))
-                            || (utils::one_of(
-                                        src_md(0)->data_type, f16, f32, s8, u8)
+                            || (utils::one_of(src_md(0)->data_type, f16, f32,
+                                        s8, u8, s32)
                                     && utils::one_of(src_md(1)->data_type, f16,
-                                            f32, s8, u8)
+                                            f32, s8, u8, s32)
                                     && utils::one_of(dst_md()->data_type, f16,
-                                            f32, s8, u8))),
+                                            f32, s8, u8, s32))),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_BINARY(!is_ternary_op(), VERBOSE_BAD_ALGORITHM);
             VDISPATCH_BINARY(
