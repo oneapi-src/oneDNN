@@ -20,7 +20,7 @@
 #include "gpu/intel/jit/codegen/ngen_helpers.hpp"
 #include "gpu/intel/jit/codegen/reg_buf.hpp"
 #include "ngen.hpp"
-#include "ngen/ngen_register_allocator.hpp"
+#include "ngen_register_allocator.hpp"
 
 namespace dnnl {
 namespace impl {

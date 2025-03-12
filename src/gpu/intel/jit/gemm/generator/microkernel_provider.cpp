@@ -20,7 +20,7 @@
 #include "generator.hpp"
 #include "kernel_selector.hpp"
 #include "strategy_parser.hpp"
-#include "ngen/npack/neo_packager.hpp"
+#include "npack/neo_packager.hpp"
 
 #include "internal/namespace_start.hxx"
 
