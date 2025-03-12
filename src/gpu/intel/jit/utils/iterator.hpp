@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -217,26 +217,23 @@ public:
 
         iterator_t &operator++() {
             if (it_ == end_) return *this;
+            if (factor_ == 1) factor_ = (*++it_).block;
 
-            auto size = (*it_).block;
-            while (++factor_ <= size) {
-                if (size % factor_ == 0) return *this;
-            }
-
-            dims_[(*it_).dim_idx] *= size;
-            ++it_;
-            factor_ = 1;
-            return operator++();
+            dim_t f = 1;
+            while (factor_ % ++f)
+                ;
+            factor_ /= f;
+            dims_[(*it_).dim_idx] *= f;
+            return *this;
         }
 
-        tensor_t operator*() const {
-            auto dims = dims_;
-            dims[(*it_).dim_idx] *= factor_;
-            return tensor_t(dims);
-        }
+        tensor_t operator*() const { return tensor_t(dims_); }
 
         iterator_t(const inner_iter_t &it, const inner_iter_t &end, int ndims)
-            : it_(it), end_(end), dims_(ndims, 1), factor_(1) {}
+            : it_(it)
+            , end_(end)
+            , dims_(ndims, 1)
+            , factor_(it == end ? 1 : (*it).block) {}
 
     private:
         inner_iter_t it_, end_;
