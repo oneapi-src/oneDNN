@@ -25,7 +25,7 @@
 #include "gpu/intel/jit/codegen/register_allocator.hpp"
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/generator.hpp"
-#include "ngen/ngen_core.hpp"
+#include "ngen_core.hpp"
 
 namespace dnnl {
 namespace impl {

@@ -25,7 +25,7 @@
 #include "gpu/intel/compute/device_info.hpp"
 #include "gpu/intel/jit/emulation.hpp"
 #include "gpu/intel/jit/reduction_injector.hpp"
-#include "ngen/ngen_core.hpp"
+#include "ngen_core.hpp"
 
 namespace dnnl {
 namespace impl {
