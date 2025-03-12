@@ -178,6 +178,9 @@ private:
         if (gpu_utils::dev_getenv("ocl_debug", 0)) {
             add_option("-DOCL_DEBUG");
         }
+
+        if (gpu_utils::dev_getenv("enable_ocl_werror", is_dev_mode()))
+            add_option("-Werror ");
     }
     void set_default_macros(const primitive_attr_t *attr) {
         if (attr) { define_int("DETERMINISTIC", attr->deterministic_); }
