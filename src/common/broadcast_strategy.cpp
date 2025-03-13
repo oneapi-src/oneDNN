@@ -48,6 +48,36 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
 
 namespace {
 
+bool is_bcast_suboptimal_strategy(broadcasting_strategy_t bcast,
+    const memory_desc_t &rhs_arg_md, const memory_desc_wrapper &dst_d){
+    const dims_t &rdims = rhs_arg_md.dims;
+    const dims_t &ddims = dst_d.dims();
+    printf("siema\n");
+    verbose_printf("siema2\n");
+    verbose_printf("%d\n", bcast);
+    switch (bcast)
+    {
+        case broadcasting_strategy_t::per_mb_spatial:
+            if (rdims[0] == ddims[0] || rdims[2] == ddims[2] || rdims[3] == ddims[3] || rdims[4] == ddims[4]) return true;
+            break;
+        case broadcasting_strategy_t::per_mb_w:
+            if (rdims[0] == ddims[0] || rdims[4] == ddims[4]) return true;
+            break;
+        case broadcasting_strategy_t::shared_axes:
+            if (rdims[0] == ddims[0] || rdims[2] == ddims[2] || rdims[3] == ddims[3]) return true;
+            break;
+        case broadcasting_strategy_t::batch:
+            if (rdims[1] == ddims[1] || rdims[2] == ddims[2] || rdims[3] == ddims[3] || rdims[4] == ddims[4]) return true;
+            break;
+        case broadcasting_strategy_t::spatial:
+            if (rdims[0] == ddims[0] || rdims[1] == ddims[1]) return true;
+            break;
+        default:
+            break;
+    }
+    return false;
+}
+
 // Checks if mask corresponds to broadcast per first and last dimensions
 // Returns true if mask (5D) is equal to [0, 1, 1, 1, 0]
 bool is_per_mb_w_bcast(const std::bitset<DNNL_MAX_NDIMS> mask,
@@ -271,6 +301,11 @@ broadcasting_strategy_t get_rhs_arg_broadcasting_strategy(
         bcast = broadcasting_strategy_t::per_oc_d;
     } else if (is_enabled(broadcasting_strategy_t::shared_axes))
         bcast = broadcasting_strategy_t::shared_axes;
+    printf("aaaaa=%d\n", static_cast<int>(broadcasting_strategy_t::no_broadcast));
+    printf("bcast=%d\n", static_cast<int>(bcast));
+    if (!all_equal && !all_ones && is_bcast_suboptimal_strategy(bcast, rhs_arg_md, dst_d)){
+        verbose_printf("WARMING: Used suboptimal broadcasting strategy");
+    }
 
     return bcast;
 }
