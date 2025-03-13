@@ -75,12 +75,8 @@ if __name__ == "__main__":
 
         # load pretrained model and write weights to binary files for oneDNN to
         # parse
-        if torch.cuda.is_available():
-            pretrained_model = torch.load(
-                pointnet_path, map_location=torch.device("cuda"))
-        else:
-            pretrained_model = torch.load(
-                pointnet_path, map_location=torch.device("cpu"), weights_only=False)
+        pretrained_model = torch.load(
+            pointnet_path, map_location=torch.device("cpu"), weights_only=False)
 
         layers = list(pretrained_model.keys())
 

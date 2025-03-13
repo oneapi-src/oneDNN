@@ -535,8 +535,6 @@ struct Network {
     std::vector<T> get_output_as_host_vec() {
         auto &last_layer = layers.back();
         auto &output_mem = last_layer->get_output_mem();
-        auto &stream = last_layer->stream_;
-        auto q = dnnl::sycl_interop::get_queue(stream);
         auto tmp = output_mem.get_desc().get_dims();
         int output_dim {1};
         for (const auto &e : tmp) {
