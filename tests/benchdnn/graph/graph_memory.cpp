@@ -51,11 +51,10 @@ dnn_graph_mem_t::dnn_graph_mem_t(
 
     const auto &g_eng = get_graph_engine().operator const dnnl::engine &();
 
+    if (graph_dims_.empty()) graph_dims_.push_back(1);
+    if (graph_strides_.empty()) graph_strides_.push_back(1);
+
     if (is_op_input) {
-
-        if (graph_dims_.empty()) graph_dims_.push_back(1);
-        if (graph_strides_.empty()) graph_strides_.push_back(1);
-
         // create graph memory
         dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
         mem_ = dnn_mem_t(md.get(), g_eng.get());
@@ -101,9 +100,11 @@ dnn_graph_mem_t::dnn_graph_mem_t(const dnn_mem_t &mem,
 
     // Create memory for graph path
     const auto data_type = static_cast<dnnl::memory::data_type>(graph_dt);
+
+    if (graph_dims_.empty()) graph_dims_.push_back(1);
+    if (graph_strides_.empty()) graph_strides_.push_back(1);
+
     if (is_op_input) {
-        if (graph_dims_.empty()) graph_dims_.push_back(1);
-        if (graph_strides_.empty()) graph_strides_.push_back(1);
 
         // create graph memory
         dnnl::memory::desc md(graph_dims_, data_type, graph_strides_);
