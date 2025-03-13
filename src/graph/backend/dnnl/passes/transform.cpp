@@ -4154,6 +4154,128 @@ impl::status_t replace_select_values(std::shared_ptr<subgraph_t> &sg) {
     return infer_shape(sg);
 }
 
+status_t fuse_sdpa(std::shared_ptr<subgraph_t> &sg) {
+    std::vector<op_ptr> candidates;
+    for (auto &cur_op : sg->get_ops()) {
+        std::vector<op_ptr> pattern_ops;
+        if (cur_op->get_kind() != op_kind::dnnl_matmul) continue;
+        op_ptr walker = cur_op;
+        bool valid_pattern = true;
+        bool has_scale = false, has_mask = false, has_softmax = false;
+        while (walker) {
+            pattern_ops.push_back(walker);
+            switch (walker->get_kind()) {
+                case op_kind::dnnl_matmul: {
+                    if (pattern_ops.size() == 1) {
+                    } else {
+                        valid_pattern = (pattern_ops.size() >= 4);
+                    }
+                    break;
+                }
+                case op_kind::dnnl_binary: {
+                    auto alg = static_cast<dnnl::algorithm>(
+                            walker->get_attr<int64_t>(op_attr::alg_kind));
+                    if (alg == dnnl::algorithm::binary_mul
+                            || alg == dnnl::algorithm::binary_div) {
+                        if (has_scale) valid_pattern = false;
+                        has_scale = true;
+                    } else if (alg == dnnl::algorithm::binary_add) {
+                        if (has_mask) valid_pattern = false;
+                        has_mask = true;
+                    }
+                    break;
+                }
+                case op_kind::dnnl_mask: {
+                    if (has_mask) valid_pattern = false;
+                    has_mask = true;
+                    break;
+                }
+                case op_kind::dnnl_softmax: {
+                    if (has_softmax) valid_pattern = false;
+                    has_softmax = true;
+                    break;
+                }
+                default: valid_pattern = false;
+            }
+
+            if (!valid_pattern) break;
+
+            auto out_val = walker->get_output_value(0);
+            if (out_val->get_consumers().size() != 1) break;
+            walker = out_val->get_consumers()[0].get_op().shared_from_this();
+        }
+
+        if (valid_pattern
+                && pattern_ops.back()->get_kind() == op_kind::dnnl_matmul) {
+            candidates = pattern_ops;
+            break;
+        }
+    }
+
+    if (candidates.empty()) return status::success;
+
+    subgraph_rewriter_t rewriter(sg);
+    op_ptr sdpa_op = std::make_shared<op_t>(op_kind::dnnl_sdpa);
+    sdpa_op->set_attr<bool>(op_attr::with_scale, false);
+    sdpa_op->set_attr<bool>(op_attr::with_mask, false);
+    sdpa_op->set_attr<bool>(op_attr::with_causal, false);
+
+    auto query_val = candidates[0]->get_input_value(0);
+    query_val->remove_consumer(*candidates[0], 0);
+    sdpa_op->connect_input(0, query_val);
+
+    auto key_val = candidates[0]->get_input_value(1);
+    key_val->remove_consumer(*candidates[0], 1);
+    sdpa_op->connect_input(1, key_val);
+
+    auto value_val = candidates.back()->get_input_value(1);
+    value_val->remove_consumer(*candidates.back(), 1);
+    sdpa_op->connect_input(2, value_val);
+
+    size_t input_idx = 3;
+    for (size_t i = 1; i < candidates.size(); ++i) {
+        auto op = candidates[i];
+        if (op->get_kind() == op_kind::dnnl_binary) {
+            auto alg = static_cast<dnnl::algorithm>(
+                    op->get_attr<int64_t>(op_attr::alg_kind));
+            // handle scale
+            if (alg == dnnl::algorithm::binary_mul || 
+                alg == dnnl::algorithm::binary_div) {
+                auto scale_val = op->get_input_value(1);
+                scale_val->remove_consumer(*op, 1);
+                sdpa_op->connect_input(input_idx++, scale_val);
+                sdpa_op->set_attr<bool>(op_attr::with_scale, true);
+                sdpa_op->set_attr<bool>(op_attr::is_invert_scale,
+                        (alg == dnnl::algorithm::binary_div));
+            }
+            // hanlde explicit mask
+            else if (alg == dnnl::algorithm::binary_add) {
+                auto mask_val = op->get_input_value(1);
+                mask_val->remove_consumer(*op, 1);
+                sdpa_op->connect_input(input_idx++, mask_val);
+                sdpa_op->set_attr<bool>(op_attr::with_mask, true);
+            }
+        }
+        // handle implicit dnnl_mask
+        else if (op->get_kind() == op_kind::dnnl_mask) {
+            sdpa_op->set_attr<bool>(op_attr::with_causal, true);
+        }
+    }
+
+    auto final_output = candidates.back()->get_output_value(0);
+    final_output->set_producer(*sdpa_op);
+    sdpa_op->add_output(final_output);
+
+    insert_empty_scratchpad(sdpa_op);
+
+    for (auto &op : candidates) {
+        rewriter.to_remove(op);
+    }
+    rewriter.to_insert(sdpa_op);
+    rewriter.run();
+    return status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl
