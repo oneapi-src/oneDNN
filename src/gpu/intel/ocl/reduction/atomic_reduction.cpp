@@ -212,7 +212,7 @@ atomic_reduction_conf_t::atomic_reduction_conf_t(
 status_t atomic_reduction_conf_t::init_dispatcher(
         const compute::compute_engine_t *engine,
         const gpu_primitive_attr_t *gpu_attr) {
-    const std::vector<dim_idx_t> dispatch_dims = {
+    std::vector<dim_idx_t> dispatch_dims = {
             reduction_dims::outer,
             reduction_dims::local,
             reduction_dims::global,
@@ -262,7 +262,8 @@ status_t atomic_reduction_conf_t::init_dispatcher(
             = inner_block.block / conf.vect_size;
 
     // Create the dispatcher
-    compute::reusable_dispatch_config_t config(engine, dispatch_dims);
+    compute::reusable_dispatch_config_t config(
+            engine, std::move(dispatch_dims));
     CHECK(config.register_buffer(src));
     CHECK(config.register_buffer(dst));
     CHECK(config.define_dim_index(

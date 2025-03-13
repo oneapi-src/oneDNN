@@ -229,6 +229,7 @@ private:
 class kernel_arg_list_t {
 public:
     kernel_arg_list_t() { args_.reserve(512); }
+    ~kernel_arg_list_t() = default;
 
     void append(const memory_storage_t &storage) {
         args_.emplace_back();

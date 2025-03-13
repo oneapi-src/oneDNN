@@ -435,7 +435,7 @@ status_t micro_sdpa_t::pd_t::init_microkernels(impl::engine_t *engine) {
     opts_vs.slmPtr = true;
 
     /* Update for second GEMM: V*S */
-    auto problem_vs = problem;
+    auto problem_vs = std::move(problem);
     problem_vs.Ta_ext = jit::convert_dnnl_to_kernel_type(val_md()->data_type);
     problem_vs.A.layout = convert_dnnl_to_kernel_layout(val_md());
     if (with_value_scales() && !vs_common_scales) {

@@ -231,7 +231,7 @@ public:
                 auto value_i = scalarizer.mutate(obj.value);
                 auto lo_hi = ctx_.bound_finder.find_bounds(value_i);
                 ctx_.bound_finder.set_var_bounds(var_i, lo_hi);
-                ctx_.vec_vars[obj.var].push_back(var_i);
+                ctx_.vec_vars[obj.var].push_back(std::move(var_i));
             }
         }
         expr_t var = obj.var;

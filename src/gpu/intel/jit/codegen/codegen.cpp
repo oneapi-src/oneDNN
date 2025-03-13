@@ -742,7 +742,7 @@ private:
         auto do_eltwise = [&](const reg_buf_data_t &r, const int count) {
             if (func.alg_kind == alg_kind::eltwise_stochastic_round) {
                 gpu_assert(args.size() == 3);
-                auto seed = args[2].reg_buf_data();
+                const auto &seed = args[2].reg_buf_data();
                 inj.compute(ngen::GRFRange(r.base(), count),
                         seed.reg_data().getBase(), seed.reg_data().getOffset(),
                         func.dst_dt);

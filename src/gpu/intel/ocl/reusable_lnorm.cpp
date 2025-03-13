@@ -48,7 +48,7 @@ static status_t init_conf_common(const layer_normalization_pd_t *pd,
     conf->src_dt = src_buf.data_type;
     conf->dst_dt = dst_buf.data_type;
 
-    auto scales = pd->attr()->scales_;
+    const auto &scales = pd->attr()->scales_;
     conf->with_src_scale = !scales.has_default_values(DNNL_ARG_SRC);
     conf->with_dst_scale = !scales.has_default_values(DNNL_ARG_DST);
 

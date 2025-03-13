@@ -980,7 +980,7 @@ status_t simple_rnn_common_t<aprop>::init(impl::engine_t *engine) {
     rnn_utils::set_workspace_offsets(rnn, ws_gates_offset_, ws_states_offset_,
             ws_c_states_offset_, ws_grid_comp_offset_, ws_bias_offset_);
 
-    auto kernel_names = pd()->ocl_conf.get_kernel_names();
+    const auto &kernel_names = pd()->ocl_conf.get_kernel_names();
     CHECK(create_kernels(engine, kernels_, kernel_names, pd()->ocl_conf));
 
     bool gemm_ok = utils::everyone_is(status::success,

@@ -779,13 +779,13 @@ private:
         auto outer_begin = end(layout);
         if (is_scattered) {
             // Add blocks to fill up slots in the scattered message.
-            for (auto it = inner_end; it != end(layout); ++it) {
+            for (auto it = std::move(inner_end); it != end(layout); ++it) {
                 int it_slots = ir_utils::safe_div(it.elems(), elems_per_slot);
                 int entry_reg_size
                         = utils::rnd_up(it_slots * slot_stride, grf_size);
                 if (it_slots > max_slots
                         || entry_reg_size > params.max_entry_reg_size) {
-                    outer_begin = it;
+                    outer_begin = std::move(it);
                     break;
                 }
                 slots = it_slots;

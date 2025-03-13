@@ -55,6 +55,10 @@ public:
     logger_t(const char *file_name, int line, std::ostream &out = std::cout)
         : file_path_(file_name + std::string(":") + std::to_string(line))
         , out_(out) {}
+
+    logger_t(const logger_t &) = delete;
+    logger_t &operator=(const logger_t &) = delete;
+
     ~logger_t() {
         add_header(true);
         if (lines_.size() == 1) {
@@ -83,7 +87,7 @@ public:
         print_helper_t<T>::call(oss, obj);
         auto lines = gpu_utils::split(oss.str(), "\n");
         if (lines_.empty() || lines.empty()) {
-            lines_ = lines;
+            lines_ = std::move(lines);
             return *this;
         }
         lines_.back() += lines[0];

@@ -336,7 +336,7 @@ private:
             int64_t f = get_max_const_factor(off, cset);
             int alignment = f ? ir_utils::max_pow2_divisor(f) : base_alignment;
 
-            block_offs_.push_back(off);
+            block_offs_.push_back(std::move(off));
             block_alignments_.push_back(alignment);
         });
     }
@@ -990,7 +990,7 @@ stmt_t access_builder_t::create_send_stmt(
         } else if (!off_base.is_equal(off_base0)) {
             is_same_base = false;
         }
-        off_vec.push_back(off);
+        off_vec.push_back(std::move(off));
         off_const_vec.emplace_back(off_const - off_const0);
     }
     expr_t off;
