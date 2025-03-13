@@ -1703,6 +1703,11 @@ inline expr_t ternary_add3(const expr_t &a, const expr_t &b, const expr_t &c) {
     return ternary_op_t::make(op_kind_t::_add3, a, b, c);
 }
 
+inline expr_t ternary_idiv(
+        const expr_t &a, const expr_t &b, const expr_t &magic) {
+    return ternary_op_t::make(op_kind_t::_idiv, a, b, magic);
+}
+
 // Unary operation: (op a).
 class unary_op_t : public expr_impl_t {
 public:

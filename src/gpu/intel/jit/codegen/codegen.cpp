@@ -1025,6 +1025,17 @@ public:
 
     void _visit(const float_imm_t &obj) override { bind(obj, to_ngen(obj)); }
 
+    void _visit(const iif_t &obj) override {
+        auto dst_op = alloc_dst_op(obj);
+        auto cond_op = eval(obj.cond);
+        auto true_expr_op = eval(obj.true_expr);
+        auto false_expr_op = eval(obj.false_expr);
+        auto mod = dst_op.mod();
+        host_->emov(mod | cond_op.flag_register_mod(), dst_op, true_expr_op);
+        host_->emov(mod | ~cond_op.flag_register_mod(), dst_op, false_expr_op);
+        bind(obj, dst_op);
+    }
+
     void _visit(const int_imm_t &obj) override { bind(obj, to_ngen(obj)); }
 
     void _visit(const load_t &obj) override {

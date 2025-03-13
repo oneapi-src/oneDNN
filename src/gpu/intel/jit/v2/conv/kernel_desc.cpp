@@ -706,11 +706,19 @@ void kernel_desc_t::init_kernel_iface(kernel_iface_t &kernel_iface) const {
             kernel_iface.register_arg("sw_magic", type_t::u64());
     }
     if (use_stream_k) {
-        kernel_iface.register_arg("sk_iters_per_tile", type_t::s32());
-        kernel_iface.register_arg("sk_iters_per_tile_magic", type_t::u64());
-        kernel_iface.register_arg("sk_total_iters", type_t::s32());
-        kernel_iface.register_arg("sk_iters_per_tg", type_t::s32());
-        kernel_iface.register_arg("sk_iters_per_tg_magic", type_t::u64());
+        kernel_iface.register_arg("sk_iters_per_tile_main", type_t::s32());
+        kernel_iface.register_arg(
+                "sk_iters_per_tile_main_magic", type_t::u64());
+        kernel_iface.register_arg("sk_total_iters_main", type_t::s32());
+        kernel_iface.register_arg("sk_iters_per_tg_main", type_t::s32());
+        kernel_iface.register_arg("sk_iters_per_tg_main_magic", type_t::u64());
+        kernel_iface.register_arg("sk_iters_per_tile_tail", type_t::s32());
+        kernel_iface.register_arg(
+                "sk_iters_per_tile_tail_magic", type_t::u64());
+        kernel_iface.register_arg("sk_total_iters_tail", type_t::s32());
+        kernel_iface.register_arg("sk_iters_per_tg_tail", type_t::s32());
+        kernel_iface.register_arg("sk_iters_per_tg_tail_magic", type_t::u64());
+        kernel_iface.register_arg("sk_k_batches", type_t::s32());
         for (auto &e : loop_desc) {
             dim_t dummy;
             if (_reqs.get_value(e.dim, dummy)) continue;
@@ -782,6 +790,10 @@ dim_t stream_k_thread_groups(
     return std::min(ref_iters, max_thread_groups_per_wave);
 }
 
+dim_t stream_k_split() {
+    return gpu_utils::dev_getenv("SPLIT", 1);
+}
+
 type_t accumulator_type(const type_t &a_type, const type_t &b_type) {
     gpu_assert(a_type.size() == b_type.size());
     return a_type.is_fp() ? type_t::f32() : type_t::s32();
@@ -816,26 +828,40 @@ kernel_desc_t to_stream_k(const kernel_desc_t &desc, bool check_ext) {
 
 void init_kernel_info(kernel_info_t &kernel_info, const problem_t &prb,
         const kernel_desc_t &desc, const grid_t &tg_grid,
-        const pvar_tile_t &grid_dims, dim_t max_tgs, dim_t &stream_k_tgs) {
+        const pvar_tile_t &grid_dims, dim_t max_tgs, dim_t &stream_k_tg0,
+        dim_t &stream_k_tg1) {
     auto pvar_map = prb.shape();
     for (auto &d : grid_dims) {
         pvar_map[pvar_t(d.str() + "_grid_size")] = grid_dims.at(d);
     }
     if (desc.use_stream_k) {
-        dim_t iters_per_tile = 1;
+        dim_t k_iters = 1;
         for (auto &e : desc.loop_desc) {
             dim_t tg_size = desc.thread_group_tile.get(e.dim, 1);
             dim_t iter_size = desc.iter_tile.get(e.dim, 1);
             dim_t dim_iters_per_tile
                     = utils::div_up(prb.shape().at(e.dim), tg_size * iter_size);
-            iters_per_tile *= dim_iters_per_tile;
+            k_iters *= dim_iters_per_tile;
         }
-        dim_t total_iters = iters_per_tile * tg_grid.size(0, grid_dims);
-        stream_k_tgs = stream_k_thread_groups(total_iters, max_tgs);
-        dim_t iters_per_tg = utils::div_up(total_iters, stream_k_tgs);
-        pvar_map[pvar_t("sk_iters_per_tile")] = iters_per_tile;
-        pvar_map[pvar_t("sk_total_iters")] = total_iters;
-        pvar_map[pvar_t("sk_iters_per_tg")] = iters_per_tg;
+        dim_t bmn_tiles = tg_grid.size(0, grid_dims);
+        dim_t iters_per_tile = utils::div_up(k_iters, stream_k_split());
+        dim_t iters_per_tile_tail = iters_per_tile
+                - (utils::rnd_up(k_iters, stream_k_split()) - k_iters);
+        if (iters_per_tile_tail == 0) iters_per_tile_tail = iters_per_tile;
+        stream_k_tg0
+                = stream_k_thread_groups(bmn_tiles * iters_per_tile, max_tgs);
+        stream_k_tg1 = stream_k_split();
+        dim_t total_iters = bmn_tiles * iters_per_tile;
+        dim_t total_iters_tail = bmn_tiles * iters_per_tile_tail;
+        dim_t iters_per_tg = utils::div_up(total_iters, stream_k_tg0);
+        dim_t iters_per_tg_tail = utils::div_up(total_iters_tail, stream_k_tg0);
+        pvar_map[pvar_t("sk_iters_per_tile_main")] = iters_per_tile;
+        pvar_map[pvar_t("sk_total_iters_main")] = total_iters;
+        pvar_map[pvar_t("sk_iters_per_tg_main")] = iters_per_tg;
+        pvar_map[pvar_t("sk_iters_per_tile_tail")] = iters_per_tile_tail;
+        pvar_map[pvar_t("sk_total_iters_tail")] = total_iters_tail;
+        pvar_map[pvar_t("sk_iters_per_tg_tail")] = iters_per_tg_tail;
+        pvar_map[pvar_t("sk_k_batches")] = stream_k_tg1;
     }
     for (int i = 0; i < kernel_info.nargs(); i++) {
         auto &var = kernel_info.arg_var(i);
@@ -861,9 +887,10 @@ void kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info,
     }
     dim_t max_tgs = prim_config_t::get_max_threadgroups_per_wave(
             exec_cfg(engine), thread_group_tile.elems());
-    dim_t stream_k_tgs = 0;
-    conv::init_kernel_info(
-            kernel_info, prb, *this, tg_grid, grid_dims, max_tgs, stream_k_tgs);
+    dim_t stream_k_tg0 = 0;
+    dim_t stream_k_tg1 = 0;
+    conv::init_kernel_info(kernel_info, prb, *this, tg_grid, grid_dims, max_tgs,
+            stream_k_tg0, stream_k_tg1);
     compute::range_t gws = compute::range_t::empty();
     compute::range_t lws = compute::range_t::empty();
     for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
@@ -872,7 +899,8 @@ void kernel_desc_t::init_kernel_info(kernel_info_t &kernel_info,
         gws[i] = lws[i];
     }
     if (use_stream_k) {
-        gws[0] *= stream_k_tgs;
+        gws[0] *= stream_k_tg0;
+        gws[1] *= stream_k_tg1;
     } else {
         for (size_t i = 0; i < compute::range_t::max_ndims; i++) {
             gws[i] *= tg_grid.size(i, grid_dims);

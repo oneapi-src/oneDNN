@@ -201,10 +201,16 @@ struct stream_k_params_t {
     expr_t iters_per_tg;
     // Iterations per one output tile, div_up(k, k_blk).
     expr_t iters_per_tile;
+    // Number of reduction batches.
+    expr_t k_batches;
 
     // The following values are thread-specific.
     // Index of this threadgroup.
     expr_t tg_idx;
+    // Index of the current k-batch. Reduction is done in batches (i.e. the 1st
+    // thread wave reduces all tiles for k in [0, x), the 2nd wave reduces all
+    // tiles for k in [x, 2 * x), etc);
+    expr_t k_batch_idx;
     // Index of the first threadgroup for the current output tile.
     expr_t tg_beg;
     // Index of the last threadgroup for the current output tile.
@@ -742,33 +748,75 @@ public:
         stream_k_params_t sk_params(desc.use_stream_k, desc_.loop_desc);
         emit_thread_index_let();
         if (desc.use_stream_k) {
-            sk_params.total_iters
-                    = const_var_t::make(type_t::s32(), "sk_total_iters");
-            sk_params.iters_per_tg
-                    = const_var_t::make(type_t::s32(), "sk_iters_per_tg");
-            sk_params.iters_per_tile
-                    = const_var_t::make(type_t::s32(), "sk_iters_per_tile");
             sk_params.tg_idx = plan_.tg_grid.index_var(0);
+            sk_params.k_batch_idx = plan_.tg_grid.index_var(1);
 
+            auto total_iters_main
+                    = const_var_t::make(type_t::s32(), "sk_total_iters_main");
+            auto total_iters_tail
+                    = const_var_t::make(type_t::s32(), "sk_total_iters_tail");
+            auto iters_per_tg_main
+                    = const_var_t::make(type_t::s32(), "sk_iters_per_tg_main");
+            auto iters_per_tg_tail
+                    = const_var_t::make(type_t::s32(), "sk_iters_per_tg_tail");
+            auto iters_per_tg_main_magic = const_var_t::make(
+                    type_t::u64(), "sk_iters_per_tg_main_magic");
+            auto iters_per_tg_tail_magic = const_var_t::make(
+                    type_t::u64(), "sk_iters_per_tg_tail_magic");
+            auto iters_per_tile_main = const_var_t::make(
+                    type_t::s32(), "sk_iters_per_tile_main");
+            auto iters_per_tile_tail = const_var_t::make(
+                    type_t::s32(), "sk_iters_per_tile_tail");
+            auto iters_per_tile_main_magic = const_var_t::make(
+                    type_t::u64(), "sk_iters_per_tile_main_magic");
+            auto iters_per_tile_tail_magic = const_var_t::make(
+                    type_t::u64(), "sk_iters_per_tile_tail_magic");
+
+            sk_params.k_batches
+                    = const_var_t::make(type_t::s32(), "sk_k_batches");
+            auto cond = (sk_params.k_batch_idx == sk_params.k_batches - 1);
+            sk_params.total_iters = let("sk_total_iters",
+                    iif_t::make(cond, total_iters_tail, total_iters_main));
+            sk_params.iters_per_tg = let("sk_iters_per_tg",
+                    iif_t::make(cond, iters_per_tg_tail, iters_per_tg_main));
+            sk_params.iters_per_tile = let("sk_iters_per_tile",
+                    iif_t::make(
+                            cond, iters_per_tile_tail, iters_per_tile_main));
+            auto iters_per_tg_magic = let("sk_iters_per_tg_magic",
+                    iif_t::make(cond, iters_per_tg_tail_magic,
+                            iters_per_tg_main_magic));
+            auto iters_per_tile_magic = let("sk_iters_per_tile_magic",
+                    iif_t::make(cond, iters_per_tile_tail_magic,
+                            iters_per_tile_main_magic));
             auto iter = alloc_var(type_t::s32(), "sk_iter");
             iter = sk_params.tg_idx * sk_params.iters_per_tg;
             auto iter_end = let("sk_iter_end",
                     min(sk_params.total_iters, iter + sk_params.iters_per_tg));
 
             _while(iter < iter_end, [&]() {
-                sk_params.tile_idx
-                        = let("sk_tile_idx", iter / sk_params.iters_per_tile);
+                sk_params.tile_idx = let("sk_tile_idx",
+                        ternary_idiv(iter,
+                                cast(sk_params.iters_per_tile, type_t::u32()),
+                                iters_per_tile_magic));
                 auto global_beg = let("sk_global_beg",
                         sk_params.tile_idx * sk_params.iters_per_tile);
                 auto global_end = let(
                         "sk_global_end", global_beg + sk_params.iters_per_tile);
-                let(sk_params.local_beg, iter - global_beg);
+                let(sk_params.local_beg,
+                        iter - global_beg
+                                + sk_params.k_batch_idx * iters_per_tile_main);
                 let(sk_params.local_end,
-                        min(iter_end, global_end) - global_beg);
-                sk_params.tg_beg
-                        = let("sk_tg_beg", global_beg / sk_params.iters_per_tg);
+                        min(iter_end, global_end) - global_beg
+                                + sk_params.k_batch_idx * iters_per_tile_main);
+                sk_params.tg_beg = let("sk_tg_beg",
+                        ternary_idiv(global_beg,
+                                cast(sk_params.iters_per_tg, type_t::u32()),
+                                iters_per_tg_magic));
                 sk_params.tg_end = let("sk_tg_beg",
-                        (global_beg - 1) / sk_params.iters_per_tg + 1);
+                        ternary_idiv(global_beg - 1,
+                                cast(sk_params.iters_per_tg, type_t::u32()),
+                                iters_per_tg_magic)
+                                + 1);
                 emit_thread_group_index_let(sk_params.tile_idx);
                 pipeline(sk_params);
                 epilogue();
