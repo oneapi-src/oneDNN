@@ -572,6 +572,8 @@ void assignUniformMask(vector<RegisterBlock> &layout, FlagRegister flag, int idx
 bool assignAllDescs(vector<RegisterBlock> &layout)
 {
     for (auto &block : layout) {
+        if (!block.descRemR && !block.descRemC)
+            continue;
         if (block.simdSize != layout[0].simdSize)
             return false;
         block.descAssigned = true;
