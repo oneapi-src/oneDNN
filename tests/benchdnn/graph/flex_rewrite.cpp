@@ -353,7 +353,7 @@ void flex_rewrite::infer_output_shape(
     for (auto &aop : dgraph.ops_) {
         auto kind = opstr2kind(aop.kind_);
         size_t in0, in1, out0;
-        int64_t n, c, axis, sum, groups, in_size, out_size, use_oi = 0;
+        int64_t n, c, axis, sum, groups, in_size, out_size, use_oi = 0, seq_len;
         dims_t strides, kernel, pads_begin, pads_end, dilations, spatial_dims,
                 output_padding;
         dims_t adims, x, y, oi;
@@ -802,6 +802,19 @@ void flex_rewrite::infer_output_shape(
                     gi[out0].push_back(M);
                     gi[out0].push_back(N);
                 }
+                break;
+            // infer_paged_cache_load_output_shape
+            case dnnl::graph::op::kind::PagedCacheLoad:
+                // in0: block_num, head_num, block_size, head_size
+                // in1: batch_size, ceil(max_seq_size / block_size)
+                // out0: batch_size, head_num, seq_len, head_size
+                // attrs: seq_len
+                in0 = aop.in_lts_[0].id_;
+                in1 = aop.in_lts_[1].id_;
+                out0 = aop.out_lts_[0].id_;
+                gi[out0].clear();
+                seq_len = aop.attrs_["seq_len"].s64_value_;
+                // TODO: infer shape from inputs and attribute
                 break;
             // infer_prelu_bwd_output_shape
             case dnnl::graph::op::kind::PReLUBackward:

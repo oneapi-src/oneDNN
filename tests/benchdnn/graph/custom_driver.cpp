@@ -264,6 +264,66 @@ int execute(const prb_t *prb, const args_t &args, res_t *res) {
 }
 } // namespace reshape
 
+namespace paged_cache_load {
+// PAGED_CACHE_LOAD OP
+// DNNL_ARG_SRC_0: K/V Cache
+// DNNL_ARG_SRC_1: block_table
+// DNNL_ARG_DST: K/V
+
+std::vector<int> exec_args = {
+        DNNL_ARG_SRC_0,
+        DNNL_ARG_SRC_1,
+        DNNL_ARG_DST,
+};
+
+int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
+        const prb_t *prb, res_t *res) {
+
+    const auto &ref_engine = get_cpu_engine();
+
+    for (auto &entry : mem_map) {
+        const int exec_arg = entry.first;
+        auto &mem = entry.second;
+
+        ref_mem_map.emplace(
+                exec_arg, dnn_mem_t(mem.md_, dnnl_f32, tag::abx, ref_engine));
+        auto &ref_mem = ref_mem_map[exec_arg];
+
+        switch (exec_arg) {
+            case DNNL_ARG_SRC_0: {
+                // cache: [batch_size, head_num, block_size, head_size]
+                // Use `7` not to mess with scales for s8 which may create a
+                // `8 * 8 (= 128) = -128` for s8.
+                SAFE(::custom::fill_mem(mem, ref_mem, -8, 7), WARN);
+                break;
+            }
+            case DNNL_ARG_SRC_1: {
+                // block table: [batch_size, logical_block_num]
+                const auto cache_md = mem_map[DNNL_ARG_SRC_0].md_;
+                dnnl_dims_t *c_dims;
+                dnnl_query_t query_dims = dnnl_query_dims;
+                dnnl_status_t status
+                        = dnnl_memory_desc_query(cache_md, query_dims, &c_dims);
+                const auto block_num = (*c_dims)[0];
+                SAFE(::custom::fill_mem(mem, ref_mem, 0, block_num), WARN);
+                break;
+            }
+            default: break;
+        }
+    }
+    return OK;
+}
+
+int execute(const prb_t *prb, const args_t &args, res_t *res) {
+    const dnn_mem_t &src = args.find(DNNL_ARG_SRC_0);
+    const dnn_mem_t &indices = args.find(DNNL_ARG_SRC_1);
+    dnn_mem_t &dst = const_cast<dnn_mem_t &>(args.find(DNNL_ARG_DST));
+    auto seq_len = prb->seq_len;
+    // TODO: add implementation for paged_cache_load
+    return OK;
+}
+} // namespace paged_cache_load
+
 dnnl_status_t init_pd(init_pd_args_t<prb_t> &init_pd_args) {
     return dnnl_success;
 }
@@ -275,6 +335,7 @@ std::vector<int> supported_exec_args(const prb_t *prb) {
         case SELECT: return ::custom::select::exec_args;
         case TRANSPOSE: return ::custom::transpose::exec_args;
         case RESHAPE: return ::custom::reshape::exec_args;
+        case PAGEDCACHELOAD: return ::custom::paged_cache_load::exec_args;
         default: assert(!"unknown alg"); break;
     }
     return exec_args;
@@ -286,7 +347,8 @@ void setup_cmp(compare::compare_t &cmp, const prb_t *prb, data_kind_t kind,
         case GENINDEX:
         case SELECT:
         case TRANSPOSE:
-        case RESHAPE: cmp.set_zero_trust_percent(100.f); break;
+        case RESHAPE:
+        case PAGEDCACHELOAD: cmp.set_zero_trust_percent(100.f); break;
         default: assert(!"unknown alg"); break;
     }
 }
@@ -362,6 +424,11 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                          ref_mem_map, mem_map, prb, res),
                     WARN);
             break;
+        case PAGEDCACHELOAD:
+            SAFE(::custom::paged_cache_load::init_ref_memory_args(
+                         ref_mem_map, mem_map, prb, res),
+                    WARN);
+            break;
         default: assert(!"unknown alg"); break;
     }
     // Don't keep reference memory if it is not used further.
@@ -380,6 +447,9 @@ int execute(const prb_t *prb, const args_t &args, res_t *res) {
             ret = ::custom::transpose::execute(prb, args, res);
             break;
         case RESHAPE: ret = ::custom::reshape::execute(prb, args, res); break;
+        case PAGEDCACHELOAD:
+            ret = ::custom::paged_cache_load::execute(prb, args, res);
+            break;
         default: assert(!"unknown alg"); break;
     }
     return ret;

@@ -314,6 +314,7 @@ dnnl::graph::op::kind opstr2kind(const std::string &kind) {
             {"Mish", dnnl::graph::op::kind::Mish},
             {"MishBackward", dnnl::graph::op::kind::MishBackward},
             {"Multiply", dnnl::graph::op::kind::Multiply},
+            {"PagedCacheLoad", dnnl::graph::op::kind::PagedCacheLoad},
             {"Pow", dnnl::graph::op::kind::Pow},
             {"PReLU", dnnl::graph::op::kind::PReLU},
             {"PReLUBackward", dnnl::graph::op::kind::PReLUBackward},
@@ -522,6 +523,8 @@ dnnl_driver_t opkind2driver(const dnnl::graph::op::kind &kind) {
                     {dnnl::graph::op::kind::PReLU, dnnl_driver_t::prelu},
                     {dnnl::graph::op::kind::PReLUBackward,
                             dnnl_driver_t::prelu},
+                    {dnnl::graph::op::kind::PagedCacheLoad,
+                            dnnl_driver_t::custom},
                     {dnnl::graph::op::kind::Pow, dnnl_driver_t::eltwise},
                     {dnnl::graph::op::kind::Quantize, dnnl_driver_t::reorder},
                     {dnnl::graph::op::kind::Reciprocal, dnnl_driver_t::eltwise},
@@ -1182,6 +1185,20 @@ int get_prim_arg_name_from_graph_op_input_offset(
                 return DNNL_ARG_SCALE;
             else if (input_offset == 2)
                 return DNNL_ARG_SHIFT;
+            else {
+                BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
+                        input_offset);
+                assert(false);
+                return -1;
+            }
+        } break;
+        case dnnl::graph::op::kind::PagedCacheLoad: {
+            if (input_offset == 0)
+                // cache
+                return DNNL_ARG_SRC;
+            else if (input_offset == 1)
+                // block table
+                return DNNL_ARG_SRC_1;
             else {
                 BENCHDNN_PRINT(0, "Error: no matching ARG for offset %zu",
                         input_offset);

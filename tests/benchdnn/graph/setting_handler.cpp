@@ -169,6 +169,10 @@ namespace custom {
             op_setting.alg = ::custom::alg_t::GENINDEX;
             base_op_ref.get_attr_s64(op_setting.axis, "axis");
             break;
+        case ::graph::op::kind::PagedCacheLoad:
+            op_setting.alg = ::custom::alg_t::PAGEDCACHELOAD;
+            base_op_ref.get_attr_s64(op_setting.seq_len, "seq_len");
+            break;
         case ::graph::op::kind::Select:
             op_setting.alg = ::custom::alg_t::SELECT;
             break;

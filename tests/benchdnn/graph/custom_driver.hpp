@@ -29,6 +29,7 @@ namespace custom {
 
 enum alg_t {
     GENINDEX,
+    PAGEDCACHELOAD,
     SELECT,
     TRANSPOSE,
     RESHAPE,
@@ -44,6 +45,7 @@ struct settings_t {
     ::std::unordered_map<int, arg_md_t> arg_mds_;
     ::std::vector<int64_t> order;
     int64_t axis = -1;
+    int64_t seq_len = 0;
     alg_t alg = ALG_UNKNOWN;
 
     // A stub to be compliant with `base_settings_t`.
@@ -55,6 +57,7 @@ struct prb_t {
         switch (alg) {
             case GENINDEX: axis = s.axis; break;
             case TRANSPOSE: order = s.order; break;
+            case PAGEDCACHELOAD: seq_len = s.seq_len; break;
             default: break;
         }
     }
@@ -62,6 +65,7 @@ struct prb_t {
     ::std::unordered_map<int, arg_md_t> arg_mds_;
     ::std::vector<int64_t> order;
     int64_t axis = -1;
+    int64_t seq_len = 0;
     attr_t attr;
     alg_t alg = ALG_UNKNOWN;
 };
