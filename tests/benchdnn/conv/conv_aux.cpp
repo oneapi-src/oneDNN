@@ -82,7 +82,7 @@ int str2desc(desc_t *desc, const char *str) {
             ok = 1; \
             s += strlen(prb); \
             char *end_s; \
-            d.c = strtol(s, &end_s, 10); \
+            d.c = strtoll(s, &end_s, 10); \
             if (end_s == s) { \
                 BENCHDNN_PRINT(0, \
                         "ERROR: No value found for `%s` setting. Full " \

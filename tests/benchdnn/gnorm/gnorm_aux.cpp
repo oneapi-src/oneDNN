@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -53,8 +53,8 @@ int str2desc(desc_t *desc, const char *str) {
     const char *s = str;
     assert(s);
 
-    auto mstrtol = [](const char *nptr, char **endptr) {
-        return strtol(nptr, endptr, 10);
+    auto mstrtoll = [](const char *nptr, char **endptr) {
+        return strtoll(nptr, endptr, 10);
     };
 
 #define CASE_NN(prb, c, cvfunc) \
@@ -84,12 +84,12 @@ int str2desc(desc_t *desc, const char *str) {
 #define CASE_N(c, cvfunc) CASE_NN(#c, c, cvfunc)
     while (*s) {
         int ok = 0;
-        CASE_N(g, mstrtol);
-        CASE_N(mb, mstrtol);
-        CASE_N(ic, mstrtol);
-        CASE_N(id, mstrtol);
-        CASE_N(ih, mstrtol);
-        CASE_N(iw, mstrtol);
+        CASE_N(g, mstrtoll);
+        CASE_N(mb, mstrtoll);
+        CASE_N(ic, mstrtoll);
+        CASE_N(id, mstrtoll);
+        CASE_N(ih, mstrtoll);
+        CASE_N(iw, mstrtoll);
         CASE_N(eps, strtof);
         if (*s == 'n') {
             d.name = s + 1;
