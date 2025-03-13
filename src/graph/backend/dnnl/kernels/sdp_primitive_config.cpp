@@ -180,6 +180,7 @@ status_t sdp_primitive_config_t::initial_check(
                     graph::op_kind::Add, graph::op_kind::Select,
                     graph::op_kind::SoftMax};
     op_ptr mm1 = nullptr, mm2 = nullptr, scale = nullptr;
+    bool f32_inter = true;
     for (const auto &cur_op : sg->get_ops()) {
         const auto &op_kind = cur_op->get_kind();
         if (op_kind == graph::op_kind::DynamicDequantize
@@ -213,6 +214,10 @@ status_t sdp_primitive_config_t::initial_check(
         auto post_op = get_post_op(cur_op);
         if (post_op && mm1_post_op_kind.count(post_op->get_kind())) {
             mm1 = cur_op;
+            const auto &lt_score
+                    = mm1->get_output_value(0)->get_logical_tensor();
+            f32_inter = f32_inter
+                    && (ltw(lt_score).data_type() == data_type::f32);
             // Not support select between mm1 and scale(optional)
             // GPT-J:[mm1] --> [select] --> [scale]* --> [mask]* --> ...
             VCHECK_SDP_PRIMITIVE(post_op->get_kind() != graph::op_kind::Select,
@@ -224,11 +229,20 @@ status_t sdp_primitive_config_t::initial_check(
                 // Scale exists, update post_op and traverse to next op
                 scale = post_op;
                 post_op = get_post_op(post_op);
+                const auto &lt_ss
+                        = scale->get_output_value(0)->get_logical_tensor();
+                f32_inter = f32_inter
+                        && (ltw(lt_ss).data_type() == data_type::f32);
             }
             // mask
             if (post_op) {
                 if (post_op->get_kind() == graph::op_kind::Add) {
                     // Mask exists, update post_op and traverse to next op
+                    const auto mask = post_op;
+                    const auto &lt_ms
+                            = mask->get_output_value(0)->get_logical_tensor();
+                    f32_inter = f32_inter
+                            && (ltw(lt_ms).data_type() == data_type::f32);
                     post_op = get_post_op(post_op);
                 }
                 // Not support select after scale(optional) and mask(optional)
@@ -244,6 +258,9 @@ status_t sdp_primitive_config_t::initial_check(
             mm2 = cur_op;
         }
     }
+
+    VCHECK_SDP_PRIMITIVE(f32_inter, status::invalid_graph,
+            "only supports f32 intermediates.");
 
     auto find_graph_inport = [&inputs](const std::shared_ptr<value_t> &val) {
         auto tmp_val = val;
