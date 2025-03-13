@@ -74,8 +74,8 @@ void generateMHAStrides(int64_t b, int64_t h, int64_t s_q, int64_t s_kv,
 }
 
 static compat_0_x::Tensor tensor_create(compat_0_x::DataType_t type, int64_t id,
-        int64_t const *dim, int64_t const *stride, bool is_virtual,
-        bool is_value) {
+        compat_0_x::lt::dims const dim, compat_0_x::lt::dims const stride,
+        bool is_virtual, bool is_value) {
     int nbDims = 4;
     auto tensor_created
             = compat_0_x::TensorBuilder()
