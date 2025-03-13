@@ -76,9 +76,7 @@ std::string prb_t::set_repro_line() {
 
     if (canonical || !has_default_dts) s << "--dt=" << dt << " ";
     if (canonical || stag != def.stag[0]) s << "--stag=" << stag << " ";
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     s << sparse_options;
-#endif
     if (canonical || wtag != def.wtag[0]) s << "--wtag=" << wtag << " ";
     if (canonical || dtag != def.dtag[0]) s << "--dtag=" << dtag << " ";
     if (canonical || strides != def.strides[0])

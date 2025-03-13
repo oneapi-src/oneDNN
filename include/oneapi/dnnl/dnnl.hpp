@@ -738,14 +738,12 @@ enum class query {
     inner_blks = dnnl_query_inner_blks,
     /// vector of logical indices of the blocks
     inner_idxs = dnnl_query_inner_idxs,
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     /// Sparse encoding
     sparse_encoding = dnnl_query_sparse_encoding,
     /// Number of non-zero entries
     nnz_s64 = dnnl_query_nnz_s64,
     /// Number of buffers required for a memory descriptor
     num_handles_s32 = dnnl_query_num_handles_s32,
-#endif
 };
 
 /// Converts query enum value from C++ API to C API type.
@@ -905,31 +903,28 @@ struct memory : public handle<dnnl_memory_t> {
         /// A tensor in a generic format described by the stride and blocking
         /// values in each dimension.
         blocked = dnnl_blocked,
-#ifdef DNNL_EXPERIMENTAL_SPARSE
         /// Format kind for sparse tensors.
         sparse = dnnl_format_kind_sparse,
-#endif
         /// A special format kind that indicates that tensor format is opaque.
         opaque = dnnl_format_kind_opaque,
     };
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     /// Sparse encodings.
+    /// @sa @ref dev_guide_sparsity
     enum class sparse_encoding {
-            /// Undefined sparse encoding kind, used for empty memory descriptors.
-            undef = dnnl_sparse_encoding_undef,
-            /// Compressed Sparse Row (CSR) encoding.
-            csr = dnnl_csr,
-            /// An encoding that is used for an opaque storage schema for
-            /// tensors with unstructured sparsity. A memory descriptor with the
-            /// packed encoding cannot be used to create a memory object. It can
-            /// only be used to create a primitive descriptor to query the
-            /// actual memory descriptor (similar to the format tag `any`).
-            packed = dnnl_packed,
-            /// Coordinate Sparse (COO) encoding.
-            coo = dnnl_coo,
+        /// Undefined sparse encoding kind, used for empty memory descriptors.
+        undef = dnnl_sparse_encoding_undef,
+        /// Compressed Sparse Row (CSR) encoding.
+        csr = dnnl_csr,
+        /// An encoding that is used for an opaque storage schema for
+        /// tensors with unstructured sparsity. A memory descriptor with the
+        /// packed encoding cannot be used to create a memory object. It can
+        /// only be used to create a primitive descriptor to query the
+        /// actual memory descriptor (similar to the format tag `any`).
+        packed = dnnl_packed,
+        /// Coordinate Sparse (COO) encoding.
+        coo = dnnl_coo,
     };
-#endif
 
     /// Memory format tag specification.
     ///
@@ -2820,7 +2815,7 @@ struct memory : public handle<dnnl_memory_t> {
                         "strides");
             reset(md);
         }
-#ifdef DNNL_EXPERIMENTAL_SPARSE
+
         /// Function for creating a memory descriptor for CSR sparse encoding.
         ///
         /// The created memory descriptor will describe a memory object that
@@ -2839,6 +2834,7 @@ struct memory : public handle<dnnl_memory_t> {
         ///     allowed to fail without throwing an exception. In this case a
         ///     zero memory descriptor will be constructed. This flag is
         ///     optional and defaults to false.
+        /// @sa @ref dev_guide_sparsity
         static desc csr(const dims &adims, data_type adata_type, dim nnz,
                 data_type index_dt, data_type pointer_dt,
                 bool allow_empty = false) {
@@ -2873,6 +2869,7 @@ struct memory : public handle<dnnl_memory_t> {
         ///     allowed to fail without throwing an exception. In this case a
         ///     zero memory descriptor will be constructed. This flag is
         ///     optional and defaults to false.
+        /// @sa @ref dev_guide_sparsity
         static desc coo(const dims &adims, data_type adata_type, dim nnz,
                 data_type index_dt, bool allow_empty = false) {
             validate_dims(adims);
@@ -2907,6 +2904,7 @@ struct memory : public handle<dnnl_memory_t> {
         ///     allowed to fail without throwing an exception. In this case a
         ///     zero memory descriptor will be constructed. This flag is
         ///     optional and defaults to false.
+        /// @sa @ref dev_guide_sparsity
         static desc packed(const dims &adims, data_type adata_type, dim nnz,
                 bool allow_empty = false) {
             validate_dims(adims);
@@ -2920,7 +2918,7 @@ struct memory : public handle<dnnl_memory_t> {
                         "sparse encoding");
             return desc {md};
         }
-#endif
+
         /// Construct a memory descriptor from a C API ::dnnl_memory_desc_t
         /// handle. The resulting handle is not weak and the C handle will be
         /// destroyed during the destruction of the C++ object.
@@ -3143,7 +3141,6 @@ struct memory : public handle<dnnl_memory_t> {
             return query_dims(query::inner_idxs);
         }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
         /// Returns number of handles.
         ///
         /// @returns A number of handles.
@@ -3167,6 +3164,7 @@ struct memory : public handle<dnnl_memory_t> {
         /// Returns the sparse encoding of the memory descriptor.
         ///
         /// @returns the sparse encoding kind.
+        /// @sa @ref dev_guide_sparsity
         memory::sparse_encoding get_sparse_encoding() const {
             dnnl_sparse_encoding_t sparse_encoding;
             dnnl_status_t status = dnnl_memory_desc_query_v2(
@@ -3183,14 +3181,6 @@ struct memory : public handle<dnnl_memory_t> {
         memory::data_type get_data_type(int index = 0) const {
             return query_data_type(query::data_type, index);
         }
-#else
-        /// Returns the data type of the memory descriptor.
-        ///
-        /// @returns The data type.
-        memory::data_type get_data_type() const {
-            return query_data_type(query::data_type);
-        }
-#endif
 
         /// Returns the format kind of the memory descriptor.
         ///
@@ -3210,7 +3200,6 @@ struct memory : public handle<dnnl_memory_t> {
         /// @returns A copy of the dimensions vector.
         memory::dims get_dims() const { return query_dims(query::dims); }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
         /// Returns size of the memory descriptor in bytes.
         /// @param index Data index. Defaults to 0.
         /// @returns The number of bytes required to allocate a memory buffer
@@ -3219,13 +3208,6 @@ struct memory : public handle<dnnl_memory_t> {
         size_t get_size(int index = 0) const {
             return dnnl_memory_desc_get_size_v2(get(), index);
         }
-#else
-        /// Returns size of the memory descriptor in bytes.
-        /// @returns The number of bytes required to allocate a memory buffer
-        ///     for the memory object described by this memory descriptor
-        ///     including the padding area.
-        size_t get_size() const { return dnnl_memory_desc_get_size(get()); }
-#endif
 
         /// Returns a binary blob associated with the given memory descriptor
         /// @returns The memory descriptor blob associated with the memory descriptor
@@ -3262,7 +3244,6 @@ struct memory : public handle<dnnl_memory_t> {
         bool operator!=(const desc &other) const { return !operator==(other); }
 
     private:
-#ifdef DNNL_EXPERIMENTAL_SPARSE
         memory::data_type query_data_type(query what, int index) const {
             dnnl_data_type_t data_type;
             dnnl_status_t status = dnnl_memory_desc_query_v2(
@@ -3271,16 +3252,6 @@ struct memory : public handle<dnnl_memory_t> {
                     ? static_cast<dnnl::memory::data_type>(data_type)
                     : dnnl::memory::data_type::undef;
         }
-#else
-        memory::data_type query_data_type(query what) const {
-            dnnl_data_type_t data_type;
-            dnnl_status_t status = dnnl_memory_desc_query(
-                    get(), dnnl::convert_to_c(what), &data_type);
-            return status == dnnl_success
-                    ? static_cast<dnnl::memory::data_type>(data_type)
-                    : dnnl::memory::data_type::undef;
-        }
-#endif
 
         int query_s32(query what) const {
             int res;
@@ -3311,7 +3282,6 @@ struct memory : public handle<dnnl_memory_t> {
     /// absence of a parameter.
     memory() = default;
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     /// Constructs a memory object.
     ///
     /// Unless @p handle is equal to #DNNL_MEMORY_NONE, the constructed memory
@@ -3380,43 +3350,6 @@ struct memory : public handle<dnnl_memory_t> {
         error::wrap_c_api(status, "could not create a memory object");
         reset(result);
     }
-#else
-    /// Constructs a memory object.
-    ///
-    /// Unless @p handle is equal to #DNNL_MEMORY_NONE, the constructed memory
-    /// object will have the underlying buffer set. In this case, the buffer
-    /// will be initialized as if #dnnl::memory::set_data_handle() had been
-    /// called.
-    ///
-    /// @sa memory::set_data_handle()
-    ///
-    /// @param md Memory descriptor.
-    /// @param aengine Engine to store the data on.
-    /// @param handle Handle of the memory buffer to use.
-    ///     - A pointer to the user-allocated buffer. In this case the library
-    ///       doesn't own the buffer.
-    ///     - The #DNNL_MEMORY_ALLOCATE special value. Instructs the library to
-    ///       allocate the buffer for the memory object. In this case the
-    ///       library owns the buffer.
-    ///     - #DNNL_MEMORY_NONE to create dnnl::memory without an underlying
-    ///       buffer.
-    memory(const desc &md, const engine &aengine, void *handle) {
-        dnnl_memory_t result;
-        error::wrap_c_api(
-                dnnl_memory_create(&result, md.get(), aengine.get(), handle),
-                "could not create a memory object");
-        reset(result);
-    }
-
-    /// Constructs a memory object.
-    ///
-    /// The underlying buffer for the memory will be allocated by the library.
-    ///
-    /// @param md Memory descriptor.
-    /// @param aengine Engine to store the data on.
-    memory(const desc &md, const engine &aengine)
-        : memory(md, aengine, DNNL_MEMORY_ALLOCATE) {}
-#endif
 
     /// Returns the associated memory descriptor.
     desc get_desc() const {
@@ -3437,7 +3370,6 @@ struct memory : public handle<dnnl_memory_t> {
         return engine(c_engine, true);
     }
 
-#ifdef DNNL_EXPERIMENTAL_SPARSE
     /// Returns an underlying memory buffer that corresponds to the given index.
     ///
     /// On the CPU engine, or when using USM, this is a pointer to the
@@ -3508,73 +3440,6 @@ struct memory : public handle<dnnl_memory_t> {
         error::wrap_c_api(dnnl_memory_unmap_data_v2(get(), mapped_ptr, index),
                 "could not unmap memory object data");
     }
-#else
-    /// Returns the underlying memory buffer.
-    ///
-    /// On the CPU engine, or when using USM, this is a pointer to the
-    /// allocated memory.
-    void *get_data_handle() const {
-        void *handle;
-        error::wrap_c_api(dnnl_memory_get_data_handle(get(), &handle),
-                "could not get a native handle from a memory object");
-        return handle;
-    }
-
-    /// Sets the underlying memory buffer.
-    ///
-    /// @param handle Memory buffer to use. On the CPU engine or when USM is
-    ///     used, the memory buffer is a pointer to the actual data. For OpenCL
-    ///     it is a cl_mem. It must have at least
-    ///     #dnnl::memory::desc::get_size() bytes allocated.
-    void set_data_handle(void *handle) const {
-        error::wrap_c_api(dnnl_memory_set_data_handle(get(), handle),
-                "could not set native handle of a memory object");
-    }
-
-    /// Maps a memory object and returns a host-side pointer to a memory
-    /// buffer with a copy of its contents.
-    ///
-    /// Mapping enables read/write directly from/to the memory contents for
-    /// engines that do not support direct memory access.
-    ///
-    /// Mapping is an exclusive operation - a memory object cannot be used in
-    /// other operations until it is unmapped via #dnnl::memory::unmap_data()
-    /// call.
-    ///
-    /// @note
-    ///     Any primitives working with the memory should be completed before
-    ///     the memory is mapped. Use #dnnl::stream::wait() to synchronize the
-    ///     corresponding execution stream.
-    ///
-    /// @note
-    ///     The map_data and unmap_data functions are provided mainly for
-    ///     debug and testing purposes and their performance may be suboptimal.
-    ///
-    /// @tparam T Data type to return a pointer to.
-    /// @returns Pointer to the mapped memory.
-    template <typename T = void>
-    T *map_data() const {
-        void *mapped_ptr;
-        error::wrap_c_api(dnnl_memory_map_data(get(), &mapped_ptr),
-                "could not map memory object data");
-        return static_cast<T *>(mapped_ptr);
-    }
-
-    /// Unmaps a memory object and writes back any changes made to the
-    /// previously mapped memory buffer.
-    ///
-    /// @note
-    ///     The map_data and unmap_data functions are provided mainly for
-    ///     debug and testing purposes and their performance may be
-    ///     suboptimal.
-    ///
-    /// @param mapped_ptr A pointer previously returned by
-    ///     #dnnl::memory::map_data().
-    void unmap_data(void *mapped_ptr) const {
-        error::wrap_c_api(dnnl_memory_unmap_data(get(), mapped_ptr),
-                "could not unmap memory object data");
-    }
-#endif
 
     static dnnl_data_type_t convert_to_c(data_type adata_type) {
         return static_cast<dnnl_data_type_t>(adata_type);
