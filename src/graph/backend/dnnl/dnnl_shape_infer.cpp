@@ -545,6 +545,29 @@ status_t infer_dnnl_binary_output_shape(op_t *n,
     }
 }
 
+//TODO(GX): revisit this function to correct logic
+status_t infer_dnnl_sdpa_output_shape(op_t *n,
+        std::vector<logical_tensor_t *> &inputs,
+        std::vector<logical_tensor_t *> &outputs) {
+    auto query = logical_tensor_wrapper_t(inputs[0]);
+    auto key = logical_tensor_wrapper_t(inputs[1]);
+    auto value = logical_tensor_wrapper_t(inputs[1]);
+    dims query_dims = query.vdims();
+    dims key_dims = key.vdims();
+    dims value_dims = value.vdims();
+
+    VCHECK_INVALID_SHAPE((query_dims.size() == key_dims.size()
+                                 && key_dims.size() == value_dims.size()),
+            "%s, all input dims should match each other. input0 dims: %s, "
+            "input1 dims: %s, input2 dims: %s ",
+            op_t::kind2str(n->get_kind()).c_str(), dims2str(query_dims).c_str(),
+            dims2str(key_dims).c_str(), dims2str(value_dims).c_str());
+
+    dims inferred_output_shape = query_dims;
+    set_shape_and_strides(*outputs[0], inferred_output_shape);
+    return status::success;
+}
+
 } // namespace dnnl_impl
 } // namespace graph
 } // namespace impl

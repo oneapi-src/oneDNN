@@ -45,6 +45,10 @@ const op_attr_t with_runtime_dst_zps = 0x1000c;
 const op_attr_t is_bias_add = 0x1000d;
 const op_attr_t with_sum = 0x1000e;
 const op_attr_t keep_dst_layout = 0x1000f;
+const op_attr_t with_scale = 0x10010;
+const op_attr_t is_invert_scale = 0x10011;
+const op_attr_t with_causal = 0x10012;
+const op_attr_t with_mask = 0x10013;
 
 // int64_t
 const op_attr_t alg_kind = 0x10100;
@@ -86,6 +90,10 @@ static inline std::string internal_attr2str(op_attr_t attr) {
         CASE(is_bias_add);
         CASE(with_sum);
         CASE(keep_dst_layout);
+        CASE(with_scale);
+        CASE(is_invert_scale);
+        CASE(with_causal);
+        CASE(with_mask);
         CASE(alg_kind);
         CASE(fusion_info_key);
         CASE(axis_row);
