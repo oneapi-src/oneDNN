@@ -40,8 +40,8 @@ public:
 #undef GENNAME
 
 protected:
-    void init_kernel_grid(const grid_info_t &kernel_grid,
-            const grid_info_t &tg_grid, int simd_size, constraint_set_t &cset,
+    void init_thread_grids(const grid_info_t &tg_grid,
+            const grid_info_t &thr_grid, int simd_size, constraint_set_t &cset,
             std::vector<stmt_t> &init_stmts);
 
     virtual void build() = 0;

@@ -1313,7 +1313,8 @@ void init_params(conv_config_t &cfg) {
     cfg.tiler().set_params(cfg);
 }
 
-std::array<pvar_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg) {
+std::array<pvar_tile_t, 3> get_thread_group_grid_conv_dims(
+        const conv_config_t &cfg) {
     std::array<pvar_tile_t, 3> grid_dims;
     for (int i = 0; i < 3; i++) {
         for (auto &d : cfg.walk_order().grid_dims(i)) {
@@ -1325,7 +1326,7 @@ std::array<pvar_tile_t, 3> get_kernel_grid_conv_dims(const conv_config_t &cfg) {
 
 using pvar_tile_3 = std::array<pvar_tile_t, 3>;
 
-pvar_tile_3 get_thread_group_grid_conv_dims(const conv_config_t &cfg) {
+pvar_tile_3 get_thread_grid_conv_dims(const conv_config_t &cfg) {
     static const pvar_tile_t fwd_0({pvars::oc}, 1);
     static const pvar_tile_t fwd_1({pvars::mb, pvars::ow}, 1);
     static const pvar_tile_t fwd_2({pvars::ic}, 1);
@@ -1355,12 +1356,12 @@ pvar_tile_3 get_thread_group_grid_conv_dims(const conv_config_t &cfg) {
     return fwd;
 }
 
-void init_kernel_grid(conv_config_t &cfg) {
-    cfg.init_kernel_grid(get_kernel_grid_conv_dims(cfg));
-}
-
 void init_thread_group_grid(conv_config_t &cfg) {
     cfg.init_thread_group_grid(get_thread_group_grid_conv_dims(cfg));
+}
+
+void init_thread_grid(conv_config_t &cfg) {
+    cfg.init_thread_grid(get_thread_grid_conv_dims(cfg));
 }
 
 void get_layout_and_dims(tensor_kind_t ab_kind, const conv_config_t &cfg,
@@ -1628,12 +1629,12 @@ walk_order_t compute_walk_order(const conv_config_t &cfg) {
     pvar_tile_t inner;
     for (auto &d : conv_index_dims(cfg.prb().prop_kind())) {
         dim_t iter = cfg.iter_dim(d);
-        dim_t tg = cfg.thread_group_dim(d);
+        dim_t thr = cfg.thread_dim(d);
         dim_t loop = cfg.loop_dim(d);
-        dim_t size = iter * tg * loop;
+        dim_t size = iter * thr * loop;
         if (size == 1) continue;
         inner[d] = size;
-        tg_size *= tg;
+        tg_size *= thr;
     }
     auto grid_tile = get_grid_tile(cfg);
     auto default_walk_order = get_default_walk_order(cfg, grid_tile);
@@ -1768,10 +1769,10 @@ void init_slm(conv_config_t &cfg) {
     bool enable_a = cfg.plan().slm.has_a();
     bool enable_b = cfg.plan().slm.has_b();
     if (enable_a || enable_b) {
-        auto &tg = cfg.thread_group_grid();
+        auto &thr = cfg.thread_grid();
         bufs = cfg.bufs_hint();
         if (bufs == blocking_params_t::bufs_hint_undef) {
-            bufs = slm_bufs_hint(prb, tg.dim(1), tg.dim(0),
+            bufs = slm_bufs_hint(prb, thr.dim(1), thr.dim(0),
                     cfg.zp_cfg().do_src_compensation, enable_a, enable_b,
                     cfg.pipeline().do_unroll());
         } else if (cfg.zp_cfg().do_src_compensation) {
@@ -1819,7 +1820,7 @@ void fixup_config(conv_config_t &cfg) {
     if (cfg.fma_kind() == fma_kind_t::dpasw) {
         // dpasw is executed by fused EUs (across X thread group
         // dimension). Do not use dpasw if X is uneven.
-        if (cfg.thread_group_grid().dim(0) % 2 != 0)
+        if (cfg.thread_grid().dim(0) % 2 != 0)
             cfg.set_fma_kind(fma_kind_t::dpas);
         // dpasw can't be generated in case of direct load from GMEM and reorder.
         if (prb.is_bwd_w && (!cfg.slm().a() || !cfg.slm().b()))
@@ -1835,11 +1836,11 @@ void validate_config_and_plan(conv_config_t &cfg) {
                           if (d == dim) return;
                   gpu_error_not_expected() << dim.name();
               };
+    const auto &thr_dims = get_thread_grid_conv_dims(cfg);
     const auto &tg_dims = get_thread_group_grid_conv_dims(cfg);
-    const auto &grid_dims = get_kernel_grid_conv_dims(cfg);
     for (auto &d : cfg.dims()) {
-        if (cfg.thread_group_dim(d) != 1) check_if_in_grid_dims(tg_dims, d);
-        if (cfg.grid_dim(d) != 1) check_if_in_grid_dims(grid_dims, d);
+        if (cfg.thread_dim(d) != 1) check_if_in_grid_dims(thr_dims, d);
+        if (cfg.grid_dim(d) != 1) check_if_in_grid_dims(tg_dims, d);
     }
 
     auto &plan = cfg.plan();
@@ -1888,8 +1889,8 @@ void validate_config_and_plan(conv_config_t &cfg) {
 status_t try_init_cfg(conv_config_t &cfg) {
     init_params(cfg);
     init_walk_order(cfg);
-    init_kernel_grid(cfg);
     init_thread_group_grid(cfg);
+    init_thread_grid(cfg);
 
     CHECK(init_plan(cfg));
 
@@ -1980,14 +1981,15 @@ std::string conv_config_t::str() const {
         }
         oss << std::endl;
     }
-    dim_t kg_elems = kernel_grid().elems(), tg_elems = thread_group_grid().elems();
+    dim_t tg_count = thread_group_grid().elems();
+    dim_t tg_size = thread_grid().elems();
     int estimated_peak_regs = estimate_register_count(*this);
     oss << blocking_brief_str();
-    oss << "  Kernel grid:                " << kernel_grid() << std::endl;
-    oss << "  Thread group:               " << thread_group_grid() << std::endl;
-    oss << "  Threads:                    " << kg_elems * tg_elems << " (utilization: "
-        << get_thread_utilization(exec_cfg(), kg_elems, tg_elems) << "% thread, "
-        << get_wave_utilization(exec_cfg(), kg_elems, tg_elems) << "% wave)" << std::endl;
+    oss << "  Thread group grid:          " << thread_group_grid() << std::endl;
+    oss << "  Thread grid:                " << thread_grid() << std::endl;
+    oss << "  Threads:                    " << tg_count * tg_size << " (utilization: "
+        << get_thread_utilization(exec_cfg(), tg_count, tg_size) << "% thread, "
+        << get_wave_utilization(exec_cfg(), tg_count, tg_size) << "% wave)" << std::endl;
     oss << "  FMA kind:                   " << to_string(fma_kind()) << std::endl;
     oss << "  SLM buffering:              " << "A: " << to_string(slm().a()) << ", B: " << to_string(slm().b())
                                             << ", buffers: " << slm().bufs() << ", pad: " << to_string(pad_slm()) << std::endl;
@@ -2023,14 +2025,14 @@ std::string conv_config_t::blocking_brief_str() const {
     std::ostringstream oss;
     for (auto &d : index_dims()) {
         dim_t iter = iter_dim(d);
-        dim_t tg = thread_group_dim(d);
+        dim_t thr = thread_dim(d);
         dim_t loop = loop_dim(d);
         dim_t grid = grid_dim(d);
-        if (iter == 1 && loop == 1 && tg == 1) continue;
+        if (iter == 1 && loop == 1 && thr == 1) continue;
         oss << "  Dimension " << d.name()
             << pad_str(":", -18 + (int)d.name().length());
         oss << "(grid:" << pad_int(grid, 5) << ") x ";
-        oss << "(tg:" << pad_int(tg, 5) << ") x ";
+        oss << "(thr:" << pad_int(thr, 5) << ") x ";
         oss << "(loop:" << pad_int(loop, 5) << ") x ";
         oss << "(iter:" << pad_int(iter, 5) << ")\n";
     }
@@ -2062,8 +2064,8 @@ bool conv_config_t::can_skip_wei_zero_out() const {
     bmnk_dim_helper_t h(*this);
     dim_t k_iter_dim = h.iter_dim(pvars::k);
     dim_t k_loop_dim = h.loop_dim(pvars::k);
-    dim_t k_tg_dim = h.thread_group_dim(pvars::k);
-    dim_t k_tg_block = k_iter_dim * k_loop_dim * k_tg_dim;
+    dim_t k_thr_dim = h.thread_dim(pvars::k);
+    dim_t k_tg_block = k_iter_dim * k_loop_dim * k_thr_dim;
     dim_t k_padded = padded_dim(pvars::mb) * padded_dim(pvars::od)
             * padded_dim(pvars::oh) * padded_dim(pvars::ow);
     return k_tg_block >= k_padded;

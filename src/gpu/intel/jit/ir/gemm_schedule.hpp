@@ -186,12 +186,12 @@ private:
 
 enum class loop_kind_t : int {
     undef = 0,
-    // Loop is bound to the kernel grid.
-    kernel_grid = (1 << 0),
+    // Loop is bound to the thread group grid (also known as kernel grid).
+    tg_grid = (1 << 0),
     // Loop is inside a thread (may be unrolled or just a regular loop).
     serial = (1 << 1),
-    // Loop is bound to the thread group grid.
-    tg_grid = (1 << 2),
+    // Loop is bound to the grid of threads within a thread group.
+    thr_grid = (1 << 2),
     // Such loops are fully unrolled/vectorized and converted to blocked multiplication.
     tensorized = (1 << 3),
 };
@@ -199,9 +199,9 @@ enum class loop_kind_t : int {
 static std::string to_string(loop_kind_t kind) {
     switch (kind) {
         case loop_kind_t::undef: return "undef";
-        case loop_kind_t::kernel_grid: return "kernel_grid";
-        case loop_kind_t::serial: return "serial";
         case loop_kind_t::tg_grid: return "tg_grid";
+        case loop_kind_t::serial: return "serial";
+        case loop_kind_t::thr_grid: return "thr_grid";
         case loop_kind_t::tensorized: return "tensorized";
         default: gpu_error_not_expected();
     }
@@ -225,8 +225,8 @@ inline bool any(loop_kind_t a) {
     return a != loop_kind_t::undef;
 }
 
-const loop_kind_t all_loop_kinds = loop_kind_t::kernel_grid
-        | loop_kind_t::serial | loop_kind_t::tg_grid | loop_kind_t::tensorized;
+const loop_kind_t all_loop_kinds = loop_kind_t::tg_grid | loop_kind_t::thr_grid
+        | loop_kind_t::serial | loop_kind_t::tensorized;
 
 class loop_t {
 public:
@@ -248,11 +248,11 @@ public:
 
     void set_unroll_factor(int factor) { unroll_factor_ = factor; }
 
-    bool is_kernel_grid() const { return kind() == loop_kind_t::kernel_grid; }
+    bool is_tg_grid() const { return kind() == loop_kind_t::tg_grid; }
 
     bool is_serial() const { return kind() == loop_kind_t::serial; }
 
-    bool is_tg_grid() const { return kind() == loop_kind_t::tg_grid; }
+    bool is_thr_grid() const { return kind() == loop_kind_t::thr_grid; }
 
     bool is_tensorized() const { return kind() == loop_kind_t::tensorized; }
 
@@ -411,18 +411,18 @@ class gemm_schedule_t {
 public:
     gemm_schedule_t() = default;
 
-    gemm_schedule_t(constraint_set_t &cset, const grid_info_t &kernel_grid,
-            const grid_info_t &tg_grid,
-            const walk_order_t &kernel_grid_walk_order = {})
+    gemm_schedule_t(constraint_set_t &cset, const grid_info_t &tg_grid,
+            const grid_info_t &thr_grid,
+            const walk_order_t &tg_grid_walk_order = {})
         : cset_(&cset)
-        , kernel_grid_(kernel_grid)
         , tg_grid_(tg_grid)
-        , kernel_grid_walk_order_(kernel_grid_walk_order) {}
+        , thr_grid_(thr_grid)
+        , tg_grid_walk_order_(tg_grid_walk_order) {}
 
-    const grid_info_t &kernel_grid() const { return kernel_grid_; }
     const grid_info_t &tg_grid() const { return tg_grid_; }
-    const walk_order_t &kernel_grid_walk_order() const {
-        return kernel_grid_walk_order_;
+    const grid_info_t &thr_grid() const { return thr_grid_; }
+    const walk_order_t &tg_grid_walk_order() const {
+        return tg_grid_walk_order_;
     }
 
     bmnk_kind_t bmnk_kind(const expr_t &var) const {
@@ -487,7 +487,7 @@ public:
     }
 
     tensor_t tg_view_tile(const view_t &view) const {
-        return view_tile(view, tile_level_t::thread_group);
+        return view_tile(view, tile_level_t::thread);
     }
 
     tensor_t thr_view_tile(const view_t &view, bool is_relative = true) const {
@@ -691,7 +691,7 @@ public:
         dynamic_steps_[var] = expand(step);
     }
 
-    bool with_thread_group_k_slicing() const {
+    bool with_thread_grid_k_slicing() const {
         gpu_assert(is_finalized_);
         dim_t k_thr = 1;
         dim_t k_tg = 1;
@@ -705,7 +705,7 @@ public:
         return k_thr < k_tg;
     }
 
-    bool with_kernel_grid_k_slicing() const {
+    bool with_thread_group_grid_k_slicing() const {
         gpu_assert(is_finalized_);
         dim_t k_loop = 1;
         dim_t k = 1;
@@ -819,13 +819,13 @@ public:
     }
 
 private:
-    enum class tile_level_t { kernel_grid, loop, thread_group, iter };
+    enum class tile_level_t { thread_group, loop, thread, iter };
 
     static int nesting_level(tile_level_t level) {
         switch (level) {
-            case tile_level_t::kernel_grid: return 0;
+            case tile_level_t::thread_group: return 0;
             case tile_level_t::loop: return 1;
-            case tile_level_t::thread_group: return 2;
+            case tile_level_t::thread: return 2;
             case tile_level_t::iter: return 3;
             default: gpu_error_not_expected();
         }
@@ -834,9 +834,9 @@ private:
 
     static int nesting_level(loop_kind_t kind) {
         switch (kind) {
-            case loop_kind_t::kernel_grid: return 0;
+            case loop_kind_t::tg_grid: return 0;
             case loop_kind_t::serial: return 1;
-            case loop_kind_t::tg_grid: return 2;
+            case loop_kind_t::thr_grid: return 2;
             case loop_kind_t::tensorized: return 3;
             default: gpu_error_not_expected();
         }
@@ -865,8 +865,8 @@ private:
         bool is_valid() const {
             auto get_loop_key = [&](int loop_idx) {
                 switch (loop_kinds_[loop_idx]) {
-                    case loop_kind_t::kernel_grid: return -1;
-                    case loop_kind_t::tg_grid:
+                    case loop_kind_t::tg_grid: return -1;
+                    case loop_kind_t::thr_grid:
                     // FIXME
                     case loop_kind_t::serial: return 0;
                     case loop_kind_t::tensorized:
@@ -940,27 +940,26 @@ private:
     }
 
     loop_kind_t bound_var_to_loop_kind(const expr_t &v) const {
-        for (dim_idx_t i = 0; i < kernel_grid_.ndims(); i++) {
-            if (kernel_grid_.idx(i).is_same(v)) return loop_kind_t::kernel_grid;
-        }
         for (dim_idx_t i = 0; i < tg_grid_.ndims(); i++) {
             if (tg_grid_.idx(i).is_same(v)) return loop_kind_t::tg_grid;
         }
-        if (kernel_grid_walk_order_.is_grid_var(v))
-            return loop_kind_t::kernel_grid;
+        for (dim_idx_t i = 0; i < thr_grid_.ndims(); i++) {
+            if (thr_grid_.idx(i).is_same(v)) return loop_kind_t::thr_grid;
+        }
+        if (tg_grid_walk_order_.is_grid_var(v)) return loop_kind_t::tg_grid;
         gpu_error_not_expected() << "Unknown external variable: " << v;
         return loop_kind_t::undef;
     }
 
     dim_t bound_var_to_dim(const expr_t &v) const {
-        for (dim_idx_t i = 0; i < kernel_grid_.ndims(); i++) {
-            if (kernel_grid_.idx(i).is_same(v)) return kernel_grid_.dim(i);
-        }
         for (dim_idx_t i = 0; i < tg_grid_.ndims(); i++) {
             if (tg_grid_.idx(i).is_same(v)) return tg_grid_.dim(i);
         }
-        if (kernel_grid_walk_order_.is_grid_var(v))
-            return kernel_grid_walk_order_.dim_size(v);
+        for (dim_idx_t i = 0; i < thr_grid_.ndims(); i++) {
+            if (thr_grid_.idx(i).is_same(v)) return thr_grid_.dim(i);
+        }
+        if (tg_grid_walk_order_.is_grid_var(v))
+            return tg_grid_walk_order_.dim_size(v);
         gpu_error_not_expected() << "Unknown external variable: " << v;
         return -1;
     }
@@ -1024,11 +1023,11 @@ private:
             }
         }
         a_tg_tile_ = compute_problem_tile(
-                a_view_.vvars(), split_infos, tile_level_t::thread_group);
+                a_view_.vvars(), split_infos, tile_level_t::thread);
         b_tg_tile_ = compute_problem_tile(
-                b_view_.vvars(), split_infos, tile_level_t::thread_group);
+                b_view_.vvars(), split_infos, tile_level_t::thread);
         c_tg_tile_ = compute_problem_tile(
-                c_view_.vvars(), split_infos, tile_level_t::thread_group);
+                c_view_.vvars(), split_infos, tile_level_t::thread);
         a_thr_tile_ = compute_problem_tile(
                 a_view_.vvars(), split_infos, tile_level_t::iter);
         b_thr_tile_ = compute_problem_tile(
@@ -1105,7 +1104,7 @@ private:
             tile_level_t tile_level) const {
         std::vector<dim_t> tile_dims;
         std::vector<expr_t> tile_start;
-        bool with_outer = (tile_level == tile_level_t::thread_group);
+        bool with_outer = (tile_level == tile_level_t::thread);
         for (auto &v : vars) {
             auto &split_info = split_infos.at(v);
             tile_dims.push_back(split_info.dim(tile_level));
@@ -1132,9 +1131,9 @@ private:
     bool is_finalized_ = false;
 
     constraint_set_t *cset_ = nullptr;
-    grid_info_t kernel_grid_;
     grid_info_t tg_grid_;
-    walk_order_t kernel_grid_walk_order_;
+    grid_info_t thr_grid_;
+    walk_order_t tg_grid_walk_order_;
 
     // Loop indices, ordered from outermost to innermost.
     std::vector<expr_t> vars_;

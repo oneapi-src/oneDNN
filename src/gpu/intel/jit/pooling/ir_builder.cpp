@@ -174,8 +174,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     const int simd = exec.simd();
     const auto &lg = cfg.loop_grid();
-    const auto &kg = cfg.kernel_grid();
     const auto &tg = cfg.thread_group_grid();
+    const auto &thr = cfg.thread_grid();
     const auto &dims_grid = cfg.dims_padded();
     std::vector<dim_t> padded_dims(dims_grid.ndims());
     for (dim_idx_t i = 0; i < padded_dims.size(); i++)
@@ -222,18 +222,18 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     constraint_set_t init_cset;
     std::vector<stmt_t> init_stmts;
-    pb.init_kernel_grid(kg, tg, simd, init_cset, init_stmts);
+    pb.init_thread_grids(tg, thr, simd, init_cset, init_stmts);
 
-    gemm_schedule_t schedule(init_cset, kg, tg);
+    gemm_schedule_t schedule(init_cset, tg, thr);
     schedule.set_view(src_view);
     schedule.set_view(dst_view);
     schedule.set_var_bound(mb, dims[0]);
 
-    auto kg_bind = [&](const std::vector<expr_t> &fuse, int idx) {
+    auto tg_bind = [&](const std::vector<expr_t> &fuse, int idx) {
         if (fuse.size() > 1)
-            schedule.bind(schedule.fuse(fuse), kg.idx(idx));
+            schedule.bind(schedule.fuse(fuse), tg.idx(idx));
         else if (fuse.size() == 1)
-            schedule.bind(fuse[0], kg.idx(idx));
+            schedule.bind(fuse[0], tg.idx(idx));
     };
     auto odhw_to_schedule = [&](expr_t s1, expr_t ns, expr_t s0) {
         dim_idx_t s0_idx
@@ -254,66 +254,66 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
         }
 
         const dim_t s1_tlg_unroll = lg[s1_idx];
-        const dim_t s1_unroll = s1_tlg_unroll * tg[s1_idx - 2];
+        const dim_t s1_unroll = s1_tlg_unroll * thr[s1_idx - 2];
         const auto ps1 = s1.str();
 
         std::vector<expr_t> s0_fuse, s1_fuse;
 
-        expr_t s1_kg, s1_tlg, s1_tg, s1_lg;
-        schedule.split(s1, s1_unroll, s1_kg, s1_tlg, ps1 + "_kg", ps1 + "_tlg");
-        schedule.split(
-                s1_tlg, s1_tlg_unroll, s1_tg, s1_lg, ps1 + "_tg", ps1 + "_lg");
+        expr_t s1_tg, s1_tlg, s1_thr, s1_lg;
+        schedule.split(s1, s1_unroll, s1_tg, s1_tlg, ps1 + "_tg", ps1 + "_tlg");
+        schedule.split(s1_tlg, s1_tlg_unroll, s1_thr, s1_lg, ps1 + "_thr",
+                ps1 + "_lg");
 
         schedule.tensorize(s1_lg);
-        schedule.bind(s1_tg, tg.idx(s1_idx - 2));
-        s1_fuse.emplace_back(s1_kg);
+        schedule.bind(s1_thr, thr.idx(s1_idx - 2));
+        s1_fuse.emplace_back(s1_tg);
 
         if (s0_idx != dim_idx::invalid) {
             gpu_assert(s0_idx == s1_idx + 1);
             const dim_t s0_tlg_unroll = lg[s0_idx];
-            const dim_t s0_unroll = s0_tlg_unroll * tg[s0_idx - 2];
-            const dim_t s0_full = s0_unroll * kg[s0_idx - 2];
+            const dim_t s0_unroll = s0_tlg_unroll * thr[s0_idx - 2];
+            const dim_t s0_full = s0_unroll * tg[s0_idx - 2];
             const auto ps0 = s0.str();
 
             if (dims[s0_idx] > s0_full) {
-                expr_t s0_split, s0_ktlg; // part of kg[s0] is in kg[s1]
-                schedule.split(s0, s0_full, s0_split, s0_ktlg, ps0 + "_split",
-                        ps0 + "_ktlg");
+                expr_t s0_split, s0_ttlg; // part of tg[s0] is in tg[s1]
+                schedule.split(s0, s0_full, s0_split, s0_ttlg, ps0 + "_split",
+                        ps0 + "_ttlg");
                 s1_fuse.emplace_back(s0_split);
-                s0 = std::move(s0_ktlg);
+                s0 = std::move(s0_ttlg);
             } else if (dims[s0_idx] <= utils::div_up(s0_full, 2)) {
-                expr_t s1_split, s1_ktlg; // part of kg[s1] is in kg[s0]
+                expr_t s1_split, s1_ttlg; // part of tg[s1] is in tg[s0]
                 const dim_t s1_ext = utils::div_up(s0_full, dims[s0_idx]);
-                schedule.split(s1_fuse[0], s1_ext, s1_ktlg, s1_split,
-                        ps1 + "_ktlg", ps1 + "_split");
-                s1_fuse[0] = std::move(s1_ktlg);
+                schedule.split(s1_fuse[0], s1_ext, s1_ttlg, s1_split,
+                        ps1 + "_ttlg", ps1 + "_split");
+                s1_fuse[0] = std::move(s1_ttlg);
                 s0_fuse.emplace_back(s1_split);
             }
 
-            expr_t s0_kg, s0_tlg, s0_tg, s0_lg;
+            expr_t s0_tg, s0_tlg, s0_thr, s0_lg;
             schedule.split(
-                    s0, s0_unroll, s0_kg, s0_tlg, ps0 + "_kg", ps0 + "_tlg");
-            schedule.split(s0_tlg, s0_tlg_unroll, s0_tg, s0_lg, ps0 + "_tg",
+                    s0, s0_unroll, s0_tg, s0_tlg, ps0 + "_tg", ps0 + "_tlg");
+            schedule.split(s0_tlg, s0_tlg_unroll, s0_thr, s0_lg, ps0 + "_thr",
                     ps0 + "_lg");
 
             schedule.tensorize(s0_lg);
-            schedule.bind(s0_tg, tg.idx(s0_idx - 2));
-            s0_fuse.emplace_back(s0_kg);
+            schedule.bind(s0_thr, thr.idx(s0_idx - 2));
+            s0_fuse.emplace_back(s0_tg);
         }
 
         const dim_t ns_unroll = lg[ns_idx];
         const auto pns = ns.str();
 
-        expr_t ns_kg, ns_lg;
-        schedule.split(ns, ns_unroll, ns_kg, ns_lg, pns + "_kg", pns + "_lg");
+        expr_t ns_tg, ns_lg;
+        schedule.split(ns, ns_unroll, ns_tg, ns_lg, pns + "_tg", pns + "_lg");
         if (need_swap)
-            s1_fuse.emplace(s1_fuse.begin(), ns_kg);
+            s1_fuse.emplace(s1_fuse.begin(), ns_tg);
         else
-            s1_fuse.emplace_back(ns_kg);
+            s1_fuse.emplace_back(ns_tg);
         schedule.tensorize(ns_lg);
 
-        kg_bind(s0_fuse, s0_idx - 2);
-        kg_bind(s1_fuse, s1_idx - 2);
+        tg_bind(s0_fuse, s0_idx - 2);
+        tg_bind(s1_fuse, s1_idx - 2);
     };
     odhw_to_schedule(oc, od, expr_t());
     if (cfg.is_blocked_by_mb())
@@ -344,8 +344,8 @@ stmt_t pooling_ir_builder_t::try_build(pooling_ir_builder_t &pb,
 
     schedule.finalize();
 
-    const auto expand_loop_kinds = loop_kind_t::serial
-            | loop_kind_t::kernel_grid | loop_kind_t::tg_grid;
+    const auto expand_loop_kinds = loop_kind_t::tg_grid | loop_kind_t::thr_grid
+            | loop_kind_t::serial;
     mb = schedule.expand(mb, true, expand_loop_kinds);
     oc = schedule.expand(oc, true, expand_loop_kinds);
     od = schedule.expand(od, true, expand_loop_kinds);

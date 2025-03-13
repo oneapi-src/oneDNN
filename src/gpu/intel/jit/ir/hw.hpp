@@ -77,11 +77,10 @@ public:
     size_t l3_cache_size() const { return l3_cache_size_; }
 
     int max_tg_size(int regs, int simd) const {
-        int wg_size = max_wg_size(regs);
-        int eu_based_tg_size = eus_per_ss_or_dss()
+        int wg_based_size = max_wg_size(regs) / simd;
+        int eu_based_size = eus_per_ss_or_dss()
                 * utils::rnd_down_pow2(threads_per_eu(regs));
-        int wg_based_tg_size = wg_size / simd;
-        return std::min(eu_based_tg_size, wg_based_tg_size);
+        return std::min(wg_based_size, eu_based_size);
     }
 
     // Number of EUs per subslice or dual subslice.

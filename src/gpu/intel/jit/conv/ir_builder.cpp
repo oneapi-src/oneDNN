@@ -254,7 +254,7 @@ public:
             alloc_updater_t alloc_updater;
             inject_dpasw(ir_ctx_.hw(), x2r_mul_stmt_, buf_mgr_.get("c"),
                     c_store_stmt_, alloc_updater,
-                    plan_.gemm_schedule.tg_grid().idx(0));
+                    plan_.gemm_schedule.thr_grid().idx(0));
             alloc_updater.update(buf_mgr_);
         }
 
@@ -320,8 +320,8 @@ private:
         auto reorder = g2s_reorder.create_stmt(g2s_buf, store_buf);
         auto store = g2s_store.create_stmt(slm_buf, store_buf);
         store = reduce.append(reorder).append(store);
-        load = add_grid_guard(load, cfg_.thread_group_grid(), grid);
-        store = add_grid_guard(store, cfg_.thread_group_grid(), grid);
+        load = add_grid_guard(load, cfg_.thread_grid(), grid);
+        store = add_grid_guard(store, cfg_.thread_grid(), grid);
         g2s_load_stmt_ = g2s_load_stmt_.append(load);
         g2s_store_stmt_ = g2s_store_stmt_.append(store);
     }
@@ -340,8 +340,8 @@ private:
             const grid_info_t &grid) {
         prefetch_stmt_ = prefetch_stmt_.append(
                 prefetch.create_stmt(mem_buf, expr_t()));
-        prefetch_stmt_ = add_grid_guard(
-                prefetch_stmt_, cfg_.thread_group_grid(), grid);
+        prefetch_stmt_
+                = add_grid_guard(prefetch_stmt_, cfg_.thread_grid(), grid);
     }
 
     void build_x2r_mul() {
@@ -514,9 +514,10 @@ private:
         auto c_thr_reg_layout = plan_.fma.c_prb_layout;
         auto thr_tile = gemm_schedule.c_thr_tile(/*is_relative=*/false);
         expr_t reduce_cond;
-        if (gemm_schedule.with_thread_group_k_slicing()) {
+        if (gemm_schedule.with_thread_grid_k_slicing()) {
             slm_reduce_builder_t slm_reduce_builder(ir_ctx_,
-                    gemm_schedule.tg_grid(), c_buf, c_thr_reg_layout, thr_tile);
+                    gemm_schedule.thr_grid(), c_buf, c_thr_reg_layout,
+                    thr_tile);
             c_store_stmt_ = c_store_stmt_.append(slm_reduce_builder.stmt());
             c_thr_reg_layout = slm_reduce_builder.reg_layout();
             thr_tile = slm_reduce_builder.thr_tile();
@@ -548,19 +549,18 @@ private:
         cond &= (kh == 0);
         cond &= (kw == 0);
         cond &= (ic == 0);
-        loop_kind_t filter = loop_kind_t::kernel_grid;
-        if (!plan_.slm.has_b()) filter = filter | loop_kind_t::tg_grid;
+        loop_kind_t filter = loop_kind_t::tg_grid;
+        if (!plan_.slm.has_b()) filter = filter | loop_kind_t::thr_grid;
         cond = gemm_schedule.expand(cond, /*expand_trivial_vars=*/true, filter);
         if (plan_.slm.has_b()) {
-            cond = add_grid_guard(
-                    cond, cfg_.thread_group_grid(), plan_.slm.b_grid);
+            cond = add_grid_guard(cond, cfg_.thread_grid(), plan_.slm.b_grid);
         }
         return cond;
     }
 
     void build_x_reduce_store() {
         auto &gemm_schedule = plan_.gemm_schedule;
-        bool use_atomic = (gemm_schedule.with_kernel_grid_k_slicing()
+        bool use_atomic = (gemm_schedule.with_thread_group_grid_k_slicing()
                 || !plan_.slm.x_reduce_tile.is_empty());
         auto x_reduce_buf = buf_mgr_.find("x_reduce", /*allow_empty=*/true).buf;
         if (x_reduce_buf.is_empty()) return;
@@ -652,10 +652,10 @@ void conv_ir_builder_t::build() {
     auto &plan = cfg_.plan();
     auto gemm_schedule = plan.gemm_schedule;
     auto init_cset = plan.init_cset;
-    init_kernel_grid(cfg_.kernel_grid(), cfg_.thread_group_grid(), cfg_.simd(),
+    init_thread_grids(cfg_.thread_group_grid(), cfg_.thread_grid(), cfg_.simd(),
             init_cset, init_stmts);
 
-    auto &walk_order = gemm_schedule.kernel_grid_walk_order();
+    auto &walk_order = gemm_schedule.tg_grid_walk_order();
     for (auto &info : walk_order.dim_infos()) {
         init_cset.add_constraint(info.grid_var >= 0);
         init_cset.add_constraint(info.grid_var < info.size);
@@ -732,8 +732,8 @@ void conv_ir_builder_t::build() {
         stmt_ = simplify(stmt_, ir_ctx);
         stmt_ = inject_prefetch_pipeline(stmt_, ir_ctx, cfg_);
     }
-    stmt_ = inject_slm_reorder(stmt_, ir_ctx, cfg_.thread_group_grid(),
-            cfg_.slm() || gemm_schedule.with_thread_group_k_slicing());
+    stmt_ = inject_slm_reorder(stmt_, ir_ctx, cfg_.thread_grid(),
+            cfg_.slm() || gemm_schedule.with_thread_grid_k_slicing());
     stmt_ = lift_buffer_offsets_in_send(stmt_, ir_ctx);
     stmt_ = simplify(stmt_, ir_ctx);
     stmt_ = inject_send(stmt_, ir_ctx);

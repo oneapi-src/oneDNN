@@ -96,12 +96,12 @@ conv_sample_t to_conv_sample(
     do { \
         ret.shape.name = -1; \
         ret.loop.name = -1; \
-        ret.tg.name = -1; \
+        ret.thr.name = -1; \
         ret.iter.name = -1; \
         if (!shape.has(pvars::name)) break; \
         ret.shape.name = shape.get(pvars::name); \
         ret.loop.name = blk.loop().get(pvars::name, 1); \
-        ret.tg.name = blk.thread_group().get(pvars::name, 1); \
+        ret.thr.name = blk.thread().get(pvars::name, 1); \
         ret.iter.name = blk.iter().get(pvars::name, 1); \
     } while (false)
     HANDLE(g);

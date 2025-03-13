@@ -354,7 +354,7 @@ struct bmnk_conv_sample_t {
         std::ostringstream oss;
         oss << "shape: b" << b << "m" << m << "n" << n << "k" << k;
         oss << " loop: b" << bl << "m" << ml << "n" << nl << "k" << kl;
-        oss << " tg: b" << bt << "m" << mt << "n" << nt << "k" << kt;
+        oss << "  thr: b" << bt << "m" << mt << "n" << nt << "k" << kt;
         oss << " iter: b" << bi << "m" << mi << "n" << ni << "k" << ki;
         return oss.str();
     }
@@ -376,7 +376,7 @@ struct conv_sample_t {
     hw_config_t hw_cfg;
     tile_t shape;
     tile_t loop;
-    tile_t tg;
+    tile_t thr;
     tile_t iter;
     float sec = 0;
     float gops_sec = 0;
@@ -386,7 +386,7 @@ struct conv_sample_t {
     conv_sample_t(const std::string &hw, const std::string &fma,
             const std::string &prop, const std::string &type_cfg,
             const std::string &desc, const std::string &loop,
-            const std::string &tg, const std::string &iter, float sec,
+            const std::string &thr, const std::string &iter, float sec,
             float gops_sec, bool transpose = false)
         : prop(to_prop(prop))
         , src_type(to_src_type(type_cfg, this->prop))
@@ -394,7 +394,7 @@ struct conv_sample_t {
         , hw_cfg(to_hw(hw), to_fma(fma), src_type)
         , shape(parse_tile(desc, /*do_promote=*/true))
         , loop(parse_tile(loop))
-        , tg(parse_tile(tg))
+        , thr(parse_tile(thr))
         , iter(parse_tile(iter))
         , sec(sec)
         , gops_sec(gops_sec)
@@ -403,11 +403,11 @@ struct conv_sample_t {
     }
 
     void pad() {
-        auto pad_dim = [](dim_t &dim, dim_t loop, dim_t tg, dim_t iter) {
+        auto pad_dim = [](dim_t &dim, dim_t loop, dim_t thr, dim_t iter) {
             if (iter == -1) return;
-            dim = utils::rnd_up(dim, loop * tg * iter);
+            dim = utils::rnd_up(dim, loop * thr * iter);
         };
-#define PAD_DIM(name) pad_dim(shape.name, loop.name, tg.name, iter.name)
+#define PAD_DIM(name) pad_dim(shape.name, loop.name, thr.name, iter.name)
         PAD_DIM(g);
         PAD_DIM(mb);
         PAD_DIM(oc);
@@ -439,7 +439,7 @@ struct conv_sample_t {
         s.hw_cfg = hw_cfg;
         to_gemm_tile(shape, s.b, s.m, s.n, s.k);
         to_gemm_tile(loop, s.bl, s.ml, s.nl, s.kl);
-        to_gemm_tile(tg, s.bt, s.mt, s.nt, s.kt);
+        to_gemm_tile(thr, s.bt, s.mt, s.nt, s.kt);
         to_gemm_tile(iter, s.bi, s.mi, s.ni, s.ki);
         s.sec = sec;
         s.gops_sec = gops_sec;
