@@ -276,7 +276,7 @@ Users can construct the subgraph using the following structure:
 2. The condition for masking is changed (indicated by the yellow blocks in the
    following image), if the column index is less than the row index + s_kv -
    s_q, it indicates future tokens. This condition can be represented with
-   `GreaterEqual`, `Add`, `Sub`and two `Constant` operations.
+   `GreaterEqual`, `Add` and `Sub` operations.
 3. The `Select` operation sets these future token positions to -inf.
 
 ![causal mask subgraph bottom_right](images/causal_mask_subgraph_bottom_right.png)
@@ -286,7 +286,7 @@ With this proposal, the SDPA pattern will support above subgraph-based masks:
 ![sdpa with causal mask subgraph](images/sdpa_w_causal_mask_subgraph.png)
 
 To support this proposal, oneDNN Graph will need to support `GenInex` and
-`GreaterEqual` and `Constant` operations additionally.
+`GreaterEqual` operations additionally.
 
 #### GenIndex Op Support
 
@@ -363,39 +363,6 @@ GreaterEqual operation supports the following data type combinations.
 | bf16           | boolean |
 | s32            | boolean |
 
-#### Constant Op Support
-
-`Constant` operation takes a scalar as an attribute, and converts it to a tensor,
-which will then be passed to *Add* and *Sub* operations in the case of bottom-right
-causal mask to provide the information of s_q and s_kv. These values are needed during
-compilation stage to generate optimized kernels.
-
-##### Attributes
-
-| Attribute Name | Description | Value Type | Supported Values | Required or Optional |
-| :------------- | :---------- | :--------- | :--------------- | :------------------- |
-| [scalar] (@ref dnnl::graph::op::attr::scalar) | Specifies the constant value. | f32, bf16, f16 | arbitrary valid floating point value | Required             |
-
-##### Inputs
-
-N/A
-
-##### Outputs
-
-| Index | Argument Name | Required or Optional |
-| :---- | :------------ | :------------------- |
-| 0     | `dst`         | Required             |
-
-##### Supported data types
-
-`Constant` operation supports the following data type combinations.
-
-| Attribute | dst  |
-| :-------- | :--- |
-| f32       | f32  |
-| f16       | f16  |
-| bf16      | bf16 |
-
 #### Summary of Option 1
 
 Pros:
@@ -410,7 +377,7 @@ Pros:
 Cons:
 
 - Adding multiple operations for masking increases the overall graph complexity.
-- The library needs to add three new operations to support a single causal mask,
+- The library needs to add two new operations to support a single causal mask,
   which may be excessive.
 - This approach may require additional logical operations (e.g., LessThan, And)
   to be added if other mask types are needed in the future.
