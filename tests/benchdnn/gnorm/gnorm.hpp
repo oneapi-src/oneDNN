@@ -109,17 +109,9 @@ struct prb_t : public desc_t {
         , impl_filter(impl_filter) {
 
         if (mb) this->mb = mb;
-        // Broadcast data types if needed
-        if (dt.size() == 1) {
-            const auto val = dt[0]; // Need a copy here.
-            this->dt.assign(2, val);
-        }
 
-        // Broadcast tags if needed
-        if (tag.size() == 1) {
-            const auto val = tag[0];
-            this->tag.assign(2, val);
-        }
+        broadcast_vector(this->dt, 2);
+        broadcast_vector(this->tag, 2);
 
         repro = set_repro_line(); // must be last in ctor to collect right info
     }

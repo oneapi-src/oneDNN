@@ -68,7 +68,7 @@ struct settings_t : public base_settings_t {
     std::vector<std::string> batch_kind {"addr"};
 
     const char *perf_template_csv() const {
-        static const std::string args = "";
+        static const std::string args;
         return perf_template_csv_base(args);
     }
 

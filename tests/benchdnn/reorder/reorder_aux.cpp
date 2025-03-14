@@ -126,7 +126,7 @@ int prb_t::get_compensation_mask(flag_bit_t flag) const {
     return mask;
 }
 
-dt_conf_t prb_t::get_conf(data_kind_t kind) const {
+const dt_conf_t *prb_t::get_conf(data_kind_t kind) const {
     switch (kind) {
         case SRC: return dt2cfg(sdt);
         case DST: return dt2cfg(ddt);

@@ -85,11 +85,7 @@ struct prb_t : public prb_vdims_t {
         // If dst is omitted by `dtag = tag::undef`, omit `ddt` as well.
         if (dtag == tag::undef) this->ddt = dnnl_data_type_undef;
 
-        // Broadcast tag if needed
-        if (stag.size() == 1) {
-            const auto val = stag[0]; // Need a copy here.
-            this->stag.assign(prb_vdims.n_inputs(), val);
-        }
+        broadcast_vector(this->stag, prb_vdims.n_inputs());
 
         dst_dims[axis] = axis_size();
         repro = set_repro_line(); // must be last in ctor to collect right info

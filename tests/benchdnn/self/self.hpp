@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2017-2023 Intel Corporation
+* Copyright 2017-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -48,13 +48,13 @@ namespace self {
 #define SELF_CHECK_CASE_STR_NE(a, b) \
     SELF_CHECK(strcasecmp(a, b), "'%s' == '%s'", a, b)
 #define SELF_CHECK_CASE_CPP_STR_EQ(a, b) \
-    SELF_CHECK(!strcasecmp(a.c_str(), b), "'%s' != '%s'", a.c_str(), b)
+    SELF_CHECK(!strcasecmp((a).c_str(), b), "'%s' != '%s'", (a).c_str(), b)
 #define SELF_CHECK_CASE_CPP_STR_NE(a, b) \
-    SELF_CHECK(strcasecmp(a.c_str(), b), "'%s' == '%s'", a.c_str(), b)
+    SELF_CHECK(strcasecmp((a).c_str(), b), "'%s' == '%s'", (a).c_str(), b)
 #define SELF_CHECK_PRINT_EQ2(obj, expect_str1, expect_str2) \
     do { \
         std::stringstream ss; \
-        ss << obj; \
+        ss << (obj); \
         std::string obj_str = ss.str(); \
         if (std::string(expect_str1) == std::string(expect_str2) \
                 && strcasecmp(obj_str.c_str(), expect_str1)) \

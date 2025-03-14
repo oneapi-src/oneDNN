@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2023 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,6 +23,10 @@
 
 namespace rnn {
 
+//NOLINTBEGIN(modernize-use-using)
+// GCC treats using and typedef differently for enums and structs
+// https://stackoverflow.com/questions/48613758
+
 typedef enum {
     rnn_forward = 0,
     rnn_backward,
@@ -38,7 +42,12 @@ typedef enum {
     top2bottom,
 } rnn_layer_direction_t;
 
-typedef enum { action_copy = 0, action_sum, action_concat } rnn_action_t;
+typedef enum {
+    action_copy = 0,
+    action_sum,
+    action_concat,
+} rnn_action_t;
+//NOLINTEND(modernize-use-using)
 
 dnnl_status_t init_rnn_fwd_pd(dnnl_primitive_desc_t *pd, dnnl_engine_t engine,
         const prb_t &prb, dnnl_prop_kind_t prop_kind,

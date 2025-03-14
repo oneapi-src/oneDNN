@@ -31,8 +31,8 @@ struct impl_filter_t {
     bool is_def() const { return impl_names_.empty(); }
 
     const std::vector<std::string> &get_names() const { return impl_names_; }
-    const bool use_impl() const { return use_impl_; }
-    const bool respect_global_filter() const { return respect_global_filter_; }
+    bool use_impl() const { return use_impl_; }
+    bool respect_global_filter() const { return respect_global_filter_; }
 
 private:
     std::vector<std::string> impl_names_;
