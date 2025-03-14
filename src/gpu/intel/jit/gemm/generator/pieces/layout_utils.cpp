@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -572,6 +572,8 @@ void assignUniformMask(vector<RegisterBlock> &layout, FlagRegister flag, int idx
 bool assignAllDescs(vector<RegisterBlock> &layout)
 {
     for (auto &block : layout) {
+        if (!block.descRemR && !block.descRemC)
+            continue;
         if (block.simdSize != layout[0].simdSize)
             return false;
         block.descAssigned = true;
