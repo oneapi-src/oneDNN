@@ -790,8 +790,15 @@ dim_t stream_k_thread_groups(
     return std::min(ref_iters, max_thread_groups_per_wave);
 }
 
-dim_t stream_k_split() {
-    return gpu_utils::dev_getenv("SPLIT", 1);
+dim_t stream_k_k_batches(const kernel_desc_t &desc, const problem_t &prb) {
+    const size_t l3_size = prb.hw().l3_cache_size();
+    auto a = to_conv_layout(desc.layout_tag(tensor_kind_t::a), prb.shape());
+    auto b = to_conv_layout(desc.layout_tag(tensor_kind_t::b), prb.shape());
+    dim_t ab_size = a.size() + b.size();
+    auto ret = utils::div_up(2 * ab_size, l3_size);
+    printf("K_BATCH = %d AB_SIZE = %d L3_SIZE = %d\n", (int)ret, (int)ab_size,
+            (int)l3_size);
+    return ret;
 }
 
 type_t accumulator_type(const type_t &a_type, const type_t &b_type) {
@@ -843,14 +850,15 @@ void init_kernel_info(kernel_info_t &kernel_info, const problem_t &prb,
                     = utils::div_up(prb.shape().at(e.dim), tg_size * iter_size);
             k_iters *= dim_iters_per_tile;
         }
+        dim_t k_batches = stream_k_k_batches(desc, prb);
         dim_t bmn_tiles = tg_grid.size(0, grid_dims);
-        dim_t iters_per_tile = utils::div_up(k_iters, stream_k_split());
+        dim_t iters_per_tile = utils::div_up(k_iters, k_batches);
         dim_t iters_per_tile_tail = iters_per_tile
-                - (utils::rnd_up(k_iters, stream_k_split()) - k_iters);
+                - (utils::rnd_up(k_iters, k_batches) - k_iters);
         if (iters_per_tile_tail == 0) iters_per_tile_tail = iters_per_tile;
         stream_k_tg0
                 = stream_k_thread_groups(bmn_tiles * iters_per_tile, max_tgs);
-        stream_k_tg1 = stream_k_split();
+        stream_k_tg1 = k_batches;
         dim_t total_iters = bmn_tiles * iters_per_tile;
         dim_t total_iters_tail = bmn_tiles * iters_per_tile_tail;
         dim_t iters_per_tg = utils::div_up(total_iters, stream_k_tg0);

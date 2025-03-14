@@ -827,6 +827,19 @@ pvar_coord_t<dim_t> layout_t::to_coord(
     return ret;
 }
 
+bool coords_match(
+        const pvar_coord_t<dim_t> &_a, const pvar_coord_t<dim_t> &_b) {
+    auto a = _a;
+    auto b = _b;
+    for (auto &d : _a) {
+        if (_a[d] == 0) a.unset(d);
+    }
+    for (auto &d : _b) {
+        if (_b[d] == 0) b.unset(d);
+    }
+    return a == b;
+}
+
 int layout_t::to_linear_index(
         const pvar_tile_t &tile, const pvar_coord_t<dim_t> &coord) const {
     gpu_assert(has_const_sizes());
@@ -849,7 +862,7 @@ int layout_t::to_linear_index(
     std::vector<int> idx(nblocks());
     for (int i = 0; i < ntiles; i++) {
         auto i_coord = to_coord(idx);
-        if (i_coord == coord) return i;
+        if (i_coord.drop_defaults() == coord.drop_defaults()) return i;
         advance(idx, blocks_, tile_blocks);
     }
     gpu_error_not_expected();

@@ -137,7 +137,7 @@ const char** get_plan_registry_entries() {
         "hw=xehpc prop=fwd src=axb:s8 wei=aCBx16b4c:s8 dst=axb:s8 fma=dpas simd=16 regs=256 iter=ic4kw8oc32ow16 tg=oc2ow4 spec=oc@64 ext=out_b2,out_b4 model=01E33E004505E0223F0280553F68728B3FFB3F6D3F0200489F46DFE60C41",
         "hw=xehpc prop=fwd src=axb:f16 wei=aCBx16b2c:f16 dst=axb:f16 fma=dpas simd=16 regs=256 iter=ic2kw8oc32ow16 tg=oc2ow4 spec=oc@64 ext=out_b1,out_b4 model=0158E2DE440400303F0180783F99E3873F04C0293F02E6FE60463C8CE840",
         "hw=xehpc prop=bwd_w src=ABx16a4b:bf16 wei=axcb:bf16 dst=axb:bf16 fma=dpas simd=16 regs=256 iter=ic4kw8mb16oc64 tg=kh4 2d=1 prefetch=x3.b spec=dd0id1kd1od1pd0sd1oc@64 ext=out_b4,bias,stream_k model=01654F9D44F720243D0228623F35F7B23FF6FFA74102B2CCBF4660B76040",
-        "hw=xehpc prop=bwd_w src=axb:f32 wei=axcb:f32 dst=axb:f32 fma=mad simd=16 regs=128 iter=ic4kw4oc16ow16 tg=oc4 2d=1 spec=dd0id1kd1od1pd0sd1 ext=bias,stream_k model=0189DF2244F721963C0344463F4C9E873FF1FFF74102992F24467CBBE73F",
+        "hw=xehpc prop=bwd_w src=axb:f32 wei=axcb:f32 dst=axb:f32 fma=mad simd=16 regs=128 iter=kw8mb16oc16 tg=oc4 2d=1 spec=dd0id1kd1od1pd0sd1 ext=bias,stream_k model=01200B2945F821913C02A16B3F0000803FFB6FEC3F026336EA44FFFF8840",
         nullptr,
     };
     return entries;
