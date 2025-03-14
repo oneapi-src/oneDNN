@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019-2024 Intel Corporation
+* Copyright 2019-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -55,17 +55,17 @@ namespace cpu {
             = MEM_D(name).blocking_desc().strides[ndims - 1];
 
 namespace nhwc_pooling {
-size_t strided_offset(const int _n, const size_t _sn, const int _d,
-        const size_t _sd, const int _h, const size_t _sh, const int _w,
+size_t strided_offset(const dim_t _n, const size_t _sn, const dim_t _d,
+        const size_t _sd, const dim_t _h, const size_t _sh, const dim_t _w,
         const size_t _sw) {
     return _n * _sn + _d * _sd + _h * _sh + _w * _sw;
 }
 } // namespace nhwc_pooling
 
 template <data_type_t d_type>
-void nhwc_pooling_fwd_t<d_type>::array_div_by_const(const int n,
+void nhwc_pooling_fwd_t<d_type>::array_div_by_const(const dim_t n,
         const ker_data_t *src, const size_t num, ker_data_t *dst) const {
-    for (int i = 0; i < n; ++i) {
+    for (dim_t i = 0; i < n; ++i) {
         const float ftmp = ((float)src[i]) / num;
         dst[i] = q10n::out_round<ker_data_t>(ftmp);
     }
@@ -73,21 +73,21 @@ void nhwc_pooling_fwd_t<d_type>::array_div_by_const(const int n,
 
 template <data_type_t d_type>
 void nhwc_pooling_fwd_t<d_type>::array_add(
-        const int n, const ker_data_t *src, ker_data_t *dst) const {
-    for (int i = 0; i < n; ++i) {
+        const dim_t n, const ker_data_t *src, ker_data_t *dst) const {
+    for (dim_t i = 0; i < n; ++i) {
         dst[i] += src[i];
     }
 }
 
 template <data_type_t d_type>
-void nhwc_pooling_fwd_t<d_type>::array_nhwc_max(const int n, ker_data_t *dst,
+void nhwc_pooling_fwd_t<d_type>::array_nhwc_max(const dim_t n, ker_data_t *dst,
         const ker_data_t *src, unsigned char *ws, const size_t ws_offset,
         const data_type_t ws_dt, const int index) const {
     assert(ws);
 #if SAFE_TO_USE_OMP_SIMD
     PRAGMA_OMP_SIMD()
 #endif
-    for (int oc = 0; oc < n; ++oc) {
+    for (dim_t oc = 0; oc < n; ++oc) {
         const auto s = src[oc];
         ker_data_t mv = dst[oc];
 
@@ -130,14 +130,14 @@ void nhwc_pooling_fwd_t<d_type>::array_nhwc_max(const int n, ker_data_t *dst,
 }
 
 template <data_type_t d_type>
-void nhwc_pooling_fwd_t<d_type>::array_nhwc_initialize(const int n,
+void nhwc_pooling_fwd_t<d_type>::array_nhwc_initialize(const dim_t n,
         ker_data_t *dst, unsigned char *ws, const size_t ws_offset,
         const data_type_t ws_dt) const {
     assert(ws && (ws_dt == data_type::u8 || ws_dt == data_type::s32));
 #if SAFE_TO_USE_OMP_SIMD
     PRAGMA_OMP_SIMD()
 #endif
-    for (int oc = 0; oc < n; ++oc) {
+    for (dim_t oc = 0; oc < n; ++oc) {
         if (ws_dt == data_type::u8)
             ws[ws_offset + oc] = 0;
         else
@@ -189,7 +189,7 @@ status_t nhwc_pooling_fwd_t<data_type::f32>::execute_forward(
     DECLARE_READ_STRIDES(src);
     DECLARE_READ_STRIDES(dst);
 
-    const auto apply_offset = [](int index, int offset) {
+    const auto apply_offset = [](dim_t index, dim_t offset) {
         return (index > offset) ? index - offset : 0;
     };
 
