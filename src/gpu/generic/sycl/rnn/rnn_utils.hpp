@@ -205,14 +205,9 @@ struct workspace_t : public data_helper_t {
     }
 
     dim_t calc_off_ws_state(
-            dim_t i0_, dim_t i1, dim_t i2_, dim_t i3, dim_t i4) const {
-        //lay,dir,time
-        // Logical index into workspace grid
-        auto i0 = i0_ + 1;
-        auto i2 = i2_ + 1;
-
+            dim_t i0, dim_t i1, dim_t i2, dim_t i3, dim_t i4) const {
         assert(i0 >= 0);
-
+        //lay,dir,time
         return calc_4d_off(i0, i1, conf_.n_dir, i2, conf_.n_iter + 1, i3,
                 conf_.mb, i4, conf_.states_ws_ld);
     }
@@ -241,10 +236,7 @@ struct workspace_t : public data_helper_t {
 
     std::unique_ptr<mst> states(dim_t layer, dim_t dir, dim_t time) const {
         if (!states_) return {};
-
-        auto i0 = layer + 1;
-        auto i2 = time + 1;
-        auto off_ = get_offset(states_strides(), {i0, dir, i2, 0})
+        auto off_ = get_offset(states_strides(), {layer, dir, time, 0})
                 * conf_.ws_states_elsz;
         return states().clone_ptr_off(off_);
     }

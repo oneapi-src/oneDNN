@@ -127,9 +127,6 @@ status_t _ref_rnn_common_t::pd_t::init(impl::engine_t *engine) {
     VDISPATCH_RNN_SC(set_weights_desc(this->weights_iter_md_, rnn_conf),
             "unsupported weights iter memory descriptor");
 
-    // Currently only run L2R
-    VDISPATCH_RNN(this->direction() == dnnl_unidirectional_left2right,
-            VERBOSE_BAD_ALGORITHM);
     // Check dimensions consistency
     VDISPATCH_RNN((this->SIC() == this->DHC() || (this->T() == 1)),
             VERBOSE_INCONSISTENT_DIM, "SIC", (int)this->SIC(), "DHC",
@@ -154,10 +151,19 @@ status_t _ref_rnn_common_t::pd_t::init(impl::engine_t *engine) {
     CHECK(memory_desc_init_by_tag(state_md, 5, state_dims,
             rnn_conf.src_data_type, format_tag::abcde));
 
-    copy_init_layer_conf_ = sycl_rnn_copy_conf_t {
-            xpu::sycl::md_t(this->src_md(0)), xpu::sycl::md_t(&state_md),
-            rnn_conf.slc, rnn_conf.n_dir, rnn_conf.n_layer, rnn_conf.n_iter,
-            rnn_conf.mb, rnn_conf.states_ws_ld, true, true};
+    // using is_l2r/r2l to account for bidirectional as well
+    // if both l2r and r2l are true, case is bidirectional concat
+    // is_sum changes behaviour from concat to sum for bidirectional case
+
+    bool is_l2r = !(this->desc()->direction == dnnl_unidirectional_right2left);
+    bool is_r2l = !(this->desc()->direction == dnnl_unidirectional_left2right);
+    bool is_sum = this->desc()->direction == dnnl_bidirectional_sum;
+
+    copy_init_layer_conf_
+            = sycl_rnn_copy_conf_t {xpu::sycl::md_t(this->src_md(0)),
+                    xpu::sycl::md_t(&state_md), rnn_conf.slc, rnn_conf.n_dir,
+                    rnn_conf.n_layer, rnn_conf.n_iter, rnn_conf.mb,
+                    rnn_conf.states_ws_ld, true, true, is_l2r, is_r2l, false};
 
     xpu::sycl::md_t src_iter_md = this->src_md(1)->data_type == data_type::undef
             ? xpu::sycl::md_t()
@@ -166,12 +172,12 @@ status_t _ref_rnn_common_t::pd_t::init(impl::engine_t *engine) {
     copy_init_iter_conf_ = sycl_rnn_copy_conf_t {src_iter_md,
             xpu::sycl::md_t(&state_md), rnn_conf.sic, rnn_conf.n_dir,
             rnn_conf.n_layer, rnn_conf.n_iter, rnn_conf.mb,
-            rnn_conf.states_ws_ld, false, true};
+            rnn_conf.states_ws_ld, false, true, is_l2r, is_r2l, false};
 
     copy_res_layer_conf_ = sycl_rnn_copy_conf_t {xpu::sycl::md_t(&state_md),
             xpu::sycl::md_t(this->dst_md(0)), rnn_conf.dhc, rnn_conf.n_dir,
             rnn_conf.n_layer, rnn_conf.n_iter, rnn_conf.mb,
-            rnn_conf.states_ws_ld, true, false};
+            rnn_conf.states_ws_ld, true, false, is_l2r, is_r2l, is_sum};
 
     xpu::sycl::md_t dst_iter_md = this->dst_md(1)->data_type == data_type::undef
             ? xpu::sycl::md_t()
@@ -179,7 +185,8 @@ status_t _ref_rnn_common_t::pd_t::init(impl::engine_t *engine) {
 
     copy_res_iter_conf_ = sycl_rnn_copy_conf_t {xpu::sycl::md_t(&state_md),
             dst_iter_md, rnn_conf.dhc, rnn_conf.n_dir, rnn_conf.n_layer,
-            rnn_conf.n_iter, rnn_conf.mb, rnn_conf.states_ws_ld, false, false};
+            rnn_conf.n_iter, rnn_conf.mb, rnn_conf.states_ws_ld, false, false,
+            is_l2r, is_r2l, false};
 
     sycl_rnn_bias_conf_t_ = sycl_rnn_bias_conf_t();
     sycl_rnn_bias_conf_t_.dst_md = xpu::sycl::md_t(this->dst_md(0));
@@ -580,7 +587,7 @@ status_t _ref_rnn_common_t::rnn_bias(const exec_ctx_t &ctx, dim_t batch,
 
         auto dst_mem_arg
                 = utils::downcast<const xpu::sycl::memory_storage_base_t *>(
-                        ws.states(lay, dir, iter - 1).get())
+                        ws.states(lay + 1, dir, iter).get())
                           ->get_out_memory_arg(ctx.stream(), cgh);
         ref_rnn_bias bias_kernel(pd()->sycl_rnn_bias_conf_t_, src_mem_arg,
                 bias_mem_arg, dst_mem_arg);
