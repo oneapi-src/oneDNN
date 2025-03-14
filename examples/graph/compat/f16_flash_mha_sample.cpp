@@ -131,7 +131,7 @@ static compat_0_x::Tensor createQKBMM(int64_t b, int64_t h, int64_t s_q,
                               .setaMatDesc(qTensor)
                               .setbMatDesc(kTransposeTensor)
                               .setcMatDesc(sTensor)
-                              //.setmatmulDesc(matmul_1_Desc)
+                              .setmatmulDesc(matmul_1_Desc)
                               .build();
 
     //std::cout << matmul_op1.describe() << std::endl;

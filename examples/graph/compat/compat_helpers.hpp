@@ -19,6 +19,7 @@
 
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <random>
 #include <vector>
 
@@ -347,494 +348,326 @@ protected:
     mutable std::string err_msg; //!< Error message if any being set
 };
 
-// // v1 ------------------------------------------
-// class Tensor_v8 : public BackendDescriptor {
-// public:
-//     friend class TensorBuilder_v8;
-//     //     std::string describe() const override {
-//     //         std::stringstream ss;
-//     // #ifndef CUDNN_FRONTEND_SKIP_JSON_LIB
-//     //         ss << "CUDNN_BACKEND_TENSOR_DESCRIPTOR :"
-//     //            << " Datatype: " << json {data_type} << " Id: " << std::to_string(id)
-//     // #else
-//     //         ss << "CUDNN_BACKEND_TENSOR_DESCRIPTOR :"
-//     //            << " Datatype: " << int(data_type) << " Id: " << std::to_string(id)
-//     // #endif
-//     //            << " nDims " << nDims << " VectorCount: " << vectorCount
-//     //            << " vectorDimension " << vectorDimension;
-//     //         ss << " Dim [ ";
-//     //         for (auto i = 0; i < nDims; i++) {
-//     //             if (i != 0) { ss << ','; }
-//     //             ss << btensor_dimA[i];
-//     //         }
-//     //         ss << " ] Str [ ";
-//     //         for (auto i = 0; i < nDims; i++) {
-//     //             if (i != 0) { ss << ','; }
-//     //             ss << btensor_strA[i];
-//     //         }
-//     //         ss << " ]";
-//     //         ss << " isVirtual: " << isVirtual << " isByValue: " << isByValue
-//     //            << " Alignment: " << alignment;
-//     // #ifndef CUDNN_FRONTEND_SKIP_JSON_LIB
-//     //         ss << " reorder_type: " << json {reorder_type};
-//     // #else
-//     //         ss << " reorder_type: " << int(reorder_type);
-//     // #endif
-//     //         return ss.str();
-//     //     }
-
-//     int64_t getDimCount() const { return nDims; }
-
-//     lt::dims const getDim() const { return btensor_dimA; }
-
-//     lt::dims const getStride() const { return btensor_strA; }
-
-//     lt::data_type getDataType() const {
-//         return static_cast<DataType_t>(data_type);
-//     }
-
-//     int64_t getId() const { return id; }
-
-//     int64_t getAlignment() const { return alignment; }
-
-//     bool isVirtualTensor() const { return isVirtual; }
-
-//     lt const *getInternal_lt() const { return internal_lt; }
-
-//     Tensor_v8(Tensor_v8 &&from) = default;
-//     Tensor_v8 &operator=(Tensor_v8 &&) = default;
-
-//     ~Tensor_v8() = default;
-
-// private:
-//     Tensor_v8() = default;
-//     Tensor_v8(Tensor_v8 const &) = delete;
-//     Tensor_v8 &operator=(Tensor_v8 const &) = delete;
-
-//     DataType_t data_type = DataType_t::undef; //! Datatype of the elements
-//     lt::dims btensor_dimA; //! n, g, c, d, h, w
-//     lt::dims btensor_strA; //! n, g, c, d, h, w
-//     int64_t id = -1; //! Unique id of the tensor
-//     int64_t alignment = -1; //! Alignment of the tensor.
-//     //! Certain engine config expect minimum alignment of 16B
-//     int64_t nDims = -1; //! Number of Dimensions of the tensor
-//     bool isVirtual
-//             = false; //! Whether it is an intermediate tensor of an op graph
-//     bool isByValue
-//             = false; //! Whether the tensor is in host memory that needs to be passed to the kernel by value
-//     lt *internal_lt;
-// };
-
-// /// TensorBuilder_v8 Class
-// /// Helper class used to build Tensor_v8 class
-// class TensorBuilder_v8 {
-// public:
-//     using lt = dnnl::graph::logical_tensor;
-//     /** @defgroup TensorBuilder_v8
-//      *  Set individual property of Tensor_v8 class
-//      *  @{
-//      */
-//     //! Set Datatype for the Tensor_v8
-//     auto setDataType(lt::data_type data_type) -> TensorBuilder_v8 & {
-//         m_tensor.data_type = data_type;
-//         return *this;
-//     }
-
-//     //! Set Dimensions of the tensor
-//     // auto setDim(int64_t ndim, lt::dim const *dim) -> TensorBuilder_v8 & {
-//     //     std::copy((dim), dim + ndim, m_tensor.btensor_dimA);
-//     //     m_tensor.nDims = ndim;
-//     //     return *this;
-//     // }
-
-//     auto setDim(int64_t ndim, const lt::dims &dims) -> TensorBuilder_v8 & {
-//         m_tensor.nDims = dims.size();
-//         std::copy(dims.begin(), dims.end(), m_tensor.btensor_dimA);
-//         return *this;
-//     }
-
-//     //! Set Strides of the tensor
-//     // auto setStride(int64_t ndim, lt::dim const *strides) -> TensorBuilder_v8 & {
-//     //     std::copy(strides, strides + ndim, m_tensor.btensor_strA);
-//     //     return *this;
-//     // }
-
-//     auto setStride(int64_t ndim, const lt::dims &strides)
-//             -> TensorBuilder_v8 & {
-//         std::copy(strides.begin(), strides.end(), m_tensor.btensor_strA);
-//         return *this;
-//     }
-
-//     //! Set Unique Id  of the tensor
-//     auto setId(int64_t id_) -> TensorBuilder_v8 & {
-//         m_tensor.id = id_;
-//         return *this;
-//     }
-//     //! Set Alignment of the tensor
-//     auto setAlignment(int64_t alignment_) -> TensorBuilder_v8 & {
-//         m_tensor.alignment = alignment_;
-//         return *this;
-//     }
-//     //! Set isVirtual of the tensor
-//     auto setVirtual(bool virtual_ = true) -> TensorBuilder_v8 & {
-//         m_tensor.isVirtual = virtual_;
-//         return *this;
-//     }
-//     //! Set isByValue of the tensor
-//     auto setByValue(bool isByValue_ = true) -> TensorBuilder_v8 & {
-//         m_tensor.isByValue = isByValue_;
-//         return *this;
-//     }
-
-//     //! constructs the Tensor_v8 by calling the cudnn API
-//     //! Throws the appropriate error message
-//     Tensor_v8 &&build() {
-//         auto lt_tmp = dnnl::graph::logical_tensor(m_tensor.getId(),
-//                 m_tensor.getDataType(), m_tensor.getDim(),
-//                 m_tensor.getStride());
-//         m_tensor.internal_lt = &lt_tmp;
-//         return std::move(m_tensor);
-//     }
-
-//     explicit TensorBuilder_v8() = default;
-//     ~TensorBuilder_v8() = default;
-//     TensorBuilder_v8(TensorBuilder_v8 &&) = delete;
-//     TensorBuilder_v8(TensorBuilder_v8 const &) = delete;
-//     TensorBuilder_v8 &operator=(TensorBuilder_v8 const &) = delete;
-
-// private:
-//     Tensor_v8 m_tensor; //! Tensor built by the TensorBuilder class.
-// };
-
-// using Tensor = Tensor_v8;
-// using TensorBuilder = TensorBuilder_v8;
-
-// class Operation_v8 : public BackendDescriptor {
-// public:
-//     friend class OperationBuilder_v8;
-//     // std::string describe() const override {
-//     //     std::stringstream ss;
-//     //     ss << "CUDNN_BACKEND_OPERATION :"
-//     //        << " OpMode: " << op_mode;
-//     //     ss << std::hex << " X " << xdesc;
-//     //     ss << std::hex << " Y " << ydesc;
-//     //     ss << std::hex << " W " << wdesc;
-//     //     ss << std::hex << " B " << bdesc;
-//     //     ss << std::hex << " T " << tdesc;
-//     //     ss << std::hex << " DW " << dwdesc;
-//     //     ss << std::hex << " DY " << dydesc;
-//     //     ss << std::hex << " DX " << dxdesc;
-//     //     ss << std::hex << " C " << cdesc;
-//     //     ss << std::hex << " A Mtrix " << amatdesc;
-//     //     ss << std::hex << " B Mtrix " << bmatdesc;
-//     //     ss << std::hex << " C Mtrix " << cmatdesc;
-//     //     ss << std::hex << " P " << pwdesc;
-//     //     ss << std::hex << " MatMul " << matmuldesc;
-//     //     ss << std::hex << " Reduction " << reductiondesc;
-//     //     ss << std::dec << " alphabetaType " << alphabetaType;
-//     //     ss << " Alpha: " << alpha_s << " " << alpha_d;
-//     //     ss << " Alpha2: " << alpha2_s << " " << alpha2_d;
-//     //     ss << " Beta: " << beta_s << " " << beta_d;
-//     //     return ss.str();
-//     // }
-
-//     Operation_v8(Operation_v8 &&from) = default;
-//     Operation_v8 &operator=(Operation_v8 &&from) = default;
-
-//     ~Operation_v8() = default;
-
-// private:
-//     Operation_v8() = default;
-//     Operation_v8(Operation_v8 const &) = delete;
-//     Operation_v8 &operator=(Operation_v8 const &) = delete;
-
-//     op::kind op_kind = op::kind::MatMul;
-
-//     lt *amatdesc = nullptr;
-//     lt *bmatdesc = nullptr;
-//     lt *cmatdesc = nullptr;
-
-//     op *internal_op = nullptr;
-// };
-
-// class OperationBuilder_v8 {
-// private:
-//     Operation_v8 m_operation;
-
-//     OperationBuilder_v8(op::kind op_kind) { m_operation.op_kind = op_kind; }
-
-//     Operation_v8 &&build_matmul_op() {
-
-//         // score = query x key.T
-//         //auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
-//         auto bmm1 = op(op_id++, op::kind::MatMul, "bmm1");
-//         bmm1.set_attr<bool>(op::attr::transpose_b, true);
-//         bmm1.add_inputs({m_operation.amatdesc, m_operation.bmatdesc});
-//         bmm1.add_outputs({m_operation.cmatdesc});
-//         m_operation.internal_op = &bmm1;
-//         return std::move(m_operation);
-//     }
-
-// public:
-//     auto setaMatDesc(Tensor_v8 const &tensor) -> OperationBuilder_v8 & {
-//         m_operation.amatdesc = tensor.getInternal_lt();
-//         return *this;
-//     }
-//     auto setbMatDesc(Tensor_v8 const &tensor) -> OperationBuilder_v8 & {
-//         m_operation.bmatdesc = tensor.getInternal_lt();
-//         return *this;
-//     }
-//     auto setcMatDesc(Tensor_v8 const &tensor) -> OperationBuilder_v8 & {
-//         m_operation.cmatdesc = tensor.getInternal_lt();
-//         return *this;
-//     }
-
-//     //! constructs the backend Operation_v8 by calling the cudnn API
-//     //! Throws the appropriate error message
-//     Operation_v8 &&build() {
-//         if (m_operation.op_kind == op::kind::MatMul) {
-//             return build_matmul_op();
-//         }
-//         return std::move(m_operation);
-//     }
-// };
-
-// using Operation = Operation_v8;
-// using OperationBuilder = OperationBuilder_v8;
-
-// // v1 ------------------------------------------------------
-
-/*******************************************************
- *  Tensor_v8
- ******************************************************/
 class Tensor_v8 : public BackendDescriptor {
 public:
     friend class TensorBuilder_v8;
+    //     std::string describe() const override {
+    //         std::stringstream ss;
+    // #ifndef CUDNN_FRONTEND_SKIP_JSON_LIB
+    //         ss << "CUDNN_BACKEND_TENSOR_DESCRIPTOR :"
+    //            << " Datatype: " << json {data_type} << " Id: " << std::to_string(id)
+    // #else
+    //         ss << "CUDNN_BACKEND_TENSOR_DESCRIPTOR :"
+    //            << " Datatype: " << int(data_type) << " Id: " << std::to_string(id)
+    // #endif
+    //            << " nDims " << nDims << " VectorCount: " << vectorCount
+    //            << " vectorDimension " << vectorDimension;
+    //         ss << " Dim [ ";
+    //         for (auto i = 0; i < nDims; i++) {
+    //             if (i != 0) { ss << ','; }
+    //             ss << btensor_dimA[i];
+    //         }
+    //         ss << " ] Str [ ";
+    //         for (auto i = 0; i < nDims; i++) {
+    //             if (i != 0) { ss << ','; }
+    //             ss << btensor_strA[i];
+    //         }
+    //         ss << " ]";
+    //         ss << " isVirtual: " << isVirtual << " isByValue: " << isByValue
+    //            << " Alignment: " << alignment;
+    // #ifndef CUDNN_FRONTEND_SKIP_JSON_LIB
+    //         ss << " reorder_type: " << json {reorder_type};
+    // #else
+    //         ss << " reorder_type: " << int(reorder_type);
+    // #endif
+    //         return ss.str();
+    //     }
 
     int64_t getDimCount() const { return nDims; }
+
     lt::dims const getDim() const { return btensor_dimA; }
+
     lt::dims const getStride() const { return btensor_strA; }
+
     lt::data_type getDataType() const {
         return static_cast<DataType_t>(data_type);
     }
+
     int64_t getId() const { return id; }
+
     int64_t getAlignment() const { return alignment; }
+
     bool isVirtualTensor() const { return isVirtual; }
 
-    // [CHANGED] internal_lt 改成 “引用”
-    lt &getInternal_lt() const { return internal_lt; }
+    lt const getInternal_lt() const { return internal_lt; }
 
-    // 构造函数
-    // [CHANGED] 必须在构造时就绑定 internal_lt 引用
-    Tensor_v8(lt &someLT)
-        : internal_lt(someLT) // 在初始化列表中绑定
-    {
-        // 其他成员保持默认
-    }
-
-    // [CHANGED] 去除默认构造 Tensor_v8() = default;
     Tensor_v8(Tensor_v8 &&from) = default;
     Tensor_v8 &operator=(Tensor_v8 &&) = default;
 
     ~Tensor_v8() = default;
 
 private:
+    Tensor_v8() = default;
     Tensor_v8(Tensor_v8 const &) = delete;
     Tensor_v8 &operator=(Tensor_v8 const &) = delete;
 
-    DataType_t data_type = DataType_t::undef;
-    lt::dims btensor_dimA;
-    lt::dims btensor_strA;
-    int64_t id = -1;
-    int64_t alignment = -1;
-    int64_t nDims = -1;
-    bool isVirtual = false;
-    bool isByValue = false;
-
-    // [CHANGED]
-    // 原先: lt *internal_lt;
-    // 改为: lt &internal_lt;
-    lt &internal_lt;
+    DataType_t data_type = DataType_t::undef; //! Datatype of the elements
+    lt::dims btensor_dimA; //! n, g, c, d, h, w
+    lt::dims btensor_strA; //! n, g, c, d, h, w
+    int64_t id = -1; //! Unique id of the tensor
+    int64_t alignment = -1; //! Alignment of the tensor.
+    //! Certain engine config expect minimum alignment of 16B
+    int64_t nDims = -1; //! Number of Dimensions of the tensor
+    bool isVirtual
+            = false; //! Whether it is an intermediate tensor of an op graph
+    bool isByValue
+            = false; //! Whether the tensor is in host memory that needs to be passed to the kernel by value
+    lt internal_lt;
 };
 
-/*******************************************************
- *  TensorBuilder_v8
- ******************************************************/
+/// TensorBuilder_v8 Class
+/// Helper class used to build Tensor_v8 class
 class TensorBuilder_v8 {
 public:
     using lt = dnnl::graph::logical_tensor;
-
+    /** @defgroup TensorBuilder_v8
+     *  Set individual property of Tensor_v8 class
+     *  @{
+     */
+    //! Set Datatype for the Tensor_v8
     auto setDataType(lt::data_type data_type) -> TensorBuilder_v8 & {
-        m_dataType = data_type;
+        m_tensor.data_type = data_type;
         return *this;
     }
+
+    //! Set Dimensions of the tensor
+    // auto setDim(int64_t ndim, lt::dim const *dim) -> TensorBuilder_v8 & {
+    //     std::copy((dim), dim + ndim, m_tensor.btensor_dimA);
+    //     m_tensor.nDims = ndim;
+    //     return *this;
+    // }
+
     auto setDim(int64_t ndim, const lt::dims &dims) -> TensorBuilder_v8 & {
-        nDims = ndim;
-        btensor_dimA = dims;
+        m_tensor.nDims = dims.size();
+        std::copy(dims.begin(), dims.end(), m_tensor.btensor_dimA);
         return *this;
     }
+
+    //! Set Strides of the tensor
+    // auto setStride(int64_t ndim, lt::dim const *strides) -> TensorBuilder_v8 & {
+    //     std::copy(strides, strides + ndim, m_tensor.btensor_strA);
+    //     return *this;
+    // }
+
     auto setStride(int64_t ndim, const lt::dims &strides)
             -> TensorBuilder_v8 & {
-        btensor_strA = strides;
+        std::copy(strides.begin(), strides.end(), m_tensor.btensor_strA);
         return *this;
     }
+
+    //! Set Unique Id  of the tensor
     auto setId(int64_t id_) -> TensorBuilder_v8 & {
-        m_id = id_;
+        m_tensor.id = id_;
         return *this;
     }
+    //! Set Alignment of the tensor
     auto setAlignment(int64_t alignment_) -> TensorBuilder_v8 & {
-        m_alignment = alignment_;
+        m_tensor.alignment = alignment_;
         return *this;
     }
+    //! Set isVirtual of the tensor
     auto setVirtual(bool virtual_ = true) -> TensorBuilder_v8 & {
-        m_isVirtual = virtual_;
+        m_tensor.isVirtual = virtual_;
         return *this;
     }
+    //! Set isByValue of the tensor
     auto setByValue(bool isByValue_ = true) -> TensorBuilder_v8 & {
-        m_isByValue = isByValue_;
+        m_tensor.isByValue = isByValue_;
         return *this;
     }
 
-    // [CHANGED]
-    // 这里不再生成局部 lt_tmp, 而是由 builder
-    // 来管理一个更长生命周期的 dnnl::graph::logical_tensor
-    // 以免我们把 Tensor_v8::internal_lt 绑定到局部变量
-    // 这个 lumpsumLT 需要在 builder 的生命周期里保持有效
-    // (理想情况更应该放在某个更持久的地方)
-    Tensor_v8 build() {
-        lumpsumLT = dnnl::graph::logical_tensor(
-                m_id, m_dataType, btensor_dimA, btensor_strA);
-        // 构造 Tensor_v8, 强行绑定 lumpsumLT
-        Tensor_v8 t {lumpsumLT};
-        t.data_type = static_cast<DataType_t>(m_dataType);
-        t.btensor_dimA = btensor_dimA;
-        t.btensor_strA = btensor_strA;
-        t.id = m_id;
-        t.alignment = m_alignment;
-        t.nDims = nDims;
-        t.isVirtual = m_isVirtual;
-        t.isByValue = m_isByValue;
-        // 现在 t.internal_lt 引用 lumpsumLT
-        return t;
+    //! constructs the Tensor_v8 by calling the cudnn API
+    //! Throws the appropriate error message
+    Tensor_v8 &&build() {
+        auto lt_tmp = dnnl::graph::logical_tensor(m_tensor.getId(),
+                m_tensor.getDataType(), m_tensor.getDim(),
+                m_tensor.getStride());
+        m_tensor.internal_lt = lt_tmp;
+        return std::move(m_tensor);
     }
 
-    TensorBuilder_v8() = default;
+    explicit TensorBuilder_v8() = default;
     ~TensorBuilder_v8() = default;
     TensorBuilder_v8(TensorBuilder_v8 &&) = delete;
     TensorBuilder_v8(TensorBuilder_v8 const &) = delete;
     TensorBuilder_v8 &operator=(TensorBuilder_v8 const &) = delete;
 
 private:
-    // [CHANGED]
-    // 先把原先 Tensor_v8 里的字段独立出来
-    // builder 构造好后, 在 build() 时填到 lumpsumLT + Tensor_v8
-    lt::data_type m_dataType = lt::data_type::undef;
-    lt::dims btensor_dimA;
-    lt::dims btensor_strA;
-    int64_t m_id = -1;
-    int64_t m_alignment = -1;
-    int64_t nDims = -1;
-    bool m_isVirtual = false;
-    bool m_isByValue = false;
-
-    // [CHANGED]
-    // lumpsumLT: 用来承载 "long-lived" logical_tensor
-    // 这样 build() 构造的 Tensor_v8.internal_lt 可引用 lumpsumLT
-    // 但要注意 lumpsumLT 的生命周期 => builder 与 Tensor_v8
-    dnnl::graph::logical_tensor lumpsumLT;
+    Tensor_v8 m_tensor; //! Tensor built by the TensorBuilder class.
 };
 
 using Tensor = Tensor_v8;
 using TensorBuilder = TensorBuilder_v8;
 
-/*******************************************************
- *  Operation_v8 + OperationBuilder_v8
- ******************************************************/
+class MatMulDesc_v8 : public BackendDescriptor {
+public:
+    friend class MatMulDescBuilder_v8;
+    friend class OperationBuilder_v8;
+    //     std::string describe() const override {
+    //         std::stringstream ss;
+    // #ifndef CUDNN_FRONTEND_SKIP_JSON_LIB
+    //         ss << "CUDNN_BACKEND_MATMUL_DESCRIPTOR :"
+    //            << " Math precision " << json {compute_type};
+    // #else
+    //         ss << "CUDNN_BACKEND_MATMUL_DESCRIPTOR :"
+    //            << " Math precision " << int(compute_type);
+    // #endif
+    //         return ss.str();
+    //     }
+
+    MatMulDesc_v8(MatMulDesc_v8 &&from) = default;
+    MatMulDesc_v8 &operator=(MatMulDesc_v8 &&from) = default;
+    const bool &getTransposeB() const { return transpose_b; }
+
+    ~MatMulDesc_v8() = default;
+
+private:
+    MatMulDesc_v8() = default;
+    MatMulDesc_v8(MatMulDesc_v8 const &) = delete;
+    MatMulDesc_v8 &operator=(MatMulDesc_v8 const &) = delete;
+
+    bool transpose_b = false;
+};
+
+////
+/// MatMulDescBuilder_v8 Class
+/// Helper class used to build MatMulDesc_v8 class
+class MatMulDescBuilder_v8 {
+public:
+    /** @defgroup MatMulDescBuilder_v8
+      *  Set individual property of MatMulDesc_v8 class
+      *  @{
+      */
+    //! Set Math Precision Data Type for the Matmul Operation
+    auto setTransposeB(bool transpose_b) -> MatMulDescBuilder_v8 & {
+        m_matMulDesc.transpose_b = transpose_b;
+        return *this;
+    }
+
+    //! constructs the MatMulDesc_v8 by calling the cudnn API
+    //! Throws the appropriate error message
+    MatMulDesc_v8 &&build() { return std::move(m_matMulDesc); }
+
+    explicit MatMulDescBuilder_v8() = default;
+    ~MatMulDescBuilder_v8() = default;
+    MatMulDescBuilder_v8(MatMulDescBuilder_v8 &&) = delete;
+    MatMulDescBuilder_v8(MatMulDescBuilder_v8 const &) = delete;
+    MatMulDescBuilder_v8 &operator=(MatMulDescBuilder_v8 const &) = delete;
+
+private:
+    MatMulDesc_v8 m_matMulDesc;
+};
+using MatMulDesc = MatMulDesc_v8;
+using MatMulDescBuilder = MatMulDescBuilder_v8;
 
 class Operation_v8 : public BackendDescriptor {
 public:
     friend class OperationBuilder_v8;
-
-    // [CHANGED] 构造函数必须绑定 internal_op, 以及 amatdesc,bmatdesc,cmatdesc
-    Operation_v8(lt &a, lt &b, lt &c, op &theop, op::kind k)
-        : amatdesc(a)
-        , bmatdesc(b)
-        , cmatdesc(c)
-        , internal_op(theop)
-        , op_kind(k) {}
-
+    friend class OperationGraph_v8;
+    // std::string describe() const override {
+    //     std::stringstream ss;
+    //     ss << "CUDNN_BACKEND_OPERATION :"
+    //        << " OpMode: " << op_mode;
+    //     ss << std::hex << " X " << xdesc;
+    //     ss << std::hex << " Y " << ydesc;
+    //     ss << std::hex << " W " << wdesc;
+    //     ss << std::hex << " B " << bdesc;
+    //     ss << std::hex << " T " << tdesc;
+    //     ss << std::hex << " DW " << dwdesc;
+    //     ss << std::hex << " DY " << dydesc;
+    //     ss << std::hex << " DX " << dxdesc;
+    //     ss << std::hex << " C " << cdesc;
+    //     ss << std::hex << " A Mtrix " << amatdesc;
+    //     ss << std::hex << " B Mtrix " << bmatdesc;
+    //     ss << std::hex << " C Mtrix " << cmatdesc;
+    //     ss << std::hex << " P " << pwdesc;
+    //     ss << std::hex << " MatMul " << matmuldesc;
+    //     ss << std::hex << " Reduction " << reductiondesc;
+    //     ss << std::dec << " alphabetaType " << alphabetaType;
+    //     ss << " Alpha: " << alpha_s << " " << alpha_d;
+    //     ss << " Alpha2: " << alpha2_s << " " << alpha2_d;
+    //     ss << " Beta: " << beta_s << " " << beta_d;
+    //     return ss.str();
+    // }
+    Operation_v8() = default;
     Operation_v8(Operation_v8 &&from) = default;
     Operation_v8 &operator=(Operation_v8 &&from) = default;
+
     ~Operation_v8() = default;
 
 private:
-    Operation_v8() = delete; // 无法默认构造, 因为引用需要绑定
+    //Operation_v8() = default;
     Operation_v8(Operation_v8 const &) = delete;
     Operation_v8 &operator=(Operation_v8 const &) = delete;
 
-    // [CHANGED] 全部改成引用
-    lt &amatdesc;
-    lt &bmatdesc;
-    lt &cmatdesc;
-
-    // [CHANGED] internal_op 也改为引用
-    op &internal_op;
-
-    op::kind op_kind;
+    op::kind op_kind = op::kind::Wildcard;
+    MatMulDesc_v8 m_matMulDesc;
+    lt amatdesc;
+    lt bmatdesc;
+    lt cmatdesc;
+    op internal_op;
 };
 
 class OperationBuilder_v8 {
 private:
-    op::kind op_kind;
-    lt *aPtr = nullptr;
-    lt *bPtr = nullptr;
-    lt *cPtr = nullptr;
+    Operation_v8 m_operation;
+    op::kind m_op_kind;
 
-    // [CHANGED]
-    // 需要一个 "long-lived" op 对象
-    // 不能在 build() 里造局部 op bmm1 并返回对它的引用
-    // 这里先放成一个成员 "bigOp"
-    // 真实情况, 你也得确保这个 bigOp 生命周期比 Operation_v8 更长
-    op bigOp;
+    OperationBuilder_v8(op::kind const &op_kind)
+        : m_operation()
+        , // ✅ 这里显式调用默认构造
+        m_op_kind(op_kind) // ✅ 这样 m_op_kind 也能初始化
+    {}
+
+    Operation_v8 &&build_matmul_op() {
+
+        // score = query x key.T
+        //auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
+        auto bmm1 = op(op_id++, op::kind::MatMul, "bmm1");
+        bmm1.set_attr<bool>(op::attr::transpose_b, m_operation.getTransposeB());
+        bmm1.add_inputs({m_operation.amatdesc, m_operation.bmatdesc});
+        bmm1.add_outputs({m_operation.cmatdesc});
+        m_operation.internal_op = bmm1;
+        return std::move(m_operation);
+    }
 
 public:
-    explicit OperationBuilder_v8(op::kind k)
-        : op_kind(k), bigOp(op_id++, k, "bmm1") {}
-
-    auto setaMatDesc(const Tensor_v8 &tensor) -> OperationBuilder_v8 & {
-        aPtr = &tensor.getInternal_lt();
+    auto setaMatDesc(Tensor_v8 const &tensor) -> OperationBuilder_v8 & {
+        m_operation.amatdesc = tensor.getInternal_lt();
         return *this;
     }
-    auto setbMatDesc(const Tensor_v8 &tensor) -> OperationBuilder_v8 & {
-        bPtr = &tensor.getInternal_lt();
+    auto setbMatDesc(Tensor_v8 const &tensor) -> OperationBuilder_v8 & {
+        m_operation.bmatdesc = tensor.getInternal_lt();
         return *this;
     }
-    auto setcMatDesc(const Tensor_v8 &tensor) -> OperationBuilder_v8 & {
-        cPtr = &tensor.getInternal_lt();
+    auto setcMatDesc(Tensor_v8 const &tensor) -> OperationBuilder_v8 & {
+        m_operation.cmatdesc = tensor.getInternal_lt();
         return *this;
     }
 
-    Operation_v8 build() {
-        // 检查
-        if (!aPtr || !bPtr || !cPtr) {
-            throw std::runtime_error(
-                    "OperationBuilder_v8: some pointer not set!");
+    auto setmatmulDesc(MatMulDesc_v8 &&matmulDesc) -> OperationBuilder_v8 & {
+        m_operation.m_matMulDesc = std::move(matmulDesc);
+        return *this;
+    }
+
+    //! constructs the backend Operation_v8 by calling the cudnn API
+    //! Throws the appropriate error message
+    Operation_v8 &&build() {
+        m_operation.op_kind = m_op_kind;
+        if (m_operation.op_kind == op::kind::MatMul) {
+            return build_matmul_op();
         }
-
-        // [CHANGED]
-        // bigOp 对象在 builder 里, 这里可以设置相关属性
-        if (op_kind == op::kind::MatMul) {
-            bigOp.set_attr<bool>(op::attr::transpose_b, true);
-        }
-
-        // bigOp.add_inputs(...) => 需要 pointer
-        bigOp.add_inputs({*aPtr, *bPtr});
-        bigOp.add_outputs({*cPtr});
-
-        // 构造 Operation_v8(lt&, lt&, lt&, op&, op::kind)
-        Operation_v8 opObj(*aPtr, *bPtr, *cPtr, bigOp, op_kind);
-
-        return opObj;
+        return std::move(m_operation);
     }
 };
 
@@ -886,8 +719,8 @@ private:
     //std::array<ManagedOpaqueDescriptor, MAX_OPGRAPH_OPS> ops {};
     std::array<Operation_v8, MAX_OPGRAPH_OPS> ops {};
     int64_t numOps = -1;
-    graph *internal_graph = nullptr;
-    partition *internal_partition = nullptr;
+    graph internal_graph;
+    partition internal_partition;
 };
 
 ///
@@ -905,25 +738,25 @@ public:
         return *this;
     }
 
-    // //! Set numoperations and the operations
-    // auto setOperationGraph(int64_t numOps_, Operation_v8 const **ops_)
-    //         -> OperationGraphBuilder_v8 & {
-    //     m_operationGraph.numOps = numOps_;
-    //     for (auto i = 0u; i < numOps_; i++) {
-    //         m_operationGraph.ops[i] = ops_[i]->get_desc();
-    //     }
-    //     return *this;
-    // }
+    //! Set numoperations and the operations
+    auto setOperationGraph(int64_t numOps_, Operation_v8 const **ops_)
+            -> OperationGraphBuilder_v8 & {
+        m_operationGraph.numOps = numOps_;
+        for (auto i = 0u; i < numOps_; i++) {
+            m_operationGraph.ops[i] = ops_[i]->get_desc();
+        }
+        return *this;
+    }
 
-    // //! Set numoperations and the operations
-    // auto setOperationGraph(std::vector<Operation> const &ops_)
-    //         -> OperationGraphBuilder_v8 & {
-    //     m_operationGraph.numOps = ops_.size();
-    //     for (auto i = 0u; i < ops_.size(); i++) {
-    //         m_operationGraph.ops[i] = ops_[i].get_desc();
-    //     }
-    //     return *this;
-    // }
+    //! Set numoperations and the operations
+    auto setOperationGraph(std::vector<Operation> const &ops_)
+            -> OperationGraphBuilder_v8 & {
+        m_operationGraph.numOps = ops_.size();
+        for (auto i = 0u; i < ops_.size(); i++) {
+            m_operationGraph.ops[i] = ops_[i].get_desc();
+        }
+        return *this;
+    }
 
     auto addOperation(ManagedOpaqueDescriptor desc)
             -> OperationGraphBuilder_v8 & {
