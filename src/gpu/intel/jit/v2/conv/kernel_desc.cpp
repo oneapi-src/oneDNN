@@ -1038,7 +1038,7 @@ void kernel_desc_t::show_help() {
 
 grid_t create_thread_group_grid(const kernel_desc_t &desc) {
     grid_t grid(jit::ir_builder_t::tg_idx);
-    auto set = [&](const pvar_t dim, int idx) {
+    auto set = [&](const pvar_t &dim, int idx) {
         grid.add_mapping(dim, desc.use_stream_k ? 0 : idx);
     };
     switch (desc.prop) {
