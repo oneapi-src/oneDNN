@@ -1991,7 +1991,7 @@ BinaryCodeGenerator<hw>::opX(Opcode op, DataType defaultType, const InstructionM
     if (forceWE)
         emod |= NoMask;
 
-    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.getType()});
+    int ewidth = getExecWidth({defaultType, dst.getType(), src0.getType(), src1.isNull() ? src0.getType()  : src1.getType()});
     dst.fixup(hw,  emod.getExecSize(), ewidth, defaultType, -1, 2);
     src0.fixup(hw, emod.getExecSize(), ewidth, defaultType, 0, 2);
     src1.fixup(hw, emod.getExecSize(), ewidth, defaultType, 1, 2);
@@ -2676,6 +2676,9 @@ template <HW hw_>
 typename std::enable_if<hwLT(hw_, HW::Gen12LP)>::type
 BinaryCodeGenerator<hw>::opJmpi(Opcode op, const InstructionModifier &mod, const RegData &dst, RegData src0, uint32_t jip, SourceLocation loc)
 {
+#ifdef NGEN_SAFE
+        if (mod.getExecSize() != 1) throw invalid_modifiers_exception();
+#endif
     debugLine.add(rootStream.length(), loc);
 
     Instruction8 i{};
