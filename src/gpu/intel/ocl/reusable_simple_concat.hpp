@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -65,7 +65,6 @@ struct reusable_simple_concat_params_t
 struct reusable_simple_concat_runtime_params_t {
     dim_t dst_extern_dim_size;
     dim_t dst_offset0;
-    dim_t dst_ext_offset;
     dim_t src_extern_dim_sizes[64];
     dim_t offset[64];
     dim_t padded_offset[64];

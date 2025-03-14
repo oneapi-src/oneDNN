@@ -1,0 +1,88 @@
+# internal padding 32b
+--dtag=aBc32b
+--sdt=f32,f16,bf16,s8
+--ddt=f32,f16,bf16,s8
+--stag=aBc32b:aBc32b
+--axis=1
+4x33x8:4x32x8
+4x34x8:4x32x8
+4x129x8:4x129x8
+
+# internal padding 16b
+--dtag=aBc16b
+--stag=aBc16b:aBc16b
+4x33x8:4x32x8
+4x34x8:4x32x8
+4x129x8:4x129x8
+
+# internal padding 8b
+--dtag=aBc8b
+--stag=aBc8b:aBc8b
+4x33x8:4x32x8
+4x39x8:4x32x8
+4x129x8:4x129x8
+
+# internal padding 4b
+--dtag=aBc4b
+--stag=aBc4b:aBc4b
+4x34x8:4x32x8
+4x35x8:4x32x8
+4x36x8:4x32x8
+4x129x8:4x129x8
+
+# increasing inner dim
+--dtag=aBc32b
+--sdt=f32,f16,bf16,s8,u8
+--ddt=f32,f16,bf16,s8,u8
+--stag=aBc32b:aBc32b
+--axis=1
+4x33x32:4x32x32
+4x33x4096:4x32x4096
+
+--dtag=aBc16b
+--stag=aBc16b:aBc16b
+--axis=1
+4x33x16:4x32x16
+4x33x4096:4x32x4096
+4x129x16:4x129x16
+4x129x4096:4x129x4096
+
+--dtag=aBc8b
+--stag=aBc8b:aBc8b
+--axis=1
+4x33x4096:4x32x4096
+4x33x4096:4x32x4096
+4x129x4096:4x129x4096
+4x129x4096:4x129x4096
+
+# tests w/small concat
+--reset
+--dtag=aBc4b
+--stag=aBc4b:aBc4b
+--axis=1
+# src0 < elems_per_sg
+4x2x8:4x2x8
+# sg_size > boundary (no trailing blocks)
+4x33x8:4x4x8
+# boundary_blocks only
+4x3x32:4x3x32
+
+# large internal padding concat for idx_t=ulong
+--reset
+--dtag=aBc32b
+--stag=aBc32b:aBc32b
+--axis=1
+--sdt=bf16 --ddt=bf16 4x337810x992:4x17x992
+
+# test varying internal padding tags/formats
+--reset
+--sdt=u8
+--ddt=u8
+--axis=1
+--stag=aBcd32b:aBcd32b
+--dtag=aBcd32b
+4x33x8x8:4x32x8x8
+
+--stag=ABcd32a32b:ABcd32a32b
+--dtag=ABcd32a32b
+4x33x8x8:4x32x8x8

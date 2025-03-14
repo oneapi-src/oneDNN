@@ -97,3 +97,7 @@
 --dtag=nchw
 --attr-scales=msrc0:common:2+msrc1:common:3+msrc2:common:4+msrc3:common:5+msrc4:common:6+msrc5:common:7+msrc6:common:8+msrc7:common:9+msrc8:common:10+msrc9:common:11+msrc10:common:12+msrc11:common:13+msrc12:common:14+msrc13:common:15+msrc14:common:16+msrc15:common:17+msrc16:common:18
 1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40:1x1x40x40
+
+# additional tests for internal padding concat kernel
+--reset
+--batch=test_concat_ip
