@@ -333,11 +333,7 @@ struct prb_t : public desc_t {
         if (mb) this->mb = mb;
         count_ops();
 
-        // Broadcast data types if needed
-        if (tag.size() == 1) {
-            const auto val = tag[0]; // Need a copy here.
-            this->tag.assign(3, val);
-        }
+        broadcast_vector(this->tag, 3);
 
         wei_scales = nullptr;
         wei_proj_scales = nullptr;

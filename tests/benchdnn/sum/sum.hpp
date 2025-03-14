@@ -84,11 +84,8 @@ struct prb_t : public prb_dims_t {
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
         , impl_filter(impl_filter) {
-        // Broadcast tag if needed
-        if (stag.size() == 1) {
-            const auto val = stag[0]; // Need a copy here.
-            this->stag.assign(n_inputs(), val);
-        }
+
+        broadcast_vector(this->stag, n_inputs());
 
         // Broadcast input_scale if needed
         if (input_scales.size() == 1) {

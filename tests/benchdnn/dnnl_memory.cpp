@@ -608,7 +608,7 @@ benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dnn_mem_t::init_md(int ndims,
     const bool use_strides = !strides_.empty();
     // Ignore tag_ in case strides_ are explicitly provided
     if (use_strides) {
-        std::vector<dnnl_dim_t> strides(strides_);
+        const std::vector<dnnl_dim_t> &strides(strides_);
         DNN_SAFE_V(dnnl_memory_desc_create_with_strides(
                 &md, ndims, dims, data_type, strides.data()));
         return md;

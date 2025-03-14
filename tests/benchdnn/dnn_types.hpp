@@ -92,7 +92,7 @@ struct attr_t {
 
             bool is_def() const {
                 return policy == COMMON && value == 0 && dt == dnnl_s32
-                        && groups.size() == 0;
+                        && groups.empty();
             }
 
             policy_t policy = COMMON;
@@ -141,7 +141,6 @@ struct attr_t {
                     arg, e.policy, prim_kind, ndims, has_groups);
         }
 
-        zero_points_t() : points() {} // needed for debug icc190 build;
         std::map<int, entry_t> points;
     };
 
@@ -156,7 +155,7 @@ struct attr_t {
 
             bool is_def() const {
                 return policy == COMMON && scale == 1.f && dt == dnnl_f32
-                        && groups.size() == 0;
+                        && groups.empty();
             }
 
             policy_t policy = COMMON;
@@ -165,7 +164,7 @@ struct attr_t {
             std::vector<dnnl_dim_t> groups;
         };
 
-        void set(int arg, entry_t scale) { scales[arg] = scale; }
+        void set(int arg, const entry_t &scale) { scales[arg] = scale; }
 
         entry_t get(int arg) const {
             const auto &s = scales.find(arg);
@@ -193,8 +192,6 @@ struct attr_t {
             return def;
         }
         int from_str(const std::string &s);
-
-        arg_scales_t() : scales() {} // needed for debug icc190 build;
 
         std::map<int, entry_t> scales;
     };
@@ -339,7 +336,7 @@ struct attr_t {
             bool is_prelu_kind() const;
         };
 
-        post_ops_t() : entry() {}
+        post_ops_t() = default;
 
         int len() const { return (int)entry.size(); }
         bool is_def() const { return len() == 0; }
@@ -460,7 +457,7 @@ struct isa_hints_t {
     cpu_hints_t hints_;
     isa_hints_t(cpu_hints_t hints) : hints_(hints) {}
 
-    cpu_hints_t get() { return hints_; }
+    cpu_hints_t get() const { return hints_; }
 
     static std::string hints2str(const isa_hints_t &isa_hints) {
         switch (isa_hints.hints_) {
@@ -540,6 +537,7 @@ struct sparse_options_t {
 
     std::vector<int> get_args() const {
         std::vector<int> args;
+        args.reserve(options_.size());
         for (const auto &opt : options_) {
             args.push_back(opt.first);
         }

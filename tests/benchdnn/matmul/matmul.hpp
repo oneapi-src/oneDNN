@@ -33,7 +33,7 @@
 
 namespace matmul {
 
-typedef std::bitset<DNNL_MAX_NDIMS> dims_mask_t;
+using dims_mask_t = std::bitset<DNNL_MAX_NDIMS>;
 
 struct settings_t : public base_settings_t {
     settings_t() = default;
@@ -90,7 +90,7 @@ struct prb_t : public prb_vdims_t {
             dnnl_data_type_t bia_dt, int bia_mask,
             const std::vector<dims_mask_t> &rt_dims_masks,
 #ifdef DNNL_EXPERIMENTAL_SPARSE
-            sparse_options_t sparse_options,
+            const sparse_options_t &sparse_options,
 #endif
             const attr_t &attr, const thr_ctx_t &ctx_init,
             const thr_ctx_t &ctx_exe, const impl_filter_t &impl_filter)

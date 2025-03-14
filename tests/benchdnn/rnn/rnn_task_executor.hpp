@@ -40,7 +40,7 @@ template <typename prb_t, typename perf_report_t, typename create_func_t,
 struct rnn_task_executor_t {
     virtual ~rnn_task_executor_t() { assert(tasks_.empty()); }
 
-    void submit(std::shared_ptr<const prb_t> prb,
+    void submit(const std::shared_ptr<const prb_t> &prb,
             const std::string &perf_template, const create_func_t &create_func,
             const check_cache_func_t &check_cache_func,
             const do_func_t &do_func) {

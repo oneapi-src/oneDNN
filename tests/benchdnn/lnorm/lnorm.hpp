@@ -104,19 +104,19 @@ struct prb_t : public prb_dims_t {
         , attr(attr)
         , ctx_init(ctx_init)
         , ctx_exe(ctx_exe)
-        , impl_filter(impl_filter) {
-        n = 1;
+        , impl_filter(impl_filter)
+        , n(1)
+        , c(dims[ndims - 1])
+        , eps(1.f / 16) {
         for (int d = 0; d < ndims - 1; d++)
             n *= dims[d];
-        c = dims[ndims - 1];
-        eps = 1.f / 16;
 
         // Broadcast data types if needed
         if (dt.size() == 1) {
             const auto val = dt[0]; // Need a copy here.
             this->dt.assign(2, val);
         }
-        if (tag.size() == 1) { this->tag.push_back(tag::any); }
+        if (tag.size() == 1) { this->tag.emplace_back(tag::any); }
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
 

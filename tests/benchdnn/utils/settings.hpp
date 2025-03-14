@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022-2024 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -94,8 +94,8 @@ struct base_settings_t {
             attr_t::rounding_mode_t()};
     std::vector<thr_ctx_t> ctx_init {default_thr_ctx};
     std::vector<thr_ctx_t> ctx_exe {default_thr_ctx};
-    impl_filter_t impl_filter {};
-    const char *pattern = NULL;
+    impl_filter_t impl_filter;
+    const char *pattern = nullptr;
     // Non-parsed members
     settings_attributes_t attributes;
 
@@ -129,5 +129,20 @@ struct base_settings_t {
                 fpmath_mode, acc_mode, deterministic, dropout, rounding_mode);
     }
 };
+
+// TODO: move to prb.hpp when it appears.
+template <typename T>
+void broadcast_vector(std::vector<T> &v, const int n_inputs) {
+    // If it's not a single element in vector, nothing to broadcast.
+    if (v.size() != 1) return;
+
+    // std::vector<T>::assign invalidates all iterators and references.
+    // `this->stag.assign(prb_vdims.n_inputs(), stag[0]);` line can
+    // crash depending on the implementation whether it saves `stag[0]`
+    // before invalidating or not. Windows didn't.
+    //NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
+    const auto val = v[0];
+    v.assign(n_inputs, val);
+}
 
 #endif

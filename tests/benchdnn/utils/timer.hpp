@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2023 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #define TIME_FUNC(func, res, name) \
     do { \
         if (res) { \
-            auto &t = res->timer_map.get_timer(name); \
+            auto &t = (res)->timer_map.get_timer(name); \
             t.start(); \
             func; \
             t.stamp(); \

@@ -68,12 +68,12 @@ enum { CRIT = 1, WARN = 2 };
     do { \
         int status__ = (f); \
         if (status__ != OK) { \
-            if (s == CRIT || s == WARN) { \
+            if ((s) == CRIT || (s) == WARN) { \
                 BENCHDNN_PRINT(0, \
                         "Error: Function '%s' at (%s:%d) returned '%d'\n", \
                         __FUNCTION__, __FILE__, __LINE__, status__); \
                 fflush(0); \
-                if (s == CRIT) exit(1); \
+                if ((s) == CRIT) exit(1); \
             } \
             return status__; \
         } \
@@ -108,9 +108,14 @@ extern std::string driver_name;
         } \
     } while (0)
 
+//NOLINTBEGIN(bugprone-macro-parentheses)
+// dnnl_common.hpp:119:5: error: expected ';' at end of declaration list [clang-diagnostic-error]
+//  119 |     BENCHDNN_DISALLOW_COPY_AND_ASSIGN(stream_t);
+//      |     ^
 #define BENCHDNN_DISALLOW_COPY_AND_ASSIGN(T) \
     T(const T &) = delete; \
     T &operator=(const T &) = delete;
+//NOLINTEND(bugprone-macro-parentheses)
 
 /* perf */
 extern double max_ms_per_prb; // max time spend per prb in ms
@@ -168,7 +173,7 @@ const char *bool2str(bool value);
 bool match_regex(const char *str, const char *pattern);
 bool skip_start(res_t *res, int idx = benchdnn_stat.tests);
 
-typedef int (*bench_f)(int argc, char **argv);
+using bench_f = int (*)(int, char **);
 std::string locate_file(const std::string &fname);
 int batch(const char *fname, bench_f bench);
 

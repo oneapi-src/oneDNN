@@ -40,14 +40,13 @@ flag_t str2flag(const char *str);
 std::string flag2str(flag_bit_t flag);
 std::ostream &operator<<(std::ostream &s, const std::vector<flag_t> &oflag);
 
-struct dt_conf_s {
+struct dt_conf_t {
     dnnl_data_type_t dt;
     float min;
     float max;
 };
-typedef const dt_conf_s *dt_conf_t;
-dt_conf_t dt2cfg(dnnl_data_type_t dt);
-dnnl_data_type_t cfg2dt(dt_conf_t cfg);
+const dt_conf_t *dt2cfg(dnnl_data_type_t dt);
+dnnl_data_type_t cfg2dt(const dt_conf_t *cfg);
 
 enum cross_engine_t { NONE, CPU2GPU, GPU2CPU };
 cross_engine_t str2cross_engine(const char *str);
@@ -133,7 +132,7 @@ struct prb_t : public prb_dims_t {
     bool is_reorder_with_compensation(flag_bit_t flag) const;
     dims_t get_compensation_dims(flag_bit_t flag) const;
     int get_compensation_mask(flag_bit_t flag) const;
-    dt_conf_t get_conf(data_kind_t kind) const;
+    const dt_conf_t *get_conf(data_kind_t kind) const;
 
     // Used to construct memory desc when dimensions are runtime since such mds
     // can't be used directly from query and memory objects can't be constructed.

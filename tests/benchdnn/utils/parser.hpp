@@ -82,8 +82,16 @@ static bool parse_vector_str(T &vec, const T &def, F process_func,
                     "is not expected to be empty. Given input:", str.c_str());
             SAFE_V(FAIL);
         }
+        //NOLINTBEGIN(readability-redundant-string-cstr)
+        // parser.hpp: error: no viable conversion from 'string' to 'const char *'
+        // note: in instantiation of function template specialization
+        // 'parser::parse_vector_option<std::vector<unsigned int>, unsigned int (*)(const char *)>'
+        // parse_vector_option(s.flags, def.flags, str2flags, argv[0],
+        // ^
+        // TODO: move all functions to std::string input type.
         vec.push_back(
                 process_func(str.substr(pos_st, pos_en - pos_st).c_str()));
+        //NOLINTEND(readability-redundant-string-cstr)
         if (pos_en == eol) break;
         idx++;
     }

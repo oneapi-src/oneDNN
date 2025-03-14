@@ -72,9 +72,10 @@ struct prb_t : public prb_vdims_t {
 
     prb_t(const prb_vdims_t &prb_vdims,
             const std::vector<dnnl_data_type_t> &sdt, dnnl_data_type_t ddt,
-            const std::vector<std::string> &stag, std::string dtag, alg_t alg,
-            bool inplace, const attr_t &attr, const thr_ctx_t &ctx_init,
-            const thr_ctx_t &ctx_exe, const impl_filter_t &impl_filter)
+            const std::vector<std::string> &stag, const std::string &dtag,
+            alg_t alg, bool inplace, const attr_t &attr,
+            const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
+            const impl_filter_t &impl_filter)
         : prb_vdims_t(prb_vdims)
         , sdt(sdt)
         , ddt(ddt)
@@ -109,7 +110,7 @@ struct prb_t : public prb_vdims_t {
 
     const char *str() const { return repro.c_str(); }
 
-    const bool is_ternary_op() const { return alg == alg_t::SELECT; }
+    bool is_ternary_op() const { return alg == alg_t::SELECT; }
 
 private:
     std::string repro;

@@ -202,7 +202,7 @@ private:
     bool active_ = false;
 
     dnnl_engine_kind_t engine_kind_ = dnnl_any_engine;
-    dnnl_engine_t engine_ = NULL;
+    dnnl_engine_t engine_ = nullptr;
 
     mutable bool is_mapped_ = false;
     mutable std::vector<void *> mapped_ptrs_;

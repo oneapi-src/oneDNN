@@ -45,13 +45,13 @@
     do { \
         dnnl_status_t status__ = f; \
         if (status__ != dnnl_success) { \
-            if (s == CRIT || s == WARN) { \
+            if ((s) == CRIT || (s) == WARN) { \
                 BENCHDNN_PRINT(0, \
                         "Error: Function '%s' at (%s:%d) returned '%s'\n", \
                         __FUNCTION__, __FILE__, __LINE__, \
                         status2str(status__)); \
                 fflush(0); \
-                if (s == CRIT) exit(2); \
+                if ((s) == CRIT) exit(2); \
             } \
             return FAIL; \
         } \
@@ -59,7 +59,7 @@
 
 #define DNN_SAFE_V(f) \
     do { \
-        dnnl_status_t status__ = f; \
+        dnnl_status_t status__ = (f); \
         if (status__ != dnnl_success) { \
             BENCHDNN_PRINT(0, \
                     "Error: Function '%s' at (%s:%d) returned '%s'\n", \
@@ -72,7 +72,7 @@
 // Unlike `DNN_SAFE` this one returns `dnnl_status_t`, not `OK/FAIL`.
 #define DNN_SAFE_STATUS(f) \
     do { \
-        dnnl_status_t status__ = f; \
+        dnnl_status_t status__ = (f); \
         if (status__ != dnnl_success) { return status__; } \
     } while (0)
 
@@ -499,6 +499,7 @@ int init_prim(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &user_prim,
         // Rationale: make sure that the primitive cache is robust in the case
         // where CPU and GPU engines are re-created because this is a commonly
         // used scenario in the frameworks.
+        // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
         engine_t engine(get_test_engine());
 
         // The first primitive creation using a temporary engine.
@@ -653,9 +654,8 @@ void check_correctness(const prb_t *prb, const std::vector<data_kind_t> &kinds,
     }
 }
 
-typedef std::function<dnnl_status_t(
-        const dnnl_stream_t &, const std::vector<dnnl_exec_arg_t> &)>
-        perf_function_t;
+using perf_function_t = std::function<dnnl_status_t(
+        const dnnl_stream_t &, const std::vector<dnnl_exec_arg_t> &)>;
 
 int execute_and_wait(perf_function_t &exec_func, const dnnl_engine_t &engine,
         const args_t &args, res_t *res = nullptr);

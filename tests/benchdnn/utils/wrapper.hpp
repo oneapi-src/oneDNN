@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2022-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -81,8 +81,7 @@ struct benchdnn_dnnl_wrapper_t {
         return *this;
     }
 
-    benchdnn_dnnl_wrapper_t(benchdnn_dnnl_wrapper_t &&rhs) {
-        t_ = nullptr;
+    benchdnn_dnnl_wrapper_t(benchdnn_dnnl_wrapper_t &&rhs) : t_(nullptr) {
         *this = std::move(rhs);
     }
 

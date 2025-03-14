@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023-2024 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -41,8 +41,7 @@ struct fill_cfg_t {
         , range_min_val_(-16.f)
         , range_max_val_(16.f)
         , predefined_set_({})
-        , only_integer_(false)
-        , name_("") {}
+        , only_integer_(false) {}
 
     fill_cfg_t(dnnl_data_type_t dt, float range_min_val, float range_max_val,
             bool only_integer, attr_t::post_ops_t::kind_t alg,

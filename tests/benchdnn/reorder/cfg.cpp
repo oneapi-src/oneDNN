@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2024 Intel Corporation
+* Copyright 2018-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -31,8 +31,8 @@ const float f16_max_exact = 1 << 11;
 const float f4_max_exact = 1 << 3;
 
 #define REG(dt, min, max) \
-    const dt_conf_s CONCAT2(_conf_, dt) = {CONCAT2(dnnl_, dt), min, max}; \
-    const dt_conf_t CONCAT2(conf_, dt) = &CONCAT2(_conf_, dt);
+    const dt_conf_t CONCAT2(_conf_, dt) = {CONCAT2(dnnl_, dt), min, max}; \
+    const dt_conf_t *CONCAT2(conf_, dt) = &CONCAT2(_conf_, dt);
 
 REG(f32, -int_max_exact, int_max_exact);
 REG(f64, -int_max_exact, int_max_exact);
@@ -53,7 +53,7 @@ REG(u4, 0, 15);
 
 #undef REG
 
-dt_conf_t dt2cfg(dnnl_data_type_t dt) {
+const dt_conf_t *dt2cfg(dnnl_data_type_t dt) {
 #define CASE(cfg) \
     if (CONCAT2(dnnl_, cfg) == dt) return CONCAT2(conf_, cfg)
     CASE(f32);
@@ -74,7 +74,7 @@ dt_conf_t dt2cfg(dnnl_data_type_t dt) {
     return conf_f32;
 }
 
-dnnl_data_type_t cfg2dt(dt_conf_t cfg) {
+dnnl_data_type_t cfg2dt(const dt_conf_t *cfg) {
 #define CASE(_cfg) \
     if (cfg == CONCAT2(conf_, _cfg)) return CONCAT2(dnnl_, _cfg)
     CASE(f32);

@@ -101,7 +101,6 @@ struct prb_t : public desc_t {
         if (mb) this->mb = mb;
         repro = set_repro_line(); // must be last in ctor to collect right info
     }
-    ~prb_t() {}
 
     dir_t dir;
     dnnl_data_type_t dt;
