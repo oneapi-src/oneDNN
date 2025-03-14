@@ -2325,6 +2325,18 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = (jcp.s8s8_compensation_required || jcp.src_zero_point)
             && !everyone_is(0, jcp.t_pad, jcp.back_pad, jcp.f_pad, jcp.b_pad,
                     jcp.l_pad, jcp.r_pad);
+    // estimate the number of kernel range combination for compensation
+    const auto kd_cnt = 1 + utils::div_up(abs(jcp.f_pad), jcp.dilate_d + 1)
+            + utils::div_up(abs(jcp.back_pad), jcp.dilate_d + 1);
+    const auto kh_cnt = 1 + utils::div_up(abs(jcp.t_pad), jcp.dilate_h + 1)
+            + utils::div_up(abs(jcp.b_pad), jcp.dilate_h + 1);
+    jcp.ker_ranges_size = jcp.exec_type == exec_trans
+            ? kd_cnt * nstl::min(jcp.oh, jcp.oh_block + kh_cnt)
+            : kd_cnt * kh_cnt;
+    const auto comp_buffer_ow = jcp.exec_type != exec_vpad ? jcp.ow : 1;
+    jcp.comp_a_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size
+            * comp_buffer_ow * jcp.oc_block;
+    jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
 
     // For padding shapes, we calculate the comp along with the computation
     // inside brgemm kernel when output size is small to get optimal perf
@@ -2339,25 +2351,13 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = (output_sz <= 8192 && jcp.oc < 512) || jcp.ow > 128;
     const auto is_relo = jcp.is_relo() && jcp.relo_conv_weights;
     jcp.req_brg_comp_pad = compensation_w_padding && jcp.exec_type != exec_trans
-            && IMPLICATION(!is_relo, shape_for_brgemm_kernel);
+            && IMPLICATION(!is_relo, shape_for_brgemm_kernel)
+            && IMPLICATION(
+                    jcp.exec_type == exec_vpad, jcp.comp_a_buffer_size > 1024);
     jcp.req_cal_comp_pad = compensation_w_padding && !jcp.req_brg_comp_pad
             && IMPLICATION(jcp.exec_type == exec_vpad,
                     jcp.t_pad > 0 || jcp.b_pad > 0 || jcp.f_pad > 0
                             || jcp.back_pad > 0);
-
-    // estimate the number of kernel range combination for compensation
-    const auto kd_cnt = 1 + utils::div_up(abs(jcp.f_pad), jcp.dilate_d + 1)
-            + utils::div_up(abs(jcp.back_pad), jcp.dilate_d + 1);
-    const auto kh_cnt = 1 + utils::div_up(abs(jcp.t_pad), jcp.dilate_h + 1)
-            + utils::div_up(abs(jcp.b_pad), jcp.dilate_h + 1);
-    jcp.ker_ranges_size = jcp.exec_type == exec_trans
-            ? kd_cnt * nstl::min(jcp.oh, jcp.oh_block + kh_cnt)
-            : kd_cnt * kh_cnt;
-    const auto comp_buffer_ow = jcp.exec_type != exec_vpad ? jcp.ow : 1;
-    jcp.comp_a_buffer_size = jcp.ngroups * jcp.nb_oc * jcp.ker_ranges_size
-            * comp_buffer_ow * jcp.oc_block;
-
-    jcp.s8s8_comp_buffer_size = jcp.comp_a_buffer_size;
 
     // enable ununroll_bd_loop for big shapes to reduce kernel sizes
     jcp.ununroll_bd_loop
