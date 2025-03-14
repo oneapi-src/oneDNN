@@ -32,9 +32,6 @@ endmacro()
 
 macro(sdl_gnu_common_ccxx_flags var)
     append(${var} "-fstack-protector-strong")
-    if(DNNL_TARGET_ARCH STREQUAL "X64")
-        append(${var} "-fcf-protection=full")
-    endif()
 endmacro()
 
 # GCC might be very paranoid for partial structure initialization, e.g.
