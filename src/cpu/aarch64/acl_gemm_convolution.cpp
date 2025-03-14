@@ -52,16 +52,19 @@ template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
 status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
         engine_t *engine) {
     using namespace data_type;
-    using smask_t = primitive_attr_t::skip_mask_t;
 
     bool ok = is_fwd() && set_default_alg_kind(alg_kind::convolution_direct)
             && expect_data_types(src_t, wei_t, bia_t, dst_t, undef)
-            && !has_zero_dim_memory()
-            && attr()->has_default_values(
-                    smask_t::post_ops | smask_t::fpmath_mode, dst_t);
+            && !has_zero_dim_memory() && output_scales_mask_ok()
+            && zero_points_ok();
+
     if (!ok) return status::unimplemented;
 
     if (weights_md_.ndims != 4) return status::unimplemented;
+
+    // currently, only CpuGemmConv2d has the static quantization update interface.
+    acp_.is_quantized
+            = utils::one_of(dst_md_.data_type, data_type::s8, data_type::u8);
 
     // General Compute Library checks, memory tags are also set there
     CHECK(acl_convolution_utils::acl_init_conf(
@@ -82,7 +85,25 @@ status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
     auto scratchpad = scratchpad_registry().registrar();
     const auto mem_req = conv.workspace();
     return init_scratchpad(conv, scratchpad, gemm_conv_keys, engine, post_ops,
-            attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum, dst_md_);
+            attr_.post_ops_, acp_.act_info, acp_.use_dst_acc_for_sum, dst_md_,
+            bias_md_, acp_.is_quantized);
+}
+
+template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
+        data_type_t bia_t>
+bool acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t,
+        bia_t>::pd_t::output_scales_mask_ok() const {
+    int mask_src = attr()->scales_.get(DNNL_ARG_SRC).mask_;
+    int mask_wei = attr()->scales_.get(DNNL_ARG_WEIGHTS).mask_;
+    int mask_dst = attr()->scales_.get(DNNL_ARG_DST).mask_;
+    return mask_src == 0 && mask_wei == 0 && mask_dst == 0;
+}
+
+template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
+        data_type_t bia_t>
+bool acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t,
+        bia_t>::pd_t::zero_points_ok() const {
+    return attr()->zero_points_.common();
 }
 
 template <data_type_t src_t, data_type_t wei_t, data_type_t dst_t,
@@ -111,6 +132,7 @@ using namespace data_type;
 template struct acl_gemm_convolution_fwd_t<f32>;
 template struct acl_gemm_convolution_fwd_t<f16>;
 template struct acl_gemm_convolution_fwd_t<s8, s8, s8, s32>;
+template struct acl_gemm_convolution_fwd_t<u8, s8, u8, s32>;
 
 } // namespace aarch64
 } // namespace cpu
