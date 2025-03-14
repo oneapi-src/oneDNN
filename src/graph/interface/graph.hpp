@@ -69,13 +69,13 @@ struct dnnl_graph_graph : public graph::utils::id_t {
 
 private:
     /*! \brief added ops*/
-    std::vector<op_ptr> ops_ {};
+    std::vector<op_ptr> ops_;
 
     /*! \brief The engine kind on which the operator will be evaluated */
     graph::engine_kind_t engine_kind_ {};
 
     /*! \brief The floating-point math mode */
-    graph::fpmath_t fpmath_ {};
+    graph::fpmath_t fpmath_;
 
     std::vector<std::shared_ptr<graph::partition_impl_t>> partition_impls_;
 

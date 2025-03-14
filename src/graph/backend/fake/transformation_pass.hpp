@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,10 +34,10 @@ namespace graph {
 namespace fake_impl {
 namespace pass {
 
-class transformation_pass_t : public graph::pass::pass_base {
+class transformation_pass_t : public graph::pass::pass_base_t {
 public:
     explicit transformation_pass_t(std::string pbackend, std::string pname)
-        : graph::pass::pass_base(std::move(pbackend), std::move(pname)) {}
+        : graph::pass::pass_base_t(std::move(pbackend), std::move(pname)) {}
 
     static graph::pass::pass_base_ptr create(
             std::string pbackend, std::string pname) {

@@ -2785,7 +2785,7 @@ TEST(test_utils_pattern_matcher, GraphNodeName) {
 }
 
 TEST(test_utils_pattern_matcher, GraphRun) {
-    graph::pass::pass_base a;
+    graph::pass::pass_base_t a;
     graph::graph_t agraph;
     ASSERT_EQ(a.run(agraph), graph::status::success);
 }

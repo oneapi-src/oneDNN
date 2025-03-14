@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -90,10 +90,10 @@ inline void pattern_utils_t::init_partition(graph_t &backend_graph,
  * \brief pattern_matcher_pass_t generates an optimized graph
  *        when a pre-defined pattern is hit.
  */
-class pattern_matcher_pass_t : public graph::pass::pass_base {
+class pattern_matcher_pass_t : public graph::pass::pass_base_t {
 public:
     explicit pattern_matcher_pass_t(std::string pbackend, std::string pname)
-        : graph::pass::pass_base(std::move(pbackend), std::move(pname)) {}
+        : graph::pass::pass_base_t(std::move(pbackend), std::move(pname)) {}
 
     static graph::pass::pass_base_ptr create(
             std::string pbackend, std::string pname) {

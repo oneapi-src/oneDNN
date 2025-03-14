@@ -89,8 +89,8 @@ bool check_bn_data_type(const op_t *n) {
 // only when data is bf16, gamma/beta/mean/var can be bf16.
 // If data is bf16, gamma/beta/mean/var can be f32 or bf16.
 bool check_ln_gn_data_type(const op_t *n) {
-    auto input_values = n->get_input_values();
-    auto output_values = n->get_output_values();
+    const auto &input_values = n->get_input_values();
+    const auto &output_values = n->get_output_values();
 
     const logical_tensor_t &src_lt = input_values[0]->get_logical_tensor();
     logical_tensor_t aux_lt;

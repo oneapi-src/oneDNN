@@ -34,7 +34,7 @@ bool default_pass_filter(const pass_base_ptr &pass, partition_policy_t policy) {
 }
 
 // register a pass
-pass_base &pass_registry_t::register_pass(const std::string &backend_name,
+pass_base_t &pass_registry_t::register_pass(const std::string &backend_name,
         const std::string &pass_name, pass_create_fn fn) {
     // create new pass
     auto find = std::find_if(passes_.begin(), passes_.end(),
@@ -51,7 +51,7 @@ pass_base &pass_registry_t::register_pass(const std::string &backend_name,
     }
 }
 
-pass_base &pass_registry_t::register_pass(const pass_base_ptr &pass) {
+pass_base_t &pass_registry_t::register_pass(const pass_base_ptr &pass) {
     passes_.push_back(pass);
     passes_map_[pass->get_pass_name()] = pass;
     return *pass;

@@ -93,7 +93,7 @@ static status_t binary_handler(
     insert_empty_scratchpad(new_op);
     if (op->get_kind() == graph::op_kind::GreaterEqual) {
         auto out_vals = op->get_output_values();
-        auto dst = out_vals[0];
+        const auto &dst = out_vals[0];
         // GreaterEqual output's datatype is boolean. we treated it as u8
         dst->set_data_type(dnnl::impl::data_type::u8);
     }
@@ -657,16 +657,15 @@ static status_t dynamic_dequant_handler(
 
 static status_t select_handler(
         const std::shared_ptr<op_t> &op, subgraph_rewriter_t &rewriter) {
-
     auto in_vals = op->get_input_values();
     auto out_vals = op->get_output_values();
     VCHECK_INVALID_ARGUMENT(in_vals.size() == 3 && out_vals.size() == 1,
             "select should have three input and one output but "
             "got %zu input and %zu output",
             in_vals.size(), out_vals.size());
-    auto cond = in_vals[0];
-    auto src0 = in_vals[1];
-    auto src1 = in_vals[2];
+    const auto &cond = in_vals[0];
+    const auto &src0 = in_vals[1];
+    const auto &src1 = in_vals[2];
     // For the binary select operation, the conditional input tensor can
     // only be of `s8` data type.
     cond->set_data_type(dnnl::impl::data_type::s8);

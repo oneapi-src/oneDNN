@@ -500,8 +500,7 @@ public:
         std::for_each(attrs.begin(), attrs.end(),
                 [&copied_attrs](
                         const std::pair<op_attr_t, attribute_value_t> &v) {
-                    copied_attrs.emplace(
-                            std::make_pair(attr2str(v.first), v.second));
+                    copied_attrs.emplace(attr2str(v.first), v.second);
                 });
 
         copied_attrs.erase("op_depth");
@@ -516,9 +515,9 @@ public:
 private:
     size_t id_ {};
     op_kind_t kind_ {};
-    std::string name_ {};
-    std::vector<std::shared_ptr<value_t>> inputs_ {};
-    std::vector<std::shared_ptr<value_t>> outputs_ {};
+    std::string name_;
+    std::vector<std::shared_ptr<value_t>> inputs_;
+    std::vector<std::shared_ptr<value_t>> outputs_;
     std::unordered_map<op_attr_t, attribute_value_t> attributes_;
 
     dnnl::impl::graph::partition_impl_t *partition_ {nullptr};
@@ -527,7 +526,7 @@ private:
     // fused op: we still need to represent a fused op
     // possibly we can remove these once the new backend API and new pattern
     // matcher is done.
-    std::vector<size_t> op_ids_ {};
+    std::vector<size_t> op_ids_;
     // Map from the fused op input index -> (original op id, op input offset)
     std::unordered_map<size_t, pair_t> input_tensor_map_;
     // Map from the fused op output index -> (original op id, op output offset)

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2020-2023 Intel Corporation
+* Copyright 2020-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -40,8 +40,8 @@ namespace pass {
 
 using pb_graph_t = utils::pm::pb_graph_t;
 
-class pass_base;
-using pass_base_ptr = std::shared_ptr<pass_base>;
+class pass_base_t;
+using pass_base_ptr = std::shared_ptr<pass_base_t>;
 
 // FCreatePattern: a function for defining pattern.
 // One pass can have several FCreatePattern functions.
@@ -50,16 +50,16 @@ using FCreatePattern
 using Pattern = std::shared_ptr<pb_graph_t>;
 
 /*!
- * \brief pass_base provides a base class for pass creation.
+ * \brief pass_base_t provides a base class for pass creation.
  *        A pass is used to do pattern matching on a given graph,
  *        and reconstruct a new graph based on optimized patterns.
  */
-class pass_base {
+class pass_base_t {
 public:
-    pass_base(std::string pbackend, std::string pname)
+    pass_base_t(std::string pbackend, std::string pname)
         : backend_(std::move(pbackend)), name_(std::move(pname)) {}
 
-    pass_base() = default;
+    pass_base_t() = default;
 
     // the criteria of pass execution
     virtual impl::status_t run(graph_t &agraph) {
@@ -91,7 +91,7 @@ public:
         pkind_ = utils::str2partition_kind(kind);
     }
 
-    virtual ~pass_base() = default;
+    virtual ~pass_base_t() = default;
 
     std::string get_pass_backend() { return backend_; }
 
@@ -99,7 +99,7 @@ public:
 
     // set pass priority, passes with high priority
     // will be executed before passes with low priority
-    pass_base &set_priority(float priority) {
+    pass_base_t &set_priority(float priority) {
         priority_ = priority;
         return *this;
     }
@@ -107,21 +107,21 @@ public:
 
     // set enable status
     // can be used for override default value of enable_
-    pass_base &set_enable(bool enable) {
+    pass_base_t &set_enable(bool enable) {
         enable_ = enable;
         return *this;
     }
 
     bool get_enable() const { return enable_; }
 
-    pass_base &set_kind(partition_kind_t pkind) {
+    pass_base_t &set_kind(partition_kind_t pkind) {
         pkind_ = pkind;
         return *this;
     }
 
     partition_kind_t get_kind() const { return pkind_; }
 
-    pass_base &set_engine_kind(engine_kind_t kind) {
+    pass_base_t &set_engine_kind(engine_kind_t kind) {
         engine_kind_ = kind;
         return *this;
     }
@@ -135,7 +135,7 @@ public:
     * \tparam value_type The type of the value to be set.
     */
     template <typename value_type>
-    pass_base &set_attr(const std::string &attr_name, // NOLINT(*)
+    pass_base_t &set_attr(const std::string &attr_name, // NOLINT(*)
             const value_type &value) {
         attrs_.insert(make_pair(attr_name, value));
         return *this;
@@ -171,8 +171,8 @@ protected:
     std::unordered_multimap<std::string, utils::any_t> attrs_;
 
 private:
-    std::string backend_ {};
-    std::string name_ {};
+    std::string backend_;
+    std::string name_;
     float priority_ {5.0f};
     bool enable_ {true};
     partition_kind_t pkind_ {partition_kind_t::undef};
@@ -180,7 +180,7 @@ private:
 };
 
 template <>
-pass_base &pass_base::set_attr<FCreatePattern>(
+pass_base_t &pass_base_t::set_attr<FCreatePattern>(
         const std::string &attr_name, // NOLINT(*)
         const FCreatePattern &func);
 
