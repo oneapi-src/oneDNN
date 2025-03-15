@@ -59,7 +59,7 @@ struct reusable_simple_concat_params_t
     int data_type_size;
     bool use_large_index = true;
     bool use_internal_padding_kernel = false;
-    uint8_t padding[3] = {0};
+    uint8_t padding[2] = {0};
 };
 
 struct reusable_simple_concat_runtime_params_t {

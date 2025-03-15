@@ -474,8 +474,21 @@ internal_padding_block_concat2(__global DATA_T *dst,
         if (leading_boundary_shift) {
             int block_scaled_leading_shift
                     = leading_boundary_shift / blocks_per_simd1;
+            int rollover = leading_boundary_shift % blocks_per_simd1;
+
+            if (((get_local_id(0) / B0) + rollover) >= blocks_per_simd1)
+                block_scaled_leading_shift++;
+
             bVal = AS_VEC((as_ulong(bVal)
                     << block_scaled_leading_shift * DATA_TYPE_SIZE * 8));
+
+            // cannot directly shift values to corresponding location in sg since each
+            // workitem is responsible for multiple blocks, figure out source block
+            int src_bank = ((get_local_id(0) / B0)
+                                   + leading_boundary_shift % blocks_per_simd1)
+                    % blocks_per_simd1;
+            bVal = AS_VEC(intel_sub_group_shuffle(
+                    as_ulong(bVal), src_bank * B0 + (get_local_id(0) % B0)));
         }
 
         int sg_shuffle_dt = cutoff;

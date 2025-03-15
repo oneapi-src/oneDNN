@@ -236,7 +236,7 @@ static status_t attempt_normalize_ip_concat2(
         if (simd > total_elems) continue;
 
         const size_t min_bytes_per_workitem = 8;
-        const size_t elems_per_simd
+        const dim_t elems_per_simd
                 = simd * (min_bytes_per_workitem / data_type_size);
         const bool simd_even_block_multiple
                 = ((elems_per_simd) % conf.blocks[0]) == 0;
@@ -258,7 +258,7 @@ static status_t attempt_normalize_ip_concat2(
     conf.n = nonempty_inputs;
     conf.simd = max_simd;
     rt_conf.inner_axis = inner_offset;
-    conf.data_type_size = data_type_size;
+    conf.data_type_size = static_cast<int>(data_type_size);
 
     conf.use_large_index = (max_bytes > std::numeric_limits<int>::max());
 
@@ -296,7 +296,7 @@ static status_t attempt_normalize_ip_concat2(
 
     if (can_use_internal_padding_concat2) {
         rt_conf.inner_axis = concat2_inner_axis;
-        conf.data_type_size = concat2_dtsize;
+        conf.data_type_size = static_cast<int>(concat2_dtsize);
         conf.use_internal_padding_kernel = true;
 
         // TODO: compute::get_optimal_lws( // no emperical diff
