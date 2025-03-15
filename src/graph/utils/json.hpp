@@ -52,10 +52,10 @@ struct if_else_type;
  * \tparam T the type to be serialized
  */
 template <typename T>
-struct json_handler;
+struct json_handler_t;
 
 template <typename T>
-struct common_json;
+struct common_json_t;
 
 /*!
  * \brief json to write any type.
@@ -226,7 +226,7 @@ struct num_json_t {
 };
 
 template <typename valuetype>
-struct common_json {
+struct common_json_t {
     inline static void write(json_writer_t *writer, const valuetype &value) {
         value.save(writer);
     }
@@ -236,7 +236,7 @@ struct common_json {
 };
 
 template <typename valuetype>
-struct common_json<std::shared_ptr<valuetype>> {
+struct common_json_t<std::shared_ptr<valuetype>> {
     inline static void write(
             json_writer_t *writer, const std::shared_ptr<valuetype> &value) {
         auto *v = value.get();
@@ -268,7 +268,7 @@ struct array_json_t {
         reader->begin_array();
         while (reader->next_array_item()) {
             elemtype value;
-            json_handler<elemtype>::read(reader, &value);
+            json_handler_t<elemtype>::read(reader, &value);
             array->insert(array->end(), value);
         }
     }
@@ -298,7 +298,7 @@ struct map_json_t {
 };
 
 template <>
-struct json_handler<std::string> {
+struct json_handler_t<std::string> {
     inline static void write(json_writer_t *writer, const std::string &value) {
         writer->write_string(value);
     }
@@ -308,31 +308,31 @@ struct json_handler<std::string> {
 };
 
 template <typename T>
-struct json_handler<std::map<std::string, T>>
+struct json_handler_t<std::map<std::string, T>>
     : public map_json_t<std::map<std::string, T>> {};
 
 template <typename T>
-struct json_handler<std::unordered_map<std::string, T>>
+struct json_handler_t<std::unordered_map<std::string, T>>
     : public map_json_t<std::unordered_map<std::string, T>> {};
 
 template <typename T>
-struct json_handler<std::vector<T>> : public array_json_t<std::vector<T>> {};
+struct json_handler_t<std::vector<T>> : public array_json_t<std::vector<T>> {};
 
 template <typename T>
-struct json_handler<std::list<T>> : public array_json_t<std::list<T>> {};
+struct json_handler_t<std::list<T>> : public array_json_t<std::list<T>> {};
 /*!
  * \brief generic serialization json
  */
 template <typename T>
-struct json_handler {
+struct json_handler_t {
     inline static void write(json_writer_t *writer, const T &data) {
         using Tjson = typename if_else_type<std::is_arithmetic<T>::value,
-                num_json_t<T>, common_json<T>>::type;
+                num_json_t<T>, common_json_t<T>>::type;
         Tjson::write(writer, data);
     }
     inline static void read(json_reader_t *reader, T *data) {
         using Tjson = typename if_else_type<std::is_arithmetic<T>::value,
-                num_json_t<T>, common_json<T>>::type;
+                num_json_t<T>, common_json_t<T>>::type;
         Tjson::read(reader, data);
     }
 };
@@ -352,7 +352,7 @@ inline void json_writer_t::write_keyvalue(
     *os_ << key;
     *os_ << "\": ";
     scope_count_.back() += 1;
-    json_handler<valuetype>::write(this, value);
+    json_handler_t<valuetype>::write(this, value);
 }
 
 template <typename valuetype>
@@ -402,7 +402,7 @@ inline void json_writer_t::write_array_seperator() {
 template <typename valuetype>
 inline void json_writer_t::write_array_item(const valuetype &value) {
     this->write_array_seperator();
-    json::json_handler<valuetype>::write(this, value);
+    json::json_handler_t<valuetype>::write(this, value);
 }
 
 inline void json_writer_t::end_object() {
@@ -553,7 +553,7 @@ inline bool json_reader_t::next_array_item() {
 
 template <typename valuetype>
 inline void json_reader_t::read(valuetype *out_value) {
-    json::json_handler<valuetype>::read(this, out_value);
+    json::json_handler_t<valuetype>::read(this, out_value);
 }
 
 inline bool read_helper_t::read_fields(json_reader_t *reader) {
@@ -578,7 +578,7 @@ inline bool read_helper_t::read_fields(json_reader_t *reader) {
 
 template <typename T>
 inline void read_helper_t::reader_function(json_reader_t *reader, void *addr) {
-    json::json_handler<T>::read(reader, static_cast<T *>(addr));
+    json::json_handler_t<T>::read(reader, static_cast<T *>(addr));
 }
 
 } // namespace json

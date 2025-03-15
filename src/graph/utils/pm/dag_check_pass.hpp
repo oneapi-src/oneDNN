@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,10 +34,10 @@ namespace pass {
  * \brief dag_check_pass_t analyzes the graph
  *        to see if it's DAG or not.
  */
-class dag_check_pass_t : public graph::pass::pass_base {
+class dag_check_pass_t : public graph::pass::pass_base_t {
 public:
     explicit dag_check_pass_t(std::string pbackend, std::string pname)
-        : graph::pass::pass_base(std::move(pbackend), std::move(pname)) {}
+        : graph::pass::pass_base_t(std::move(pbackend), std::move(pname)) {}
 
     static graph::pass::pass_base_ptr create(
             std::string pbackend, std::string pname) {

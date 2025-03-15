@@ -2490,13 +2490,12 @@ struct genindex_executable_t : public op_executable_t {
 
     genindex_executable_t(std::shared_ptr<op_t> &op,
             const dnnl::engine &p_engine, fusion_info_mgr_t &mgr,
-            pd_cache_t &pd_cache) {
-
+            pd_cache_t &pd_cache)
+        : axis_(op->get_attr<int64_t>(op_attr::axis)) {
         using ltw = logical_tensor_wrapper_t;
         const auto &input_lt = op->get_input_value(0)->get_logical_tensor();
         nelems_ = ltw(input_lt).nelems();
         ndims_ = ltw(input_lt).ndims();
-        axis_ = op->get_attr<int64_t>(dnnl::impl::graph::op_attr::axis);
         const auto &output_lt = op->get_output_value(0)->get_logical_tensor();
         for (int i = 0; i < ndims_; i++) {
             output_dims_[i] = output_lt.dims[i];
@@ -2530,7 +2529,7 @@ struct genindex_executable_t : public op_executable_t {
 #ifdef DNNL_WITH_SYCL
     ::sycl::event execute_sycl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<::sycl::event> &deps = {}) const override {
+            const std::vector<::sycl::event> &deps) const override {
         if (stream.get_engine().get_kind() == engine::kind::cpu) {
             auto strm_t = stream.get();
             auto *sycl_stream_impl = dnnl::impl::utils::downcast<
@@ -2581,7 +2580,7 @@ struct genindex_executable_t : public op_executable_t {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
     cl_event execute_ocl(const stream &stream,
             const std::unordered_map<int, memory> &args,
-            const std::vector<cl_event> &deps = {}) const override {
+            const std::vector<cl_event> &deps) const override {
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
         auto compute_stream
                 = dnnl::impl::utils::downcast<compute::compute_stream_t *>(

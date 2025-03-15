@@ -135,11 +135,11 @@ inline bool is_reorder_type(op_kind_t op_kind) {
  * \brief dtype_check_pass_t generates a pass for checking unimplemented data 
  *        type.
  */
-class dtype_check_pass_t : public graph::pass::pass_base {
+class dtype_check_pass_t : public graph::pass::pass_base_t {
 public:
     explicit dtype_check_pass_t(std::string pbackend, std::string pname,
             std::vector<data_type_t> dtypes)
-        : graph::pass::pass_base(std::move(pbackend), std::move(pname))
+        : graph::pass::pass_base_t(std::move(pbackend), std::move(pname))
         , dt_to_check_(std::move(dtypes)) {
         // data type check passes should be executed first, hence should
         // have the highest priority.

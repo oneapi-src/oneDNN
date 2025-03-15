@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2023-2024 Intel Corporation
+ * Copyright 2023-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -352,7 +352,7 @@ private:
             // The first field: engine kind
             impl::engine_kind_t env_eng_kind = impl::engine_kind::any_engine;
             if (!fields.empty() && !fields[0].empty()) {
-                std::string eng_kind = fields[0];
+                const std::string &eng_kind = fields[0];
                 assertm(eng_kind == "cpu" || eng_kind == "gpu",
                         "engine kind must be cpu or gpu");
                 env_eng_kind = eng_kind == "cpu" ? impl::engine_kind::cpu

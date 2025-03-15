@@ -2337,9 +2337,9 @@ status_t decompose_select_to_binary_ops(std::shared_ptr<subgraph_t> &sg) {
         auto in_vals = op->get_input_values();
         auto out_vals = op->get_output_values();
 
-        auto src0 = in_vals[0];
-        auto src1 = in_vals[1];
-        auto cond = in_vals[2];
+        const auto &src0 = in_vals[0];
+        const auto &src1 = in_vals[1];
+        const auto &cond = in_vals[2];
         cond->set_data_type(dnnl::impl::data_type::u8);
 
         //TODO: This reorder can be removed once eltwise_clip support int8 input

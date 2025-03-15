@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2021-2024 Intel Corporation
+* Copyright 2021-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -241,10 +241,10 @@ protected:
     std::vector<std::shared_ptr<op_t>> ops_;
 
     /// All the input logical tensors of a partition
-    std::vector<logical_tensor_t> inputs_ {};
+    std::vector<logical_tensor_t> inputs_;
 
     /// All the output logical tensors of a partition
-    std::vector<logical_tensor_t> outputs_ {};
+    std::vector<logical_tensor_t> outputs_;
 
     /// Partition_impl id
     size_t id_ = std::numeric_limits<size_t>::max();
@@ -378,12 +378,12 @@ protected:
     /// The inputs logical tensors which this compiled_partition_impl_t
     /// is specialized for.Should have exact shape/dtype/layout and be
     /// in same order with inputs_ in partition_impl_t
-    std::vector<logical_tensor_t> inputs_ {};
+    std::vector<logical_tensor_t> inputs_;
 
     /// The outputs logical tensors which this compiled_partition_impl_t
     /// is specialized for.Should have exact shape/dtype/layout and be
     /// in same order with outputs_ in partition_impl_t
-    std::vector<logical_tensor_t> outputs_ {};
+    std::vector<logical_tensor_t> outputs_;
 
     /// The inplace_pair_t is used to indicate which input
     /// and output tensor given in execute can share same

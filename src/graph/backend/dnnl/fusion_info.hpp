@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2022-2024 Intel Corporation
+ * Copyright 2022-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -281,7 +281,7 @@ public:
 
     // Initialize an empty fusion info object and return its key
     int64_t init_info() {
-        data_.emplace_back(fusion_info_t());
+        data_.emplace_back();
         return static_cast<int64_t>(data_.size() - 1);
     }
 
@@ -305,7 +305,7 @@ public:
 private:
     std::vector<fusion_info_t> data_;
     // specified floating-point math mode for all fusions
-    fpmath_t fpmath_mode_ {};
+    fpmath_t fpmath_mode_;
     bool can_use_blocked_layout_;
 };
 

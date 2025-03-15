@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2023 Intel Corporation
+* Copyright 2023-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ namespace graph {
 namespace pass {
 
 template <>
-pass_base &pass_base::set_attr<FCreatePattern>(
+pass_base_t &pass_base_t::set_attr<FCreatePattern>(
         const std::string &attr_name, // NOLINT(*)
         const FCreatePattern &func) {
     Pattern pgraph = std::make_shared<pb_graph_t>();
