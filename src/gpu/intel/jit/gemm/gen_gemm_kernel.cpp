@@ -62,12 +62,14 @@ compute::scalar_type_t gen_gemm_kernel_desc_t::scalar_type() const {
 
 status_t gen_gemm_kernel_desc_t::finalize(const char *tags) {
     // Update problem alignments to match catalog entry.
-    if (!isPacked(problem_.A.layout)) {
+    if (!isPacked(problem_.A.layout)
+            && problem_.Ta_ext.paddedSize() >= problem_.Ta.paddedSize()) {
         problem_.A.setAlignment(std::max(
                 problem_.Ta_ext.paddedSize(), entry_->driverInfo.alignment[0]));
     }
 
-    if (!isPacked(problem_.B.layout)) {
+    if (!isPacked(problem_.B.layout)
+            && problem_.Tb_ext.paddedSize() >= problem_.Tb.paddedSize()) {
         problem_.B.setAlignment(std::max(
                 problem_.Tb_ext.paddedSize(), entry_->driverInfo.alignment[1]));
     }
@@ -380,8 +382,8 @@ status_t gen_gemm_nocopy_kernel_desc_t::select_kernel(compute::gpu_arch_t arch,
     relaxed_acc_ = mode & mode_relaxed_acc;
 
     auto a_type_size = types::data_type_size(a_type);
-    auto b_type_size = types::data_type_size(a_type);
-    auto c_type_size = types::data_type_size(a_type);
+    auto b_type_size = types::data_type_size(b_type);
+    auto c_type_size = types::data_type_size(c_type);
 
     align_a = nstl::max(align_a, int(a_type_size));
     align_b = nstl::max(align_b, int(b_type_size));
