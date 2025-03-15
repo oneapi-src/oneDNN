@@ -215,3 +215,26 @@
 
 # fp4
 --batch=test_matmul_fp4
+
+# Tests for external blocked weights layout.
+--reset
+--dt=f32
+--stag=ab --wtag=Ab8a --dtag=ab
+--attr-post-ops=mul:f32,relu,sum
+ 3x20:20x4n"postops+runtime_dims_2d"
+
+# Tests for sbgemm scenario with any format
+--reset
+--dt=f32:bf16:f32
+--stag=ab --wtag=any --dtag=ab
+--attr-fpmath=bf16
+--attr-post-ops=mul:f32,relu,sum
+ 3x20:20x4n"postops+runtime_dims_2d"
+
+# Tests for sbgemm scenario with external blocked layout
+--reset
+--dt=f32:bf16:f32
+--stag=ab --wtag=Ba4b --dtag=ab
+--attr-fpmath=bf16
+--attr-post-ops=mul:f32,relu,sum
+ 3x20:20x4n"postops+runtime_dims_2d"
