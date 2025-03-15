@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ struct reusable_simple_concat_params_t
 
     const std::vector<const char *> &get_kernel_names() const {
         static const std::vector<const char *> kernel_names
-                = {"reusable_simple_concat"};
+                = {"reusable_simple_concat", "internal_padding_block_concat2"};
         return kernel_names;
     }
 
@@ -58,13 +58,13 @@ struct reusable_simple_concat_params_t
     int simd;
     int data_type_size;
     bool use_large_index = true;
-    uint8_t padding[3] = {0};
+    bool use_internal_padding_kernel = false;
+    uint8_t padding[2] = {0};
 };
 
 struct reusable_simple_concat_runtime_params_t {
     dim_t dst_extern_dim_size;
     dim_t dst_offset0;
-    dim_t dst_ext_offset;
     dim_t src_extern_dim_sizes[64];
     dim_t offset[64];
     dim_t padded_offset[64];
@@ -74,6 +74,11 @@ struct reusable_simple_concat_runtime_params_t {
     dim_t read_overlap;
     dim_t gws0_block;
     dim_t inner_axis;
+
+    dim_t src_concat_axis0;
+    dim_t src_concat_axis1;
+    dim_t padded_src_concat_axis0;
+    dim_t padded_src_concat_axis1;
 
     compute::range_t gws_d = compute::range_t::one();
     compute::range_t lws_d;
@@ -106,9 +111,11 @@ struct reusable_simple_concat_t : public gpu_primitive_t {
     };
 
     status_t init(impl::engine_t *engine) override {
-        CHECK(create_kernel(
-                engine, kernel_, pd()->conf.get_kernel_names()[0], pd()->conf));
-        if (!kernel_) return status::runtime_error;
+        std::vector<compute::kernel_t> kernels;
+        CHECK(create_kernels(
+                engine, kernels, pd()->conf.get_kernel_names(), pd()->conf));
+        kernel_ = kernels[0];
+        internal_padding_kernel_ = kernels[1];
 
         return status::success;
     }
@@ -122,6 +129,7 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     compute::kernel_t kernel_;
+    compute::kernel_t internal_padding_kernel_;
 };
 
 } // namespace ocl

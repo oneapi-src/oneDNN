@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2024 Intel Corporation
+* Copyright 2024-2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -233,4 +233,342 @@ reusable_simple_concat(__global DATA_T *dst, const ulong dst_offset0,
         }
     }
 #endif // SIMD == 1
+}
+
+#define DATA1_T DATA_T
+#if DATA_TYPE_SIZE == 8
+#define NPERSG 1
+#define BLOCK_READ_UL BLOCK_READ
+#define BLOCK_WRITE_UL BLOCK_WRITE
+#define DDATA_T DATA1_T
+#define AS_VEC as_ulong
+#define ITEMMASK(n) (0xFFFFFFFFFFFFFFFFUL)
+#elif DATA_TYPE_SIZE == 4
+#define NPERSG 2
+#define BLOCK_READ_UL BLOCK_READ2
+#define BLOCK_WRITE_UL BLOCK_WRITE2
+#define DDATA_T DATA2_T
+#define AS_VEC as_uint2
+#define ITEMMASK(n) (0xFFFFFFFFUL << ((n)*DATA_TYPE_SIZE * 8))
+#elif DATA_TYPE_SIZE == 2
+#define NPERSG 4
+#define BLOCK_READ_UL BLOCK_READ4
+#define BLOCK_WRITE_UL BLOCK_WRITE4
+#define DDATA_T DATA4_T
+#define AS_VEC as_ushort4
+#define ITEMMASK(n) (0xFFFFUL << ((n)*DATA_TYPE_SIZE * 8))
+#elif DATA_TYPE_SIZE == 1
+#define NPERSG 8
+#define BLOCK_READ_UL BLOCK_READ8
+#define BLOCK_WRITE_UL BLOCK_WRITE8
+#define DDATA_T DATA8_T
+#define AS_VEC as_uchar8
+#define ITEMMASK(n) (0xFFUL << ((n)*DATA_TYPE_SIZE * 8))
+#endif
+
+/*
+ * This kernel handles internal padding cases by abstracting the problem into 3 cases:
+ *     - Reads and writes fall completely into the first source and can be copied as is
+ *
+ *     - Reads and writes fall across the boundary between two sources, neighboring "read blocks"
+ *       across the concat-axis boundary will need to be combined to form a single "write block" that will
+ *       consist halfway of each of the source blocks
+ *
+ *     - Reads and writes that fall completely within the second source will continue to misalign along
+ *       the halfway cutoff and will likewise require two reads per write, just with both reads within
+ *       the same second source
+ * The kernel will perform the reads/writes on aligned boundaries through additional logic that shifts
+ * misaligned values in registers to form full cache-lines
+ */
+#if SIMD != 1
+__attribute__((intel_reqd_sub_group_size(SIMD)))
+#endif
+__kernel void
+internal_padding_block_concat2(__global DATA_T *dst,
+        const idx_t dst_concat_axis, const idx_t dst_padded_concat_axis,
+        __global const DATA_T *src0, const idx_t offset0,
+        const idx_t padded_offset0, const idx_t src_concat_axis0,
+        const idx_t src_padded_concat_axis0, __global const DATA_T *src1,
+        const idx_t offset1, const idx_t padded_offset1,
+        const idx_t src_concat_axis1, const idx_t src_padded_concat_axis1,
+        const idx_t inner_dim) {
+
+    const int dtsize = DATA_TYPE_SIZE;
+    const int loads_per_sg = NPERSG;
+    const int elems_per_sg = SIMD * loads_per_sg;
+
+#if BLOCK_DEPTH > 0
+    const int B0 = BLOCK_B0;
+#else
+    const int B0 = 1;
+#endif
+
+    const idx_t first_boundary_block
+            = ((DIV_UP(src_concat_axis0, B0) - 1) * inner_dim);
+    const idx_t last_boundary_block = first_boundary_block + inner_dim - 1;
+    const idx_t tot_boundary_block
+            = (DIV_UP(dst_padded_concat_axis, B0) * inner_dim);
+
+    const int blocks_per_sg = elems_per_sg
+            / B0; // host side check ensures whole multiple of B0 and elems_per_sg > B0
+
+    __global const DATA_T *src;
+
+    // within block idx, ex: 0-7, 0-15, 0-23, 0-31
+    idx_t blid = get_local_id(0) % B0;
+
+    idx_t id_start = get_group_id(0) * elems_per_sg + get_local_id(0);
+    idx_t bii = id_start / B0;
+
+    idx_t sg_first_bii = get_group_id(0) * elems_per_sg / B0;
+
+    // index along concat dimension
+    idx_t ic = (bii / inner_dim) * B0 + blid;
+    idx_t ic_end = ((bii + blocks_per_sg) / inner_dim) * B0 + blid;
+
+    idx_t sg_last_bii = sg_first_bii + blocks_per_sg - 1;
+
+    idx_t ccsz
+            = src_concat_axis0; // concat dimension for calculating batched src
+    idx_t padded_ccsz
+            = padded_offset1; // padded concat dimension for calculating batched src
+
+    idx_t batch_offset0 = inner_dim * padded_ccsz * get_global_id(1);
+    idx_t batch_offset1
+            = inner_dim * src_padded_concat_axis1 * get_global_id(1);
+    idx_t ext_batch_offset
+            = inner_dim * dst_padded_concat_axis * get_global_id(1);
+
+    // completely aligned r/w blocks, no boundary src case nor misaligned reads
+
+    if (sg_last_bii < first_boundary_block) {
+        DDATA_T val = BLOCK_READ_UL(src0 + batch_offset0 + sg_first_bii * B0);
+        BLOCK_WRITE_UL(dst + ext_batch_offset + sg_first_bii * B0, val);
+    } else if (sg_first_bii > last_boundary_block) {
+        // if sg_bii0 fully within second source, update src_bii+other idx vars to match src1
+
+        idx_t src_blid = (ic - src_concat_axis0) % B0;
+        idx_t src_bii = sg_first_bii
+                - ((padded_offset1 / B0)
+                        * inner_dim); // update inner logical block idx to 0-nblocks read range for src1
+        if (src_bii < 0) { src_bii += inner_dim; }
+
+        idx_t sg_last_src_bii = src_bii + blocks_per_sg - 1;
+
+        const int cutoff = (B0 + (offset1 - padded_offset1) % B0)
+                % B0; // positive modulo(offset / padded_offset, block size) |--|-----|
+        // this cutoff will persist in following misaligned (multi-cacheline / block src)
+        // form full write block by combining two read blocks |-A-|--B---|
+
+        DDATA_T aVal = BLOCK_READ_UL(src1 + batch_offset1 + src_bii * B0);
+
+        idx_t next_block = src_bii
+                + inner_dim; // offset to read next required block for second half of cutoff,
+        idx_t next_block_last = next_block + blocks_per_sg - 1;
+        const idx_t tot_src1_block
+                = (DIV_UP(src_padded_concat_axis1, B0) * inner_dim);
+
+        DDATA_T bVal;
+        if (next_block_last > tot_src1_block) { // keep reads in bounds
+            int n_blocks_tail = tot_src1_block - next_block;
+            int rem_elems = n_blocks_tail * B0;
+
+            for (int b = get_local_id(0), vid = 0; b < rem_elems;
+                    b += SIMD, vid++) {
+#if NPERSG > 1
+                bVal[vid] = src1[batch_offset1 + next_block * B0 + b];
+#else
+                bVal = src1[batch_offset1 + next_block * B0 + b];
+#endif
+            }
+        } else {
+            bVal = BLOCK_READ_UL(src1 + batch_offset1
+                    + next_block
+                            * B0); //TODO: MAYBE_READ like in simple concat kernel? no perf difference.
+        }
+
+        // shift both halves of block to match cutoff
+        DDATA_T offset_vec_data;
+        int sg_shuffle_dt
+                = (B0 - cutoff); // required shift to match block load to cutoff
+        offset_vec_data = AS_VEC(intel_sub_group_shuffle_down(
+                as_ulong(aVal), as_ulong(aVal), sg_shuffle_dt));
+
+        bVal = AS_VEC(intel_sub_group_shuffle_up(
+                as_ulong(bVal), as_ulong(bVal), cutoff));
+        if ((ic % B0) < cutoff) {
+            aVal = offset_vec_data;
+        } else {
+            aVal = bVal;
+        }
+
+        if (ic >= dst_concat_axis) { aVal = 0; }
+
+#if NPERSG > 1
+        if (ic < dst_concat_axis && ic_end >= dst_concat_axis) {
+            const int blocks_per_simd1 = SIMD / B0;
+            unroll_for(int i = 0; i < NPERSG; ++i) {
+                if ((((bii + i * blocks_per_simd1) / inner_dim) * B0 + blid)
+                        >= dst_concat_axis) {
+                    aVal = AS_VEC(as_ulong(aVal)
+                            & 0xFFFFFFFFFFFFFFFF >> (NPERSG - i)
+                                            * DATA_TYPE_SIZE
+                                            * 8); // aVal[i] element access is slow, especially per-byte (u8)
+                    break;
+                }
+            }
+        }
+#endif
+
+        if (sg_last_bii >= tot_boundary_block) { // keep writes in bounds
+            int n_blocks_tail = tot_boundary_block - sg_first_bii;
+            int rem_elems = n_blocks_tail * B0;
+
+            for (int b = get_local_id(0), vid = 0; b < rem_elems;
+                    b += SIMD, vid++) {
+#if NPERSG > 1
+                //TODO: MAYBE_WRITE like in simple concat kernel? nonstandard CL
+                dst[ext_batch_offset + sg_first_bii * B0 + b] = aVal[vid];
+#else
+                dst[ext_batch_offset + sg_first_bii * B0 + b] = aVal;
+#endif
+            }
+        } else {
+            BLOCK_WRITE_UL(dst + ext_batch_offset + sg_first_bii * B0, aVal);
+        }
+
+    } else { // sg span falls within boundary blocks, handle leading/trailing overlaps
+
+        // load blocks corresponding to first source
+        DDATA_T aVal = BLOCK_READ_UL(src0 + batch_offset0
+                + sg_first_bii
+                        * B0); // TODO: does this read past end? logic similar to above
+
+        // since these are "boundary" blocks load corresponding blocks from next source
+        idx_t next_bii = sg_first_bii
+                - ((padded_offset1 / B0)
+                        * inner_dim); // update inner logical block idx to 0-nblocks read range for src1
+        if (next_bii < 0) {
+            next_bii += inner_dim; // bump negative index to next src
+            next_bii = (next_bii < 0)
+                    ? 0
+                    : next_bii; // if next src begins still "negative" clamp to beginning of next src
+            // can happen if sg spans [n-2, n-1] vertical blocks
+        }
+
+        // with certain inner_dim sizes, sg may span before or after border blocks
+        // additional shifting logic will be required in these cases
+        int leading_boundary_shift = (sg_first_bii < first_boundary_block)
+                ? first_boundary_block - sg_first_bii
+                : 0; // sg span begins before boundary span
+        int trailing_boundary_shift = (sg_last_bii > last_boundary_block)
+                ? sg_last_bii - last_boundary_block
+                : 0; // sg span ends after boundary span
+
+        const int cutoff = (B0 + (offset1 - padded_offset1) % B0)
+                % B0; // positive modulo( offset/padded_offset , block size) |-|-------|
+
+        int blocks_per_simd1 = SIMD / B0;
+        DDATA_T bVal = BLOCK_READ_UL(src1 + batch_offset1
+                + next_bii * B0); // load next blocks across concat boundary
+        if (leading_boundary_shift) {
+            int block_scaled_leading_shift
+                    = leading_boundary_shift / blocks_per_simd1;
+            int rollover = leading_boundary_shift % blocks_per_simd1;
+
+            if (((get_local_id(0) / B0) + rollover) >= blocks_per_simd1)
+                block_scaled_leading_shift++;
+
+            bVal = AS_VEC((as_ulong(bVal)
+                    << block_scaled_leading_shift * DATA_TYPE_SIZE * 8));
+
+            // cannot directly shift values to corresponding location in sg since each
+            // workitem is responsible for multiple blocks, figure out source block
+            int src_bank = ((get_local_id(0) / B0)
+                                   + leading_boundary_shift % blocks_per_simd1)
+                    % blocks_per_simd1;
+            bVal = AS_VEC(intel_sub_group_shuffle(
+                    as_ulong(bVal), src_bank * B0 + (get_local_id(0) % B0)));
+        }
+
+        int sg_shuffle_dt = cutoff;
+        DDATA_T offset_vec_data;
+        ulong zero = 0;
+        offset_vec_data = AS_VEC(
+                intel_sub_group_shuffle_up(as_ulong(zero), as_ulong(bVal),
+                        sg_shuffle_dt)); // will move src1 block to cutoff
+
+        DDATA_T cVal;
+        if (trailing_boundary_shift) {
+            const idx_t trailing_bii = 0;
+            // trailing portion of sg span across boundary will roll over to beginning portion of next tensor
+            cVal = BLOCK_READ_UL(src1 + batch_offset1 + trailing_bii * B0);
+
+            int block_dt = (blocks_per_sg - trailing_boundary_shift);
+            int block_dt_from_src1 = sg_first_bii - first_boundary_block;
+
+            DDATA_T csval;
+            // offset trailing portion to match cutoff
+            csval = AS_VEC(intel_sub_group_shuffle_down(
+                    as_ulong(cVal), zero, (B0 - cutoff)));
+
+            // cannot directly shift values to corresponding location in sg since each
+            // workitem is responsible for multiple blocks, figure out source block
+            int src_bank = ((get_local_id(0) / B0)
+                                   + trailing_boundary_shift % blocks_per_simd1)
+                    % blocks_per_simd1;
+
+            int ntrail = 0;
+            for (int i = 0; i < NPERSG; ++i) {
+                if ((bii + i * blocks_per_simd1) > last_boundary_block) {
+                    ntrail = NPERSG - i;
+                    break;
+                }
+            }
+
+            ulong trailmask;
+            trailmask = (ntrail < NPERSG)
+                    ? (0xFFFFFFFFFFFFFFFFUL << (ntrail * DATA_TYPE_SIZE * 8))
+                            >> (ntrail * DATA_TYPE_SIZE * 8)
+                    : 0;
+
+            if (cutoff > 0 && (ic % B0) >= cutoff) {
+                aVal = AS_VEC(as_ulong(aVal)
+                        & trailmask); // zero out portions in anticipation of further trailing/cutoff values
+                aVal = AS_VEC(as_ulong(aVal) | as_ulong(offset_vec_data));
+            }
+
+            // reorder according to source banks
+            csval = AS_VEC(intel_sub_group_shuffle(
+                    as_ulong(csval), src_bank * B0 + (get_local_id(0) % B0)));
+            cVal = AS_VEC(
+                    as_ulong(csval) << (NPERSG - ntrail) * DATA_TYPE_SIZE * 8);
+
+            if (cutoff > 0 && (get_local_id(0) % B0) < cutoff) {
+                aVal = AS_VEC((as_ulong(aVal) & trailmask)
+                        | (as_ulong(cVal) & ~trailmask));
+            }
+
+            if (ic >= dst_concat_axis) { aVal = 0; }
+#if NPERSG > 1
+            if (ic < dst_concat_axis && ic_end >= dst_concat_axis) {
+                for (int i = 0; i < NPERSG; ++i) {
+                    if ((((bii + i * blocks_per_simd1) / inner_dim) * B0 + blid)
+                            >= dst_concat_axis) {
+                        aVal = AS_VEC(as_ulong(aVal)
+                                & 0xFFFFFFFFFFFFFFFF
+                                        >> (NPERSG - i) * DATA_TYPE_SIZE * 8);
+                        break;
+                    }
+                }
+            }
+#endif
+        } else {
+            // boundary case w/no trailing overlap
+            if (cutoff > 0 && (ic % B0) >= cutoff) {
+                aVal = AS_VEC(as_ulong(aVal) | (as_ulong(offset_vec_data)));
+            }
+        }
+        BLOCK_WRITE_UL(dst + ext_batch_offset + sg_first_bii * B0, aVal);
+    }
 }
