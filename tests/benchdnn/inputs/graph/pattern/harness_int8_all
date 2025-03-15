@@ -14,7 +14,7 @@
 --reset --case=pattern/int8/int8_bf16_matmul_sum_add_mul_relu.json
 --reset --attr-fpmath=strict:false,bf16:false,tf32:false --case=pattern/int8/int8_avgpool_reshape_fusion.json
 --reset --case=pattern/int8/int8_avgpool_transpose_fusion.json
---reset --expected-n-partitions=0 --case=pattern/int8/int8_bf16_conv_add_relu_mul.json
+--reset --case=pattern/int8/int8_bf16_conv_add_relu_mul.json
 --reset --case=pattern/int8/int8_bf16_matmul_tc_add_quant_fusion.json
 --reset --case=pattern/int8/int8_bf16_conv_binary_add_fusion_2.json
 
@@ -23,7 +23,7 @@
 --reset --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_mish_fusion.json
 --reset --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_relu_fusion_2.json
 --reset --in-shapes=0:1x2048x14x14+1:2048x64x3x3+2:2048 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:1x1*pads_end:1x1*groups:32 --case=pattern/int8/int8_conv_bias_relu_fusion_3.json
---reset --expected-n-partitions=0 --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x1x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_add_add_fusion.json
+--reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x1x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_add_add_fusion.json
 --reset --expected-n-partitions=0 --op-attrs=8209:zps:1 --case=pattern/int8/int8_conv_add_add_fusion.json
 --reset --in-shapes=0:50x64x56x56+1:64x64x1x1+2:1x1x1x1+3:1x64x1x1 --op-attrs=4:strides:1x1*dilations:1x1*pads_begin:0x0*pads_end:0x0*groups:1 --case=pattern/int8/int8_conv_add_mul_fusion.json
 --reset --expected-n-partitions=0 --op-attrs=8209:zps:2 --case=pattern/int8/int8_conv_add_mul_fusion.json
@@ -46,7 +46,7 @@
 # matmul
 --reset --in-shapes=0:16x256+1:256x1+2:1x1+3:1x1 --case=pattern/int8/int8_matmul_add_mul_fusion.json
 --reset --expected-n-partitions=0 --op-attrs=8209:zps:3 --case=pattern/int8/int8_matmul_add_mul_fusion.json
---reset --expected-n-partitions=0 --in-shapes=0:16x256+1:256x1+2:1x1+3:1x1+4:1x1 --case=pattern/int8/int8_matmul_mul_add_mul_fusion.json
+--reset --in-shapes=0:16x256+1:256x1+2:1x1+3:1x1+4:1x1 --case=pattern/int8/int8_matmul_mul_add_mul_fusion.json
 --reset --in-shapes=0:16x256+1:256x1+2:1x1 --case=pattern/int8/int8_matmul_logistic_fusion.json
 --reset --in-shapes=0:16x1024+1:1024x1024+2:1x1024 --op-attrs=4113:scales:2 --case=pattern/int8/int8_matmul_logistic_fusion.json
 --reset --in-shapes=0:16x1024+1:1024x512+2:1x512 --op-attrs=4113:scales:2 --case=pattern/int8/int8_matmul_logistic_fusion.json
