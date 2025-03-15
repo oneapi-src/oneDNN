@@ -336,6 +336,8 @@ status_t brgemm_convolution_fwd_t<isa, use_inversion>::pd_t::init(
     // For exec_base it makes sense to use unrolled kernel only if
     // there is no padding by width.
     // 2. For exec_trans block by kw is always KW
+    // 3. 'false' is used intentionally to disable the condition, ensuring that
+    // the assert fails only when jcp_.use_uker is true, regardless of exec_type.
     assert(IMPLICATION(jcp_.use_uker,
             false && one_of(jcp_.exec_type, exec_base, exec_trans)));
     assert(IMPLICATION(jcp_.use_interleave_stores, jcp_.use_uker));
@@ -2027,7 +2029,9 @@ void brgemm_convolution_fwd_t<isa, use_inversion>::ker_vpad(
 
 #undef BRGEMM_CONV_KER_HEADER
 template struct brgemm_convolution_fwd_t<sve_512>;
+template struct brgemm_convolution_fwd_t<sve_512, true>;
 template struct brgemm_convolution_fwd_t<sve_256>;
+template struct brgemm_convolution_fwd_t<sve_256, true>;
 
 } // namespace aarch64
 
