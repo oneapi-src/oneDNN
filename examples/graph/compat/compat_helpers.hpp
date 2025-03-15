@@ -25,7 +25,29 @@
 
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
+#include <set>
 #include "../graph_example_utils.hpp"
+
+#define Q_ID 0
+#define K_ID 1
+#define O_ID 2
+
+enum class MHA_Layout {
+    NOT_INTERLEAVED = 0,
+    QKV_INTERLEAVED = 1,
+    KV_INTERLEAVED = 2,
+    SBH_INTERLEAVED = 3
+};
+
+enum class MHA_Matrix {
+    Q_Matrix = 0, // queries
+    K_Matrix = 1, // keys
+    K_Matrix_Transpose = 2, // keys tranposed
+    V_Matrix = 3, // values
+    V_Matrix_Transpose = 4, // values transposed
+    S_Matrix = 5, // output of GEMM1
+    O_Matrix = 6, // final output
+};
 
 namespace compat {
 
@@ -117,30 +139,12 @@ namespace compat_0_x {
 
 int64_t op_id = 0;
 using lt = dnnl::graph::logical_tensor;
+using tensor = dnnl::graph::tensor;
 using op = dnnl::graph::op;
 using partition = dnnl::graph::partition;
 using compiled_partition = dnnl::graph::compiled_partition;
 using graph = dnnl::graph::graph;
 using DataType_t = lt::data_type;
-
-constexpr int64_t MAX_OPGRAPH_OPS = 50;
-
-enum class MHA_Layout {
-    NOT_INTERLEAVED = 0,
-    QKV_INTERLEAVED = 1,
-    KV_INTERLEAVED = 2,
-    SBH_INTERLEAVED = 3
-};
-
-enum class MHA_Matrix {
-    Q_Matrix = 0, // queries
-    K_Matrix = 1, // keys
-    K_Matrix_Transpose = 2, // keys tranposed
-    V_Matrix = 3, // values
-    V_Matrix_Transpose = 4, // values transposed
-    S_Matrix = 5, // output of GEMM1
-    O_Matrix = 6, // final output
-};
 
 // mimic cudnnHandle_t
 class Handle {
@@ -148,6 +152,8 @@ class Handle {
     std::shared_ptr<dnnl::stream> str_;
 
 public:
+    Handle() = default; // ✅ 确保可默认构造
+
     Handle(dnnl::engine::kind ekind, int index) {
         eng_ = std::make_shared<dnnl::engine>(ekind, index);
         str_ = std::make_shared<dnnl::stream>(*eng_);
@@ -513,6 +519,7 @@ class MatMulDesc_v8 : public BackendDescriptor {
 public:
     friend class MatMulDescBuilder_v8;
     friend class OperationBuilder_v8;
+    //friend class Operation_v8;
     //     std::string describe() const override {
     //         std::stringstream ss;
     // #ifndef CUDNN_FRONTEND_SKIP_JSON_LIB
@@ -525,6 +532,7 @@ public:
     //         return ss.str();
     //     }
 
+    MatMulDesc_v8() = default;
     MatMulDesc_v8(MatMulDesc_v8 &&from) = default;
     MatMulDesc_v8 &operator=(MatMulDesc_v8 &&from) = default;
     const bool &getTransposeB() const { return transpose_b; }
@@ -532,7 +540,7 @@ public:
     ~MatMulDesc_v8() = default;
 
 private:
-    MatMulDesc_v8() = default;
+    //MatMulDesc_v8() = default;
     MatMulDesc_v8(MatMulDesc_v8 const &) = delete;
     MatMulDesc_v8 &operator=(MatMulDesc_v8 const &) = delete;
 
@@ -573,7 +581,7 @@ using MatMulDescBuilder = MatMulDescBuilder_v8;
 class Operation_v8 : public BackendDescriptor {
 public:
     friend class OperationBuilder_v8;
-    friend class OperationGraph_v8;
+    friend class OperationGraphBuilder_v8;
     // std::string describe() const override {
     //     std::stringstream ss;
     //     ss << "CUDNN_BACKEND_OPERATION :"
@@ -599,7 +607,7 @@ public:
     //     ss << " Beta: " << beta_s << " " << beta_d;
     //     return ss.str();
     // }
-    Operation_v8() = default;
+
     Operation_v8(Operation_v8 &&from) = default;
     Operation_v8 &operator=(Operation_v8 &&from) = default;
 
@@ -607,6 +615,17 @@ public:
 
 private:
     //Operation_v8() = default;
+
+    Operation_v8()
+        : op_kind(op::kind::Wildcard)
+        , m_matMulDesc() // 这里要求 MatMulDesc_v8 有可用的默认构造函数
+        , amatdesc()
+        , bmatdesc()
+        , cmatdesc()
+        , internal_op(999, op::kind::Wildcard,
+                  "default_op") // 显式初始化 internal_op
+    {}
+
     Operation_v8(Operation_v8 const &) = delete;
     Operation_v8 &operator=(Operation_v8 const &) = delete;
 
@@ -623,18 +642,13 @@ private:
     Operation_v8 m_operation;
     op::kind m_op_kind;
 
-    OperationBuilder_v8(op::kind const &op_kind)
-        : m_operation()
-        , // ✅ 这里显式调用默认构造
-        m_op_kind(op_kind) // ✅ 这样 m_op_kind 也能初始化
-    {}
-
     Operation_v8 &&build_matmul_op() {
 
         // score = query x key.T
         //auto score = logical_tensor(id++, dt, score_sz, layout_type::strided);
         auto bmm1 = op(op_id++, op::kind::MatMul, "bmm1");
-        bmm1.set_attr<bool>(op::attr::transpose_b, m_operation.getTransposeB());
+        bmm1.set_attr<bool>(op::attr::transpose_b,
+                m_operation.m_matMulDesc.getTransposeB());
         bmm1.add_inputs({m_operation.amatdesc, m_operation.bmatdesc});
         bmm1.add_outputs({m_operation.cmatdesc});
         m_operation.internal_op = bmm1;
@@ -659,6 +673,12 @@ public:
         m_operation.m_matMulDesc = std::move(matmulDesc);
         return *this;
     }
+
+    OperationBuilder_v8(op::kind const &op_kind)
+        : m_operation()
+        , // ✅ 这里显式调用默认构造
+        m_op_kind(op_kind) // ✅ 这样 m_op_kind 也能初始化
+    {}
 
     //! constructs the backend Operation_v8 by calling the cudnn API
     //! Throws the appropriate error message
@@ -695,6 +715,11 @@ public:
     //     ss << "Tag: " << opGraphTag << std::endl;
     //     return ss.str();
     // }
+    const partition &get_internal_partition() const {
+        return internal_partition;
+    }
+
+    const graph &get_internal_graph() const { return internal_graph; }
 
     OperationGraph_v8(OperationGraph_v8 &&from) = default;
     OperationGraph_v8 &operator=(OperationGraph_v8 &&from) = default;
@@ -706,9 +731,10 @@ public:
     // const std::array<ManagedOpaqueDescriptor, MAX_OPGRAPH_OPS> &getOps() const {
     //     return ops;
     // }
-    const std::array<Operation_v8, MAX_OPGRAPH_OPS> &getOps() const {
-        return ops;
-    }
+    // const std::array<Operation_v8, MAX_OPGRAPH_OPS> &getOps() const {
+    //     return ops;
+    // }
+    const std::vector<Operation_v8> &getOps() const { return ops; }
 
 private:
     OperationGraph_v8() = default;
@@ -717,7 +743,8 @@ private:
 
     Handle handle;
     //std::array<ManagedOpaqueDescriptor, MAX_OPGRAPH_OPS> ops {};
-    std::array<Operation_v8, MAX_OPGRAPH_OPS> ops {};
+    // std::array<Operation_v8, MAX_OPGRAPH_OPS> ops {};
+    std::vector<Operation_v8> ops;
     int64_t numOps = -1;
     graph internal_graph;
     partition internal_partition;
@@ -739,31 +766,32 @@ public:
     }
 
     //! Set numoperations and the operations
-    auto setOperationGraph(int64_t numOps_, Operation_v8 const **ops_)
+    auto setOperationGraph(int64_t numOps_, Operation_v8 **ops_)
             -> OperationGraphBuilder_v8 & {
         m_operationGraph.numOps = numOps_;
         for (auto i = 0u; i < numOps_; i++) {
-            m_operationGraph.ops[i] = ops_[i]->get_desc();
+            //m_operationGraph.ops[i] = (*ops_)[i];
+            m_operationGraph.ops[i] = std::move((*ops_)[i]);
         }
         return *this;
     }
 
-    //! Set numoperations and the operations
-    auto setOperationGraph(std::vector<Operation> const &ops_)
-            -> OperationGraphBuilder_v8 & {
-        m_operationGraph.numOps = ops_.size();
-        for (auto i = 0u; i < ops_.size(); i++) {
-            m_operationGraph.ops[i] = ops_[i].get_desc();
-        }
-        return *this;
-    }
+    // //! Set numoperations and the operations
+    // auto setOperationGraph(std::vector<Operation> const &ops_)
+    //         -> OperationGraphBuilder_v8 & {
+    //     m_operationGraph.numOps = ops_.size();
+    //     for (auto i = 0u; i < ops_.size(); i++) {
+    //         m_operationGraph.ops[i] = ops_[i].get_desc();
+    //     }
+    //     return *this;
+    // }
 
-    auto addOperation(ManagedOpaqueDescriptor desc)
-            -> OperationGraphBuilder_v8 & {
-        m_operationGraph.ops[m_operationGraph.numOps] = desc;
-        ++m_operationGraph.numOps;
-        return *this;
-    }
+    // auto addOperation(ManagedOpaqueDescriptor desc)
+    //         -> OperationGraphBuilder_v8 & {
+    //     m_operationGraph.ops[m_operationGraph.numOps] = desc;
+    //     ++m_operationGraph.numOps;
+    //     return *this;
+    // }
     /** @} */
 
     //! constructs the OperationGraph_v8 by calling the cudnn API
@@ -773,16 +801,16 @@ public:
         dnnl::graph::graph BMM1(m_operationGraph.handle.get_engine_kind());
 
         for (auto i = 0u; i < m_operationGraph.numOps; i++) {
-            auto op = m_operationGraph.ops[i];
+            auto &op = m_operationGraph.ops[i];
             BMM1.add_op(op.internal_op);
         }
 
         BMM1.finalize();
-        m_operationGraph.internal_graph = &BMM1;
+        m_operationGraph.internal_graph = BMM1;
 
         auto parts = BMM1.get_partitions();
         if (parts.size() != 1) throw std::runtime_error("partition failed ...");
-        m_operationGraph.internal_partition = parts[0].get();
+        m_operationGraph.internal_partition = parts[0];
 
         return std::move(m_operationGraph);
     }
@@ -804,6 +832,7 @@ using OperationGraphBuilder = OperationGraphBuilder_v8;
 class EngineConfig_v8 : public BackendDescriptor {
 public:
     friend class EngineConfigBuilder_v8;
+    friend class ExecutionPlanBuilder_v8;
 
     // std::string describe() const override {
     //     std::stringstream ss;
@@ -812,20 +841,26 @@ public:
     //     return ss.str();
     // }
 
+    void set_internal_partition(const partition &p) { internal_partition = p; }
+
+    partition const &get_internal_partition() const {
+        return internal_partition;
+    }
+
     EngineConfig_v8 &operator=(EngineConfig_v8 &&from) = default;
 
     EngineConfig_v8(EngineConfig_v8 &&from) = default;
 
     ~EngineConfig_v8() = default;
 
-    std::string const &getTag() const { return opGraphTag; }
-
 private:
     EngineConfig_v8() = default;
     EngineConfig_v8(EngineConfig_v8 const &) = delete;
     EngineConfig_v8 &operator=(EngineConfig_v8 const &) = delete;
-    partition *internal_partition = nullptr;
+    partition internal_partition;
 };
+
+using EngineConfigList = std::vector<EngineConfig_v8>;
 
 static inline std::vector<dnnl_status_t> get_heuristics_list(
         std::vector<std::string> const &modes, OperationGraph_v8 &opGraph,
@@ -833,9 +868,8 @@ static inline std::vector<dnnl_status_t> get_heuristics_list(
         EngineConfigList &filtered_configs, bool evaluate_all = false) {
     std::vector<dnnl_status_t> statuses;
 
-    auto parts = opGraph.internal_graph->get_partitions();
-    if (parts.size() != 1) throw std::runtime_error("partition failed ...");
-    filtered_configs.internal_configs = parts[0];
+    auto part = opGraph.get_internal_partition();
+    filtered_configs[0].set_internal_partition(part);
     return statuses;
 }
 
@@ -884,16 +918,20 @@ public:
     //     ss << "] workSpaceSize: " << workSpaceSize;
     //     return ss.str();
     // }
+    EngineConfig const &get_EngineConfig() const { return m_engine_config; }
+    compiled_partition const &get_compiled_partition() const {
+        return internal_compiled_partition;
+    }
 
     ExecutionPlan_v8(ExecutionPlan_v8 const &) = default;
     ExecutionPlan_v8 &operator=(ExecutionPlan_v8 const &) = default;
 
 private:
     ExecutionPlan_v8() = default;
-    //EngineConfig *engine_config;
-    ManagedOpaqueDescriptor engine_config = nullptr;
-    Handle handle = nullptr;
-    compiled_partition *internal_compiled_partition = nullptr;
+    EngineConfig m_engine_config;
+    //ManagedOpaqueDescriptor engine_config = nullptr;
+    Handle handle;
+    compiled_partition internal_compiled_partition;
 };
 
 ///
@@ -912,9 +950,15 @@ public:
     }
 
     //! Set engine Config for the Plan
-    auto setEngineConfig(EngineConfig_v8 const &engine_config_)
+    // auto setEngineConfig(EngineConfig_v8 const &engine_config_)
+    //         -> ExecutionPlanBuilder_v8 & {
+    //     m_execution_plan.m_engine_config = engine_config_;
+    //     return *this;
+    // }
+
+    auto setEngineConfig(EngineConfig_v8 &&engine_config_)
             -> ExecutionPlanBuilder_v8 & {
-        m_execution_plan.engine_config = engine_config_.get_desc();
+        m_execution_plan.m_engine_config = std::move(engine_config_);
         return *this;
     }
 
@@ -922,17 +966,17 @@ public:
     //! Throws the appropriate error message
     ExecutionPlan_v8 &&build() {
 
-        auto partition = m_execution_plan.engine_config.internal_partition;
+        auto partition = m_execution_plan.m_engine_config.internal_partition;
 
-        std::vector<logical_tensor> inputs
+        std::vector<lt> inputs
                 = partition
                           .get_input_ports(); // Get the input ports of the partition
-        std::vector<logical_tensor> outputs
+        std::vector<lt> outputs
                 = partition
                           .get_output_ports(); // Get the output ports of the partition
         // Compile the partition with inputs, outputs, and an engine.
         m_execution_plan.internal_compiled_partition = partition.compile(
-                inputs, {output}, *(m_execution_plan.handle.get_engine()));
+                inputs, {outputs}, *(m_execution_plan.handle.get_engine()));
 
         return std::move(m_execution_plan);
     }
@@ -951,25 +995,28 @@ private:
 using ExecutionPlan = ExecutionPlan_v8;
 using ExecutionPlanBuilder = ExecutionPlanBuilder_v8;
 
-void onednnGraphExecute(Handle handle, ExecutionPlan executionPlan,
-        std::set<std::pair<uint64_t, void *>> data_ptrs) {
+static inline void onednnGraphExecute(Handle handle,
+        ExecutionPlan const &executionPlan,
+        std::set<std::pair<uint64_t, void *>> const &data_ptrs) {
 
     auto eng = handle.get_engine();
-    std::vector<logical_tensor> inputs
-            = executionPlan.engine_config.internal_partition->get_input_ports();
-    std::vector<logical_tensor> outputs
-            = executionPlan.engine_config.internal_partition
-                      ->get_output_ports();
-    auto inputs_num = inputs.size();
-    query = inputs[Q_ID];
-    key = inputs[K_ID];
-    out = outputs[O_ID - inputs_num];
-    auto ts_q = tensor(query, *eng, data_ptrs[Q_ID]);
-    auto ts_k = tensor(key, *eng, data_ptrs[K_ID]);
-    auto ts_o = tensor(out, *eng, data_ptrs[O_ID]);
 
-    executionPlan.internal_compiled_partition->execute(
-            data_ptrs, *(handle.get_stream()));
+    std::vector<lt> inputs = executionPlan.get_EngineConfig()
+                                     .get_internal_partition()
+                                     .get_input_ports();
+    std::vector<lt> outputs = executionPlan.get_EngineConfig()
+                                      .get_internal_partition()
+                                      .get_output_ports();
+    auto inputs_num = inputs.size();
+    auto query = inputs[Q_ID];
+    auto key = inputs[K_ID];
+    auto out = outputs[O_ID - inputs_num];
+    auto ts_q = tensor(query, *eng, query.get_id());
+    auto ts_k = tensor(key, *eng, key.get_id());
+    auto ts_o = tensor(out, *eng, out.get_id());
+
+    executionPlan.get_compiled_partition().execute(
+            *(handle.get_stream()), {ts_q, ts_k}, {ts_o});
 }
 
 } // namespace compat_0_x

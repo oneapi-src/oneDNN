@@ -24,10 +24,6 @@
 //#include <cudnn_frontend.h>
 #include "compat_helpers.hpp"
 
-#define Q_ID 0
-#define K_ID 1
-#define O_ID 2
-
 static bool allowAllConfig(
         compat_0_x::onednnBackendDescriptor_t engine_config) {
     (void)engine_config;
@@ -112,13 +108,23 @@ static compat_0_x::Tensor createQKBMM(int64_t b, int64_t h, int64_t s_q,
     generateMHAStrides(
             b, h, s_q, s_kv, d, s_stride, layout, MHA_Matrix::S_Matrix);
 
-    auto qTensor
-            = tensor_create(tensorType, Q_ID, q_dim, q_stride, false, false);
-    auto kTransposeTensor = tensor_create(
-            tensorType, K_ID, k_dim, k_stride, false, false); // is virtual
-    // first GEMM output
+    //     auto qTensor
+    //             = tensor_create(tensorType, Q_ID, q_dim, q_stride, false, false);
+    //     auto kTransposeTensor = tensor_create(
+    //             tensorType, K_ID, k_dim, k_stride, false, false); // is virtual
+    //     // first GEMM output
+    //     auto sTensor = tensor_create(dnnl::graph::logical_tensor::data_type::bf16,
+    //             O_ID, s_dim, s_stride, true, false); // is virtual
+
+    auto qTensor = tensor_create(tensorType, Q_ID,
+            std::vector<int64_t>(q_dim, q_dim + 4),
+            std::vector<int64_t>(q_stride, q_stride + 4), false, false);
+    auto kTransposeTensor = tensor_create(tensorType, K_ID,
+            std::vector<int64_t>(k_dim, k_dim + 4),
+            std::vector<int64_t>(k_stride, k_stride + 4), false, false);
     auto sTensor = tensor_create(dnnl::graph::logical_tensor::data_type::bf16,
-            VIRTUAL_ID + 1, s_dim, s_stride, true, false); // is virtual
+            O_ID, std::vector<int64_t>(s_dim, s_dim + 4),
+            std::vector<int64_t>(s_stride, s_stride + 4), true, false);
 
     // Define the matmul 1 desc
     //     auto matmul_1_Desc = cudnn_frontend::MatMulDescBuilder()
@@ -126,12 +132,15 @@ static compat_0_x::Tensor createQKBMM(int64_t b, int64_t h, int64_t s_q,
     //                                  .build();
     //std::cout << matmul_1_Desc.describe() << std::endl;
 
+    auto matmul_1_Desc
+            = compat_0_x::MatMulDescBuilder().setTransposeB(true).build();
+
     // Create a matmul 1 Node
     auto matmul_op1 = compat_0_x::OperationBuilder(compat_0_x::op::kind::MatMul)
                               .setaMatDesc(qTensor)
                               .setbMatDesc(kTransposeTensor)
                               .setcMatDesc(sTensor)
-                              .setmatmulDesc(matmul_1_Desc)
+                              .setmatmulDesc(std::move(matmul_1_Desc))
                               .build();
 
     //std::cout << matmul_op1.describe() << std::endl;
@@ -143,12 +152,12 @@ static compat_0_x::Tensor createQKBMM(int64_t b, int64_t h, int64_t s_q,
 
 void run_f16_flash_attention_fprop(int64_t b, int64_t h, int64_t s_q,
         int64_t s_kv, int64_t d, MHA_Layout layout, void *devPtrQ,
-        void *devPtrK, void *devPtrV, void *devPtrO,
-        compat_0_x::DataType_t tensorType) {
+        void *devPtrK, void *devPtrO, compat_0_x::DataType_t tensorType) {
     // oneDNN handle. Unlike cuDNN, oneDNN needs to know the engine kind.
     auto handle = compat_0_x::Handle(dnnl::engine::kind::cpu, 0);
 
-    std::vector<compat_0_x::Operation const *> all_ops;
+    //std::vector<compat_0_x::Operation const *> all_ops;
+    std::vector<compat_0_x::Operation *> all_ops;
     std::vector<compat_0_x::Operation> ops;
     std::set<std::pair<uint64_t, void *>> data_ptrs;
 
@@ -173,7 +182,7 @@ void run_f16_flash_attention_fprop(int64_t b, int64_t h, int64_t s_q,
 
     auto plan = compat_0_x::ExecutionPlanBuilder()
                         .setHandle(handle)
-                        .setEngineConfig(filtered_configs[0])
+                        .setEngineConfig(std::move(filtered_configs[0]))
                         .build();
 
     data_ptrs.insert(std::pair<uint64_t, void *>(Q_ID, devPtrQ));
@@ -217,7 +226,7 @@ int main(void) {
     devPtrO = o_tensor.get_ptr();
 
     run_f16_flash_attention_fprop(
-            b, h, s_q, s_kv, d, layout, , devPtrQ, devPtrK, devPtrO, bf16);
+            b, h, s_q, s_kv, d, layout, devPtrQ, devPtrK, devPtrO, bf16);
 
     //     checkCudaErr(cudaDeviceSynchronize());
     //     checkCudaErr(cudaMemcpy(oTensor.hostPtr, oTensor.devPtr,
