@@ -813,6 +813,9 @@ status_t brgemm_blocking(brgemm_desc_t *brg) {
             && brg->LDB % brg->ld_block > 0)
         return status::unimplemented;
 
+    if (!IMPLICATION(brg->brgattr.LDB2 == 0, brg->load_dim <= brg->LDB))
+        return status::invalid_arguments;
+
     brg->LDA2 = (brg->brgattr.LDA2 != 0) ? brg->brgattr.LDA2 : brg->LDA;
     brg->LDB2 = (brg->brgattr.LDB2 != 0) ? brg->brgattr.LDB2 : brg->LDB;
     brg->LDC2_M = (brg->brgattr.LDC2_M != 0) ? brg->brgattr.LDC2_M : brg->LDC;

@@ -724,11 +724,12 @@ size_t jit_brgemm_amx_uker_base_t::B_offset(
 
     const auto rdb_B_offset = bi.rdi->pos(0) * brg.rd_block * LDB_size_;
 
-    const auto ldb_B_offset = bi.ldi->pos(0) * ld_block_B_size_ * brg.ld_step;
+    const auto ldb_offs = bi.ldi->pos(ldb) * brg.ld_block;
+    const auto ldb_B_offset = brg.typesize_B
+            * ((ldb_offs / brg.LDB) * brg.brgattr.LDB2
+                    + (ldb_offs % brg.LDB) * brg.rd_step);
 
-    return rdb_B_offset + ldb_B_offset
-            + (brg.is_blocked ? 1 : brg.rd_step) * ldb * ld_block_B_size_
-            + bs_offs;
+    return rdb_B_offset + ldb_B_offset + bs_offs;
 }
 
 size_t jit_brgemm_amx_uker_base_t::C_offset(const brgemm_iteration_t &bi,
@@ -736,7 +737,12 @@ size_t jit_brgemm_amx_uker_base_t::C_offset(const brgemm_iteration_t &bi,
     const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
     const auto bd = get_out_bd(bi.bdi, bdb, inp_bd);
     const auto bd_shift = bd - (ununroll_bd_loop ? bi_bd_start : 0);
-    return (size_t)bd_shift * LDC2_size_M_ + (size_t)ldb * LDC2_size_N_;
+    size_t ldc_elem = (size_t)ldb * bi.ldi->block(0);
+    size_t bloc_idx = ldc_elem / brg.LDC;
+    size_t in_block = ldc_elem % brg.LDC;
+
+    return (size_t)bd_shift * LDC2_size_M_ + (size_t)bloc_idx * LDC2_size_N_
+            + in_block * brg.typesize_C;
 }
 
 size_t jit_brgemm_amx_uker_base_t::D_offset(const brgemm_iteration_t &bi,
@@ -1118,9 +1124,14 @@ void jit_brgemm_amx_uker_base_t::prefetch_CD_range(brgemm_iteration_t &bi,
             auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
             uni_prefetch(ptr_D, pft, true);
         } else if (are_post_ops_applicable_) {
-            const auto c_offset = C_offset(bi, bdb, bd, ldb_pos);
-            auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
-            uni_prefetch(ptr_C, pft, true);
+            //            todo: split hints C and D hints
+            //              Using prefetchw for the C matrix is generally harmful
+            //              because the C matrix is frequently reused and remains in the cache.
+            //              However, it is very necessary for the D matrix
+
+            //            const auto c_offset = C_offset(bi, bdb, bd, ldb_pos);
+            //            auto ptr_C = EVEX_compress_addr(reg_C, c_offset);
+            //            uni_prefetch(ptr_C, pft, true);
         } else {
             const auto d_offset = D_offset(bi, bdb, bd, ldb_pos);
             auto ptr_D = EVEX_compress_addr(reg_D, d_offset);
@@ -2655,10 +2666,8 @@ void jit_brgemm_amx_uker_base_t::generate() {
             = (brg.beta != 0.f && !may_load_accumulators_) || brg.alpha != 1.f;
     are_post_ops_applicable_ = brg.are_post_ops_applicable();
 
-    // second level blocking eligible only if we don't use store by vectors for now
-    assert(IMPLICATION(are_post_ops_applicable_ || need_to_apply_alpha_beta_
-                    || brg.brgattr.bd_mask_level,
-            !brg.is_blocked && !brg.brgattr.var_bs));
+    assert(IMPLICATION(brg.brgattr.LDB2 == 0, brg.load_dim <= brg.LDB));
+
     assert(IMPLICATION(brg.brgattr.var_bs,
             IMPLICATION(brg.is_input_convert(), brg.is_fp8_via_convert())));
     read_params();

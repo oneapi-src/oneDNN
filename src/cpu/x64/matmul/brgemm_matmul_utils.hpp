@@ -87,11 +87,14 @@ struct brgemm_matmul_conf_t {
     int ndims, batch_ndims;
     dim_t M, N, K, batch, batch_without_first_dim;
     dim_t M_blk, N_blk, K_blk, M_tail, N_tail, K_tail;
-    int M_chunk_size, N_chunk_size;
+    int M_chunk_size, N_chunk_size, K_chunk_size;
+    bool is_a_nt, is_b_nt, set_nt;
     dim_t LDA, LDB, LDC, LDD;
+    dim_t LDB2;
     int brgemm_batch_size, brgemm_batch_tail_size;
     int wei_n_blk, wei_k_blk;
     brgemm_batch_kind_t brg_type;
+    bool is_macro_heuristics;
 
     cpu_isa_t isa;
 
@@ -131,7 +134,7 @@ struct brgemm_matmul_conf_t {
     data_type_t orig_src_dt;
     data_type_t orig_wei_dt;
     int nthr;
-    int nthr_k;
+    int nthr_k = 1, nthr_m = 1, nthr_n = 1, nthr_b = 1;
 
     // Auxiliary values for init_config() and execute()
     dim_t a_dt_sz, b_dt_sz, c_dt_sz, acc_dt_sz, bias_dt_sz, reduce_dt_sz;
@@ -146,6 +149,7 @@ struct brgemm_matmul_conf_t {
     int K_chunks;
     int num_M_blocks;
     int num_N_blocks;
+    int num_K_blocks;
     dim_t M_chunk_elems;
     dim_t N_chunk_elems;
     dim_t K_chunk_elems;
@@ -163,9 +167,14 @@ struct brgemm_matmul_conf_t {
     dim_t copy_A_src_stride;
     dim_t copy_B_wei_stride;
 
-    dim_t buffer_a_chunk_sz;
-    dim_t buffer_a_chunk_shift_along_m;
+    dim_t buffer_a_gb_stride;
+    dim_t buffer_a_k_stride;
+    dim_t buffer_a_m_stride;
     dim_t buffer_a_per_thread_sz;
+
+    dim_t buffer_b_gb_stride;
+    dim_t buffer_b_k_brg_stride;
+    dim_t buffer_b_n_blk_stride;
 
     dim_t buffer_b_chunk_sz;
     dim_t buffer_b_per_thread_sz;
@@ -238,6 +247,12 @@ struct brgemm_matmul_conf_utils_t {
                         blocked_48n_B_layout_tag, blocked_32n_B_layout_tag,
                         blocked_24n_B_layout_tag, blocked_16n_B_layout_tag,
                         blocked_8n_B_layout_tag);
+    }
+
+    inline bool check_b_layout_blocked_32_by_n(
+            format_tag_t matrix_b_tag) const {
+        return blocked_B_layouts_allowed && !bgmmc.is_runtime_N
+                && utils::one_of(matrix_b_tag, blocked_32n_B_layout_tag);
     }
 
     inline bool get_blocked_B() const {
