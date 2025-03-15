@@ -1,5 +1,6 @@
 #===============================================================================
 # Copyright 2016-2024 Intel Corporation
+# Copyright 2025 Arm Ltd. and affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,6 +99,7 @@ include("cmake/OpenCL.cmake")
 include("cmake/platform.cmake")
 include("cmake/SDL.cmake")
 include("cmake/ACL.cmake")
+include("cmake/KleidiAI.cmake")
 include("cmake/blas.cmake")
 include("cmake/doc.cmake")
 include("cmake/version.cmake")

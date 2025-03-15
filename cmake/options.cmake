@@ -1,5 +1,6 @@
 #===============================================================================
 # Copyright 2018-2025 Intel Corporation
+# Copyright 2025 Arm Ltd. and affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -234,7 +235,7 @@ set(ONEDNN_EXPERIMENTAL_GRAPH_COMPILER_CPU_JIT "builtin" CACHE STRING
 # Profiling capabilities
 # ======================
 
-# TODO: restore default to ON after the issue with linking C files by 
+# TODO: restore default to ON after the issue with linking C files by
 # Intel oneAPI DPC++ Compiler is fixed. Currently this compiler issues a warning
 # when linking object files built from C and C++ sources.
 option(DNNL_ENABLE_JIT_PROFILING
@@ -245,8 +246,8 @@ option(DNNL_ENABLE_JIT_PROFILING
     ON)
 
 option(DNNL_ENABLE_ITT_TASKS
-    "Enable ITT Tasks tagging feature and tag all primitive execution 
-    (on by default). VTune Profiler can group profiling results based 
+    "Enable ITT Tasks tagging feature and tag all primitive execution
+    (on by default). VTune Profiler can group profiling results based
     on those ITT tasks and show corresponding timeline information."
     ON)
 
@@ -425,3 +426,11 @@ option(DNNL_AARCH64_USE_ACL "Enables use of AArch64 optimised functions
     This is only supported on AArch64 builds and assumes there is a
     functioning Compute Library build available at the location specified by the
     environment variable ACL_ROOT_DIR." OFF)
+
+# ==============================================
+# AArch64 optimizations with Arm KleidiAI
+# ==============================================
+
+option(DNNL_AARCH64_USE_KAI "Enables use of AArch64
+    optimised micro-kernels from Arm KleidiAI.
+    This is only supported on AArch64 builds." OFF)

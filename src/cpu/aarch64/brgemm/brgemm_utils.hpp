@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2022 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -30,22 +30,27 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
+status_t init_kernel_datatype(
+        brgemm_desc_t *brg, data_type_t dt_a, data_type_t dt_b);
+
 namespace brgemm_utils {
 
-bool can_dispatch_uker(const brgemm_t *brg);
+status_t set_isa_impl(brgemm_desc_t *brg);
 
-void maybe_try_bf32(brgemm_t *brg);
+bool can_dispatch_uker(const brgemm_desc_t *brg);
 
-status_t brgemm_blocking(brgemm_t *brg);
+void maybe_try_bf32(brgemm_desc_t *brg);
 
-status_t brdgmm_blocking(brgemm_t *brg);
+status_t brgemm_blocking(brgemm_desc_t *brg);
+
+status_t brdgmm_blocking(brgemm_desc_t *brg);
 
 /* The purpose of this function is to enable initialization of brgemm values
  * and then call additional functions like blocking heuristics without
  * having to depend on BRGeMM's API. An additional feature is that this
  * function can be modified depending on needs without requiring changes
  * at the API level. */
-status_t init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa,
+status_t init_brgemm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
         impl::data_type_t dt_b, brgemm_layout_t layout, float alpha, float beta,
         dim_t LDA, dim_t LDB, dim_t LDC, dim_t M, dim_t N, dim_t K,
@@ -56,7 +61,7 @@ status_t init_brgemm_conf(brgemm_t *brg, cpu_isa_t isa,
  * having to depend on BRDGeMM's API. An additional feature is that this
  * function can be modified depending on needs without requiring changes
  * at the API level. */
-status_t init_brdgmm_conf(brgemm_t *brg, cpu_isa_t isa,
+status_t init_brdgmm_conf(brgemm_desc_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
         impl::data_type_t dt_b, brgemm_layout_t layout, float alpha, float beta,
         dim_t LDA, dim_t LDC, dim_t M, dim_t N,

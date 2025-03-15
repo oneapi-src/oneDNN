@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2020-2025 Intel Corporation
 * Copyright 2023 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -57,7 +58,7 @@ namespace aarch64 {
 ///        the number of rows of the matrix B
 /// @param strides Strides between the matrices in the batch. Can be nullptr.
 ///
-status_t DNNL_API brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
+status_t DNNL_API brgemm_desc_init(brgemm_desc_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
         impl::data_type_t dt_b, bool transA, bool transB,
         brgemm_layout_t layout, float alpha, float beta, dim_t LDA, dim_t LDB,
@@ -89,7 +90,7 @@ status_t DNNL_API brgemm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 /// @param M Specifies the number of rows of the matrix A and C.
 /// @param N Specifies the number of columns of the matrix A and C.
 ///
-status_t DNNL_API brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
+status_t DNNL_API brdgmm_desc_init(brgemm_desc_t *brg, cpu_isa_t isa,
         brgemm_batch_kind_t type, impl::data_type_t dt_a,
         impl::data_type_t dt_b, bool transA, brgemm_layout_t layout,
         float alpha, float beta, dim_t LDA, dim_t LDC, dim_t M, dim_t N,
@@ -108,7 +109,7 @@ status_t DNNL_API brdgmm_desc_init(brgemm_t *brg, cpu_isa_t isa,
 /// @param dt_bias Specifies the data type Bias
 ///     Can be u8, s8, s32, bf16 or fp32
 ///
-status_t DNNL_API brgemm_desc_set_postops(brgemm_t *brg,
+status_t DNNL_API brgemm_desc_set_postops(brgemm_desc_t *brg,
         const primitive_attr_t *attr, const memory_desc_t *dst_md, int LDD,
         impl::data_type_t dt_bias = impl::data_type::undef);
 
@@ -119,12 +120,12 @@ status_t DNNL_API brgemm_desc_set_postops(brgemm_t *brg,
 ///     maximum batch size, kernel loop order etc.
 ///
 status_t DNNL_API brgemm_desc_set_attr(
-        brgemm_t *brg, const brgemm_attr_t &brgattr);
+        brgemm_desc_t *brg, const brgemm_attr_t &brgattr);
 
 /// Finalize BRGEMM descriptor.
 ///
 /// @param brg Output BRGEMM descriptor
-status_t DNNL_API brgemm_desc_finalize(brgemm_t *brg);
+status_t DNNL_API brgemm_desc_finalize(brgemm_desc_t *brg);
 
 /// Generates a BRGEMM kernel based on descriptor
 ///
@@ -132,7 +133,7 @@ status_t DNNL_API brgemm_desc_finalize(brgemm_t *brg);
 /// @param brg BRGEMM descriptor
 ///
 status_t DNNL_API brgemm_kernel_create(
-        brgemm_kernel_t **brg_kernel, const brgemm_t &brg);
+        brgemm_kernel_t **brg_kernel, const brgemm_desc_t &brg);
 
 /// Destroys a BRGEMM kernel
 ///

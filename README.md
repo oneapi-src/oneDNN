@@ -170,13 +170,23 @@ Intel C++ Compiler.
 [Intel oneAPI DPC++/C++ Compiler]: https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html
 
 On a CPU based on Arm AArch64 architecture, oneDNN CPU engine can be built with
-[Arm Compute Library (ACL)] integration. ACL is an open-source library for
-machine learning applications and provides AArch64 optimized implementations
-of core functions. This functionality currently requires that ACL is downloaded
-and built separately. See [Build from Source] section of the Developer Guide for
-details. oneDNN only supports Compute Library versions 24.11.1 or later.
+[Arm Compute Library (ACL)] and/or [KleidiAI (KAI)] integration.
+
+ACL is an open-source library for machine learning applications and
+provides AArch64 optimized implementations of core functions. This functionality
+currently requires that ACL is downloaded and built separately.
+See [Build from Source] section of the Developer Guide for details. oneDNN only
+supports Compute Library versions 24.11.1 or later.
+
+Arm® KleidiAI™ is an open-source library that provides optimized performance-critical
+routines, also known as micro-kernels, for artificial intelligence (AI) workloads
+tailored for Arm® CPUs. This functionality currently requires that KAI is
+downloaded and built separately.
+See [Build from Source] section of the Developer Guide for details. oneDNN only
+supports KleidiAI versions 1.4.0 or later.
 
 [Arm Compute Library (ACL)]: https://github.com/arm-software/ComputeLibrary
+[KleidiAI (KAI)]: https://gitlab.arm.com/kleidi/kleidiai
 
 ### GPU Engine
 

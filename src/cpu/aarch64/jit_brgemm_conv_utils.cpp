@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
-* Copyright 2024 Arm Ltd. and affiliates
+* Copyright 2024-2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -725,7 +725,7 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
 
     const float alpha = 1.0;
     const float beta = 0.0;
-    brgemm_t brg;
+    brgemm_desc_t brg;
     CHECK(brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
             brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK, nullptr,
             is_bf32));
@@ -763,7 +763,7 @@ status_t brg_blocking_t::get_brgemm_ur(
                 auto vN = (i_N) ? N_tail : N;
                 auto vK = (i_K) ? K_tail : K;
                 if (vN == 0 || vK == 0) continue;
-                brgemm_t brg;
+                brgemm_desc_t brg;
                 brgemm_strides_t brg_strides;
                 brg_strides.stride_a = ngroups * ic_without_padding
                         * (dilate_w + 1) * src_dsz;

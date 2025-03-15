@@ -87,6 +87,10 @@ enum class pack_type {
     trans = dnnl_pack_type_trans,
     /// Packed by 32 bits along K dimension layout.
     pack32 = dnnl_pack_type_pack32,
+
+    /// Packing for KleidiAI kernels
+    kai_pack_int4 = dnnl_pack_type_kai_pack_int4,
+    kai_pack_f32 = dnnl_pack_type_kai_pack_f32,
 };
 
 /// Ukernel attributes memory storage
@@ -143,6 +147,15 @@ struct attr_params : public handle<dnnl_ukernel_attr_params_t> {
                 = dnnl_ukernel_attr_params_set_D_scales(get(), d_scales);
         if (status != dnnl_success)
             error::wrap_c_api(status, "could not set D scales argument");
+    }
+
+    /// Sets tensor bias arguments to a storage.
+    ///
+    /// @param bias Pointer to bias storage.
+    void set_bias(const void *bias) {
+        dnnl_status_t status = dnnl_ukernel_attr_params_set_bias(get(), bias);
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not set B bias argument");
     }
 };
 /// @} dnnl_api_ukernel_utils
@@ -265,6 +278,19 @@ struct brgemm : public handle<dnnl_brgemm_t> {
         dnnl_status_t status = dnnl_brgemm_finalize(get());
         if (status != dnnl_success)
             error::wrap_c_api(status, "could not finalize an object");
+    }
+
+    /// Returns the packing type expected by a tensor A of a BRGeMM ukernel
+    /// object.
+    static pack_type get_A_pack_type(
+            memory::data_type a_dt, memory::data_type b_dt) {
+        dnnl_pack_type_t a_pack_type;
+        dnnl_status_t status = dnnl_brgemm_get_A_pack_type(&a_pack_type,
+                memory::convert_to_c(a_dt), memory::convert_to_c(b_dt));
+        if (status != dnnl_success)
+            error::wrap_c_api(status, "could not query A pack type");
+
+        return static_cast<pack_type>(a_pack_type);
     }
 
     /// Returns the packing type expected by a tensor B of a BRGeMM ukernel
@@ -444,6 +470,31 @@ struct transform : public handle<dnnl_transform_t> {
                     "could not generate a BRGeMM ukernel packing B object");
     }
 
+    /// Returns the buffer size for transform output.
+    size_t get_output_size() const {
+        size_t size;
+        dnnl_status_t status = dnnl_transform_get_output_size(get(), &size);
+        if (status != dnnl_success)
+            error::wrap_c_api(status,
+                    "could not query a packing size from a KleidiAI ukernel "
+                    "object");
+        return size;
+    }
+
+    /// Executes a transform object with attr params.
+    ///
+    /// @param params Pointer to an attr_params object.
+    /// @param in Pointer to an input buffer.
+    /// @param out Pointer to an output buffer.
+    void execute(const void *in = nullptr, void *out = nullptr,
+            const attr_params &params = default_attr_params()) {
+        dnnl_status_t status = dnnl_transform_execute_attr_params(
+                get(), params.get(), in, out);
+        if (status != dnnl_success)
+            error::wrap_c_api(status,
+                    "could not execute a BRGeMM ukernel packing B object");
+    }
+
     /// Executes a transform object.
     ///
     /// @param in Pointer to an input buffer.
@@ -454,10 +505,16 @@ struct transform : public handle<dnnl_transform_t> {
             error::wrap_c_api(status,
                     "could not execute a BRGeMM ukernel packing B object");
     }
+
+    /// Returns a constant reference to a static instance of default constructed
+    /// ukernel attributes parameters.
+    static const attr_params &default_attr_params() {
+        static const attr_params ap;
+        return ap;
+    }
 };
 
 /// @} dnnl_api_ukernel_transform
-
 #endif
 
 } // namespace ukernel

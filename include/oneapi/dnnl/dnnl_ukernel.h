@@ -74,6 +74,15 @@ dnnl_status_t DNNL_API dnnl_ukernel_attr_params_set_A_scales(
 dnnl_status_t DNNL_API dnnl_ukernel_attr_params_set_B_scales(
         dnnl_ukernel_attr_params_t attr_params, const void *b_scales);
 
+/// Sets bias argument to a storage.
+///
+/// @param attr_params Memory pointers storage object.
+/// @param bias Pointer to the bias storage.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_ukernel_attr_params_set_bias(
+        dnnl_ukernel_attr_params_t attr_params, const void *bias);
+
 /// Sets tensor D scales argument to a storage.
 ///
 /// @param attr_params Memory pointers storage object.
@@ -182,6 +191,17 @@ dnnl_status_t DNNL_API dnnl_brgemm_set_D_scales(
 /// @returns #dnnl_success on success and a status describing the error
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_brgemm_finalize(dnnl_brgemm_t brgemm);
+
+/// Returns the packing type expected by a tensor A of a BRGeMM ukernel object.
+///
+/// @param pack_type Output packing type. Can be `dnnl_brgemm_no_pack` if
+///     packing is not expected.
+/// @param dt_a Data type of tensor A.
+/// @param dt_b Data type of tensor B.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_brgemm_get_A_pack_type(dnnl_pack_type_t *pack_type,
+        dnnl_data_type_t dt_a, dnnl_data_type_t dt_b);
 
 /// Returns the packing type expected by a tensor B of a BRGeMM ukernel object.
 ///
@@ -306,6 +326,28 @@ dnnl_status_t DNNL_API dnnl_transform_create(dnnl_transform_t *transform,
 ///     otherwise.
 dnnl_status_t DNNL_API dnnl_transform_generate(dnnl_transform_t transform);
 
+/// Get the buffer size required for output.
+///
+/// @param transform Transform object.
+/// @param size_ptr Pointer to size.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_transform_get_output_size(
+        dnnl_transform_t transform, size_t *size_ptr);
+
+/// Executes a transform object with attr parameters.
+///
+/// @param transform Transform object.
+/// @param attr_params Ukernel attributes memory storage.
+/// @param in_ptr Pointer to an input buffer.
+/// @param out_ptr Pointer to an output buffer.
+/// @returns #dnnl_success on success and a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_transform_execute_attr_params(
+        const_dnnl_transform_t transform,
+        const_dnnl_ukernel_attr_params_t attr_params, const void *in_ptr,
+        void *out_ptr);
+
 /// Executes a transform object.
 ///
 /// @param transform Transform object.
@@ -324,7 +366,6 @@ dnnl_status_t DNNL_API dnnl_transform_execute(
 dnnl_status_t DNNL_API dnnl_transform_destroy(dnnl_transform_t transform);
 
 /// @} dnnl_api_ukernel_brgemm
-
 #endif
 
 /// @} dnnl_api_ukernel

@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2024 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -38,7 +39,7 @@ namespace aarch64 {
 
 using namespace dnnl::impl::utils;
 
-jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_t &abrd)
+jit_brdgmm_kernel_base_t::jit_brdgmm_kernel_base_t(const brgemm_desc_t &abrd)
     : jit_generator(nullptr, MAX_CODE_SIZE, true, sve_512)
     , brg(abrd)
     , simd_w_(cpu_isa_traits<sve_512>::vlen / brg.typesize_C) {
@@ -910,7 +911,7 @@ void jit_brdgmm_kernel_base_t::generate() {
     if (is_fast_vnni_int8()) { assert(!"unsupported\n"); }
 }
 
-brdgmm_kernel_t::brdgmm_kernel_t(const brgemm_t abrd) {
+brdgmm_kernel_t::brdgmm_kernel_t(const brgemm_desc_t abrd) {
     brgemm_kernel_ = new jit_brdgmm_kernel_base_t(abrd);
 }
 

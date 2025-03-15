@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021-2023 Intel Corporation
 * Copyright 2023-2024 FUJITSU LIMITED
+* Copyright 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -102,6 +103,7 @@ struct brgemm_matmul_conf_t {
     bool with_binary;
     bool with_scales;
     bool with_dst_scales;
+    bool with_wei_decompression;
     bool s8s8_compensation_required;
     bool is_oscale_per_n;
     brgemm_broadcast_t src_zp_type;
@@ -166,6 +168,7 @@ struct brgemm_matmul_conf_t {
     bool has_zero_point_a, has_zero_point_b, has_zero_point_c;
     bool post_ops_applicable;
     bool transposed_A;
+    bool transposed_B;
     bool blocked_B;
 
     dim_t zp_a_comp_shift_n;
@@ -300,6 +303,12 @@ private:
     const bool n_blk_fixed;
     const cpu_isa_t isa_;
 };
+
+// This function initializes all required fields in the conf object to generate
+// copy_b kernel. Used in this impl and re-used in brgemm kernel API.
+status_t init_conf(brgemm_matmul_conf_t &conf, dim_t batch, dim_t M, dim_t K,
+        dim_t N, dim_t in_ld, dim_t n_blk, data_type_t in_type,
+        data_type_t out_type, format_tag_t in_tag);
 
 void init_aux_values(brgemm_matmul_conf_t &bgmmc,
         const memory_desc_wrapper &src_d, const memory_desc_wrapper &wei_d,
