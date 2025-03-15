@@ -101,6 +101,8 @@ public:
     template <typename valuetype>
     inline void write_array_item(const valuetype &value);
 
+    inline void write_newline();
+
 private:
     std::ostream *os_;
     /*!
@@ -394,7 +396,7 @@ inline void json_writer_t::end_array() {
 }
 
 inline void json_writer_t::write_array_seperator() {
-    if (scope_count_.back() != 0) { *os_ << ", "; }
+    if (scope_count_.back() != 0) { *os_ << ","; }
     scope_count_.back() += 1;
     write_seperator();
 }
@@ -421,6 +423,10 @@ inline void json_writer_t::write_seperator() {
         *os_ << '\n';
         *os_ << std::string(scope_multi_line_.size() * 2, ' ');
     }
+}
+
+inline void json_writer_t::write_newline() {
+    *os_ << '\n';
 }
 
 inline int json_reader_t::next_char() {

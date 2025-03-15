@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright 2020-2024 Intel Corporation
+ * Copyright 2020-2025 Intel Corporation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -162,7 +162,6 @@ public:
     // of vector
     std::vector<const backend_t *> &get_registered_backends() {
         invoke_backend_registration();
-        std::lock_guard<std::mutex> lock(m_);
         return sorted_backends_;
     }
 
@@ -175,7 +174,6 @@ public:
     const backend_t *get_registered_backend(size_t layout_id) {
         invoke_backend_registration();
         size_t backend_id = extract_backend_id(layout_id);
-        std::lock_guard<std::mutex> lock(m_);
         return backends_[backend_id];
     }
 

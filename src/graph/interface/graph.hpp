@@ -41,7 +41,6 @@
 
 #include "graph/utils/debug.hpp"
 #include "graph/utils/id.hpp"
-#include "graph/utils/json.hpp"
 #include "graph/utils/utils.hpp"
 
 namespace graph = dnnl::impl::graph;
@@ -409,45 +408,7 @@ public:
     }
 
     // This function is used to serialize graph to a JSON file
-    graph::status_t serialize(const std::string &filename) const {
-        const auto &fpmath = get_fpmath_mode();
-        dnnl::impl::verbose_printf(
-                "graph,info,serialize graph to a json file %s\n",
-                filename.c_str());
-        std::ofstream of(filename);
-        graph::utils::json::json_writer_t writer(&of);
-        writer.begin_object();
-        std::string version = std::to_string(dnnl_version()->major) + "."
-                + std::to_string(dnnl_version()->minor) + "."
-                + std::to_string(dnnl_version()->patch);
-        writer.write_keyvalue("version", version);
-        writer.write_keyvalue("engine_kind",
-                std::string(graph::utils::engine_kind2str(get_engine_kind())));
-        writer.write_keyvalue("fpmath_mode",
-                std::string(graph::utils::fpmath_mode2str(fpmath.mode_)));
-        writer.write_keyvalue("fpmath_mode_apply_to_int",
-                std::string(fpmath.apply_to_int_ ? "true" : "false"));
-        std::vector<size_t> inputs_id;
-        inputs_id.reserve(get_input_values().size());
-        for (const auto &val : get_input_values()) {
-            auto lt = val->get_logical_tensor();
-            auto ltw = logical_tensor_wrapper_t(lt);
-            inputs_id.push_back(ltw.id());
-        }
-        writer.write_keyvalue("input_ports", inputs_id);
-        std::vector<size_t> outputs_id;
-        outputs_id.reserve(get_output_values().size());
-        for (const auto &val : get_output_values()) {
-            auto lt = val->get_logical_tensor();
-            auto ltw = logical_tensor_wrapper_t(lt);
-            outputs_id.push_back(ltw.id());
-        }
-        writer.write_keyvalue("output_ports", outputs_id);
-        writer.write_keyvalue("graph", get_ops());
-        writer.end_object();
-
-        return graph::status::success;
-    }
+    graph::status_t serialize(const std::string &filename) const;
 
     static std::vector<op_ptr> deep_copy(const std::vector<op_ptr> &ops);
 };
