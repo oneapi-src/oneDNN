@@ -934,6 +934,21 @@ bool is_generic_gpu(const dnnl_engine_t &engine) {
     return false;
 }
 
+bool is_blocked_format(const std::string &format_tag) {
+    // if the user provided tag has a capital letter,
+    // that indicates it's a blocked format, otherwise it's plain
+
+    for (const auto &c : format_tag) {
+        if (std::isupper(c)) { return true; }
+    }
+    return false;
+}
+
+bool is_nibble_sized_type(const dnnl_data_type_t &type) {
+    return type == dnnl_f4_e2m1 || type == dnnl_f4_e3m0 || type == dnnl_u4
+            || type == dnnl_s4;
+}
+
 bool is_f64_supported(const dnnl_engine_t &engine) {
     if (!is_gpu(engine)) return false;
     if (is_nvidia_gpu(engine) || is_amd_gpu(engine)) return false;

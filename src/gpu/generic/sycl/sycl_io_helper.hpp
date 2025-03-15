@@ -238,8 +238,8 @@ struct memory_tensor_t {
         store_float_vec<width>(md_.data_type(), val, mem_.get_pointer(), idx);
     }
 
-    inline float load_md(dims_t offsets) const {
-        return load(md_.off_v(offsets));
+    inline float load_md(dims_t offsets, bool padded = false) const {
+        return load(md_.off_v(offsets, padded));
     }
 
     inline float load_md_bc(dims_t offsets) const {
@@ -250,8 +250,19 @@ struct memory_tensor_t {
         return load(md_.off_v(offsets_masked));
     }
 
-    inline void store_md(float val, dims_t offsets) {
-        store(val, md_.off_v(offsets));
+    inline void store_md(float val, dims_t offsets, bool padded = false) {
+        store(val, md_.off_v(offsets, padded));
+    }
+
+    // flattened_index must be lesser than nelems
+    inline void get_logical_index(dim_t flattened_index, dims_t &logical_index,
+            bool use_padded_dims = false) {
+        const auto &dims = use_padded_dims ? md_.padded_dims() : md_.dims();
+        auto ndims = md_.ndims();
+        for (auto i = ndims - 1; i >= 0; i--) {
+            logical_index[i] = flattened_index % dims[i];
+            flattened_index /= dims[i];
+        }
     }
 
     inline void *ptr() const { return mem_.get_pointer(); }
