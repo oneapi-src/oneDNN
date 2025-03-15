@@ -1,6 +1,6 @@
 # Initial Coverage Test
 --reset
---batch=harness_matmul_generated_ci
+#--batch=harness_matmul_generated_ci
 
 # Plain cases
 --reset

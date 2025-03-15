@@ -679,18 +679,37 @@ float __attribute__((overloadable)) cvt_s4_to_s32(char a) {
 #if MATH_UTILS_DECLARE_F4_E2M1
 
 uchar __attribute__((overloadable)) cvt_f32_to_f4_e2m1(float a) {
-    // Rounding boundaries
-    const ushort8 boundaries
-            = {0x800, 0x3e8, 0x3f4, 0x3fa, 0x3fe, 0x402, 0x406, 0x40a};
-    ushort b = as_uint(a) >> 20;
-    ushort val = b & 0x7ff;
-    short cmp_mask = (val & 0x7f8) != 0x7f8;
-    short8 gt = (val > boundaries) & cmp_mask;
-    short4 eq = (val == boundaries.s0246) & cmp_mask;
-    short4 r0 = gt.s0123 + gt.s4567 + eq;
-    short2 r1 = r0.s01 + r0.s23;
-    uchar sign = (b >> 8) & (cmp_mask << 3);
-    return sign | (uchar)(r1.s0 + r1.s1);
+    const float f4_e2m1_max = as_float(0x40c00000);
+    const float exp_shift = as_float(0x00800000);
+
+    // clamp
+    // sel (lt)f0.0 t0:f (abs)x:f 0x40c00000:f
+    float intermediate = fmin(fabs(a), f4_e2m1_max);
+    if (isnan(intermediate)) intermediate = f4_e2m1_max;
+
+    // shift high exp bit down
+    // mul t0:f t0:f 0x00800000:f
+    intermediate *= exp_shift;
+
+    // rtne logic
+    // add t0:ud to:ud -0x00200000:ud
+    // and (nz)f0.0 null t0:ud 0x007fffff:ud
+    uint bits = as_uint(intermediate);
+    bits -= 0x00200000;
+    uint round_up = bits & 0x007fffff;
+
+    // shr t0:ud t0:ud 22
+    bits >>= 22;
+
+    // round
+    // (f0.0) add t0:ud t0:ud 1
+    if (round_up) bits += 1;
+
+    // copy sign
+    // shr y:ud x:ud 28
+    // bfn.0xCA y:ud y:ud t0:ud 0x07
+    uint dst = as_uint(a) >> 28;
+    return ((dst & ~0x07) | (bits & 0x07)) & 0xf;
 }
 
 float __attribute__((overloadable)) cvt_f4_e2m1_to_f32(uchar a) {
@@ -706,34 +725,38 @@ float __attribute__((overloadable)) cvt_f4_e2m1_to_f32(uchar a) {
 #if MATH_UTILS_DECLARE_F4_E3M0
 
 // OCL translation of common fp4 methods.
-uchar __attribute__((overloadable)) cvt_f32_to_f4_e3m0(float f) {
-    uint f_raw = as_uint(f);
-    uint sign = f_raw & 0x80000000;
+uchar __attribute__((overloadable)) cvt_f32_to_f4_e3m0(float a) {
+    const float f4_e3m0_max = as_float(0x41800000);
+    const float exp_shift = as_float(0x01800000);
 
-    // There is no NaN or infinity in e3m0, we just return maxval
-    uint naninf_mask = 0x7f800000;
-    if ((f_raw & naninf_mask) == naninf_mask) return 0x7;
+    // clamp
+    // sel (lt)f0.0 t0:f (abs)x:f 0x41800000:f
+    float intermediate = fmin(fabs(a), f4_e3m0_max);
+    if (isnan(intermediate)) intermediate = f4_e3m0_max;
 
-    // we convert with naive closest value computation out of 8
-    float e3m0_val_table[8] = {0.0f, .25f, .5f, 1.0f, 2.0f, 4.0f, 8.0f, 16.0f};
+    // shift high exp bit down
+    // mul t0:f t0:f 0x01800000:f
+    intermediate *= exp_shift;
 
-    float abs_f = as_float(f_raw ^ sign);
+    // rtne logic
+    // add t0:ud to:ud -0x00400000:ud
+    // and (nz)f0.0 null t0:ud 0x00ffffff:ud
+    uint bits = as_uint(intermediate);
+    bits -= 0x00400000;
+    uint round_up = bits & 0x00ffffff;
 
-    int idx = 0;
-    float min_diff = fabs(e3m0_val_table[idx] - abs_f);
-    uchar raw_bits = idx;
-    for (++idx; idx < 8; ++idx) {
-        float diff = fabs(e3m0_val_table[idx] - abs_f);
-        if (diff < min_diff) {
-            min_diff = diff;
-            raw_bits = idx;
-        }
-        // Special case for midpoint, we round to even (so even index)
-        if ((diff == min_diff) && !(idx & 1)) raw_bits = idx;
-    }
-    // reapply sign
-    if (sign) raw_bits = raw_bits | 0x08;
-    return raw_bits;
+    // shr t0:ud t0:ud 23
+    bits >>= 23;
+
+    // round
+    // (f0.0) add t0:ud t0:ud 1
+    if (round_up) bits += 1;
+
+    // copy sign
+    // shr y:ud x:ud 28
+    // bfn.0xCA y:ud y:ud t0:ud 0x07
+    uint dst = as_uint(a) >> 28;
+    return ((dst & ~0x07) | (bits & 0x07)) & 0xf;
 }
 
 float __attribute__((overloadable)) cvt_f4_e3m0_to_f32(uchar a) {
