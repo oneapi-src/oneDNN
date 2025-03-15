@@ -102,6 +102,18 @@ inline jit::layout_t to_conv_layout(const layout_tag_t &_tag,
     return jit::layout_t(md, tag.str(), /*do_normalize=*/false);
 }
 
+inline jit::layout_t to_conv_layout(
+        const layout_tag_t &_tag, const pvar_tile_t &shape) {
+    int ndims = _tag.desc().ndims();
+    auto tag = _tag.raw_tag();
+    std::vector<dim_t> dims(ndims);
+    for (int i = 0; i < ndims; i++) {
+        auto d = _tag.desc().prb_dim(i);
+        dims[i] = shape.at(d);
+    }
+    return jit::layout_t(_tag.type(), expr_t(0), tag.str(), dims);
+}
+
 inline jit::grid_info_t to_grid_info(
         const grid_t &grid, const pvar_tile_t &tile) {
     std::vector<dim_t> dims;

@@ -208,6 +208,15 @@ public:
         return !operator==(other);
     }
 
+    pvar_map_t drop_defaults() const {
+        pvar_map_t ret;
+        for (auto &d : *this) {
+            if (at(d) == ValueT()) continue;
+            ret[d] = at(d);
+        }
+        return ret;
+    }
+
     size_t get_hash() const { return ir_utils::get_hash(map_); }
 
     void stringify(std::ostream &out) const {

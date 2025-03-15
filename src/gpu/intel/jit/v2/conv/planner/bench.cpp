@@ -212,6 +212,14 @@ using bench_time_t = dnnl::impl::gpu::intel::jit::v2::conv::bench_time_t;
 using pvar_tile_t = dnnl::impl::gpu::intel::jit::pvar_tile_t;
 namespace pvars = dnnl::impl::gpu::intel::jit::pvars;
 
+std::string c_pd_name(dnnl_primitive_desc_t pd) {
+    const char *res = nullptr;
+    dnnl_status_t status
+            = dnnl_primitive_desc_query(pd, dnnl_query_impl_info_str, 0, &res);
+    gpu_assert(status == dnnl_success);
+    return std::string(res);
+}
+
 class bench_task_t : public bench_task_base_t {
 public:
     bench_task_t(const problem_t &prb) : prb_(prb) {
@@ -283,10 +291,12 @@ public:
                             diff_src_md.get(), wei_md.get(), diff_dst_md.get(),
                             &strides[0], nullptr, &padding_l[0], &padding_r[0],
                             nullptr, attr.get()));
-                    auto pd = convolution_backward_data::primitive_desc(c_pd);
-                    while (pd.impl_info_str() != v2_impl_name) {
-                        if (!pd.next_impl()) break;
+                    while (c_pd_name(c_pd) != v2_impl_name) {
+                        auto status = dnnl_primitive_desc_next_impl(c_pd);
+                        if (status == dnnl_last_impl_reached) break;
+                        gpu_assert(status == dnnl_success);
                     }
+                    auto pd = convolution_backward_data::primitive_desc(c_pd);
                     if (pd.impl_info_str() != v2_impl_name) {
                         std::cout << "Error: expected conv_v2." << std::endl;
                         exit(1);
@@ -315,11 +325,13 @@ public:
                             src_md.get(), diff_wei_md.get(), diff_bias_md.get(),
                             diff_dst_md.get(), &strides[0], nullptr,
                             &padding_l[0], &padding_r[0], nullptr, attr.get()));
+                    while (c_pd_name(c_pd) != v2_impl_name) {
+                        auto status = dnnl_primitive_desc_next_impl(c_pd);
+                        if (status == dnnl_last_impl_reached) break;
+                        gpu_assert(status == dnnl_success);
+                    }
                     auto pd = convolution_backward_weights::primitive_desc(
                             c_pd);
-                    while (pd.impl_info_str() != v2_impl_name) {
-                        if (!pd.next_impl()) break;
-                    }
                     if (pd.impl_info_str() != v2_impl_name) {
                         std::cout << "Error: expected conv_v2." << std::endl;
                         exit(1);

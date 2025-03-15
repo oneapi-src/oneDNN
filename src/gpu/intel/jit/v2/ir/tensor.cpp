@@ -206,6 +206,13 @@ bool layout_raw_tag_t::is_blocked(char letter) const {
     return false;
 }
 
+bool layout_raw_tag_t::is_blocked() const {
+    for (auto &e : entries_) {
+        if (e.is_blocked) return true;
+    }
+    return false;
+}
+
 dim_idx_t layout_raw_tag_t::ndims() const {
     gpu_assert(!is_any() && !has_x());
     dim_idx_t max_index = 0;
@@ -358,10 +365,23 @@ std::vector<std::pair<char, int>> layout_raw_tag_t::parse_letter_blocks(
     return ret;
 }
 
-static void advance(pvar_coord_t<dim_t> &idx, const pvar_tile_t &bound,
+static void advance(pvar_coord_t<dim_t> &idx,
+        const std::vector<pvar_t> &_idx_order, const pvar_tile_t &bound,
         const pvar_tile_t &block) {
     dim_t inc = 1;
-    for (auto &d : idx) {
+    auto idx_order = _idx_order;
+    if (idx_order.empty()) {
+        for (auto &d : idx)
+            idx_order.push_back(d);
+    } else {
+        pvar_map_t<bool> seen;
+        for (auto &d : idx_order)
+            seen[d] = true;
+        gpu_assert(seen.size() == idx.size());
+        for (auto &d : idx)
+            gpu_assert(seen.has(d));
+    }
+    for (auto &d : idx_order) {
         dim_t inc_idx = (idx[d] / block[d] + inc) % bound[d];
         inc = (idx[d] / block[d] + inc) / bound[d];
         idx[d] = inc_idx * block[d];
@@ -807,6 +827,19 @@ pvar_coord_t<dim_t> layout_t::to_coord(
     return ret;
 }
 
+bool coords_match(
+        const pvar_coord_t<dim_t> &_a, const pvar_coord_t<dim_t> &_b) {
+    auto a = _a;
+    auto b = _b;
+    for (auto &d : _a) {
+        if (_a[d] == 0) a.unset(d);
+    }
+    for (auto &d : _b) {
+        if (_b[d] == 0) b.unset(d);
+    }
+    return a == b;
+}
+
 int layout_t::to_linear_index(
         const pvar_tile_t &tile, const pvar_coord_t<dim_t> &coord) const {
     gpu_assert(has_const_sizes());
@@ -829,7 +862,7 @@ int layout_t::to_linear_index(
     std::vector<int> idx(nblocks());
     for (int i = 0; i < ntiles; i++) {
         auto i_coord = to_coord(idx);
-        if (i_coord == coord) return i;
+        if (i_coord.drop_defaults() == coord.drop_defaults()) return i;
         advance(idx, blocks_, tile_blocks);
     }
     gpu_error_not_expected();
@@ -887,6 +920,12 @@ std::string layout_t::str_with_size(const hw_t &hw) const {
 
 void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
         const std::function<void(const pvar_coord_t<dim_t> &)> &func) {
+    for_each(base_tile, tile, {}, func);
+}
+
+void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
+        const std::vector<pvar_t> &idx_order,
+        const std::function<void(const pvar_coord_t<dim_t> &)> &func) {
     for (auto &d : tile) {
         gpu_assert(base_tile.has(d));
         gpu_assert(base_tile[d] % tile[d] == 0);
@@ -903,9 +942,10 @@ void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
     }
     for (int i = 0; i < ntiles; i++) {
         func(idx);
-        advance(idx, bound, tile);
+        advance(idx, idx_order, bound, tile);
     }
 }
+
 block_iterator_t::block_iterator_t(const layout_t &layout, bool set_to_end)
     : parent_(&layout), block_idx_(set_to_end ? parent_->nblocks() : 0) {
     gpu_assert(layout.has_const_sizes());

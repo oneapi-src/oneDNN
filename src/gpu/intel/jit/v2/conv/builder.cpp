@@ -201,10 +201,16 @@ struct stream_k_params_t {
     expr_t iters_per_tg;
     // Iterations per one output tile, div_up(k, k_blk).
     expr_t iters_per_tile;
+    // Number of reduction batches.
+    expr_t k_batches;
 
     // The following values are thread-specific.
     // Index of this threadgroup.
     expr_t tg_idx;
+    // Index of the current k-batch. Reduction is done in batches (i.e. the 1st
+    // thread wave reduces all tiles for k in [0, x), the 2nd wave reduces all
+    // tiles for k in [x, 2 * x), etc);
+    expr_t k_batch_idx;
     // Index of the first threadgroup for the current output tile.
     expr_t tg_beg;
     // Index of the last threadgroup for the current output tile.
@@ -375,36 +381,29 @@ private:
         const auto &b_buf = buf_info_.reg_buf("b");
         const auto &c_buf = buf_info_.reg_buf("c");
 
-        for (auto &d : a_layout.dims())
-            gpu_assert(fma.inst_tile.has(d)) << d;
-        for (auto &d : b_layout.dims())
-            gpu_assert(fma.inst_tile.has(d)) << d;
-
-        // BMNK order.
-        pvar_t dims[4];
-        dim_t blocks[4] = {1, 1, 1, 1};
-        int sizes[4] = {1, 1, 1, 1};
-        pvar_map_t<int> bmnk_map;
-        bmnk_map[pvars::b] = 0;
-        bmnk_map[pvars::m] = 1;
-        bmnk_map[pvars::n] = 2;
-        bmnk_map[pvars::k] = 3;
-        for (auto &d : fma.inst_tile) {
-            int idx = bmnk_map.at(to_gemm(d, desc_.prop));
-            dims[idx] = d;
-            blocks[idx] = fma.inst_tile[d];
-            sizes[idx] = (idx != 2 ? a_layout : b_layout).int_dim_size(d);
+        pvar_tile_t sizes = a_layout.int_dim_sizes();
+        auto b_sizes = b_layout.int_dim_sizes();
+        for (auto &d : b_sizes) {
+            if (sizes.has(d)) gpu_assert(sizes[d] == b_sizes[d]);
+            sizes[d] = b_sizes[d];
         }
 
-        // BKNM order.
-        int i0 = 0;
-        int i1 = 3;
-        int i2 = 2;
-        int i3 = 1;
-        stmt_t stmt;
-        pvar_coord_t<dim_t> off;
-        bool is_a_bcast = (blocks[0] * blocks[1] * blocks[3] == 1);
-        bool is_b_bcast = (blocks[0] * blocks[2] * blocks[3] == 1);
+        // BMNK order (outer -> inner).
+        std::vector<pvar_t> dim_order;
+        for (auto bmnk : {pvars::m, pvars::n, pvars::k, pvars::b}) {
+            for (auto &d : sizes) {
+                if (to_gemm(d, desc_.prop) != bmnk) continue;
+                dim_order.push_back(d);
+            }
+        }
+
+        auto bmnk_inst_tile = to_gemm(fma.inst_tile, desc_.prop);
+        dim_t B = bmnk_inst_tile.get(pvars::b, 1);
+        dim_t M = bmnk_inst_tile.get(pvars::m, 1);
+        dim_t N = bmnk_inst_tile.get(pvars::n, 1);
+        dim_t K = bmnk_inst_tile.get(pvars::k, 1);
+        bool is_a_bcast = (B * M * K == 1);
+        bool is_b_bcast = (B * K * N == 1);
         func_t fma_func;
         switch (fma.fma) {
             case fma_kind_t::mad: {
@@ -422,27 +421,19 @@ private:
             default: gpu_error_not_expected();
         }
         stmt_t call_stmt;
-        for (int b = 0; b < sizes[i0]; b += blocks[i0]) {
-            off[dims[i0]] = b;
-            for (int k = 0; k < sizes[i1]; k += blocks[i1]) {
-                off[dims[i1]] = k;
-                for (int n = 0; n < sizes[i2]; n += blocks[i2]) {
-                    off[dims[i2]] = n;
-                    for (int m = 0; m < sizes[i3]; m += blocks[i3]) {
-                        off[dims[i3]] = m;
-                        dim_t a_off = a_layout.offset_in_bytes(off);
-                        dim_t b_off = b_layout.offset_in_bytes(off);
-                        dim_t c_off = c_layout.offset_in_bytes(off);
-                        auto dst = c_buf[c_off];
-                        auto src1 = a_buf[a_off];
-                        auto src2 = b_buf[b_off];
-                        if (fma.fma == fma_kind_t::dpas) std::swap(src1, src2);
-                        call_stmt = call_stmt.append(fma_func.call(
-                                {dst, dst, std::move(src1), std::move(src2)}));
-                    }
-                }
-            }
-        }
+        for_each(sizes, fma.inst_tile, dim_order,
+                [&](const pvar_coord_t<dim_t> &coord) {
+                    dim_t a_off = a_layout.offset_in_bytes(coord);
+                    dim_t b_off = b_layout.offset_in_bytes(coord);
+                    dim_t c_off = c_layout.offset_in_bytes(coord);
+                    auto dst = c_buf[c_off];
+                    auto src1 = a_buf[a_off];
+                    auto src2 = b_buf[b_off];
+                    if (fma.fma == fma_kind_t::dpas) std::swap(src1, src2);
+                    call_stmt = call_stmt.append(fma_func.call(
+                            {dst, dst, std::move(src1), std::move(src2)}));
+                });
+
         if (fma.fma == fma_kind_t::dpas) {
             call_stmt
                     = inject_dpas_atomic(call_stmt, /*filter_by_label=*/false);
@@ -798,33 +789,75 @@ public:
         stream_k_params_t sk_params(desc.use_stream_k, desc_.loop_desc);
         emit_thread_index_let();
         if (desc.use_stream_k) {
-            sk_params.total_iters
-                    = const_var_t::make(type_t::s32(), "sk_total_iters");
-            sk_params.iters_per_tg
-                    = const_var_t::make(type_t::s32(), "sk_iters_per_tg");
-            sk_params.iters_per_tile
-                    = const_var_t::make(type_t::s32(), "sk_iters_per_tile");
             sk_params.tg_idx = plan_.tg_grid.index_var(0);
+            sk_params.k_batch_idx = plan_.tg_grid.index_var(1);
 
+            auto total_iters_main
+                    = const_var_t::make(type_t::s32(), "sk_total_iters_main");
+            auto total_iters_tail
+                    = const_var_t::make(type_t::s32(), "sk_total_iters_tail");
+            auto iters_per_tg_main
+                    = const_var_t::make(type_t::s32(), "sk_iters_per_tg_main");
+            auto iters_per_tg_tail
+                    = const_var_t::make(type_t::s32(), "sk_iters_per_tg_tail");
+            auto iters_per_tg_main_magic = const_var_t::make(
+                    type_t::u64(), "sk_iters_per_tg_main_magic");
+            auto iters_per_tg_tail_magic = const_var_t::make(
+                    type_t::u64(), "sk_iters_per_tg_tail_magic");
+            auto iters_per_tile_main = const_var_t::make(
+                    type_t::s32(), "sk_iters_per_tile_main");
+            auto iters_per_tile_tail = const_var_t::make(
+                    type_t::s32(), "sk_iters_per_tile_tail");
+            auto iters_per_tile_main_magic = const_var_t::make(
+                    type_t::u64(), "sk_iters_per_tile_main_magic");
+            auto iters_per_tile_tail_magic = const_var_t::make(
+                    type_t::u64(), "sk_iters_per_tile_tail_magic");
+
+            sk_params.k_batches
+                    = const_var_t::make(type_t::s32(), "sk_k_batches");
+            auto cond = (sk_params.k_batch_idx == sk_params.k_batches - 1);
+            sk_params.total_iters = let("sk_total_iters",
+                    iif_t::make(cond, total_iters_tail, total_iters_main));
+            sk_params.iters_per_tg = let("sk_iters_per_tg",
+                    iif_t::make(cond, iters_per_tg_tail, iters_per_tg_main));
+            sk_params.iters_per_tile = let("sk_iters_per_tile",
+                    iif_t::make(
+                            cond, iters_per_tile_tail, iters_per_tile_main));
+            auto iters_per_tg_magic = let("sk_iters_per_tg_magic",
+                    iif_t::make(cond, iters_per_tg_tail_magic,
+                            iters_per_tg_main_magic));
+            auto iters_per_tile_magic = let("sk_iters_per_tile_magic",
+                    iif_t::make(cond, iters_per_tile_tail_magic,
+                            iters_per_tile_main_magic));
             auto iter = alloc_var(type_t::s32(), "sk_iter");
             iter = sk_params.tg_idx * sk_params.iters_per_tg;
             auto iter_end = let("sk_iter_end",
                     min(sk_params.total_iters, iter + sk_params.iters_per_tg));
 
             _while(iter < iter_end, [&]() {
-                sk_params.tile_idx
-                        = let("sk_tile_idx", iter / sk_params.iters_per_tile);
+                sk_params.tile_idx = let("sk_tile_idx",
+                        ternary_idiv(iter,
+                                cast(sk_params.iters_per_tile, type_t::u32()),
+                                iters_per_tile_magic));
                 auto global_beg = let("sk_global_beg",
                         sk_params.tile_idx * sk_params.iters_per_tile);
                 auto global_end = let(
                         "sk_global_end", global_beg + sk_params.iters_per_tile);
-                let(sk_params.local_beg, iter - global_beg);
+                let(sk_params.local_beg,
+                        iter - global_beg
+                                + sk_params.k_batch_idx * iters_per_tile_main);
                 let(sk_params.local_end,
-                        min(iter_end, global_end) - global_beg);
-                sk_params.tg_beg
-                        = let("sk_tg_beg", global_beg / sk_params.iters_per_tg);
+                        min(iter_end, global_end) - global_beg
+                                + sk_params.k_batch_idx * iters_per_tile_main);
+                sk_params.tg_beg = let("sk_tg_beg",
+                        ternary_idiv(global_beg,
+                                cast(sk_params.iters_per_tg, type_t::u32()),
+                                iters_per_tg_magic));
                 sk_params.tg_end = let("sk_tg_beg",
-                        (global_beg - 1) / sk_params.iters_per_tg + 1);
+                        ternary_idiv(global_beg - 1,
+                                cast(sk_params.iters_per_tg, type_t::u32()),
+                                iters_per_tg_magic)
+                                + 1);
                 emit_thread_group_index_let(sk_params.tile_idx);
                 pipeline(sk_params);
                 epilogue();

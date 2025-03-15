@@ -169,7 +169,8 @@ stmt_t create_stmt(const send_1d_plan_t &plan, const expr_t &mem_buf,
         int entry_idx = plan.reg_layout.to_linear_index(
                 plan.entry_tile, coord + sub_coord);
         auto &e = plan.entries[entry_idx];
-        gpu_assert(e.coord == coord + sub_coord);
+        gpu_assert(
+                e.coord.drop_defaults() == (coord + sub_coord).drop_defaults());
         auto header
                 = off_ctx.add_header(plan.desc, mem_buf, plan.addr, e.addr_inc);
         auto mask = off_ctx.add_mask(plan.mask, e.mask_incs);

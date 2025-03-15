@@ -240,6 +240,7 @@ public:
     void add_dim(char letter, int pos);
     void remove_dim(char letter);
     bool is_blocked(char letter) const;
+    bool is_blocked() const;
     dim_idx_t ndims() const;
     dim_idx_t non_x_ndims() const;
     std::string str() const;
@@ -294,6 +295,7 @@ public:
 
     bool is_empty() const { return raw_tag_.is_empty(); }
     bool is_any() const { return raw_tag_.is_any(); }
+    bool is_blocked() const { return raw_tag_.is_blocked(); }
     const layout_desc_t &desc() const { return desc_; }
     const type_t &type() const { return type_; }
     const layout_raw_tag_t &raw_tag() const { return raw_tag_; }
@@ -435,6 +437,9 @@ private:
 };
 
 void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
+        const std::function<void(const pvar_coord_t<dim_t> &)> &func);
+void for_each(const pvar_tile_t &base_tile, pvar_tile_t tile,
+        const std::vector<pvar_t> &idx_order,
         const std::function<void(const pvar_coord_t<dim_t> &)> &func);
 
 class block_iterator_t {
