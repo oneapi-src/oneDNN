@@ -66,7 +66,7 @@ status_t nchw_pooling_fwd_t<data_type::f32>::execute_forward(
     const dim_t padT = pd()->padT();
     const dim_t padL = pd()->padL();
 
-    const auto apply_offset = [](int index, int offset) {
+    const auto apply_offset = [](dim_t index, dim_t offset) {
         return (index > offset) ? index - offset : 0;
     };
 
@@ -270,7 +270,7 @@ status_t nchw_pooling_fwd_t<d_type>::execute_forward(
     const size_t blocked_size = src_size / simd_w;
     const size_t tail_size = src_size % simd_w;
 
-    auto apply_offset = [=](int index, int offset) {
+    auto apply_offset = [=](dim_t index, dim_t offset) {
         return (index > offset) ? index - offset : 0;
     };
 
@@ -469,7 +469,7 @@ status_t nchw_pooling_bwd_t<data_type::f32>::execute_backward(
     const dim_t padT = pd()->padT();
     const dim_t padL = pd()->padL();
 
-    auto apply_offset = [=](int index, int offset) {
+    auto apply_offset = [=](dim_t index, dim_t offset) {
         return (index > offset) ? index - offset : 0;
     };
 
@@ -622,7 +622,7 @@ status_t nchw_pooling_bwd_t<d_type>::execute_backward(
     const size_t dst_sp_size = pd()->OD() * pd()->OH() * pd()->OW();
     const size_t src_sp_size = pd()->ID() * pd()->IH() * pd()->IW();
 
-    auto apply_offset = [=](int index, int offset) {
+    auto apply_offset = [=](dim_t index, dim_t offset) {
         return (index > offset) ? index - offset : 0;
     };
 
@@ -704,6 +704,7 @@ status_t nchw_pooling_bwd_t<d_type>::execute_backward(
     if (alg == alg_kind::pooling_max) {
         parallel_nd_ext(nthr, MB, utils::div_up(C, c_blk),
                 [&](int ithr, int, dim_t mb, dim_t cb) {
+                    assert(ithr < pd()->nbuf_);
                     bool is_last_c_block
                             = c_blk_tail > 0 && (cb + 1) * c_blk > C;
                     dim_t curr_c_block = is_last_c_block ? c_blk_tail : c_blk;
@@ -740,6 +741,7 @@ status_t nchw_pooling_bwd_t<d_type>::execute_backward(
     } else {
         parallel_nd_ext(nthr, MB, utils::div_up(C, c_blk),
                 [&](int ithr, int, dim_t mb, dim_t cb) {
+                    assert(ithr < pd()->nbuf_);
                     bool is_last_c_block
                             = c_blk_tail > 0 && (cb + 1) * c_blk > C;
                     dim_t curr_c_block = is_last_c_block ? c_blk_tail : c_blk;

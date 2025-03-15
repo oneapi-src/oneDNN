@@ -35,8 +35,8 @@ namespace impl {
 namespace cpu {
 
 namespace nhwc_pooling {
-size_t strided_offset(const int _n, const size_t _sn, const int _d,
-        const size_t _sd, const int _h, const size_t _sh, const int _w,
+size_t strided_offset(const dim_t _n, const size_t _sn, const dim_t _d,
+        const size_t _sd, const dim_t _h, const size_t _sh, const dim_t _w,
         const size_t _sw);
 }
 
@@ -130,14 +130,15 @@ struct nhwc_pooling_fwd_t : public primitive_t {
 
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
-    void array_div_by_const(const int n, const ker_data_t *src,
+    void array_div_by_const(const dim_t n, const ker_data_t *src,
             const size_t num, ker_data_t *dst) const;
-    void array_add(const int n, const ker_data_t *src, ker_data_t *dst) const;
-    void array_nhwc_max(const int n, ker_data_t *dst, const ker_data_t *src,
+    void array_add(const dim_t n, const ker_data_t *src, ker_data_t *dst) const;
+    void array_nhwc_max(const dim_t n, ker_data_t *dst, const ker_data_t *src,
             unsigned char *ws, const size_t ws_offset, const data_type_t ws_dt,
             const int index) const;
-    void array_nhwc_initialize(const int n, ker_data_t *dst, unsigned char *ws,
-            const size_t ws_offset, const data_type_t ws_dt) const;
+    void array_nhwc_initialize(const dim_t n, ker_data_t *dst,
+            unsigned char *ws, const size_t ws_offset,
+            const data_type_t ws_dt) const;
 
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
     std::unique_ptr<ref_post_ops_t> ref_post_ops_;

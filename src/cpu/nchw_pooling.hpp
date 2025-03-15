@@ -174,8 +174,9 @@ struct nchw_pooling_bwd_t : public primitive_t {
             return status::success;
         }
 
-        dim_t channel_block_size_;
+        dim_t channel_block_size_ {1};
         int nthr_; // To not exceed the limit in execute used for set up.
+        int nbuf_ {0};
 
     private:
         void init_scratchpad() {
@@ -185,26 +186,34 @@ struct nchw_pooling_bwd_t : public primitive_t {
                 size_t src_sz_ = ID() * IH() * IW();
                 auto scratchpad = scratchpad_registry().registrar();
 
+                // The value of nbuf_ must be in compliance with arguments of
+                // parallel_nd_ext called from execute_backward for data_type!=f32
+                nbuf_ = nstl::min(static_cast<dim_t>(nthr_),
+                        MB() * utils::div_up(IC(), channel_block_size_));
+
                 scratchpad.template book<float>(key_pool_src_bf16cvt,
-                        src_sz_ * nthr_ * channel_block_size_);
+                        src_sz_ * nbuf_ * channel_block_size_);
                 scratchpad.template book<float>(key_pool_dst_bf16cvt,
-                        dst_sz_ * nthr_ * channel_block_size_);
+                        dst_sz_ * nbuf_ * channel_block_size_);
             }
         }
 
         void calculate_channel_block_size() {
-            // calculate channels block size at which the data fits into half
-            // of L1, it allows to improve performance for problems with small
-            // spatial
-            dim_t dst_sz_ = OD() * OH() * OW();
-            dim_t src_sz_ = ID() * IH() * IW();
-            dim_t C_per_thr = nstl::min(MB() * IC() / nthr_, IC());
-            const dim_t max_block_size
-                    = platform::get_per_core_cache_size(1) / 2;
-            dim_t data_size_per_ch = (dst_sz_ + src_sz_) * 6; // f32 + bf16
-            channel_block_size_ = nstl::max(
-                    nstl::min(C_per_thr, max_block_size / data_size_per_ch),
-                    (dim_t)1);
+            using namespace memory_tracking::names;
+            if (diff_dst_md()->data_type != data_type::f32) {
+                // calculate channels block size at which the data fits into half
+                // of L1, it allows to improve performance for problems with small
+                // spatial
+                dim_t dst_sz_ = OD() * OH() * OW();
+                dim_t src_sz_ = ID() * IH() * IW();
+                dim_t C_per_thr = nstl::min(MB() * IC() / nthr_, IC());
+                const dim_t max_block_size
+                        = platform::get_per_core_cache_size(1) / 2;
+                dim_t data_size_per_ch = (dst_sz_ + src_sz_) * 6; // f32 + bf16
+                channel_block_size_ = nstl::max(
+                        nstl::min(C_per_thr, max_block_size / data_size_per_ch),
+                        (dim_t)1);
+            }
         }
     };
 
