@@ -14,10 +14,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # *******************************************************************************
+
 --reset
---inplace=true
---alg=gelu_erf
+--batch=eltwise
+
+--reset
+
+--dt=f32
+--tag=abx,axb
 --dir=FWD_D
---dt=f32,bf16
---tag=abc
-1536x384
+--attr-post-ops=,
+
+## algs which do not support alpha and beta + relu with alpha=0
+--alpha=0 --beta=0
+--alg=exp,exp_dst,gelu_erf,gelu_tanh,relu_dst,tanh,tanh_dst
+384x384
+
+## algs which support negative alpha
+--alpha=-2 --beta=0
+--alg=elu,relu,swish
+384x384
+
+## algs which support alpha and beta
+--alpha=-2 --beta=3
+--alg=linear
+384x384

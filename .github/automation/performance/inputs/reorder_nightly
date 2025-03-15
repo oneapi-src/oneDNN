@@ -14,10 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # *******************************************************************************
+
 --reset
---inplace=true
---alg=gelu_erf
---dir=FWD_D
---dt=f32,bf16
---tag=abc
-1536x384
+--batch=reorder
+
+--reset
+--sdt=f32,s8
+--ddt=f32,s8
+
+--stag=abx,axb,aBx4b,aBx8b
+--dtag=abx,axb,aBx4b,aBx8b
+4x256x5x5

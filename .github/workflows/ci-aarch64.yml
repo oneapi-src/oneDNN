@@ -125,7 +125,7 @@ jobs:
 
       - name: Install scipy
         if: ${{ matrix.config.build == 'Release' }}
-        run: pip install scipy
+        run: pip install scipy statistics
 
       - name: Clone ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build_acl.sh
@@ -211,8 +211,8 @@ jobs:
         shell: bash
         if: ${{ github.event_name == 'pull_request' && matrix.config.build == 'Release' && matrix.config.name != 'cb100' }}
         run: |
-          OMP_NUM_THREADS=4 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
-          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
+          OMP_NUM_THREADS=4 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_pr_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base_4.txt new_4.txt
+          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_pr_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base_16.txt new_16.txt
         env:
           DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
 
@@ -220,7 +220,11 @@ jobs:
         if: ${{ github.event_name == 'pull_request' && matrix.config.build == 'Release' && matrix.config.name != 'cb100' }}
         id: performance-test
         continue-on-error: true
-        run: python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base.txt new.txt
+        run: |
+          echo "4 threads:"
+          python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base_4.txt new_4.txt
+          echo "16 threads:"
+          python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base_16.txt new_16.txt
 
       - name: Check performance test failure
         if: ${{ steps.performance-test.outputs.pass != 'True' && github.event_name == 'pull_request' && matrix.config.build == 'Release' && matrix.config.name != 'cb100' }}

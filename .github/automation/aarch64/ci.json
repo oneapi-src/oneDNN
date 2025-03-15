@@ -2,6 +2,7 @@
     "dependencies": {
         "acl": "v25.02",
         "gcc": "13",
-        "clang": "17"
+        "clang": "17",
+        "onednn-base": "v3.7"
     }
 }

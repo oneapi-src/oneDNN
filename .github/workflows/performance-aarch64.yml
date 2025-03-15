@@ -15,20 +15,14 @@
 # limitations under the License.
 # *******************************************************************************
 
-name: "Nightly AArch64"
+name: "Performance AArch64"
 
 on:
-  #* allow manual trigger of workflow when needed. Useful for a nightly.
-  workflow_dispatch:
-  schedule:
-    #* minute (0-59) hour (0-23) day (1-31) month (1-12)  day of the week (0 - 6)
-    #* cron jobs run on the default (main) branch.
-    #* set to run at 5am UCT
-  - cron: "0 5 * * *"
+  workflow_call:
 
-#* Stop stale workflows, though we should never hit this unless it hangs for a whole day.
+#* Stop stale workflows
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-performance
   cancel-in-progress: true
 
 # Declare default permissions as read only.
@@ -38,16 +32,12 @@ jobs:
   build-acl-cache:
     uses: ./.github/workflows/aarch64-acl.yml
 
-  test-performance:
-    uses: ./.github/workflows/performance-aarch64.yml
-
-  build-and-test:
+  build-and-test-performance:
     needs: build-acl-cache
     strategy:
       matrix:
         config: [
-          { name: c6g, label: ah-ubuntu_22_04-c6g_8x-100, threading: OMP, toolset: gcc, build: Release, testset: NIGHTLY },
-          { name: c7g, label: ah-ubuntu_22_04-c7g_8x-100, threading: OMP, toolset: gcc, build: Release, testset: NIGHTLY }
+          { name: c7g, label: ah-ubuntu_22_04-c7g_m-100, threading: OMP, toolset: gcc, build: Release, testset: NIGHTLY }
         ]
 
     name: ${{ matrix.config.name }}, ${{ matrix.config.toolset }}, ${{ matrix.config.threading }}, ${{ matrix.config.build }}
@@ -61,7 +51,7 @@ jobs:
 
       # Note: This will create a github actions cache
       - name: Get latest CMake and Ninja
-        uses: lukka/get-cmake@56d043d188c3612951d8755da8f4b709ec951ad6 # v3.31.6
+        uses: lukka/get-cmake@5f6e04f5267c8133f1273bf2103583fc72c46b17 # v3.31.5
         with:
           cmakeVersion: 3.31.0
           ninjaVersion: 1.12.0
@@ -83,6 +73,15 @@ jobs:
           sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
           sudo apt update -y
           sudo apt install -y g++-${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install scipy
+        if: ${{ matrix.config.build == 'Release' }}
+        run: pip install scipy statistics
 
       - name: Clone ACL
         run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build_acl.sh
@@ -125,22 +124,48 @@ jobs:
         env:
           ONEDNN_ACTION: build
 
-      - name: Run oneDNN tests
-        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/test.sh
-        working-directory: ${{ github.workspace }}/oneDNN/build
+      - name: Checkout oneDNN base
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ fromJson(steps.get-versions.outputs.output).dependencies.onednn-base }}
+          path: oneDNN_base
+
+      - name: Configure oneDNN base
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build.sh
+        working-directory: ${{ github.workspace }}/oneDNN_base
         env:
+          ACL_ROOT_DIR: ${{ github.workspace }}/ComputeLibrary
           BUILD_TOOLSET: ${{ matrix.config.toolset }}
           CMAKE_BUILD_TYPE: ${{ matrix.config.build }}
-          CTEST_PARALLEL_LEVEL: 8
-          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
+          CMAKE_GENERATOR: Ninja
+          GCC_VERSION: ${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
+          ONEDNN_ACTION: configure
+          ONEDNN_TEST_SET: ${{ matrix.config.testset }}
           ONEDNN_THREADING: ${{ matrix.config.threading }}
 
-  #* This job adds a check named "Nightly AArch64" that represents overall
+      - name: Build oneDNN base
+        run: ${{ github.workspace }}/oneDNN/.github/automation/aarch64/build.sh
+        working-directory: ${{ github.workspace }}/oneDNN_base
+        env:
+          ONEDNN_ACTION: build
+
+      - name: Run performance tests
+        shell: bash
+        run: |
+          OMP_NUM_THREADS=16 bash ${{ github.workspace }}/oneDNN/.github/automation/performance/bench_nightly_performance.sh ${{ github.workspace }}/oneDNN_base/build/tests/benchdnn/benchdnn ${{ github.workspace }}/oneDNN/build/tests/benchdnn/benchdnn base.txt new.txt
+        env:
+          DYLD_LIBRARY_PATH: ${{ github.workspace }}/ComputeLibrary/build
+
+      - name: Compare 16 threads performance test results
+        run: |
+          python ${{ github.workspace }}/oneDNN/.github/automation/performance/benchdnn_comparison.py base.txt new.txt
+
+  #* This job adds a check named "Nightly Performance AArch64" that represents overall
   #* workflow status and can be used in branch rulesets
   status:
-    needs: build-and-test
+    needs: build-and-test-performance
     runs-on: ubuntu-latest
-    name: "Nightly AArch64"
+    name: "Nightly Performance AArch64"
     steps:
       - name: Print success
         run: echo Success
