@@ -1,5 +1,5 @@
 #===============================================================================
-# Copyright 2019-2024 Intel Corporation
+# Copyright 2019-2025 Intel Corporation
 # Copyright 2020 Arm Ltd. and affiliates
 # Copyright 2021 FUJITSU LIMITED
 #
@@ -22,6 +22,7 @@ file(GLOB_RECURSE SOURCES_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/matmul/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/reorder/*.[ch]pp
     ${CMAKE_CURRENT_SOURCE_DIR}/rnn/*.[ch]pp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ukernel/*.[ch]pp
     )
 
 foreach(SOURCE_FILE ${SOURCES_EXTRA})
