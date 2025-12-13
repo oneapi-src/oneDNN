@@ -27,85 +27,7 @@
 
 #ifdef GWS_WITH_RUNTIME_PARAMS
 
-// Shortcut accessors for special cases.
-#define GWS_OP_ZERO(idx, stride, max, block) 0
-#define GWS_OP_SOLO(idx, stride, max, block) (idx)
-#define GWS_OP_FIRST(idx, stride, max, block) ((idx) / (stride))
-#define GWS_OP_MOD(idx, stride, max, block) ((idx) / (stride) % (max))
-#define GWS_OP_SOLO_BLOCK(idx, stride, max, block) (idx) * (block)
-#define GWS_OP_FIRST_BLOCK(idx, stride, max, block) ((idx) / (stride)) * (block)
-#define GWS_OP_MOD_BLOCK(idx, stride, max, block) \
-    ((idx) / (stride) % (max)) * (block)
-
 #define DEFAULT_DISPATCHER_SUFFIX DEFAULT
-
-// In C++:
-// Create a reusable_dispatch_config_t class, and:
-// 1. register buffers with reusable_dispatch_config_t::register_buffer
-// 2. label dimensions with reusable_dispatch_config_t::define_dim_index
-//
-// Then use reusable_dispatch_config_t::generate to create the frozen
-// reusable_dispatch_t class. This can then be further split into compile
-// and runtime structs with
-//
-// reusable_dispatch_t::get_compile_params
-// reusable_dispatch_t::get_runtime_params
-//
-// When initializing the kernel, use the dispatch_compile_params::def_kernel_macros to
-// 1. Set the dispatcher suffix (defaults to DEFAULT)
-// 2. Define buffer access macros (GWS_GET_OFF_NAMED and GWS_GET_BUFFER_POS_NAMED)
-
-// GWS_GET_NAMED(DIMNAME, SUFFIX, rt_params) expands to a sum of GWS<X>_GET_ID<Y>
-// terms (defined below), which the dispatcher is responsible for preparing. For each
-// term, the dispatcher must also define GWS<X>_OP<Y>, GWS<X>_IDX<Y>, and GWS<X>_RT_IDX<Y>
-// to fully define the term's operation.
-
-// TODO: implement vectorization
-// clang-format off
-#define GWS0_GET_ID0(rt_params) GWS0_OP0(GWS_GET_THREAD_ID(GWS0_IDX0), (rt_params).strides[GWS0_RT_IDX0], (rt_params).sizes[GWS0_RT_IDX0], (rt_params).blocks[GWS0_RT_IDX0])
-#define GWS0_GET_ID1(rt_params) GWS0_OP1(GWS_GET_THREAD_ID(GWS0_IDX1), (rt_params).strides[GWS0_RT_IDX1], (rt_params).sizes[GWS0_RT_IDX1], (rt_params).blocks[GWS0_RT_IDX1])
-#define GWS0_GET_ID2(rt_params) GWS0_OP2(GWS_GET_THREAD_ID(GWS0_IDX2), (rt_params).strides[GWS0_RT_IDX2], (rt_params).sizes[GWS0_RT_IDX2], (rt_params).blocks[GWS0_RT_IDX2])
-#define GWS0_GET_ID3(rt_params) GWS0_OP3(GWS_GET_THREAD_ID(GWS0_IDX3), (rt_params).strides[GWS0_RT_IDX3], (rt_params).sizes[GWS0_RT_IDX3], (rt_params).blocks[GWS0_RT_IDX3])
-#define GWS0_GET_ID4(rt_params) GWS0_OP4(GWS_GET_THREAD_ID(GWS0_IDX4), (rt_params).strides[GWS0_RT_IDX4], (rt_params).sizes[GWS0_RT_IDX4], (rt_params).blocks[GWS0_RT_IDX4])
-#define GWS0_GET_ID5(rt_params) GWS0_OP5(GWS_GET_THREAD_ID(GWS0_IDX5), (rt_params).strides[GWS0_RT_IDX5], (rt_params).sizes[GWS0_RT_IDX5], (rt_params).blocks[GWS0_RT_IDX5])
-#define GWS0_GET_ID6(rt_params) GWS0_OP6(GWS_GET_THREAD_ID(GWS0_IDX6), (rt_params).strides[GWS0_RT_IDX6], (rt_params).sizes[GWS0_RT_IDX6], (rt_params).blocks[GWS0_RT_IDX6])
-#define GWS0_GET_ID7(rt_params) GWS0_OP7(GWS_GET_THREAD_ID(GWS0_IDX7), (rt_params).strides[GWS0_RT_IDX7], (rt_params).sizes[GWS0_RT_IDX7], (rt_params).blocks[GWS0_RT_IDX7])
-#define GWS0_GET_ID8(rt_params) GWS0_OP8(GWS_GET_THREAD_ID(GWS0_IDX8), (rt_params).strides[GWS0_RT_IDX8], (rt_params).sizes[GWS0_RT_IDX8], (rt_params).blocks[GWS0_RT_IDX8])
-#define GWS0_GET_ID9(rt_params) GWS0_OP9(GWS_GET_THREAD_ID(GWS0_IDX9), (rt_params).strides[GWS0_RT_IDX9], (rt_params).sizes[GWS0_RT_IDX9], (rt_params).blocks[GWS0_RT_IDX9])
-
-#define GWS1_GET_ID0(rt_params) GWS1_OP0(GWS_GET_THREAD_ID(GWS1_IDX0), (rt_params).strides[GWS1_RT_IDX0], (rt_params).sizes[GWS1_RT_IDX0], (rt_params).blocks[GWS1_RT_IDX0])
-#define GWS1_GET_ID1(rt_params) GWS1_OP1(GWS_GET_THREAD_ID(GWS1_IDX1), (rt_params).strides[GWS1_RT_IDX1], (rt_params).sizes[GWS1_RT_IDX1], (rt_params).blocks[GWS1_RT_IDX1])
-#define GWS1_GET_ID2(rt_params) GWS1_OP2(GWS_GET_THREAD_ID(GWS1_IDX2), (rt_params).strides[GWS1_RT_IDX2], (rt_params).sizes[GWS1_RT_IDX2], (rt_params).blocks[GWS1_RT_IDX2])
-#define GWS1_GET_ID3(rt_params) GWS1_OP3(GWS_GET_THREAD_ID(GWS1_IDX3), (rt_params).strides[GWS1_RT_IDX3], (rt_params).sizes[GWS1_RT_IDX3], (rt_params).blocks[GWS1_RT_IDX3])
-#define GWS1_GET_ID4(rt_params) GWS1_OP4(GWS_GET_THREAD_ID(GWS1_IDX4), (rt_params).strides[GWS1_RT_IDX4], (rt_params).sizes[GWS1_RT_IDX4], (rt_params).blocks[GWS1_RT_IDX4])
-#define GWS1_GET_ID5(rt_params) GWS1_OP5(GWS_GET_THREAD_ID(GWS1_IDX5), (rt_params).strides[GWS1_RT_IDX5], (rt_params).sizes[GWS1_RT_IDX5], (rt_params).blocks[GWS1_RT_IDX5])
-#define GWS1_GET_ID6(rt_params) GWS1_OP6(GWS_GET_THREAD_ID(GWS1_IDX6), (rt_params).strides[GWS1_RT_IDX6], (rt_params).sizes[GWS1_RT_IDX6], (rt_params).blocks[GWS1_RT_IDX6])
-#define GWS1_GET_ID7(rt_params) GWS1_OP7(GWS_GET_THREAD_ID(GWS1_IDX7), (rt_params).strides[GWS1_RT_IDX7], (rt_params).sizes[GWS1_RT_IDX7], (rt_params).blocks[GWS1_RT_IDX7])
-#define GWS1_GET_ID8(rt_params) GWS1_OP8(GWS_GET_THREAD_ID(GWS1_IDX8), (rt_params).strides[GWS1_RT_IDX8], (rt_params).sizes[GWS1_RT_IDX8], (rt_params).blocks[GWS1_RT_IDX8])
-#define GWS1_GET_ID9(rt_params) GWS1_OP9(GWS_GET_THREAD_ID(GWS1_IDX9), (rt_params).strides[GWS1_RT_IDX9], (rt_params).sizes[GWS1_RT_IDX9], (rt_params).blocks[GWS1_RT_IDX9])
-
-#define GWS2_GET_ID0(rt_params) GWS2_OP0(GWS_GET_THREAD_ID(GWS2_IDX0), (rt_params).strides[GWS2_RT_IDX0], (rt_params).sizes[GWS2_RT_IDX0], (rt_params).blocks[GWS2_RT_IDX0])
-#define GWS2_GET_ID1(rt_params) GWS2_OP1(GWS_GET_THREAD_ID(GWS2_IDX1), (rt_params).strides[GWS2_RT_IDX1], (rt_params).sizes[GWS2_RT_IDX1], (rt_params).blocks[GWS2_RT_IDX1])
-#define GWS2_GET_ID2(rt_params) GWS2_OP2(GWS_GET_THREAD_ID(GWS2_IDX2), (rt_params).strides[GWS2_RT_IDX2], (rt_params).sizes[GWS2_RT_IDX2], (rt_params).blocks[GWS2_RT_IDX2])
-#define GWS2_GET_ID3(rt_params) GWS2_OP3(GWS_GET_THREAD_ID(GWS2_IDX3), (rt_params).strides[GWS2_RT_IDX3], (rt_params).sizes[GWS2_RT_IDX3], (rt_params).blocks[GWS2_RT_IDX3])
-#define GWS2_GET_ID4(rt_params) GWS2_OP4(GWS_GET_THREAD_ID(GWS2_IDX4), (rt_params).strides[GWS2_RT_IDX4], (rt_params).sizes[GWS2_RT_IDX4], (rt_params).blocks[GWS2_RT_IDX4])
-#define GWS2_GET_ID5(rt_params) GWS2_OP5(GWS_GET_THREAD_ID(GWS2_IDX5), (rt_params).strides[GWS2_RT_IDX5], (rt_params).sizes[GWS2_RT_IDX5], (rt_params).blocks[GWS2_RT_IDX5])
-#define GWS2_GET_ID6(rt_params) GWS2_OP6(GWS_GET_THREAD_ID(GWS2_IDX6), (rt_params).strides[GWS2_RT_IDX6], (rt_params).sizes[GWS2_RT_IDX6], (rt_params).blocks[GWS2_RT_IDX6])
-#define GWS2_GET_ID7(rt_params) GWS2_OP7(GWS_GET_THREAD_ID(GWS2_IDX7), (rt_params).strides[GWS2_RT_IDX7], (rt_params).sizes[GWS2_RT_IDX7], (rt_params).blocks[GWS2_RT_IDX7])
-#define GWS2_GET_ID8(rt_params) GWS2_OP8(GWS_GET_THREAD_ID(GWS2_IDX8), (rt_params).strides[GWS2_RT_IDX8], (rt_params).sizes[GWS2_RT_IDX8], (rt_params).blocks[GWS2_RT_IDX8])
-#define GWS2_GET_ID9(rt_params) GWS2_OP9(GWS_GET_THREAD_ID(GWS2_IDX9), (rt_params).strides[GWS2_RT_IDX9], (rt_params).sizes[GWS2_RT_IDX9], (rt_params).blocks[GWS2_RT_IDX9])
-
-#define GWS3_GET_ID0(rt_params) GWS3_OP0(GWS_GET_THREAD_ID(GWS3_IDX0), (rt_params).strides[GWS3_RT_IDX0], (rt_params).sizes[GWS3_RT_IDX0], (rt_params).blocks[GWS3_RT_IDX0])
-#define GWS3_GET_ID1(rt_params) GWS3_OP1(GWS_GET_THREAD_ID(GWS3_IDX1), (rt_params).strides[GWS3_RT_IDX1], (rt_params).sizes[GWS3_RT_IDX1], (rt_params).blocks[GWS3_RT_IDX1])
-#define GWS3_GET_ID2(rt_params) GWS3_OP2(GWS_GET_THREAD_ID(GWS3_IDX2), (rt_params).strides[GWS3_RT_IDX2], (rt_params).sizes[GWS3_RT_IDX2], (rt_params).blocks[GWS3_RT_IDX2])
-#define GWS3_GET_ID3(rt_params) GWS3_OP3(GWS_GET_THREAD_ID(GWS3_IDX3), (rt_params).strides[GWS3_RT_IDX3], (rt_params).sizes[GWS3_RT_IDX3], (rt_params).blocks[GWS3_RT_IDX3])
-#define GWS3_GET_ID4(rt_params) GWS3_OP4(GWS_GET_THREAD_ID(GWS3_IDX4), (rt_params).strides[GWS3_RT_IDX4], (rt_params).sizes[GWS3_RT_IDX4], (rt_params).blocks[GWS3_RT_IDX4])
-#define GWS3_GET_ID5(rt_params) GWS3_OP5(GWS_GET_THREAD_ID(GWS3_IDX5), (rt_params).strides[GWS3_RT_IDX5], (rt_params).sizes[GWS3_RT_IDX5], (rt_params).blocks[GWS3_RT_IDX5])
-#define GWS3_GET_ID6(rt_params) GWS3_OP6(GWS_GET_THREAD_ID(GWS3_IDX6), (rt_params).strides[GWS3_RT_IDX6], (rt_params).sizes[GWS3_RT_IDX6], (rt_params).blocks[GWS3_RT_IDX6])
-#define GWS3_GET_ID7(rt_params) GWS3_OP7(GWS_GET_THREAD_ID(GWS3_IDX7), (rt_params).strides[GWS3_RT_IDX7], (rt_params).sizes[GWS3_RT_IDX7], (rt_params).blocks[GWS3_RT_IDX7])
-#define GWS3_GET_ID8(rt_params) GWS3_OP8(GWS_GET_THREAD_ID(GWS3_IDX8), (rt_params).strides[GWS3_RT_IDX8], (rt_params).sizes[GWS3_RT_IDX8], (rt_params).blocks[GWS3_RT_IDX8])
-#define GWS3_GET_ID9(rt_params) GWS3_OP9(GWS_GET_THREAD_ID(GWS3_IDX9), (rt_params).strides[GWS3_RT_IDX9], (rt_params).sizes[GWS3_RT_IDX9], (rt_params).blocks[GWS3_RT_IDX9])
-// clang-format on
 
 // GWS_<NAME>_<SUFFIX>
 #define DISPATCH_BUFFER_ALIAS(NAME, SUFFIX) \
@@ -118,12 +40,6 @@
 
 #define GWS_GET_OFF(NAME, rt_params) \
     GWS_GET_OFF_NAMED(NAME, DEFAULT_DISPATCHER_SUFFIX, rt_params)
-
-// Convert GWS_GET(dim, dispatch, rt_params) to GWS_GET_dim_dispatch(rt_params) (which is in turn defined by the dispatcher)
-#define GWS_GET_NAMED(dim_name, dispatcher_name, rt_params) \
-    CONCAT2(CONCAT2(GWS_GET_, dim_name), CONCAT2(_, dispatcher_name))(rt_params)
-#define GWS_GET(dim_name, rt_params) \
-    GWS_GET_NAMED(dim_name, DEFAULT_DISPATCHER_SUFFIX, rt_params)
 
 // Macros for getting a buffer pointer at the correct location,
 // so that indexing is completely opaque to the implementation
