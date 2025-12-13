@@ -39,11 +39,10 @@ namespace intel {
 namespace compute {
 
 // How many buffers can be registered simultaneously
-#define MAX_REGISTERED_BUFFERS 4
-// Maximum length of each buffer's name
-#define MAX_BUFFER_NAME_LENGTH 7
+#define MAX_REGISTERED_BUFFERS 16
+#define MAX_EXPR_TERMS 128
 
-enum class gws_op_t : uint32_t {
+enum class gws_op_t : uint8_t {
     ZERO,
     SOLO,
     FIRST,
@@ -80,7 +79,7 @@ struct gws_indexing_term_t {
     struct compile_params_t {
         compile_params_t() = default;
         compile_params_t(gws_op_t op, size_t gws_idx)
-            : op(op), gws_idx(gws_idx) {};
+            : op(op), gws_idx(into<uint8_t>(gws_idx)) {};
 
         bool operator==(const compile_params_t &other) const {
             return op == other.op && gws_idx == other.gws_idx;
@@ -89,13 +88,12 @@ struct gws_indexing_term_t {
         std::string str() const {
             stringstream_t ss;
             ss << "<compile_params_t op=" << to_string(op)
-               << ", gws_idx=" << gws_idx << ">";
+               << ", gws_idx=" << int(gws_idx) << ">";
             return ss.str();
         }
 
-        gws_op_t op;
-        uint8_t padding[4] = {0, 0, 0, 0};
-        uint64_t gws_idx;
+        gws_op_t op = {};
+        uint8_t gws_idx = {};
     };
 
     struct runtime_params_t {
@@ -122,6 +120,8 @@ struct gws_indexing_term_t {
             stride_t stride, dim_t block)
         : compile_params_(op, gws_idx), runtime_params_(size, stride, block) {};
 
+    size_t get_hash() const { return serialization_stream_t::get_hash(*this); }
+
     std::string str() const {
         stringstream_t ss;
         ss << "<gws_indexing_term_t op=" << to_string(compile_params_.op)
@@ -136,13 +136,13 @@ struct gws_indexing_term_t {
     const runtime_params_t &runtime_params() const { return runtime_params_; }
 
     compile_params_t compile_params_;
+    uint8_t pad[6] = {};
     runtime_params_t runtime_params_;
 };
 
 struct gws_term_list_t {
     size_t append(const gws_indexing_term_t &term) {
         size_t idx = add_term(term);
-        gpu_assert(idx <= MAX_INDEXING_TERMS);
         return idx;
     }
 
@@ -150,6 +150,12 @@ struct gws_term_list_t {
         return terms[idx];
     }
     size_t size() const { return terms.size(); }
+
+    size_t get_hash() const { return serialization_stream_t::get_hash(terms); }
+
+    bool operator==(const gws_term_list_t &other) const {
+        return terms == other.terms;
+    }
 
     std::vector<gws_indexing_term_t> terms;
 
@@ -272,50 +278,18 @@ struct dispatch_compile_params_t {
 
     void def_kernel_macros(
             kernel_ctx_t &kernel_ctx, const char *suffix = "DEFAULT") const;
-
-    std::string str() const {
-        ostringstream_t ss;
-        ss << "dispatch_compile_params_t<num_terms=" << num_terms;
-        ss << ": [";
-        for (size_t i = 0; i < static_cast<size_t>(num_terms); i++) {
-            ss << terms[i].str() << ", ";
-        }
-        ss << "], num_buffers=" << num_buffers;
-        ss << ": [";
-        auto term_idx = 0;
-        for (size_t bit_idx = 0; bit_idx < 8 * sizeof(name_id_t); bit_idx++) {
-            name_id_t name_id = name_id_t(uint64_t(1) << bit_idx);
-            if (!static_cast<uint64_t>(buffer_set & name_id)) continue;
-
-            ss << to_string(name_id) << " - [";
-            for (size_t j = 0; j < buffer_num_terms[term_idx]; j++) {
-                ss << buffer_term_index[term_idx][j] << "/";
-            }
-            term_idx++;
-            ss << "], ";
-        }
-        ss << "]>";
-        return ss.str();
-    }
+    std::string str() const;
 
     subgroup_data_t subgroup;
-    int32_t num_terms = 0;
     bool use_int32_offset = false;
     bool require_stateless_addressing = true;
-    uint8_t padding[2] = {0};
-    gws_indexing_term_t::compile_params_t terms[MAX_INDEXING_TERMS]
-            = {{gws_op_t::SOLO, 0}};
+    uint8_t padding[6] = {0};
 
-    // Buffer definitions (each buffer has a name, and a collection of terms
-    // used to compute the offset)
-    uint64_t num_buffers = 0;
     name_id_t buffer_set = {}; // Bitset representing supported buffers
 
-    // Buffer data, these map to the elements buffer_set, but with non-register
-    // buffers filtered out.
-    uint64_t buffer_term_index[MAX_REGISTERED_BUFFERS][MAX_INDEXING_TERMS]
-            = {{0}};
-    uint64_t buffer_num_terms[MAX_REGISTERED_BUFFERS] = {0};
+    // Offset into exprs where buffer offset expression is stored
+    uint8_t buffer_off_expr[MAX_REGISTERED_BUFFERS] = {};
+    uint8_t exprs[MAX_EXPR_TERMS] = {};
     data_type_t buffer_types[MAX_REGISTERED_BUFFERS] = {data_type::undef};
 };
 DNNL_ASSERT_TRIVIALLY_SERIALIZABLE(dispatch_compile_params_t);
@@ -324,34 +298,23 @@ class dispatch_runtime_params_t {
 public:
     dispatch_runtime_params_t() = default;
     dispatch_runtime_params_t(const nd_range_t &nd_range, bool use_int32_offset,
-            const gws_term_list_t &terms)
+            const std::vector<int64_t> &term_list)
         : nd_range(nd_range)
         , use_int32_offset(use_int32_offset)
-        , num_terms(terms.size()) {
+        , num_terms(term_list.size()) {
         for (size_t i = 0; i < num_terms; i++) {
-            const gws_indexing_term_t::runtime_params_t &params
-                    = terms[i].runtime_params();
             if (use_int32_offset) {
-                rt32.sizes[i] = into<int32_t>(params.size);
-                rt32.strides[i]
-                        = into<int32_t>(static_cast<int64_t>(params.stride));
-                rt32.blocks[i] = into<int32_t>(params.block);
+                rt32.params[i]
+                        = into<int32_t>(static_cast<int64_t>(term_list[i]));
             } else {
-                rt64.sizes[i] = params.size;
-                rt64.strides[i] = static_cast<int64_t>(params.stride);
-                rt64.blocks[i] = params.block;
+                rt64.params[i] = term_list[i];
             }
         }
-        for (size_t i = num_terms; i < MAX_INDEXING_TERMS; i++) {
-            if (use_int32_offset) {
-                rt32.sizes[i] = 1;
-                rt32.strides[i] = 1;
-                rt32.blocks[i] = 1;
-            } else {
-                rt64.sizes[i] = 1;
-                rt64.strides[i] = 1;
-                rt64.blocks[i] = 1;
-            }
+        for (size_t i = num_terms; i < MAX_RUNTIME_TERMS; i++) {
+            if (use_int32_offset)
+                rt32.params[i] = 0;
+            else
+                rt64.params[i] = 0;
         }
     }
     dispatch_gws_rt_params64_t get64() const {
@@ -365,14 +328,14 @@ public:
 
     std::string str() const {
         stringstream_t ss;
-        ss << "<dispatch_runtime_params_t (size/stride/block): ";
+        ss << "<dispatch_runtime_params_t: ";
         for (size_t i = 0; i < num_terms; i++) {
             if (use_int32_offset) {
-                ss << rt32.sizes[i] << "/" << rt32.strides[i] << "/"
-                   << rt32.blocks[i] << ", ";
+                if (i > 0) ss << ", ";
+                ss << "term[" << std::to_string(i) << "]: " << rt32.params[i];
             } else {
-                ss << rt64.sizes[i] << "/" << rt64.strides[i] << "/"
-                   << rt64.blocks[i] << ", ";
+                if (i > 0) ss << ", ";
+                ss << "term[" << std::to_string(i) << "]: " << rt64.params[i];
             }
         }
         ss << ">";
@@ -633,51 +596,26 @@ private:
 class reusable_dispatch_t {
 public:
     reusable_dispatch_t() = default;
-    reusable_dispatch_t(const std::vector<named_buffer_t> &buffers,
-            const gws_term_list_t &term_list,
-            const compute::nd_range_t &nd_range, subgroup_data_t subgroup,
-            const std::vector<std::vector<size_t>> &buffer_term_map) {
-        assert(buffers.size() == buffer_term_map.size());
+    reusable_dispatch_t(const compute::nd_range_t &nd_range,
+            subgroup_data_t subgroup,
+            const std::vector<named_buffer_t> &buffers,
+            const std::vector<uint8_t> &buffer_off_exprs,
+            const std::vector<uint8_t> &expr_data,
+            const std::vector<int64_t> &term_list) {
 
-        compile_params.num_terms = into<int>(term_list.terms.size());
-        for (size_t i = 0; i < term_list.terms.size(); i++) {
-            compile_params.terms[i] = term_list.terms[i].compile_params();
-        }
-
-        // Save buffer information
-        dim_t max_buffer_size = 0;
-        compile_params.num_buffers = buffers.size();
+        for (size_t i = 0; i < expr_data.size(); i++)
+            compile_params.exprs[i] = expr_data[i];
+        for (size_t i = 0; i < buffer_off_exprs.size(); i++)
+            compile_params.buffer_off_expr[i] = buffer_off_exprs[i];
 
         auto &buffer_set = compile_params.buffer_set;
         for (size_t i = 0; i < buffers.size(); i++)
             buffer_set = buffer_set | buffers[i].get_name_id();
 
-        auto term_idx = 0;
-        for (size_t bit_idx = 0; bit_idx < 8 * sizeof(name_id_t); bit_idx++) {
-            auto name_id = name_id_t(uint64_t(1) << bit_idx);
-            if (!static_cast<uint64_t>(buffer_set & name_id)) continue;
-
-            auto buf_idx = [&]() {
-                for (size_t j = 0; j < buffers.size(); j++) {
-                    if (buffers[j].get_name_id() == name_id) return j;
-                }
-                gpu_error_not_expected();
-                return size_t(UINT_MAX);
-            }();
-
-            const named_buffer_t &buffer = buffers[buf_idx];
-
-            // Copy buffer terms into params
-            const std::vector<size_t> &buf_terms = buffer_term_map[buf_idx];
-            compile_params.buffer_num_terms[term_idx] = buf_terms.size();
-            for (size_t j = 0; j < buf_terms.size(); j++) {
-                compile_params.buffer_term_index[term_idx][j] = buf_terms[j];
-            }
-
-            // Save the data type
+        int term_idx = 0;
+        dim_t max_buffer_size = 0;
+        for (auto &buffer : buffers) {
             compile_params.buffer_types[term_idx] = buffer.data_type;
-
-            // Check buffer sizes to see if we can use int32_t offsets
             max_buffer_size = std::max(max_buffer_size, buffer.nelems(true));
             term_idx++;
         }
@@ -760,8 +698,6 @@ public:
         return map[idx];
     }
 
-    std::vector<gws_indexing_term_t> condense_terms(size_t buffer_idx) const;
-
 private:
     void add_(const block_bin_t &bin, size_t gws_dim) {
         map[gws_dim].emplace_back(bin);
@@ -801,5 +737,25 @@ private:
 } // namespace gpu
 } // namespace impl
 } // namespace dnnl
+
+namespace std {
+template <>
+struct hash<dnnl::impl::gpu::intel::compute::gws_term_list_t> {
+    size_t operator()(
+            const dnnl::impl::gpu::intel::compute::gws_term_list_t &list)
+            const {
+        return list.get_hash();
+    }
+};
+template <>
+struct hash<dnnl::impl::gpu::intel::compute::gws_indexing_term_t> {
+    size_t operator()(
+            const dnnl::impl::gpu::intel::compute::gws_indexing_term_t &term)
+            const {
+        return term.get_hash();
+    }
+};
+
+} // namespace std
 
 #endif

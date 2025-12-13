@@ -16,6 +16,8 @@
 
 #include "gpu/intel/compute/dispatch_reusable.hpp"
 #include "common/c_types_map.hpp"
+#include "gemmstone/../../dsl/ir/core.hpp"
+#include "gemmstone/../../dsl/ir/pass/simplify.hpp"
 #include "gpu/intel/block_structure.hpp"
 #include "gpu/intel/compute/data_type_converter.hpp"
 #include "gpu/intel/compute/utils.hpp"
@@ -115,29 +117,6 @@ status_t reusable_dispatch_config_t::register_buffer(
     }
     buffers.emplace_back(buffer);
     return status::success;
-}
-
-// ZERO: The block only has 1 element, with index 0
-// SOLO: There is 1 block that accounts for the entire GWS dim
-// FIRST: There are multiple blocks in the GWS dim, but this is the outermost
-// MOD: There are multiple blocks in the GWS dim, and this is not
-//       outermost (it needs a modulus)
-// *_BLOCK variant: buffer stride is greater than 1, so we have to
-//       multiply indices by a block size
-gws_op_t get_op(size_t gws_size, stride_t gws_stride, const block_t &block) {
-    if (block.block == 1) return gws_op_t::ZERO;
-
-    if (static_cast<size_t>(block.block) == gws_size) {
-        return block.stride > 1 ? gws_op_t::SOLO_BLOCK : gws_op_t::SOLO;
-    }
-
-    bool is_outermost = (gws_stride * block.block
-            == stride_t(static_cast<dim_t>(gws_size)));
-    if (is_outermost) {
-        return block.stride > 1 ? gws_op_t::FIRST_BLOCK : gws_op_t::FIRST;
-    }
-
-    return block.stride > 1 ? gws_op_t::MOD_BLOCK : gws_op_t::MOD;
 }
 
 // Will mutate a vector of layouts as needed to make each dimension:
@@ -326,11 +305,312 @@ struct gws_mapped_block_t : public gpu::intel::block_t {
     stride_t gws_stride;
 };
 
-std::vector<gws_indexing_term_t> gws_bin_mapping_t::condense_terms(
-        size_t buf_idx) const {
-    std::vector<gws_indexing_term_t> ret;
+namespace dsl = jit::dsl;
+namespace ir = gemmstone::dsl::ir;
+
+const dsl::expr_t &global_ids(size_t idx) {
+    static const thread_local std::array<dsl::expr_t, 3> ids([] {
+        std::array<dsl::expr_t, 3> ret;
+        for (int i = 0; i < 3; i++) {
+            ret[i] = ir::var_t::make(
+                    dsl::u64, "get_global_id(" + std::to_string(i) + ")");
+        }
+        return ret;
+    }());
+    return ids[idx];
+}
+
+struct term_registry_t {
+
+    dsl::expr_t add(int64_t value, const std::string &name) {
+        auto name_it = name_map.emplace(name, dsl::expr_t());
+        auto &expr = name_it.first->second;
+        if (name_it.second) expr = ir::var_t::make(dsl::s64, name);
+
+        auto value_it = value_map.emplace(expr, value);
+        gpu_assert(value == value_it.first->second);
+        return expr;
+    }
+    std::unordered_map<std::string, dsl::expr_t> name_map;
+    ir::object_map_t<dsl::expr_t, int64_t> value_map;
+};
+
+// Encodes an dsl::expr into a compressed format optimized for calculating
+// buffer offsets. The general format of an expression is a prefix (kind_t)
+// followed by a fixed size sequence of bytes corresponding any following
+// expressions.
+struct expr_encoder_t : public ir::ir_visitor_t {
+    uint8_t operator()(
+            const dsl::expr_t &offset, const term_registry_t &registry) {
+        registry_ = &registry;
+        ir::ir_visitor_t::visit(offset);
+        return expr_locations[offset];
+    }
+    const std::vector<uint8_t> &expr_data() const { return expr_data_; }
+    const std::vector<int64_t> &term_list() const { return term_list_; }
+
+    static std::string decode(const uint8_t *expr_data, uint8_t offset,
+            std::vector<int64_t> *term_list = nullptr) {
+        auto dec = [&](uint8_t off) {
+            return decode(expr_data, expr_data[offset + off], term_list);
+        };
+        auto sym = [](uint8_t kind) {
+            switch (kind_t(kind)) {
+                case kind_t::add: return "+";
+                case kind_t::sub: return "-";
+                case kind_t::mul: return "*";
+                case kind_t::div: return "/";
+                case kind_t::mod: return "%";
+                case kind_t::_or: return "||";
+                case kind_t::_and: return "&&";
+                case kind_t::lt: return "<";
+                case kind_t::le: return "<=";
+                case kind_t::gt: return ">";
+                case kind_t::ge: return ">=";
+                case kind_t::ne: return "!=";
+                case kind_t::eq: return "==";
+                default: gpu_error_not_expected(); return "";
+            }
+        };
+        ostringstream_t oss;
+        switch (kind_t(expr_data[offset])) {
+            case kind_t::add:
+            case kind_t::sub:
+            case kind_t::mul:
+            case kind_t::div:
+            case kind_t::mod:
+            case kind_t::_or:
+            case kind_t::_and:
+            case kind_t::lt:
+            case kind_t::le:
+            case kind_t::gt:
+            case kind_t::ge:
+            case kind_t::ne:
+            case kind_t::eq:
+                oss << "(" << dec(1) << sym(expr_data[offset]) << dec(2) << ")";
+                break;
+            case kind_t::idiv: {
+                auto rt_off = expr_data[offset + 2];
+                oss << "idiv(" << dec(1) << ","
+                    << "rt.params[" + std::to_string(rt_off) << "],"
+                    << "rt.params[" + std::to_string(rt_off + 1) << "])";
+                break;
+            }
+            case kind_t::runtime_term:
+                oss << "rt.params["
+                    << std::to_string(int(expr_data[offset + 1])) << "]";
+                if (term_list)
+                    oss << "(="
+                        << std::to_string((*term_list)[expr_data[offset + 1]])
+                        << ")";
+                break;
+            case kind_t::constant_true: oss << "true"; break;
+            case kind_t::constant_false: oss << "false"; break;
+            case kind_t::constant_s8:
+                oss << std::to_string(int8_t(expr_data[offset + 1]));
+                break;
+            case kind_t::constant_u8:
+                oss << std::to_string(expr_data[offset + 1]) << "u";
+                break;
+            case kind_t::constant_s16:
+                oss << std::to_string(int16_t(
+                        expr_data[offset + 1] + (expr_data[offset + 2] << 8)));
+                break;
+            case kind_t::constant_u16:
+                oss << std::to_string(uint16_t(
+                        expr_data[offset + 1] + (expr_data[offset + 2] << 8)))
+                    << "u";
+                break;
+            case kind_t::constant_s32:
+                oss << std::to_string(int32_t(expr_data[offset + 1]
+                        + (expr_data[offset + 2] << 8)
+                        + (expr_data[offset + 3] << 16)
+                        + (expr_data[offset + 4] << 24)));
+                break;
+            case kind_t::constant_u32:
+                oss << std::to_string(uint32_t(expr_data[offset + 1]
+                        + (expr_data[offset + 2] << 8)
+                        + (expr_data[offset + 3] << 16)
+                        + (expr_data[offset + 4] << 24)))
+                    << "u";
+                break;
+
+            case kind_t::global_id0: oss << global_ids(0).str(); break;
+            case kind_t::global_id1: oss << global_ids(1).str(); break;
+            case kind_t::global_id2: oss << global_ids(2).str(); break;
+            default: gpu_error_not_expected();
+        }
+        return oss.str();
+    }
+    std::string decode(uint8_t offset) {
+        return decode(expr_data_.data(), offset, &term_list_);
+    }
+
+private:
+    void _visit(const ir::unary_op_t &obj) override {
+        gpu_except_not_implemented();
+    }
+    void _visit(const ir::binary_op_t &obj) override {
+        auto it = expr_locations.emplace(obj, into<uint8_t>(expr_data_.size()));
+        if (!it.second) return;
+
+        auto offset = it.first->second;
+        expr_data_.resize(expr_data_.size() + 3);
+
+        ir::ir_visitor_t::visit(obj.a);
+        ir::ir_visitor_t::visit(obj.b);
+
+        expr_data_[offset] = uint8_t(to_kind(obj.op_kind));
+        expr_data_[offset + 1] = expr_locations.at(obj.a);
+        expr_data_[offset + 2] = expr_locations.at(obj.b);
+    }
+
+    void _visit(const ir::ternary_op_t &obj) override {
+        auto it = expr_locations.emplace(obj, into<uint8_t>(expr_data_.size()));
+        if (!it.second) return;
+
+        gpu_assert(obj.op_kind == ir::op_kind_t::_idiv);
+        auto offset = it.first->second;
+        expr_data_.resize(expr_data_.size() + 3);
+
+        // Directly encode constants for idiv to save encoding space, since
+        // the magic numbers are uniquely associated with this object.
+        ir::ir_visitor_t::visit(obj.a);
+        auto b = into<int8_t>(term_list_.size());
+        term_list_.emplace_back(registry_->value_map.at(obj.b));
+        term_list_.emplace_back(registry_->value_map.at(obj.c));
+
+        expr_data_[offset] = uint8_t(to_kind(obj.op_kind));
+        expr_data_[offset + 1] = expr_locations.at(obj.a);
+        expr_data_[offset + 2] = b;
+    }
+
+    void _visit(const ir::var_t &obj) override {
+        auto it = expr_locations.emplace(obj, into<uint8_t>(expr_data_.size()));
+        if (!it.second) return;
+
+        int idx = gid_idx(obj);
+        if (idx >= 0) {
+            expr_data_.emplace_back(uint8_t(kind_t::global_id) + idx);
+        } else {
+            expr_data_.emplace_back(uint8_t(kind_t::runtime_term));
+            expr_data_.emplace_back(into<uint8_t>(term_list_.size()));
+            term_list_.emplace_back(registry_->value_map.at(obj));
+        }
+    }
+
+    void _visit(const ir::bool_imm_t &obj) override {
+        if (obj.value)
+            expr_data_.emplace_back(uint8_t(kind_t::constant_true));
+        else
+            expr_data_.emplace_back(uint8_t(kind_t::constant_false));
+    }
+
+    void _visit(const ir::int_imm_t &obj) override {
+        auto it = expr_locations.emplace(obj, into<uint8_t>(expr_data_.size()));
+        if (!it.second) return;
+
+        if (obj.value == uint8_t(obj.value) || obj.value == int8_t(obj.value)) {
+            expr_data_.emplace_back(obj.value == uint8_t(obj.value)
+                            ? uint8_t(kind_t::constant_u8)
+                            : uint8_t(kind_t::constant_s8));
+            expr_data_.emplace_back(into<uint8_t>(obj.value));
+            return;
+        }
+        if (obj.value == uint16_t(obj.value)
+                || obj.value == int16_t(obj.value)) {
+            expr_data_.emplace_back(obj.value == uint16_t(obj.value)
+                            ? uint8_t(kind_t::constant_u16)
+                            : uint8_t(kind_t::constant_s16));
+            expr_data_.emplace_back(uint8_t(obj.value));
+            expr_data_.emplace_back(uint8_t(obj.value >> 8));
+            return;
+        }
+        if (obj.value == uint32_t(obj.value)
+                || obj.value == int32_t(obj.value)) {
+            expr_data_.emplace_back(obj.value == uint32_t(obj.value)
+                            ? uint8_t(kind_t::constant_u32)
+                            : uint8_t(kind_t::constant_s32));
+            expr_data_.emplace_back(uint8_t(obj.value));
+            expr_data_.emplace_back(uint8_t(obj.value >> 8));
+            expr_data_.emplace_back(uint8_t(obj.value >> 16));
+            expr_data_.emplace_back(uint8_t(obj.value >> 24));
+            return;
+        }
+        gpu_except_not_implemented();
+    }
+
+    int gid_idx(const ir::var_t &var) {
+        if (var == global_ids(0).as<ir::var_t>()) return 0;
+        if (var == global_ids(1).as<ir::var_t>()) return 1;
+        if (var == global_ids(2).as<ir::var_t>()) return 2;
+        return -1;
+    }
+
+    enum class kind_t : uint8_t {
+        undef = 0,
+        add, // encoded operands (expr, expr)
+        sub, // encoded operands (expr, expr)
+        mul, // encoded operands (expr, expr)
+        div, // encoded operands (expr, expr)
+        idiv, // encoded operands (expr, term)
+        mod, // encoded operands (expr, expr)
+        _or, // encoded operands (expr, expr)
+        _and, // encoded operands (expr, expr)
+        lt, // encoded operands (expr, expr)
+        le, // encoded operands (expr, expr)
+        gt, // encoded operands (expr, expr)
+        ge, // encoded operands (expr, expr)
+        ne, // encoded operands (expr, expr)
+        eq, // encoded operands (expr, expr)
+        runtime_term, // encoded operands (term)
+        constant_true, // encodes true, no operands
+        constant_false, // encodes false, no operands
+        constant_s8, // encoded operands (int8_t)
+        constant_u8, // encoded operands (uint8_t)
+        constant_s16, // encoded operands (int16_t)
+        constant_u16, // encoded operands (uint16_t)
+        constant_s32, // encoded operands (int32_t)
+        constant_u32, // encoded operands (int32_t)
+        global_id, // encodes expression for global_id, no operands
+        global_id0 = global_id,
+        global_id1 = global_id + 1,
+        global_id2 = global_id + 2,
+    };
+
+    kind_t to_kind(ir::op_kind_t op_kind) {
+        switch (op_kind) {
+            case ir::op_kind_t::_add: return kind_t::add;
+            case ir::op_kind_t::_sub: return kind_t::sub;
+            case ir::op_kind_t::_mul: return kind_t::mul;
+            case ir::op_kind_t::_div: return kind_t::div;
+            case ir::op_kind_t::_idiv: return kind_t::idiv;
+            case ir::op_kind_t::_mod: return kind_t::mod;
+            case ir::op_kind_t::_or: return kind_t::_or;
+            case ir::op_kind_t::_and: return kind_t::_and;
+            case ir::op_kind_t::_lt: return kind_t::lt;
+            case ir::op_kind_t::_le: return kind_t::le;
+            case ir::op_kind_t::_gt: return kind_t::gt;
+            case ir::op_kind_t::_ge: return kind_t::ge;
+            case ir::op_kind_t::_ne: return kind_t::ne;
+            case ir::op_kind_t::_eq: return kind_t::eq;
+            default: gpu_except_not_implemented();
+        }
+        return kind_t::undef;
+    }
+
+    std::vector<uint8_t> expr_data_;
+    std::vector<int64_t> term_list_;
+    ir::object_eq_map_t<dsl::expr_t, uint8_t> expr_locations;
+    const term_registry_t *registry_;
+};
+
+dsl::expr_t calculate_buffer_offset(const gws_bin_mapping_t &gws_map,
+        dim_idx_t buf_idx, term_registry_t &registry) {
+    dsl::expr_t ret = dsl::expr_t(0);
+
     for (size_t gws_idx = 0; gws_idx < range_t::max_ndims; gws_idx++) {
-        const std::vector<block_bin_t> &bins = map[gws_idx];
+        const std::vector<block_bin_t> &bins = gws_map.get_bins(gws_idx);
 
         std::vector<gws_mapped_block_t> gws_blocks;
         stride_t gws_stride = 1;
@@ -342,43 +622,47 @@ std::vector<gws_indexing_term_t> gws_bin_mapping_t::condense_terms(
             };
             gws_stride *= static_cast<dim_t>(bin.size());
         }
-        if (gws_blocks.empty()) continue;
 
-        gws_mapped_block_t block = gws_blocks.front();
-        for (size_t i = 1; i < gws_blocks.size(); i++) {
-            // Check if it can be merged with the next one
-            gws_mapped_block_t &next_block = gws_blocks[i];
-            bool is_buffer_dense
-                    = (block.stride * block.block == next_block.stride);
-            bool is_gws_dense
-                    = (block.gws_stride * block.block == next_block.gws_stride);
+        for (size_t i = 0; i < gws_blocks.size(); i++) {
+            auto block = gws_blocks[i];
+            std::string dim_suffix = std::to_string(gws_idx) + "["
+                    + std::to_string(block.dim_idx) + "]";
+            std::string size_name = "size_dim" + dim_suffix;
 
-            if (is_buffer_dense && is_gws_dense) {
-                // Merge
+            // Merge dense blocks
+            while (i + 1 < gws_blocks.size()) {
+                gws_mapped_block_t &next_block = gws_blocks[i + 1];
+                bool is_buffer_dense
+                        = (block.stride * block.block == next_block.stride);
+                bool is_gws_dense = (block.gws_stride * block.block
+                        == next_block.gws_stride);
+
+                if (!(is_buffer_dense && is_gws_dense)) break;
+
+                size_name += "*size_dim" + std::to_string(gws_idx) + "["
+                        + std::to_string(next_block.dim_idx) + "]";
                 block.block *= next_block.block;
-            } else {
-                // Create a term and reset the block
-                gws_op_t op = get_op(gws_[gws_idx], block.gws_stride, block);
-
-                ret.emplace_back(op, gws_idx, block.block, block.gws_stride,
-                        dim_t(block.stride));
-
-                // Update values for the next block
-                block = next_block;
+                i++;
             }
+
+            dsl::expr_t outer_stride = registry.add(int64_t(block.stride),
+                    "buffer[" + std::to_string(buf_idx) + "].stride"
+                            + dim_suffix);
+
+            dsl::expr_t inner_stride = registry.add(
+                    int64_t(block.gws_stride), "stride_dim" + dim_suffix);
+            dsl::expr_t size = registry.add(block.block, size_name);
+
+            // TODO: When using int32_t offsets, use idiv and imod
+            if (size_t(block.block) * block.gws_stride
+                    == gws_map.gws()[gws_idx])
+                ret += global_ids(gws_idx) / inner_stride * outer_stride;
+            else
+                ret += global_ids(gws_idx) / inner_stride % size * outer_stride;
         }
-
-        // Create the final term
-        gws_op_t op = get_op(gws_[gws_idx], block.gws_stride, block);
-
-        ret.emplace_back(op, gws_idx, block.block, block.gws_stride,
-                dim_t(block.stride));
     }
 
-    if (ret.empty()) {
-        // Size-1 buffer needs to have a zero term
-        ret.emplace_back(gws_op_t::ZERO, 0, 0, 0, 0);
-    }
+    ret = ir::simplify(ret);
     return ret;
 }
 
@@ -389,6 +673,12 @@ status_t reusable_dispatch_config_t::generate(
         reusable_dispatch_t &dispatch, const lws_strategy_t &lws_strategy) {
     // The reusable dispatcher must have at least one buffer to dispatch against
     gpu_assert(!buffers.empty());
+
+    // Sort to enable deterministic output and simplify serialization
+    std::sort(buffers.begin(), buffers.end(),
+            [&](const named_buffer_t &a, const named_buffer_t &b) {
+        return a.get_name_id() < b.get_name_id();
+    });
 
     // Every dispatched dim must have a defined size
     for (dim_idx_t id : dispatched_dims) {
@@ -432,22 +722,32 @@ status_t reusable_dispatch_config_t::generate(
         if (!bin.is_in_lws()) gws_map.add(bin);
     }
 
-    std::vector<std::vector<size_t>> buffer_term_map(buffers.size());
-    gws_term_list_t term_list;
-    for (size_t buf_idx = 0; buf_idx < buffers.size(); buf_idx++) {
-        std::vector<gws_indexing_term_t> terms
-                = gws_map.condense_terms(buf_idx);
-        for (const gws_indexing_term_t &term : terms) {
-            buffer_term_map[buf_idx].emplace_back(term_list.append(term));
+    std::vector<uint8_t> buffer_exprs;
+    expr_encoder_t encoder;
+    term_registry_t registry;
+    for (dim_idx_t buf_idx = 0; buf_idx < buffers.size(); buf_idx++) {
+        // Deduplicate buffers with the same layout
+        for (dim_idx_t i = 0; i < buf_idx; i++) {
+            if (buffers[i].layout() == buffers[buf_idx].layout()) {
+                buffer_exprs.emplace_back(buffer_exprs[i]);
+                break;
+            }
         }
+        if (buffer_exprs.size() > buf_idx) continue;
+
+        buffer_exprs.emplace_back(encoder(
+                calculate_buffer_offset(gws_map, buf_idx, registry), registry));
     }
 
-    if (term_list.terms.size() >= MAX_INDEXING_TERMS) {
+    if (encoder.expr_data().size() >= MAX_EXPR_TERMS)
         return status::unimplemented;
-    }
+    if (encoder.term_list().size() >= MAX_RUNTIME_TERMS)
+        return status::unimplemented;
+    if (buffer_exprs.size() >= MAX_REGISTERED_BUFFERS)
+        return status::unimplemented;
 
-    dispatch = reusable_dispatch_t(buffers, term_list,
-            gws_map.nd_range(lws_strategy), subgroup, buffer_term_map);
+    dispatch = reusable_dispatch_t(gws_map.nd_range(lws_strategy), subgroup,
+            buffers, buffer_exprs, encoder.expr_data(), encoder.term_list());
 
     return status::success;
 }
@@ -458,49 +758,6 @@ void dispatch_compile_params_t::def_kernel_macros(
     kernel_ctx.use_int32_offset(use_int32_offset);
     if (use_int32_offset) kernel_ctx.define_int("GWS_USE_PARAMS32", 1);
 
-    // Find a unique prefix (in case there are many kernels in a file).
-    std::string gws_prefix;
-    for (int i = 0; i < 4; i++) {
-        if (!kernel_ctx.has_macro(utils::format("GWS%d_DEF", i))) {
-            gws_prefix = "GWS" + std::to_string(i);
-            break;
-        }
-    }
-    gpu_assert(!gws_prefix.empty());
-    kernel_ctx.define_int(utils::format("%s_DEF", gws_prefix.c_str()), 1);
-
-    // For each term, define each parameter
-    for (size_t i = 0; i < into<size_t>(num_terms); i++) {
-        const gws_indexing_term_t::compile_params_t &term = terms[i];
-        const char *gws_dim_op = [term]() -> const char * {
-            switch (term.op) {
-                case (gws_op_t::ZERO): return "ZERO";
-                case (gws_op_t::SOLO): return "SOLO";
-                case (gws_op_t::FIRST): return "FIRST";
-                case (gws_op_t::MOD): return "MOD";
-                case (gws_op_t::SOLO_BLOCK): return "SOLO_BLOCK";
-                case (gws_op_t::FIRST_BLOCK): return "FIRST_BLOCK";
-                case (gws_op_t::MOD_BLOCK): return "MOD_BLOCK";
-                case (gws_op_t::UNDEF): break;
-            }
-            gpu_error_not_expected() << "Unexpected GWS indexing operation";
-            return nullptr;
-        }();
-        if (!gws_dim_op) continue; // Will not be hit due to gpu_assert above
-
-        // GWS<X>_OP<Y>
-        kernel_ctx.add_option(utils::format(
-                "-D%s_OP%zu=GWS_OP_%s", gws_prefix, i, gws_dim_op));
-
-        // GWS<X>_RT_IDX<Y>
-        kernel_ctx.define_int(
-                utils::format("%s_RT_IDX%zu", gws_prefix, i), into<dim_t>(i));
-
-        // GWS<X>_IDX<Y>
-        kernel_ctx.define_int(utils::format("%s_IDX%zu", gws_prefix, i),
-                into<dim_t>(term.gws_idx));
-    }
-
     // Define data types for conversion (Ignore the default suffix)
     std::string conv_suff = (suffix == std::string("DEFAULT"))
             ? ""
@@ -508,26 +765,21 @@ void dispatch_compile_params_t::def_kernel_macros(
 
     // For each buffer, define the sum that leads to the offset calculation
     data_type_converter_t converter;
-    int term_idx = 0;
+    int buf_idx = 0;
     for (size_t bit_idx = 0; bit_idx < sizeof(name_id_t) * 8; bit_idx++) {
         name_id_t name_id = name_id_t(uint64_t(1) << bit_idx);
         if (!static_cast<uint64_t>(buffer_set & name_id)) continue;
 
-        if (buffer_types[term_idx] != data_type::undef) {
+        if (buffer_types[buf_idx] != data_type::undef) {
             converter.register_type(
-                    to_string(name_id) + conv_suff, buffer_types[term_idx]);
+                    to_string(name_id) + conv_suff, buffer_types[buf_idx]);
         }
 
-        std::string equation;
-        for (size_t j = 0; j < buffer_num_terms[term_idx]; j++) {
-            equation += utils::format("%s_GET_ID%d(rt_params)", gws_prefix,
-                    buffer_term_index[term_idx][j]);
-            if (j != buffer_num_terms[term_idx] - 1) { equation += "+"; }
-        }
-        // GWS_<BUFFER_NAME>_<SUFFIX>_OFF
-        kernel_ctx.add_option(utils::format("-DGWS_%s_%s_OFF(rt_params)=%s",
-                to_string(name_id), suffix, equation.c_str()));
-        term_idx++;
+        std::string equation
+                = expr_encoder_t::decode(exprs, buffer_off_expr[buf_idx]);
+        kernel_ctx.add_option(utils::format("-DGWS_%s_%s_OFF(rt)=(%s)",
+                to_string(name_id), suffix, equation));
+        buf_idx++;
     }
     converter.def_kernel_macros(kernel_ctx);
 
@@ -537,6 +789,25 @@ void dispatch_compile_params_t::def_kernel_macros(
         kernel_ctx.define_int(utils::format("GWS_SGS_%s", suffix),
                 static_cast<int64_t>(subgroup.size()));
     }
+}
+
+std::string dispatch_compile_params_t::str() const {
+    ostringstream_t ss;
+    auto buf_idx = 0;
+    ss << "{";
+    for (size_t bit_idx = 0; bit_idx < 8 * sizeof(name_id_t); bit_idx++) {
+        name_id_t name_id = name_id_t(uint64_t(1) << bit_idx);
+        if (!static_cast<uint64_t>(buffer_set & name_id)) continue;
+        if (buf_idx > 0) ss << ", ";
+
+        ss << to_string(name_id)
+           << " - [ type: " << dnnl_dt2str(buffer_types[buf_idx])
+           << " offset : "
+           << expr_encoder_t::decode(exprs, buffer_off_expr[buf_idx]) << "]";
+        buf_idx++;
+    }
+    ss << "}";
+    return ss.str();
 }
 
 } // namespace compute

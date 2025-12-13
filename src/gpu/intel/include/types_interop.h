@@ -49,18 +49,14 @@ typedef struct {
 } int64x6_t;
 
 // Number of terms usable by a single dispatcher, each defined in ocl_types.h
-#define MAX_INDEXING_TERMS 10
+#define MAX_RUNTIME_TERMS 32
 
 typedef struct {
-    int64_t sizes[MAX_INDEXING_TERMS];
-    int64_t strides[MAX_INDEXING_TERMS];
-    int64_t blocks[MAX_INDEXING_TERMS];
+    int64_t params[MAX_RUNTIME_TERMS];
 } dispatch_gws_rt_params64_t;
 
 typedef struct {
-    int32_t sizes[MAX_INDEXING_TERMS];
-    int32_t strides[MAX_INDEXING_TERMS];
-    int32_t blocks[MAX_INDEXING_TERMS];
+    int32_t params[MAX_RUNTIME_TERMS];
 } dispatch_gws_rt_params32_t;
 
 #ifdef GWS_USE_PARAMS32
