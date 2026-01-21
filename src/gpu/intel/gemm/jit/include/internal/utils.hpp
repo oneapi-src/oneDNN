@@ -295,6 +295,14 @@ private:
         return h;
     }
 
+    template <typename A, typename B>
+    size_t get_hash(const std::pair<A, B> &p) {
+        size_t h = 0;
+        h = hash_combine(h, get_hash(p.first));
+        h = hash_combine(h, get_hash(p.second));
+        return h;
+    }
+
     template <typename Key, typename T, typename Compare, typename Allocator>
     size_t get_hash(const std::map<Key, T, Compare, Allocator> &m) {
         size_t h = 0;

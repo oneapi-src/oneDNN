@@ -125,8 +125,10 @@ public:
                 const int regs = div_up(obj.size, ngen::GRF::bytes(hw()));
                 if (is_header(obj.buf)) {
                     rbd = alloc_header(scope, regs);
+                } else if (obj.has_attr<access_map_alloc_attr_t>()) {
+                    rbd = alloc_with_access_map(obj, scope, regs);
                 } else {
-                    rbd = scope.alloc_reg_buf(regs);
+                    rbd = alloc_unmapped(obj, scope, regs);
                 }
             }
             if (obj.has_attr<grf_permute_attr_t>()) {
@@ -370,6 +372,95 @@ private:
     bool is_header(const expr_t &buf) const {
         auto &name = buf.as<var_t>().name;
         return name == "h" || name.find("h_") == 0;
+    }
+
+    // Allocates buffers that are only contiguous in places where the ops that
+    // access it need them to be.
+    reg_buf_t alloc_with_access_map(const alloc_t &obj,
+            ngen_register_scope_t &scope, int regs,
+            ngen::Bundle base_bundle = ngen::Bundle()) {
+        UNUSED(regs);
+        using acc_info_t = access_map_alloc_attr_t::accesses_t::value_type;
+        const int grf_size = ngen::GRF::bytes(hw());
+        auto accs = obj.get_attr<access_map_alloc_attr_t>().accs;
+        gpu_assert(!accs.empty());
+        // align bases and sizes to grf boundary
+        for (auto &a : accs) {
+            auto first = round_down(a.first, grf_size);
+            a.second = round_up(a.first + a.second, grf_size) - first;
+            a.first = first;
+        }
+        // sort accesses by base
+        std::sort(accs.begin(), accs.end(),
+                [](const acc_info_t &a, const acc_info_t &b) {
+            return a.first < b.first;
+        });
+        // merge overlapping accesses and erase overlaps
+        for (int prev = 0, i = 1; i < (int)accs.size(); i++)
+            if (accs[prev].first + accs[prev].second > accs[i].first) {
+                accs[prev].second = std::max(accs[prev].second,
+                        accs[i].first + accs[i].second - accs[prev].first);
+                accs[i].second = 0;
+            } else {
+                prev = i;
+            }
+        for (auto it = accs.begin(); it != accs.end();)
+            it = (it->second) ? std::next(it) : accs.erase(it);
+        // sort accesses by size, largest to smallest
+        std::sort(accs.begin(), accs.end(),
+                [](const acc_info_t &a, const acc_info_t &b) {
+            return a.second > b.second;
+        });
+        // perform the allocations
+        std::vector<std::pair<int, ngen::GRFRange>> allocs;
+        auto &ra = scope.register_allocator();
+        for (auto &a : accs)
+            if (a.second) {
+                auto regs = utils::safe_divide(a.second, grf_size);
+                allocs.emplace_back(a.first, ra.alloc_range(regs, base_bundle));
+            }
+        // sort the allocations by their corresponding buffer bases
+        std::sort(allocs.begin(), allocs.end(),
+                [](const std::pair<int, ngen::GRFRange> &a,
+                        const std::pair<int, ngen::GRFRange> &b) {
+            return a.first < b.first;
+        });
+        // print the allocation map to debug output
+        dsl_trace() << "Allocation for '" << obj.buf << "' (" << obj.size
+                    << " bytes), mapped as:";
+        for (auto &a : allocs)
+            if (a.second.getLen() == 1)
+                dsl_trace()
+                        << "    offset: " << a.first << ", size: " << grf_size
+                        << " (r" << a.second.getBase() << ")";
+            else if (!a.second.isInvalid())
+                dsl_trace()
+                        << "    offset: " << a.first
+                        << ", size: " << a.second.getLen() * grf_size << " (r"
+                        << a.second.getBase() << " - r"
+                        << a.second.getBase() + a.second.getLen() - 1 << ")";
+        // merge the allocations together
+        std::vector<int> tiles;
+        for (auto &a : allocs) {
+            for (int i = a.second.getBase(), size = i + a.second.getLen();
+                    i < size; i++)
+                tiles.emplace_back(i);
+            ra.safeRelease(a.second);
+        }
+        for (auto &t : tiles)
+            scope.claim(ngen::GRFRange(t, 1));
+        return reg_buf_t(hw(), 1, tiles);
+    }
+
+    // Allocates buffers with no access map, keeping it in one piece
+    reg_buf_t alloc_unmapped(const alloc_t &obj, ngen_register_scope_t &scope,
+            int regs, ngen::Bundle base_bundle = ngen::Bundle()) {
+        auto retn = scope.alloc_reg_buf(regs, base_bundle);
+        dsl_trace() << "Allocation for '" << obj.buf << "' (" << obj.size
+                    << " bytes), unmapped:";
+        dsl_trace() << "    offset: 0, size: " << ngen::GRF::bytes(hw()) * regs
+                    << " (" << retn.str() << ")";
+        return retn;
     }
 
     // Allocates headers using heuristics to reduce back-to-back header reuse -

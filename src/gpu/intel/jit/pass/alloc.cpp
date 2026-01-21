@@ -17,6 +17,7 @@
 #include "gpu/intel/jit/pass/alloc.hpp"
 
 #include "gemmstone/../../dsl/ir/pass/trace.hpp"
+#include "gpu/intel/jit/ir/eltwise.hpp"
 #include "gpu/intel/jit/ir/legacy.hpp"
 
 namespace dnnl {
@@ -431,6 +432,102 @@ stmt_t inject_let_stmts(const stmt_t &stmt, const std::vector<stmt_t> &lets) {
     return ret;
 }
 
+class access_map_attribute_injector_t : public ir_mutator_t {
+public:
+    access_map_attribute_injector_t(ir_context_t &ir_ctx) : ir_ctx_(ir_ctx) {}
+
+    object_t _mutate(const alloc_t &obj) override {
+        auto new_obj = ir_mutator_t::_mutate(obj);
+        if (bufs_.count(obj.buf) == 0) return new_obj;
+        auto new_attrs = obj.attrs;
+        new_attrs.emplace_back(bufs_.at(obj.buf));
+        return alloc_t::make(obj.buf, obj.size, obj.kind, new_attrs,
+                new_obj.as<alloc_t>().body);
+    }
+
+    object_t _mutate(const load_t &obj) override {
+        auto stride = (obj.has_default_stride()) ? obj.type.base().size()
+                                                 : obj.stride;
+        auto off = (obj.off.is<int_imm_t>()) ? to_int(obj.off) : 0;
+        append_access(obj.buf, off, obj.type.elems() * stride);
+        return ir_mutator_t::_mutate(obj);
+    }
+
+    object_t _mutate(const store_t &obj) override {
+        auto stride = (obj.has_default_stride())
+                ? obj.value.type().base().size()
+                : obj.stride;
+        auto off = (obj.off.is<int_imm_t>()) ? to_int(obj.off) : 0;
+        append_access(obj.buf, off, obj.value.type().elems() * stride);
+        return ir_mutator_t::_mutate(obj);
+    }
+
+    object_t _mutate(const func_call_t &obj) override {
+        auto layout_size = [](int64_t e, const dsl::layout_t &l) {
+            return utils::div_up(int(e) * l.type().base().bitsize(), 8);
+        };
+        auto append_block = [](int64_t s, const dsl::layout_t::block_t &b) {
+            return ((b.stride.is_fixed()) ? int64_t(b.stride) : s) * b.size;
+        };
+        auto min_grf = [&]() { return ir_ctx_.grf_size() * 2; };
+        auto append_access_ = [&](const expr_t &e, const dsl::layout_t &l) {
+            int total_blk = 1, inner_blk = 1;
+            for (auto &b : l.blocks()) {
+                total_blk = int(append_block(total_blk, b));
+                if (layout_size(inner_blk, l) < min_grf())
+                    inner_blk = int(append_block(inner_blk, b));
+            }
+            if (total_blk % inner_blk == 0) {
+                for (int i = 0; i < total_blk; i += inner_blk)
+                    append_access(
+                            e, layout_size(i, l), layout_size(inner_blk, l));
+            } else {
+                append_access(e, 0, layout_size(l.elems(), l));
+            }
+        };
+        // DPAS/MAD SRC0-SRC2 are covered by bank conflict alloc but DST isn't
+        if (auto *send = obj.func.as_ptr<send_t>()) {
+            append_access(send_t::arg_reg_buf(obj), 0, send->payload_size());
+        } else if (auto *mad = obj.func.as_ptr<mad_t>()) {
+            append_access(mad_t::arg_dst(obj), 0, mad->dst_size());
+        } else if (auto *dpas = obj.func.as_ptr<dpas_t>()) {
+            append_access(dpas_t::arg_dst(obj), 0, dpas->dst_size());
+        } else if (auto *reorder = obj.func.as_ptr<reorder_t>()) {
+            append_access_(reorder_t::arg_src_buf(obj), reorder->src_layout);
+            append_access_(reorder_t::arg_dst_buf(obj), reorder->dst_layout);
+        } else if (auto *reduce = obj.func.as_ptr<reduce_t>()) {
+            append_access_(reduce_t::arg_src_buf(obj), reduce->src_layout);
+            append_access_(reduce_t::arg_dst_buf(obj), reduce->dst_layout);
+        } else if (auto *eltwise = obj.func.as_ptr<eltwise_t>()) {
+            const auto dst_dt = (eltwise->dst_dt != ngen::DataType::invalid)
+                    ? dsl::type_t(eltwise->dst_dt)
+                    : dsl::type_t::f32();
+            auto size = to_int(eltwise_t::arg_elems(obj)) * dst_dt.size();
+            auto buf = eltwise_t::arg_data(obj);
+            for (int i = 0; i < size; i += min_grf())
+                append_access(buf, i, std::min(size - i, min_grf()));
+        }
+        return ir_mutator_t::_mutate(obj);
+    }
+
+private:
+    void append_access(const expr_t &buf, int off, int size) {
+        ir::access_map_alloc_attr_t::accesses_t accs;
+        auto it = bufs_.find(get_base(buf));
+        if (it != bufs_.end())
+            accs = it->second.as<ir::access_map_alloc_attr_t>().accs;
+        else
+            it = bufs_.insert({get_base(buf), {}}).first;
+        if (buf.is<ptr_t>() && is_const(buf.as<ptr_t>().off))
+            off += to_int(buf.as<ptr_t>().off);
+        accs.emplace_back(off, size);
+        it->second = ir::access_map_alloc_attr_t::make(accs);
+    }
+
+    object_eq_map_t<expr_t, alloc_attr_t> bufs_;
+    ir_context_t &ir_ctx_;
+};
+
 class var_counter_t : public ir_visitor_t {
 public:
     var_counter_t(const object_set_t<expr_t> &vars) {
@@ -544,6 +641,13 @@ private:
 
 stmt_t inject_dangling_let_stmts(const stmt_t &stmt) {
     return let_injector_t().mutate(stmt);
+}
+
+stmt_t inject_access_map_attribute(const stmt_t &stmt, ir_context_t &ir_ctx) {
+    ir::trace_start();
+    auto retn = access_map_attribute_injector_t(ir_ctx).mutate(stmt);
+    ir::trace_pass("inject_access_map_attribute", retn, ir_ctx);
+    return retn;
 }
 
 } // namespace jit

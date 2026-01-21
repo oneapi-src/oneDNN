@@ -68,6 +68,12 @@ stmt_t inject_let_stmts(const stmt_t &stmt, const std::vector<stmt_t> &lets);
 //     }
 stmt_t inject_dangling_let_stmts(const stmt_t &stmt);
 
+// Injects an allocation attribute to document the buffer access patterns; this
+// information is then used during nGEN lowering to better utilize the register
+// space by splitting the buffer into potentially several chunks which are only
+// contiguous where the operations accessing the buffer need them to be.
+stmt_t inject_access_map_attribute(const stmt_t &stmt, ir_context_t &ir_ctx);
+
 } // namespace jit
 } // namespace intel
 } // namespace gpu

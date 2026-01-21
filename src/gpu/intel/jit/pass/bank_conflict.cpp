@@ -25,26 +25,6 @@ namespace gpu {
 namespace intel {
 namespace jit {
 
-// FIXME: Use convolution-agnostic mechanism to skip zero-points related calls.
-static bool is_zero_points_call(const stmt_t &s) {
-    auto is_zp_var = [&](const expr_t &e) {
-        auto &base = get_base(e);
-        auto &name = base.as<var_t>().name;
-        return name.find("zp_") == 0;
-    };
-    if (is_func_call<dpas_t>(s)) {
-        auto &src1 = dpas_t::arg_src1(s);
-        auto &src2 = dpas_t::arg_src2(s);
-        return is_zp_var(src1) || is_zp_var(src2);
-    }
-    if (is_func_call<mad_t>(s)) {
-        auto &src1 = mad_t::arg_src1(s);
-        auto &src2 = mad_t::arg_src2(s);
-        return is_zp_var(src1) || is_zp_var(src2);
-    }
-    return false;
-}
-
 class bank_conflict_attribute_injector_t : public ir_mutator_t {
 public:
     object_t _mutate(const alloc_t &obj) override {
@@ -63,7 +43,6 @@ public:
 
     object_t _mutate(const func_call_t &obj) override {
         if (is_frozen) return ir_mutator_t::_mutate(obj);
-        if (is_zero_points_call(obj)) return ir_mutator_t::_mutate(obj);
 
         bool is_mad = obj.func.is<mad_t>();
         bool is_dpas = obj.func.is<dpas_t>();
@@ -71,7 +50,6 @@ public:
         bool is_load = send && (send->is_load() || send->is_load_2d());
 
         if (is_mad || is_dpas) {
-            auto dst_buf = ptr_base(obj.args[0]);
             auto src0_buf = ptr_base(obj.args[1]);
             auto src1_buf = ptr_base(obj.args[2]);
             auto src2_buf = ptr_base(obj.args[3]);

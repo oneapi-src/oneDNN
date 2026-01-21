@@ -770,6 +770,7 @@ void builder_t::build() {
     stmt_ = optimize_barrier(stmt_, ir_ctx);
     if (cfg_.fma_kind() == fma_kind_t::dp4a) stmt_ = inject_dp4a(stmt_, ir_ctx);
     stmt_ = inject_bank_conflict_attribute(stmt_, ir_ctx);
+    stmt_ = inject_access_map_attribute(stmt_, ir_ctx);
     stmt_ = stmt_group_t::make(stmt_label_t::kernel(), stmt_);
 
 #if !defined(NDEBUG) || defined(DNNL_DEV_MODE)

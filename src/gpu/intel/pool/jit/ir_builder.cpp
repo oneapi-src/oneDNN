@@ -552,6 +552,7 @@ stmt_t builder_t::try_build(builder_t &pb, const kernel_info_t &ki,
             stmt, ir_ctx, exec.regs() * exec.grf_size());
     stmt = simplify(stmt, ir_ctx);
     stmt = optimize_alloc_let(stmt, ir_ctx);
+    stmt = inject_access_map_attribute(stmt, ir_ctx);
     stmt = stmt_group_t::make(stmt_label_t::kernel(), stmt);
 
     const int regs = get_peak_regs(stmt, exec.grf_size());
