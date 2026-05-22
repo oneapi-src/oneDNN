@@ -216,8 +216,10 @@ struct relative_md_t {
     }
     static status_t make(relative_md_t &rmd, const memory_desc_t &md,
             const ndim_normalizer_t &ndim_normalizer) {
-        if (md.format_kind != format_kind::blocked)
-            return status::unimplemented;
+        VCONDCHECK(primitive, create, dispatch, post_ops,
+                md.format_kind == format_kind::blocked, status::unimplemented,
+                "%s,expected format_kind::blocked, got ",
+                dnnl_fmt_kind2str(md.format_kind));
 
         rmd.dt = md.data_type;
 
