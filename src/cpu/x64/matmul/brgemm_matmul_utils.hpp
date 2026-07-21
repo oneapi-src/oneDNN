@@ -244,11 +244,14 @@ struct brgemm_matmul_conf_t {
     bool is_bf16_with_int_wei = false;
     bool is_f16_with_int_wei = false;
     bool is_f32_with_int_wei = false;
+    bool is_f32_with_f4_wei = false;
     bool is_f32_f16 = false;
     bool is_f32_bf16 = false;
     bool is_xf16_fp8 = false;
     bool is_int4_weights = false;
     bool is_f4_via_convert = false;
+    int wei_packed_elems_per_byte = 1;
+    bool is_f4_fused_decompress = false;
     bool with_int8_grouped_quantization = false;
     // Enables the driver-side per-(M, N) f32 compensation tile that captures
     // the symmetric src/wei zero-point + 128-shift correction in the grouped
@@ -373,6 +376,18 @@ struct brgemm_matmul_conf_utils_t {
         if (bgmmc.is_runtime_N) return true;
         if (bgmmc.is_xf16_fp8) return true;
         if (bgmmc.is_bf16_with_int_wei) return true;
+        if (bgmmc.is_f32_with_f4_wei) {
+            constexpr dim_t fused_M_threshold = 4;
+            const bool fused_eligible = !bgmmc.is_amx
+                    && is_superset(bgmmc.isa, avx512_core)
+                    && bgmmc.wei_scales_dt == data_type::e8m0
+                    && bgmmc.wei_scales_k_gsize == 32 && bgmmc.N % 2 == 0
+                    && bgmmc.M <= fused_M_threshold
+                    && !check_is_transposed(bgmmc.wei_tag)
+                    && bgmmc.wei_tag != format_tag::adbc;
+            if (fused_eligible) return false;
+            return true;
+        }
         if (bgmmc.is_f16_with_int_wei) return true;
         if (bgmmc.is_f32_with_int_wei) return true;
         if (bgmmc.with_int8_grouped_quantization
@@ -447,8 +462,6 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_f16() const { return f16_dt; }
 
-    inline bool is_f4_via_convert() const { return f4_via_convert_dt; }
-
     inline bool is_f8() const { return f8_dt; }
 
     inline bool is_bf16_fp8() const { return bf16_fp8_dt; }
@@ -474,6 +487,8 @@ struct brgemm_matmul_conf_utils_t {
     inline bool with_int8_grouped_quantization() const {
         return int8_grouped_quantization_dt;
     }
+
+    inline bool is_f32_with_f4_wei() const { return f32_with_f4_wei_dt; }
 
     inline bool with_weights_decompression() const {
         return !utils::one_of(bgmmc.src_dt, data_type::s8, data_type::u8,
@@ -517,6 +532,7 @@ private:
 
     const bool f32_dt, bf16_dt, f16_dt, f4_via_convert_dt, f8_dt, bf8_dt,
             int8_dt, bf32_dt;
+    const bool f32_with_f4_wei_dt;
     const bool weights_decompression_support, bf16_with_int_wei_dt, f32_f16_dt,
             f32_bf16_dt, f16_with_int_wei_dt, f32_with_int_wei_dt,
             int8_grouped_quantization_dt, bf16_fp8_dt, f16_fp8_dt;
