@@ -1937,6 +1937,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
                                               data_type::u4, data_type::f4_e2m1)
             ? 2
             : 1;
+    bgmmc.is_int4_weights = one_of(bgmmc.wei_dt, data_type::s4, data_type::u4);
     bgmmc.with_int8_grouped_quantization
             = bm_conf_utils.with_int8_grouped_quantization();
 
