@@ -324,9 +324,8 @@ private:
             used_vregs = 5;
         else if (brg.is_f16_b_non_amx_vnni())
             used_vregs = 2;
-        // Fused f4: LUT + permd table + ld_block2 preloaded scales.
-        if (brg.is_f4_fused_decompress_non_amx())
-            used_vregs += 2 + brg.ld_block2;
+        // Fused f4: LUT + permd table.
+        if (brg.is_f4_fused_decompress_non_amx()) used_vregs += 2;
         return isa_num_vregs(brg.isa_impl) - used_vregs;
     }
 
@@ -434,9 +433,6 @@ private:
     }
     Vmm vmm_f4_permd() const noexcept {
         return Vmm(isa_num_vregs(brg.isa_impl) - 2);
-    }
-    Vmm vmm_f4_scale(dim_t ld) const noexcept {
-        return Vmm(isa_num_vregs(brg.isa_impl) - 3 - ld);
     }
 
     // fp8 emulation convert
@@ -1120,15 +1116,6 @@ void jit_brgemm_kernel_t<Wmm>::ldb_regs_shift(int ld_block2, bool is_tail) {
                           : wei_scales_offset(ld_block2));
         reg_aux_wei_scales.save();
     }
-    if (brg.is_f4_fused_decompress_non_amx()) {
-        const auto scales_dt_sz = types::data_type_size(brg.dt_wei_scales);
-        const dim_t ldb_scales_shift = (is_tail)
-                ? scales_dt_sz * brg.ldb_tail
-                : scales_dt_sz * ld_block2 * brg.ld_block;
-        reg_aux_wei_scales.restore();
-        add(reg_aux_wei_scales, ldb_scales_shift);
-        reg_aux_wei_scales.save();
-    }
     if (brg.zp_type_a != brgemm_broadcast_t::none) {
         reg_aux_zp_comp_a.restore();
         add(reg_aux_zp_comp_a,
@@ -1199,7 +1186,7 @@ void jit_brgemm_kernel_t<Wmm>::copy_post_ops_stack_values_to_aux(
             reg_buf.restore();
             reg_buf.saveTo(reg_aux_compensation);
         }
-        if (brg.with_wei_scales || brg.is_f4_fused_decompress_non_amx()) {
+        if (brg.with_wei_scales) {
             reg_wei_scales.restore();
             reg_wei_scales.saveTo(reg_aux_wei_scales);
         }
@@ -1262,7 +1249,7 @@ void jit_brgemm_kernel_t<Wmm>::read_params() {
         reg_src_scales.save();
     }
 
-    if (brg.with_wei_scales || brg.is_f4_fused_decompress) {
+    if (brg.with_wei_scales) {
         mov(reg_wei_scales, ptr[param1 + GET_OFF(ptr_wei_scales)]);
         reg_wei_scales.save();
     }
@@ -3643,7 +3630,6 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
             vpsrld(vmm_out | f4_k_lo_mask, vmm_out, 28);
             vpsrld(vmm_out | f4_k_hi_mask, vmm_out, 4);
             vpermps(vmm_out, vmm_out, vmm_f4_lut());
-            uni_vmulps(vmm_out, vmm_out, vmm_f4_scale(ld));
             return;
         }
         const bool mem_advice_B
@@ -3740,24 +3726,6 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
     maybe_pre_process_buf_A(
             reg_aux_A, bd_b, bd_e, is_rd_tail ? brg.rdb_tail : rd_loop);
 
-    if (brg.is_f4_fused_decompress_non_amx()) {
-        reg_bdb_loop.save();
-        mov(reg_bdb_loop, reg_aux_wei_scales.getStoragePtr());
-        const auto scales_dt_sz = types::data_type_size(brg.dt_wei_scales);
-        for (int ld = 0; ld < ld_block2; ld++) {
-            const auto vmm = vmm_f4_scale(ld);
-            const auto addr
-                    = ptr[reg_bdb_loop + ld * brg.ld_block * scales_dt_sz];
-            const bool is_last_ld = (ld == ld_block2 - 1);
-            if (is_ld_tail && is_last_ld) {
-                vpmovzxbd(vmm | ld_tail_mask | T_z, addr);
-            } else {
-                uni_vpmovzxbd(vmm, addr);
-            }
-            uni_vpslld(vmm, vmm, 23);
-        }
-    }
-
     for (int rd = 0; rd < rd_loop; rd += brg.rd_step) {
         if (brg.n_bcast_1_load) {
             for (int bd = bd_b; bd < bd_e && !is_emdbd; bd++)
@@ -3836,8 +3804,6 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
     }
 
     if (brg.is_fp8_via_convert()) reg64_fp8_aux.restore();
-
-    if (brg.is_f4_fused_decompress_non_amx()) reg_bdb_loop.restore();
 
     if (max_prefetch_offset > INT_MAX) reg_aux_C.restore();
 }
@@ -4389,8 +4355,6 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
     }
 
     if (brg.is_f4_fused_decompress_non_amx()) {
-        assert(brg.dt_wei_scales == data_type::e8m0);
-
         alignas(64) static const float f4_e2m1_lut[16]
                 = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f, 6.0f, -0.0f, -0.5f,
                         -1.0f, -1.5f, -2.0f, -3.0f, -4.0f, -6.0f};

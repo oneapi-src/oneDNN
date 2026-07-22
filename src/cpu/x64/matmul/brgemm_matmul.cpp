@@ -469,20 +469,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
                 brg.src_scale_m_stride = num_k_groups * bgmmc_.src_scales_dt_sz;
             }
         }
-        if (bgmmc_.is_f4_fused_decompress) {
-            // The kernel decodes packed f4 nibbles and multiplies by the
-            // preloaded e8m0 scale inline, so the common accumulation-time
-            // per-K path (has_per_k_scales -> apply_scales) must be disabled
-            // to avoid a double application. skip_wei_scales=true also keeps
-            // brgemm_desc_set_postops() from populating with_wei_scales.
-            brg.is_f4_fused_decompress = true;
-            brg.skip_wei_scales = true;
-            brg.is_single_wei_scale = false;
-            brg.is_per_n_wei_scales = false;
-            brg.is_per_k_wei_scales = false;
-            // Preserve the scales dtype for the kernel's preload path.
-            brg.dt_wei_scales = bgmmc_.wei_scales_dt;
-        }
+        brg.is_f4_fused_decompress = bgmmc_.is_f4_fused_decompress;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
