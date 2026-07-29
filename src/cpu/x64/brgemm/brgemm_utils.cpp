@@ -1031,7 +1031,7 @@ status_t brgemm_blocking_vmm(brgemm_desc_t *brg) {
 status_t brgemm_blocking(brgemm_desc_t *brg) {
     if (brg->is_f4_fused_decompress) {
         // Fused f4 loads a single K row at a time (no VNNI packing along K).
-        // A is f32, B is f4 packed nibbles decoded in the kernel to f32.
+        // A is f32, B is f4 packed nibbles decompressed in the kernel to f32.
         brg->ld_step = 1;
         brg->rd_step = 1;
     } else {

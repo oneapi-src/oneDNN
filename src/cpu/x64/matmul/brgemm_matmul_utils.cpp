@@ -2337,8 +2337,8 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             || bgmmc.wei_tag == adbc;
     bgmmc.use_buffer_b = bm_conf_utils.use_buffer_b();
 
-    // Fused f4 decode applies scales inside the brgemm kernel, so don't fold
-    // them into buffer_b.
+    // Fused f4 decompression applies scales inside the brgemm kernel, so
+    // don't fold them into buffer_b.
     bgmmc.is_f4_fused_decompress
             = bm_conf_utils.is_f32_with_f4_wei() && !bgmmc.use_buffer_b;
     if (bgmmc.is_f4_fused_decompress) bgmmc.apply_scales_in_buffer_b = false;
