@@ -677,9 +677,7 @@ dim_t jit_brgemm_kernel_t<Wmm>::A_offset(
 template <typename Wmm>
 dim_t jit_brgemm_kernel_t<Wmm>::B_offset(
         int ld, int rd, bool is_amx) const noexcept {
-    if (brg.is_f4_fused_decompress_non_amx()) {
-        return (rd * brg.LDB + ld * brg.ld_block) / 2;
-    }
+    const dim_t b_elems_per_byte = brg.is_f4_fused_decompress_non_amx() ? 2 : 1;
     if (is_amx) {
         return brg.typesize_B * (brg.rd_step * ld * brg.ld_block);
     } else {
@@ -689,7 +687,8 @@ dim_t jit_brgemm_kernel_t<Wmm>::B_offset(
         // hence no `rd % brg.ld_step`
         return brg.typesize_B
                 * (rdb0 * brg.ld_step * brg.LDB
-                        + brg.ld_step * ld * brg.ld_block);
+                        + brg.ld_step * ld * brg.ld_block)
+                / b_elems_per_byte;
     }
 }
 
@@ -722,21 +721,19 @@ template <typename Wmm>
 dim_t jit_brgemm_kernel_t<Wmm>::rdb_B_offset() const noexcept {
     if (brg.is_gemv && brg.gemv_acc_is_vector())
         return static_cast<dim_t>(brg.rd_block) * brg.typesize_B;
-    if (brg.is_f4_fused_decompress_non_amx())
-        return static_cast<dim_t>(brg.rd_block) * brg.LDB / 2;
-    return brg.rd_block_B_size() * brg.LDB;
+    const dim_t b_elems_per_byte = brg.is_f4_fused_decompress_non_amx() ? 2 : 1;
+    return brg.rd_block_B_size() * brg.LDB / b_elems_per_byte;
 }
 
 template <typename Wmm>
 dim_t jit_brgemm_kernel_t<Wmm>::ldb_B_offset(
         int ld_block2, bool is_tail) const noexcept {
-    if (brg.is_f4_fused_decompress_non_amx())
-        return (is_tail) ? brg.ldb_tail * brg.ld_step / 2
-                         : ld_block2 * brg.ld_block * brg.ld_step / 2;
+    const dim_t b_elems_per_byte = brg.is_f4_fused_decompress_non_amx() ? 2 : 1;
     // For TMM/AMX with blocked format, use rd_step instead of ld_step
     const auto step = brg.is_tmm ? brg.rd_step : brg.ld_step;
-    return (is_tail) ? brg.typesize_B * brg.ldb_tail * step
-                     : brg.typesize_B * ld_block2 * brg.ld_block * step;
+    return ((is_tail) ? brg.typesize_B * brg.ldb_tail * step
+                      : brg.typesize_B * ld_block2 * brg.ld_block * step)
+            / b_elems_per_byte;
 }
 
 template <typename Wmm>
