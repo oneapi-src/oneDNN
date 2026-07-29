@@ -1930,7 +1930,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             = bm_conf_utils.is_bf16_fp8() || bm_conf_utils.is_f16_fp8();
     bgmmc.with_wei_decompression = bm_conf_utils.with_weights_decompression();
     // The usage of this variable hardcodes the assumption
-    // there's only supported value > 1, which is 2. If this
+    // there's only one supported value > 1, which is 2. If this
     // assumption changes, the update to all other places
     // is required, too.
     bgmmc.wei_packed_elems_per_byte = one_of(bgmmc.orig_wei_dt, data_type::s4,
