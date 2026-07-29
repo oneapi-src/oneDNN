@@ -1004,6 +1004,8 @@ status_t brgemm_blocking_vmm(brgemm_desc_t *brg) {
     brg->bdb = brg->bcast_dim / brg->bd_block;
     brg->bdb_tail = brg->bcast_dim % brg->bd_block;
 
+    // MXFP4 K-group size (OCP MX spec): one e8m0 scale per 32 f4 elems.
+    // Matches rd_block to the scale group so wei_scales apply once per block.
     const int rd_unroll = brg->is_f4_fused_decompress ? 32 : 4;
     const bool req_emulation = brg->isa_impl != avx2_vnni_2
             && IMPLICATION(brg->is_fp8, brg->fp8_with_f16_vnni_block);
