@@ -250,7 +250,7 @@ struct brgemm_matmul_conf_t {
     bool is_xf16_fp8 = false;
     bool is_int4_weights = false;
     bool is_f4_via_convert = false;
-    int wei_packed_elems_per_byte = 1;
+    int wei_packed_elems_per_byte = 0;
     bool is_f4_fused_decompress = false;
     bool with_int8_grouped_quantization = false;
     // Enables the driver-side per-(M, N) f32 compensation tile that captures
