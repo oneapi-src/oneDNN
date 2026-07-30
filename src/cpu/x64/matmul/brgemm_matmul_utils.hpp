@@ -377,6 +377,8 @@ struct brgemm_matmul_conf_utils_t {
         if (bgmmc.is_xf16_fp8) return true;
         if (bgmmc.is_bf16_with_int_wei) return true;
         if (bgmmc.is_f32_with_f4_wei) {
+            // For M<=4 the fused path wins ~2x; for larger M results
+            // are mixed.
             constexpr dim_t fused_M_threshold = 4;
             const bool fused_eligible = !bgmmc.is_amx
                     && is_superset(bgmmc.isa, avx512_core)
