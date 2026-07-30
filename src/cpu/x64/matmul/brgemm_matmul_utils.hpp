@@ -380,9 +380,7 @@ struct brgemm_matmul_conf_utils_t {
             // For M<=4 the fused path wins ~2x; for larger M results
             // are mixed.
             constexpr dim_t fused_M_threshold = 4;
-            const bool fused_eligible = !bgmmc.is_amx
-                    && is_superset(bgmmc.isa, avx512_core)
-                    && bgmmc.wei_scales_dt == data_type::e8m0
+            const bool fused_eligible = bgmmc.wei_scales_dt == data_type::e8m0
                     && bgmmc.wei_scales_k_gsize == 32 && bgmmc.N % 2 == 0
                     && bgmmc.M <= fused_M_threshold
                     && !check_is_transposed(bgmmc.wei_tag)
