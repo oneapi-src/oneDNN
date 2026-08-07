@@ -1337,6 +1337,102 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
 
     if (use_large_m_blk) min_m_blk = max_m_blk;
 
+    // Amortize f4 decompression over M without evicting the reused panels.
+    const bool tune_f4_m_chunk = bgmmc.is_f32_with_f4_wei && bgmmc.use_buffer_b
+            && !bgmmc.is_runtime_M;
+    if (tune_f4_m_chunk) {
+        matmul_avx512_blocking_params_t cur_params(matmul, nthr);
+        const dim_t l2_budget = 3 * platform::get_per_core_cache_size(2) / 4;
+        const dim_t k_chunk = (dim_t)k_blk * brgemm_bs;
+        const dim_t b_bytes = (dim_t)rnd_up(k_blk, bgmmc.wei_k_blk)
+                * bgmmc.wei_n_blk * bgmmc.tr_b_dt_sz * brgemm_bs;
+        float best_imbalance = 1.f; // reduce
+        for (int nthr_k = start_nthr_k; nthr_k >= last_nthr_k; --nthr_k) {
+            bool found_best_blocking = false;
+            for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1;
+                    --n_chunk_size)
+            for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
+                const int num_m_blocks = div_up(matmul.M, m_blk);
+                const int num_n_chunks = div_up(matmul.N, n_blk * n_chunk_size);
+                const int nthr_bmn = nthr / nthr_k;
+                int max_m_chunk = nstl::max(1,
+                        nstl::min(num_m_blocks,
+                                (int)((dim_t)num_m_blocks * num_n_chunks
+                                        * matmul.batch / nthr_bmn)));
+
+                cur_params.update_params(1, m_blk, n_chunk_size, n_blk,
+                        brgemm_bs, k_blk, nthr_k);
+                const dim_t a_bytes = (dim_t)m_blk * bgmmc.tr_a_dt_sz
+                        * brgemm_bs
+                        * (bgmmc.use_buffer_a ? cur_params.get_actual_lda(
+                                                        true, bgmmc.tr_a_dt_sz)
+                                              : k_blk);
+                const dim_t c_bytes = (dim_t)m_blk * rnd_up(n_blk, 16)
+                        * n_chunk_size * bgmmc.acc_dt_sz;
+                // Copied A is reused across N blocks, and partial C across K
+                // chunks. Otherwise only the current M block needs residency.
+                const bool keep_a = bgmmc.use_buffer_a && n_chunk_size > 1;
+                const bool keep_c = matmul.K > k_chunk;
+                const dim_t fixed_bytes = b_bytes + (keep_a ? 0 : a_bytes)
+                        + (keep_c ? 0 : c_bytes);
+                const dim_t chunk_bytes
+                        = (keep_a ? a_bytes : 0) + (keep_c ? c_bytes : 0);
+                if (fixed_bytes + chunk_bytes > l2_budget) continue;
+                if (chunk_bytes > 0)
+                    max_m_chunk = nstl::min<dim_t>(max_m_chunk,
+                            (l2_budget - fixed_bytes) / chunk_bytes);
+
+                for (int m_chunk_size = 1; m_chunk_size <= max_m_chunk;
+                        ++m_chunk_size) {
+                    // Reusing B across a partial M chunk leaves a subset of
+                    // threads with less work. Consider only evenly sized chunks.
+                    if (num_m_blocks % m_chunk_size != 0) continue;
+
+                    cur_params.update_params(m_chunk_size, m_blk, n_chunk_size,
+                            n_blk, brgemm_bs, k_blk, nthr_k);
+
+                    const auto m_chunks
+                            = div_up(matmul.M, m_blk * m_chunk_size);
+                    const auto work_amount
+                            = matmul.batch * m_chunks * num_n_chunks;
+                    const bool skip_config = work_amount < nthr_bmn * 3
+                            && work_amount % nthr_bmn != 0 && start_nthr_k == 1;
+                    if (skip_config) continue;
+
+                    const float cur_imbalance = cur_params.get_imbalance();
+                    const dim_t reused_m = (dim_t)m_blk * m_chunk_size;
+                    const dim_t best_reused_m = (dim_t)best_blocking.m_blk
+                            * best_blocking.m_chunks;
+                    const bool better_reuse = reused_m > best_reused_m
+                            || (reused_m == best_reused_m
+                                    && m_blk > best_blocking.m_blk);
+                    if (cur_imbalance < best_imbalance
+                            || (found_best_blocking
+                                    && cur_imbalance == best_imbalance
+                                    && better_reuse)) {
+                        best_imbalance = cur_imbalance;
+                        best_blocking = cur_params;
+                        found_best_blocking = true;
+                    }
+                }
+            }
+
+            if (!found_best_blocking) {
+                cur_params.update_params(
+                        1, min_m_blk, 1, n_blk, brgemm_bs, k_blk, nthr_k);
+
+                const float cur_imbalance = cur_params.get_imbalance();
+                if (cur_imbalance < best_imbalance) {
+                    best_imbalance = cur_imbalance;
+                    best_blocking = cur_params;
+                }
+            }
+        }
+
+        maybe_unswap_mn_blocking(bgmmc, best_blocking);
+        return best_imbalance;
+    }
+
     matmul_avx512_blocking_params_t cur_params(matmul, nthr);
     float best_imbalance = 1.f; // reduce
     for (int nthr_k = start_nthr_k; nthr_k >= last_nthr_k; --nthr_k) {
