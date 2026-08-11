@@ -264,7 +264,14 @@ int calculate_max_bcast_block(brgemm_desc_t *brg, const int adj_ld_block2) {
     // see vmm_fp8_emu_aux* in brgemm kernel
     const int fp8_emu_regs = brg->is_fp8_via_convert_non_amx() ? 5 : 0;
 
-    max_isa_regs -= b_vnni_regs + non_int8_vnni_regs + fp8_emu_regs;
+    // fused f4 decompression on non-AMX needs two registers to hold the
+    // f4->f32 lookup table and the permutation indices:
+    // see vmm_f4_lut() and vmm_f4_permd() in brgemm kernel
+    const int f4_decompress_regs
+            = brg->is_f4_fused_decompress_non_amx() ? 2 : 0;
+
+    max_isa_regs -= b_vnni_regs + non_int8_vnni_regs + fp8_emu_regs
+            + f4_decompress_regs;
 
     // --------------- microkernel ---------------
     // see vmm_inp_shift() in brgemm kernel
