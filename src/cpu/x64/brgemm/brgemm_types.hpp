@@ -231,7 +231,7 @@ struct DNNL_API brgemm_attr_t {
     int hint_ld_block {0};
     int hint_bd_block2 {0};
     int hint_ld_block2 {0};
-    bool hint_ununroll_bd_loop {false};
+    bool hint_roll_bd_loop {false};
 
     brgemm_kernel_hint_mem_advice_t mem_advice {brgemm_hint_mem_advice_undef};
 

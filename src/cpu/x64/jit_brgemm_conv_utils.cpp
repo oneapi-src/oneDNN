@@ -2553,9 +2553,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
                     jcp.t_pad > 0 || jcp.b_pad > 0 || jcp.f_pad > 0
                             || jcp.back_pad > 0);
 
-    // enable ununroll_bd_loop for big shapes to reduce kernel sizes
-    jcp.ununroll_bd_loop
-            = static_cast<dim_t>(jcp.M) * jcp.N * (jcp.is_bf32 ? 1 : 2)
+    // enable roll_bd_loop for big shapes to reduce kernel sizes
+    jcp.roll_bd_loop = static_cast<dim_t>(jcp.M) * jcp.N * (jcp.is_bf32 ? 1 : 2)
             > 8 * 1024;
 
     jcp.fp8_convert_wsp_size = static_cast<dim_t>(sizeof(float16_t))
@@ -2796,9 +2795,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.is_oc_scale = wei_scales.get_mask() > 0;
     jcp.with_dst_scales = !dst_scales.has_default_values();
 
-    // enable ununroll_bd_loop for big shapes to reduce kernel sizes
-    jcp.ununroll_bd_loop
-            = static_cast<dim_t>(jcp.M) * jcp.N * (jcp.is_bf32 ? 1 : 2)
+    // enable roll_bd_loop for big shapes to reduce kernel sizes
+    jcp.roll_bd_loop = static_cast<dim_t>(jcp.M) * jcp.N * (jcp.is_bf32 ? 1 : 2)
             > 8 * 1024;
 
     jcp.fp8_convert_wsp_size = static_cast<dim_t>(sizeof(float16_t))

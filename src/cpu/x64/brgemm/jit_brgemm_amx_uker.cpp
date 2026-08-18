@@ -412,7 +412,7 @@ private:
     bool dt_requires_saturation_ = false;
     bool use_sat_cvt_ = false;
 
-    bool ununroll_bd_loop = false;
+    bool roll_bd_loop = false;
     // Number of ZMM registers per bd block for ACE microkernel.
     static constexpr int ace_zmms_per_bd_block
             = brgemm_desc_t::ace_zmms_per_bd_block;
@@ -863,7 +863,7 @@ dim_t jit_brgemm_amx_uker_t::A_offset(
             ? brg.brgattr.static_offsets[bi.bsi->idx].offset.A
             : 0;
     const auto bdb_offs
-            = ununroll_bd_loop ? bi.bdi->rel_pos(bdb) : bi.bdi->pos(bdb);
+            = roll_bd_loop ? bi.bdi->rel_pos(bdb) : bi.bdi->pos(bdb);
     return bdb_offs * LDA2_size_ + bs_offs
             + bi.rdi->pos(rdb) * brg.rd_block_A_size();
 }
@@ -898,7 +898,7 @@ dim_t jit_brgemm_amx_uker_t::C_offset(const brgemm_iteration_t &bi, int bdb,
         int inp_bd, dim_t ldb) const noexcept {
     const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
     const auto bd = get_out_bd(bi.bdi, bdb, inp_bd);
-    const auto bd_shift = bd - (ununroll_bd_loop ? bi_bd_start : 0);
+    const auto bd_shift = bd - (roll_bd_loop ? bi_bd_start : 0);
     dim_t ldc_elem = (dim_t)ldb * brg.ld_block;
     dim_t bloc_idx = ldc_elem / brg.LDC;
     dim_t in_block = ldc_elem % brg.LDC;
@@ -914,8 +914,7 @@ dim_t jit_brgemm_amx_uker_t::C_offset_row(const brgemm_iteration_t &bi, int bdb,
         int inp_bd, dim_t ldb) const noexcept {
     const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
     const auto bdb_start = get_out_bd(bi.bdi, bdb, 0);
-    const auto bdb_start_shift
-            = bdb_start - (ununroll_bd_loop ? bi_bd_start : 0);
+    const auto bdb_start_shift = bdb_start - (roll_bd_loop ? bi_bd_start : 0);
     dim_t ldc_elem = (dim_t)ldb * brg.ld_block;
     dim_t bloc_idx = ldc_elem / brg.LDC;
     dim_t in_block = ldc_elem % brg.LDC;
@@ -928,7 +927,7 @@ dim_t jit_brgemm_amx_uker_t::D_offset(const brgemm_iteration_t &bi, int bdb,
         int inp_bd, dim_t ldb) const noexcept {
     const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
     const auto bd = get_out_bd(bi.bdi, bdb, inp_bd);
-    const auto bd_shift = bd - (ununroll_bd_loop ? bi_bd_start : 0);
+    const auto bd_shift = bd - (roll_bd_loop ? bi_bd_start : 0);
     return (dim_t)bd_shift * LDD_size_ + (dim_t)ldb * ld_block_D_size_;
 }
 
@@ -956,7 +955,7 @@ dim_t jit_brgemm_amx_uker_t::zp_comp_pad_a_offset(const brgemm_iteration_t &bi,
         int bdb, int inp_bd, dim_t ldb) const noexcept {
     const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
     const auto bd = get_out_bd(bi.bdi, bdb, inp_bd);
-    const auto bd_shift = bd - (ununroll_bd_loop ? bi_bd_start : 0);
+    const auto bd_shift = bd - (roll_bd_loop ? bi_bd_start : 0);
     return (dim_t)bd_shift * brg.LDB * sizeof(int32_t)
             + (dim_t)ldb * ld_block_zp_size_;
 }
@@ -979,7 +978,7 @@ dim_t jit_brgemm_amx_uker_t::per_mn_comp_offset(const brgemm_iteration_t &bi,
     const auto bi_bd_start = get_out_bd(bi.bdi, 0, 0);
     const auto bd = get_out_bd(bi.bdi, bdb, inp_bd);
     assert(bd >= 0);
-    const auto bd_shift = bd - (ununroll_bd_loop ? bi_bd_start : 0);
+    const auto bd_shift = bd - (roll_bd_loop ? bi_bd_start : 0);
     const dim_t ldc_elem = (dim_t)ldb * brg.ld_block;
     const dim_t bloc_idx = ldc_elem / brg.LDC;
     const dim_t in_block = ldc_elem % brg.LDC;
@@ -1112,7 +1111,7 @@ void jit_brgemm_amx_uker_t::load_accumulators(brgemm_iteration_t &bi) {
         mov(reg_stride_ld_block, LDC_size_);
         const auto need_ils_shift
                 = (actual_ils(bi.apply_postops, bi.skip_accumulation)
-                        && ununroll_bd_loop && bi.ldi->idx == 0);
+                        && roll_bd_loop && bi.ldi->idx == 0);
         // if need_ils_shift then we have to add shift to C because reg_C points
         // to previous iteration in this case
         ils_shift = need_ils_shift ? bi.bdi->C_shift : 0;
@@ -2968,7 +2967,7 @@ void jit_brgemm_amx_uker_t::bs_loop_body(brgemm_iteration_t &bi) {
 }
 
 void jit_brgemm_amx_uker_t::bs_loop(brgemm_iteration_t &bi) {
-    if (ununroll_bd_loop && bi.bdi->similar != nullptr) {
+    if (roll_bd_loop && bi.bdi->similar != nullptr) {
         // there is code for this iteration already, so we need to store
         // prev_bi_ only
         prev_bi_ = bi;
@@ -2977,7 +2976,7 @@ void jit_brgemm_amx_uker_t::bs_loop(brgemm_iteration_t &bi) {
     }
 
     const auto &tloop = imap_[bi.apply_postops];
-    if (ununroll_bd_loop && was_prev_bi_) {
+    if (roll_bd_loop && was_prev_bi_) {
         if (bi.bdi->idx != prev_bi_.bdi->idx) add(reg_A, bi.bdi->A_shift);
 
         const auto real_ils
@@ -3108,7 +3107,7 @@ jit_brgemm_amx_uker_t::bd_iteration_t *jit_brgemm_amx_uker_t::find_similar(
 
 void jit_brgemm_amx_uker_t::bdb_loop_body(brgemm_iteration_t &bi) {
     auto &tloop = imap_[bi.apply_postops];
-    if (ununroll_bd_loop) {
+    if (roll_bd_loop) {
         const auto cidx = bi.bdi->idx;
         if (bi.bdi->similar) {
             tloop.bdis[cidx].lstart = bi.bdi->similar->lstart;
@@ -3128,13 +3127,13 @@ void jit_brgemm_amx_uker_t::bdb_loop_body(brgemm_iteration_t &bi) {
         bs_loop(bi);
     else
         assert(!"Unknown loop order!");
-    if (ununroll_bd_loop) { jmp(reg_iter_label); }
+    if (roll_bd_loop) { jmp(reg_iter_label); }
 }
 
 void jit_brgemm_amx_uker_t::bdb_loop(brgemm_iteration_t &bi) {
     const auto &tloop = imap_[bi.apply_postops];
     Label iteration_pointers;
-    if (ununroll_bd_loop) {
+    if (roll_bd_loop) {
         lea(reg_iter_labels_list, ptr[rip + iteration_pointers]);
         // shift to load address for jmp for next iteration
         add(reg_iter_labels_list, 8);
@@ -3145,7 +3144,7 @@ void jit_brgemm_amx_uker_t::bdb_loop(brgemm_iteration_t &bi) {
         bi.bdi = &bdi;
         bdb_loop_body(bi);
     }
-    if (ununroll_bd_loop) {
+    if (roll_bd_loop) {
         Label loop_end;
         jmp(loop_end, T_NEAR); //just skip list of iteration labels
 
@@ -3181,7 +3180,7 @@ void jit_brgemm_amx_uker_t::top_loop(brgemm_iteration_t &bi) {
     }
 
     const auto &tloop = imap_[bi.apply_postops];
-    if (actual_ils(bi.apply_postops, bi.skip_accumulation) && ununroll_bd_loop
+    if (actual_ils(bi.apply_postops, bi.skip_accumulation) && roll_bd_loop
             && tloop.ldis.size() == 1) {
         // update reg_C and reg_D if they they were not updated yet
         add(reg_C, bi.bdi->C_shift);
@@ -3248,7 +3247,7 @@ void jit_brgemm_amx_uker_t::fill_imap() {
                 }
             }
 
-            if (ununroll_bd_loop && bdi.idx > 0) {
+            if (roll_bd_loop && bdi.idx > 0) {
                 const auto prev_bdi = &tloop.bdis[bdi.idx - 1];
                 const auto inp_shift = (bdi.pos(0) - prev_bdi->pos(0));
                 bdi.A_shift = inp_shift * LDA2_size_;
@@ -3332,7 +3331,7 @@ void jit_brgemm_amx_uker_t::fill_imap() {
             tloop.bsis.push_back(bsi);
         }
 
-        if (ununroll_bd_loop) {
+        if (roll_bd_loop) {
             for (size_t ibdi = 0; ibdi < tloop.bdis.size(); ibdi++) {
                 tloop.bdis[ibdi].similar
                         = find_similar(&(tloop.bdis[ibdi]), apply_postops);
@@ -3385,7 +3384,7 @@ void jit_brgemm_amx_uker_t::init(brgemm_iteration_t &bi) {
             brg.bdb2
                     - (actual_ils(bi.apply_postops, bi.skip_accumulation) ? 1
                                                                           : 0));
-    ununroll_bd_loop = brg.brgattr.hint_ununroll_bd_loop && bdb2_to_unroll > 1
+    roll_bd_loop = brg.brgattr.hint_roll_bd_loop && bdb2_to_unroll > 1
             && (brg.innermost_loop == brgemm_ld_loop_innermost || brg.ldb2 == 1)
             && get_store_by_vectors(bi.apply_postops)
             && IMPLICATION(!bi.skip_accumulation,
