@@ -172,7 +172,12 @@ struct DNNL_API brgemm_attr_t {
     int hint_ld_block {0};
     int hint_bd_block2 {0};
     int hint_ld_block2 {0};
-    bool hint_ununroll_bd_loop {false};
+    bool hint_roll_bd_loop {false};
+    // Rolling of the ld, bs and rd loops is x64 only; the hints are ignored
+    // here so that shared code does not need to guard on the backend.
+    bool hint_roll_ld_loop {false};
+    bool hint_roll_bs_loop {false};
+    bool hint_roll_rd_loop {false};
 
     brgemm_kernel_hint_nt_t hint_load_nt_A {brgemm_hint_nt_undef};
     brgemm_kernel_hint_nt_t hint_load_nt_B {brgemm_hint_nt_undef};
