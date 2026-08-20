@@ -240,15 +240,14 @@ struct vreg_info_t {
 //
 // `base_ptr` and `out_byte_off` are unused by an eltwise-only chain.
 //
-// How many elements of an accumulator are active is not recorded here. That is
-// a detail of hooking the Xbyak injector up to the IR, not of the IR itself.
-// The count is fixed for a kernel, so the lowering takes it once instead (see
-// `postops_injector_t`), and the register that carries the pattern is
-// ISA-specific. Neither belongs in a target-neutral IR.
+// The tail count is fixed for a kernel and belongs to the lowering (see
+// `postops_injector_t`). `is_tail` selects that count for this operation;
+// otherwise all elements of its accumulators are active.
 struct inject_postops_args_t {
     std::vector<vreg_t> acc;
     vreg_t base_ptr = vreg_t::none;
     std::vector<dim_t> out_byte_off;
+    bool is_tail = true;
 };
 
 // An `ir_t` is the operation list plus, for each virtual register, its info
@@ -335,7 +334,7 @@ struct DNNL_API ir_t {
     // where each accumulator lands in the output (see
     // `inject_postops_args_t`).
     void inject_postops(const std::vector<vreg_t> &acc, vreg_t base_ptr,
-            const std::vector<dim_t> &out_byte_off);
+            const std::vector<dim_t> &out_byte_off, bool is_tail = true);
 
     // control flow
     // Pass the returned op index to `loop_end` to close the loop.
