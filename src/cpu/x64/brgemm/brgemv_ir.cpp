@@ -669,13 +669,14 @@ namespace trans {
 void emit_microkernel(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
         const std::vector<ir::vreg_t> &acc, ir::vreg_t a_ptr, ir::vreg_t x_ptr,
         ir::vreg_t gemv_tail_mask, dim_t rows) {
-    const ir::vreg_t x = ir.new_vec(cfg.dt_x);
-    const ir::vreg_t a = ir.new_vec(cfg.dt_a);
+    const ir::vreg_t x = ir.new_vec(cfg.dt_x_reg);
+    const ir::vreg_t a = ir.new_vec(cfg.dt_a_reg);
     ir.vload_bcast(x, x_ptr, 0, cfg.dt_x);
     for (int r = 0; r < (int)acc.size(); r++) {
         const int elems = acc_elems_at(cfg, r, rows);
-        ir.vload_masked(a, a_ptr, cfg.dt_sz_a * (dim_t)r * cfg.acc_elems,
-                acc_mask(cfg, elems, gemv_tail_mask), elems);
+        emit_acc_load(ir, cfg, a, a_ptr,
+            cfg.dt_sz_a * (dim_t)r * cfg.acc_elems, gemv_tail_mask,
+            elems, cfg.dt_a);
         ir.vdot(acc[r], a, x);
     }
 }
@@ -799,8 +800,13 @@ status_t brgemv_ir_supported(const brgemm_desc_t &brg) {
     VCONDCHECK_BRGEMV_IR(brg.dt_b == brg.dt_a, VERBOSE_UNSUPPORTED_DT);
     // The kernel accumulates in f32 and has no conversion on the way out.
     VCONDCHECK_BRGEMV_IR(brg.dt_c == f32, VERBOSE_UNSUPPORTED_DT);
-    VCONDCHECK_BRGEMV_IR(
-            !brg.transA, VERBOSE_UNSUPPORTED_FEATURE, "transposed A");
+        VCONDCHECK_BRGEMV_IR(IMPLICATION(brg.transA, brg.dt_a == f32),
+            VERBOSE_UNSUPPORTED_DT);
+
+    // A vector accumulator stores neighboring outputs with a single
+    // instruction, so `y` has to be contiguous.
+    VCONDCHECK_BRGEMV_IR(IMPLICATION(brg.gemv_acc_is_vector(), brg.LDC == 1),
+            VERBOSE_UNSUPPORTED_FEATURE, "strided y with a vector accumulator");
 
     // With post-ops the kernel stores to D instead of C. It cannot convert the
     // accumulator on the way out, so it takes only `dt_d == dt_c`. The check is
@@ -859,7 +865,8 @@ status_t brgemv_ir_supported(const brgemm_desc_t &brg) {
     VCONDCHECK_BRGEMV_IR(
             !brg.is_runtime_ldc, VERBOSE_UNSUPPORTED_FEATURE, "runtime ldc");
 
-    const int m_block = brg.gemv_bd_block();
+    const int m_block
+            = brg.gemv_acc_is_vector() ? brg.bd_block : brg.gemv_bd_block();
     const int dt_sz_a = brg.typesize_A;
     const int dt_sz_y = brg.typesize_C;
     const dim_t incy = brg.LDC;
@@ -867,8 +874,17 @@ status_t brgemv_ir_supported(const brgemm_desc_t &brg) {
     // Ensure indexed displacements fit in 32-bit
     auto fits = [](dim_t v) { return v <= INT32_MAX && v >= INT32_MIN; };
 
-    VCONDCHECK_BRGEMV_IR(fits(dt_sz_a * (dim_t)m_block * brg.LDA),
-            VERBOSE_UNSUPPORTED_FEATURE, "A block offset overflows int32");
+    // A is K-major when it is transposed, which swaps the M and K strides.
+    const dim_t mblk_a_off = brg.transA ? dt_sz_a * (dim_t)m_block
+                                        : dt_sz_a * (dim_t)m_block * brg.LDA;
+    const dim_t kblk_a_off = brg.transA
+            ? dt_sz_a * (dim_t)brg.rd_block * brg.LDA
+            : dt_sz_a * (dim_t)brg.rd_block;
+
+    VCONDCHECK_BRGEMV_IR(fits(mblk_a_off), VERBOSE_UNSUPPORTED_FEATURE,
+            "A block offset overflows int32");
+    VCONDCHECK_BRGEMV_IR(fits(kblk_a_off), VERBOSE_UNSUPPORTED_FEATURE,
+            "A reduction step overflows int32");
     VCONDCHECK_BRGEMV_IR(fits(dt_sz_y * (dim_t)m_block * incy),
             VERBOSE_UNSUPPORTED_FEATURE, "y block offset overflows int32");
 
