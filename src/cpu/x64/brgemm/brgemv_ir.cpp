@@ -656,6 +656,94 @@ void build_gemv(const brgemm_desc_t &brg, ir::ir_t &ir) {
 
 } // namespace nontrans
 
+namespace trans {
+
+// Innermost reduction step.
+//
+// Broadcasts one element of `x`, then performs a multiply-add into every
+// accumulator using the matching slice of the current A row.
+//
+// A is K-major here, so a single K step reads one contiguous A row that spans
+// the whole M block. Each accumulator holds `acc_elems` outputs, and the last
+// one of the M tail may be only partially filled.
+void emit_microkernel(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
+        const std::vector<ir::vreg_t> &acc, ir::vreg_t a_ptr, ir::vreg_t x_ptr,
+        ir::vreg_t gemv_tail_mask, dim_t rows) {
+    const ir::vreg_t x = ir.new_vec(cfg.dt_x);
+    const ir::vreg_t a = ir.new_vec(cfg.dt_a);
+    ir.vload_bcast(x, x_ptr, 0, cfg.dt_x);
+    for (int r = 0; r < (int)acc.size(); r++) {
+        const int elems = acc_elems_at(cfg, r, rows);
+        ir.vload_masked(a, a_ptr, cfg.dt_sz_a * (dim_t)r * cfg.acc_elems,
+                acc_mask(cfg, elems, gemv_tail_mask), elems);
+        ir.vdot(acc[r], a, x);
+    }
+}
+
+// One M block.
+//
+// Contains one accumulator per `acc_elems` outputs, reduced across the batch
+// and then stored.
+//
+// Finally, advances the A and x pointers to the next M block.
+void emit_m_block(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
+        const m_loop_input_regs_t &regs, dim_t rows) {
+    const std::vector<ir::vreg_t> acc = init_accumulators(ir, cfg, regs, rows);
+
+    // Batch reduction over bs dimension
+    const ir::vreg_t batch_ptr = ir.new_gpr();
+    ir.mov_reg(batch_ptr, regs.invariant.batch);
+
+    auto bs_body = [&]() {
+        emit_bs_body(ir, cfg, batch_ptr, regs.advancing.a_off,
+                [&](ir::vreg_t a_ptr, ir::vreg_t x_ptr) {
+            emit_microkernel(ir, cfg, acc, a_ptr, x_ptr,
+                    regs.invariant.gemv_tail_mask, rows);
+        },
+                // A K block is a single element here, so there is no K tail
+                // (asserted in `build_gemv`).
+                [](ir::vreg_t, ir::vreg_t) {});
+    };
+    if (cfg.max_bs > 1)
+        ir::emit_loop_reg(ir, regs.invariant.bs, bs_body);
+    else
+        ir::emit_loop_imm(ir, 1, bs_body);
+
+    // Every accumulator already holds its outputs in the lanes they are stored
+    // from, so nothing is reduced horizontally.
+    emit_epilogue(ir, cfg, regs, acc, rows);
+}
+
+// Builds IR for GEMV with a transposed A matrix.
+//
+// Computes:
+//   y[i] = sum_k A[k][i] * x[k]
+//   (m = brg.bcast_dim, k = brg.reduce_dim, n = 1)
+//
+// The output is partitioned into full M blocks of `m_block` rows each, with a
+// final partial block of `m_tail` rows when m is not a multiple of m_block.
+//
+// Each M block:
+// - Maintains one accumulator per `acc_elems` neighboring outputs
+// - Accumulates over k one A row at a time across the batch, multiplying it by
+//   a broadcast element of x
+// - Stores the accumulators directly, without a horizontal reduction
+void build_gemv(const brgemm_desc_t &brg, ir::ir_t &ir) {
+    const brgemv_ir_conf_t cfg(brg);
+    // The transA blocking reduces one A row per K step (see
+    // `brgemm_blocking_vmm_gemv`), so `emit_m_block` has no K tail to handle.
+    assert(cfg.k_block == 1 && cfg.k_tail == 0);
+    const m_loop_input_regs_t regs = init_m_loop_input_regs(ir, cfg);
+
+    if (cfg.m_blocks > 0)
+        ir::emit_loop_imm(ir, cfg.m_blocks,
+                [&]() { emit_m_block(ir, cfg, regs, cfg.m_block); });
+
+    if (cfg.m_tail > 0) emit_m_block(ir, cfg, regs, cfg.m_tail);
+}
+
+} // namespace trans
+
 namespace {
 
 // IR-based BRGEMV kernel.
@@ -666,8 +754,13 @@ struct jit_brgemv_ir_kernel_t : public brgemm_kernel_t {
         : brgemm_kernel_t(jit_name(), abrg.isa_impl), brg_(abrg) {}
 
     void generate() override {
+        // Build IR for the GEMV kernel. The two A layouts differ in how the
+        // reduction feeds the accumulators, so each has its own builder.
         ir::ir_t ir;
-        nontrans::build_gemv(brg_, ir);
+        if (brg_.transA)
+            trans::build_gemv(brg_, ir);
+        else
+            nontrans::build_gemv(brg_, ir);
 
         ir::postops_config_t postops;
         if (brg_.with_eltwise || brg_.with_binary || brg_.with_sum) {
