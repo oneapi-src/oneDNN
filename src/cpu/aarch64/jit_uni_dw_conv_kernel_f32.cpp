@@ -103,24 +103,78 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<asimd>::load_src(
             ldr(QReg(1),
                     ptr(addr_off(reg_bias, b_off * sizeof(float),
                             X_DEFAULT_ADDR, reg_tmp_imm)));
+            if (ch_blk == 8)
+                ldr(QReg(2),
+                        ptr(addr_off(reg_bias, (b_off + 4) * sizeof(float),
+                                X_DEFAULT_ADDR, reg_tmp_imm)));
+            if (jcp.acc_dt == data_type::f16) {
+                fcvtn(VReg4H(1), VReg4S(1));
+                if (ch_blk == 8) fcvtn2(VReg8H(1), VReg4S(2));
+            }
         }
         for (int ow = 0; ow < ur_w; ow++) {
-            const int acc_idx = get_acc_reg(ch * ur_w + ow).getIdx();
+            const int acc_idx = 4 + ch * (ch_blk == 8 ? jcp.ur_w : ur_w) + ow;
+            // An eight-channel block uses two FP32 accumulators in strict mode.
+            const int upper_acc_idx
+                    = ch_blk == 8 && jcp.acc_dt == data_type::f32
+                    ? 4 + (ch + jcp.nb_ch_blocking) * jcp.ur_w + ow
+                    : 0;
 
             if (this->jcp.with_bias && acc_idx != 1) {
                 mov(VReg16B(acc_idx), VReg16B(1));
+                if (ch_blk == 8 && jcp.acc_dt == data_type::f32)
+                    mov(VReg16B(upper_acc_idx), VReg16B(2));
             } else {
                 uni_clear(VReg(acc_idx));
+                if (ch_blk == 8 && jcp.acc_dt == data_type::f32)
+                    uni_clear(VReg(upper_acc_idx));
             }
 
             int o_off = ow * ow_stride;
             if (this->jcp.with_sum) {
-                auto z_tmp = QReg(0);
-                assert(jcp.dst_dt == data_type::f32);
-                ldr(z_tmp,
-                        ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
-                                X_DEFAULT_ADDR, reg_tmp_imm)));
-                fadd(VReg4S(acc_idx), VReg4S(acc_idx), VReg4S(0));
+                if (jcp.dst_dt == data_type::f32) {
+                    ldr(QReg(0),
+                            ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
+                                    X_DEFAULT_ADDR, reg_tmp_imm)));
+                    fadd(VReg4S(acc_idx), VReg4S(acc_idx), VReg4S(0));
+                } else if (jcp.dst_dt == data_type::f16) {
+                    if (jcp.acc_dt == data_type::f16) {
+                        if (ch_blk == 8) {
+                            ldr(QReg(0),
+                                    ptr(addr_off(reg_tmp_addr,
+                                            o_off * jcp.typesize_out,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                            fadd(VReg8H(acc_idx), VReg8H(acc_idx), VReg8H(0));
+                        } else {
+                            ldr(DReg(0),
+                                    ptr(addr_off(reg_tmp_addr,
+                                            o_off * jcp.typesize_out,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                            fadd(VReg4H(acc_idx), VReg4H(acc_idx), VReg4H(0));
+                        }
+                    } else {
+                        if (ch_blk == 8) {
+                            ldr(QReg(0),
+                                    ptr(addr_off(reg_tmp_addr,
+                                            o_off * jcp.typesize_out,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                            fcvtl(VReg4S(3), VReg4H(0));
+                            fcvtl2(VReg4S(0), VReg8H(0));
+                            fadd(VReg4S(acc_idx), VReg4S(acc_idx), VReg4S(3));
+                            fadd(VReg4S(upper_acc_idx), VReg4S(upper_acc_idx),
+                                    VReg4S(0));
+                        } else {
+                            ldr(DReg(0),
+                                    ptr(addr_off(reg_tmp_addr,
+                                            o_off * jcp.typesize_out,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                            fcvtl(VReg4S(0), VReg4H(0));
+                            fadd(VReg4S(acc_idx), VReg4S(acc_idx), VReg4S(0));
+                        }
+                    }
+                } else {
+                    assert(!"Unsupported: data type");
+                }
             }
         }
     }
@@ -141,6 +195,7 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<isa>::apply_filter_unrolled(
     const auto icb_stride = src_layout_nxc
             ? ch_blk
             : (jcp.is_fused_conv ? 1 : jcp.ih) * jcp.iw * ch_blk;
+    const int wei_block_stride = jcp.kh * jcp.kw * ch_blk * jcp.typesize_in;
 
     Label iter_exit_label;
 
@@ -156,7 +211,14 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<isa>::apply_filter_unrolled(
             add(aux_reg_input, aux_reg_input, reg_iw_offset);
         }
 
-        for (int ch = 0; ch < ur_ch_blocks; ch++) {
+        for (int ch = 0; ch < ur_ch_blocks;) {
+            // Eight f16 lanes come from one 8c block or two NHWC 4c blocks.
+            const bool use_8h = isa == asimd && jcp.src_dt == data_type::f16
+                    && jcp.wei_dt == data_type::f16
+                    && (ch_blk == 8
+                            || (jcp.acc_dt == data_type::f32 && ch_blk == 4
+                                    && src_layout_nxc
+                                    && ch + 1 < ur_ch_blocks));
             // adjust the src offset so it's always within the range expected by LD_MUL_VL.
             add_imm(reg_tmp_addr, aux_reg_input,
                     (ch * icb_stride) * jcp.typesize_in, reg_tmp_imm);
@@ -166,18 +228,40 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<isa>::apply_filter_unrolled(
             for (int kw = 0; kw < jcp.kw; kw++) {
                 int ker_off = kw * ch_blk;
                 if (isa == asimd) {
-                    QReg zregs_ker = QReg(0);
-                    assert(jcp.dst_dt == data_type::f32);
-                    ldr(zregs_ker,
-                            ptr(addr_off(reg_tmp2_addr,
-                                    ker_off * jcp.typesize_in, X_DEFAULT_ADDR,
-                                    reg_tmp_imm)));
+                    if (jcp.wei_dt == data_type::f32) {
+                        ldr(QReg(0),
+                                ptr(addr_off(reg_tmp2_addr,
+                                        ker_off * jcp.typesize_in,
+                                        X_DEFAULT_ADDR, reg_tmp_imm)));
+                    } else if (jcp.wei_dt == data_type::f16) {
+                        if (ch_blk == 8) {
+                            ldr(QReg(0),
+                                    ptr(addr_off(reg_tmp2_addr,
+                                            ker_off * jcp.typesize_in,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                        } else {
+                            ldr(DReg(0),
+                                    ptr(addr_off(reg_tmp2_addr,
+                                            ker_off * jcp.typesize_in,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                        }
+                        if (use_8h && ch_blk == 4) {
+                            ldr(DReg(2),
+                                    ptr(addr_off(reg_tmp2_addr,
+                                            wei_block_stride
+                                                    + ker_off * jcp.typesize_in,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                            ins(VReg2D(0)[1], VReg2D(2)[0]);
+                        }
+                    } else {
+                        assert(!"Unsupported: data type");
+                    }
                 } else {
                     ZReg zregs_ker = get_ker_reg(0);
-                    if (jcp.dst_dt == data_type::f32) {
+                    if (jcp.wei_dt == data_type::f32) {
                         LD_MUL_VL(ld1w, zregs_ker.s, P_ALL_ONE, reg_tmp2_addr,
                                 ker_off * jcp.typesize_in, jcp.typesize_in);
-                    } else if (jcp.dst_dt == data_type::bf16) {
+                    } else if (jcp.wei_dt == data_type::bf16) {
                         LD_MUL_VL(ld1h, zregs_ker.s, P_ALL_ONE, reg_tmp2_addr,
                                 ker_off * jcp.typesize_in, jcp.typesize_in);
                     } else {
@@ -191,25 +275,59 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<isa>::apply_filter_unrolled(
                     int inp_off = (ow * stride_w - pad_l) * iw_stride
                             + kw * dilate_w * iw_stride;
                     if (isa == asimd) {
-                        QReg zregs_src = QReg(1);
-                        ldr(zregs_src,
-                                ptr(addr_off(reg_tmp_addr,
-                                        inp_off * jcp.typesize_in,
-                                        X_DEFAULT_ADDR, reg_tmp_imm)));
                         const int acc_idx
-                                = get_acc_reg(ch * ur_w + ow).getIdx();
-                        fmla(VReg4S(acc_idx), VReg4S(1), VReg4S(0));
+                                = 4 + ch * (ch_blk == 8 ? jcp.ur_w : ur_w) + ow;
+                        if (jcp.src_dt == data_type::f32) {
+                            ldr(QReg(1),
+                                    ptr(addr_off(reg_tmp_addr,
+                                            inp_off * jcp.typesize_in,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                            fmla(VReg4S(acc_idx), VReg4S(1), VReg4S(0));
+                        } else if (jcp.src_dt == data_type::f16) {
+                            if (use_8h) {
+                                ldr(QReg(1),
+                                        ptr(addr_off(reg_tmp_addr,
+                                                inp_off * jcp.typesize_in,
+                                                X_DEFAULT_ADDR, reg_tmp_imm)));
+                            } else {
+                                ldr(DReg(1),
+                                        ptr(addr_off(reg_tmp_addr,
+                                                inp_off * jcp.typesize_in,
+                                                X_DEFAULT_ADDR, reg_tmp_imm)));
+                            }
+                            if (jcp.acc_dt == data_type::f16) {
+                                assert(ch_blk == 4 || ch_blk == 8);
+                                if (use_8h)
+                                    fmla(VReg8H(acc_idx), VReg8H(1), VReg8H(0));
+                                else
+                                    fmla(VReg4H(acc_idx), VReg4H(1), VReg4H(0));
+                            } else {
+                                fmlal(VReg4S(acc_idx), VReg4H(1), VReg4H(0));
+                                if (use_8h) {
+                                    const int upper_acc_idx = ch_blk == 8
+                                            ? 4
+                                                    + (ch + jcp.nb_ch_blocking)
+                                                            * jcp.ur_w
+                                                    + ow
+                                            : 4 + (ch + 1) * ur_w + ow;
+                                    fmlal2(VReg4S(upper_acc_idx), VReg4H(1),
+                                            VReg4H(0));
+                                }
+                            }
+                        } else {
+                            assert(!"Unsupported: data type");
+                        }
                     } else {
                         ZReg zregs_ker = get_ker_reg(0);
                         ZReg zregs_src = get_src_reg(1);
-                        if (jcp.dst_dt == data_type::f32) {
+                        if (jcp.src_dt == data_type::f32) {
                             LD_MUL_VL(ld1w, zregs_src.s, P_ALL_ONE,
                                     reg_tmp_addr, inp_off * jcp.typesize_in,
                                     jcp.typesize_in);
                             ZRegS zregs_acc = get_acc_reg_s(ch * ur_w + ow);
                             fmla(zregs_acc, P_ALL_ONE, zregs_src.s,
                                     zregs_ker.s);
-                        } else if (jcp.dst_dt == data_type::bf16) {
+                        } else if (jcp.src_dt == data_type::bf16) {
                             LD_MUL_VL(ld1h, zregs_src.s, P_ALL_ONE,
                                     reg_tmp_addr, inp_off * jcp.typesize_in,
                                     jcp.typesize_in);
@@ -221,6 +339,7 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<isa>::apply_filter_unrolled(
                     }
                 }
             }
+            ch += use_8h && ch_blk == 4 ? 2 : 1;
         }
 
         add_imm(aux_reg_kernel, aux_reg_kernel,
@@ -246,7 +365,19 @@ template <cpu_isa_t isa>
 void jit_uni_dw_conv_fwd_kernel_f32_t<isa>::apply_activation(
         int ur_ch_blocks, int ur_w) {
     if (this->jcp.with_eltwise) {
-        eltwise_injector_->compute_vector_range(4, ur_w * ur_ch_blocks + 4);
+        if (isa == asimd && jcp.ch_block == 8) {
+            injector_utils::vmm_index_set_t acc_idxs;
+            for (int ch = 0; ch < ur_ch_blocks; ch++) {
+                for (int ow = 0; ow < ur_w; ow++) {
+                    acc_idxs.emplace(4 + ch * jcp.ur_w + ow);
+                    acc_idxs.emplace(
+                            4 + (ch + jcp.nb_ch_blocking) * jcp.ur_w + ow);
+                }
+            }
+            eltwise_injector_->compute_vector_range(acc_idxs);
+        } else {
+            eltwise_injector_->compute_vector_range(4, ur_w * ur_ch_blocks + 4);
+        }
     }
 }
 
@@ -297,11 +428,31 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<asimd>::store_dst(
                 reg_tmp_imm);
         for (int ow = 0; ow < ur_w; ow++) {
             const int o_off = ow * ow_stride;
-            assert(jcp.dst_dt == data_type::f32);
-            const int acc_idx = get_acc_reg(ch * ur_w + ow).getIdx();
-            str(QReg(acc_idx),
-                    ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
-                            X_DEFAULT_ADDR, reg_tmp_imm)));
+            const int acc_idx = 4 + ch * (ch_blk == 8 ? jcp.ur_w : ur_w) + ow;
+            if (jcp.dst_dt == data_type::f32) {
+                str(QReg(acc_idx),
+                        ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
+                                X_DEFAULT_ADDR, reg_tmp_imm)));
+            } else if (jcp.dst_dt == data_type::f16) {
+                if (jcp.acc_dt == data_type::f32)
+                    fcvtn(VReg4H(acc_idx), VReg4S(acc_idx));
+                if (ch_blk == 8) {
+                    if (jcp.acc_dt == data_type::f32) {
+                        const int upper_acc_idx
+                                = 4 + (ch + jcp.nb_ch_blocking) * jcp.ur_w + ow;
+                        fcvtn2(VReg8H(acc_idx), VReg4S(upper_acc_idx));
+                    }
+                    str(QReg(acc_idx),
+                            ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
+                                    X_DEFAULT_ADDR, reg_tmp_imm)));
+                } else {
+                    str(DReg(acc_idx),
+                            ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
+                                    X_DEFAULT_ADDR, reg_tmp_imm)));
+                }
+            } else {
+                assert(!"Unsupported: data type");
+            }
         }
     }
 }

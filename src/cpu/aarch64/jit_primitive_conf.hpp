@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2016 Intel Corporation
 * Copyright 2020-2024 FUJITSU LIMITED
-* Copyright 2025 Arm Ltd. and affiliates
+* Copyright 2025-2026 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -171,6 +171,7 @@ struct jit_conv_conf_t {
     data_type_t src_dt;
     /* bf16 weights update */
     data_type_t wei_dt;
+    data_type_t acc_dt;
     data_type_t dsrc_dt;
     data_type_t dwei_dt;
     bool expl_bcast;

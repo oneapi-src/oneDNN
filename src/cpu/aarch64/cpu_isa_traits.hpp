@@ -270,6 +270,11 @@ inline bool mayiuse_f16() {
     return cpu().isF16Supported();
 }
 
+inline bool mayiuse_fhm() {
+    using namespace Xbyak_aarch64::util;
+    return cpu().isFhmSupported();
+}
+
 inline int isa_num_vregs(cpu_isa_t isa) {
     if (isa == sve_512)
         return cpu_isa_traits<sve_512>::n_vregs;

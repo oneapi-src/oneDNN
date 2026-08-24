@@ -34,7 +34,7 @@ namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type = src_type>
+template <cpu_isa_t isa>
 struct jit_uni_dw_convolution_fwd_t : public primitive_t {
     struct pd_t : public cpu_convolution_fwd_pd_t {
         // Note: check `USING_INHERITED_IS_IMPOSSIBLE` comment in other files
@@ -47,30 +47,38 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
                 jit_uni_dw_convolution_fwd_t);
 
         status_t init(const engine_t *engine) {
+            using smask_t = primitive_attr_t::skip_mask_t;
             VDISPATCH_CONV(
                     DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL,
                     VERBOSE_UNSUPPORTED_THREADPOOL_RUNTIME);
 
+            const auto src_type = this->desc()->src_desc.data_type;
+            const auto acc_mode = attr()->acc_mode_;
+            const bool use_f16_acc = src_type == data_type::f16
+                    && acc_mode == accumulation_mode::any;
             bool ok = true && is_fwd()
                     && set_default_alg_kind(alg_kind::convolution_direct)
+                    && utils::one_of(src_type, data_type::f32, data_type::bf16,
+                            data_type::f16)
                     && expect_data_types(src_type, src_type, data_type::undef,
-                            dst_type, data_type::f32)
+                            src_type, data_type::f32)
                     && IMPLICATION(this->with_bias(),
                             utils::one_of(this->desc()->bias_desc.data_type,
                                     data_type::f32, data_type::bf16))
-                    && attr()->has_default_values(
-                            primitive_attr_t::skip_mask_t::post_ops, dst_type)
+                    && utils::one_of(acc_mode, accumulation_mode::strict,
+                            accumulation_mode::relaxed, accumulation_mode::any)
+                    && IMPLICATION(use_f16_acc,
+                            attr()->post_ops_.find(primitive_kind::eltwise)
+                                    == -1)
+                    && attr()->has_default_values(smask_t::post_ops, src_type)
                     && !has_zero_dim_memory();
             if (!ok) return status::unimplemented;
 
-            status_t status
-                    = jit_uni_dw_conv_fwd_kernel_t<isa, src_type>::init_conf(
-                            jcp_, *desc(), src_md_, weights_md_, bias_md_,
-                            dst_md_, *attr());
-            if (status != status::success) return status;
+            CHECK(jit_uni_dw_conv_fwd_kernel_base_t::init_conf(jcp_, isa,
+                    *desc(), src_md_, weights_md_, bias_md_, dst_md_, *attr()));
 
             auto scratchpad = scratchpad_registry().registrar();
-            jit_uni_dw_conv_fwd_kernel_t<isa, src_type>::init_scratchpad(
+            jit_uni_dw_conv_fwd_kernel_base_t::init_scratchpad(
                     scratchpad, jcp_);
 
             return status::success;
@@ -83,12 +91,10 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
 
     using f32_data_t = typename prec_traits_t<data_type::f32>::type;
     using bf16_data_t = typename prec_traits_t<data_type::bf16>::type;
-    using data_t = typename prec_traits_t<src_type>::type;
-    using dst_data_t = typename prec_traits_t<dst_type>::type;
 
     status_t init(engine_t *engine) override {
-        CHECK(safe_ptr_assign(kernel_,
-                new jit_uni_dw_conv_fwd_kernel_t<isa, src_type>(pd()->jcp_)));
+        CHECK(safe_ptr_assign(
+                kernel_, new jit_uni_dw_conv_fwd_kernel_t<isa>(pd()->jcp_)));
         return kernel_->create_kernel();
     }
 
@@ -98,21 +104,13 @@ struct jit_uni_dw_convolution_fwd_t : public primitive_t {
     }
 
 private:
+    static int get_exec_num_of_threads(
+            const memory_desc_wrapper &dst_d, const jit_conv_conf_t &jcp);
     void execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
-    std::unique_ptr<jit_uni_dw_conv_fwd_kernel_t<isa, src_type>> kernel_;
+    std::unique_ptr<jit_uni_dw_conv_fwd_kernel_base_t> kernel_;
 };
-using jit_sve_512_dw_convolution_fwd_t
-        = jit_uni_dw_convolution_fwd_t<sve_512, data_type::f32>;
-using jit_sve_256_dw_convolution_fwd_t
-        = jit_uni_dw_convolution_fwd_t<sve_256, data_type::f32>;
-using jit_sve_asimd_dw_convolution_fwd_t
-        = jit_uni_dw_convolution_fwd_t<asimd, data_type::f32>;
-using jit_sve_256_dw_convolution_bf16_fwd_t
-        = jit_uni_dw_convolution_fwd_t<sve_256, data_type::bf16>;
-using jit_sve_128_dw_convolution_bf16_fwd_t
-        = jit_uni_dw_convolution_fwd_t<sve_128, data_type::bf16>;
 
 template <cpu_isa_t isa, data_type_t diff_dst_type,
         data_type_t diff_src_type = diff_dst_type>
