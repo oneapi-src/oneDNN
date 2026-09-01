@@ -909,7 +909,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.kParallelLocal)    s << (strategy.shrinkWGK   ? " akr" :
                                           strategy.kInterleave ? " ikr" :
                                                                  " kr");
-    if (strategy.fillGoal)          s << " fg" << strategy.fillGoal * (1. / 16);
+    if (strategy.fillGoal)          s << " fg " << strategy.fillGoal * (1. / 16);
     if (strategy.kInterleave)       s << " ki" << strategy.kInterleaveChunk;
 
     if (strategy.fixedSystolic)

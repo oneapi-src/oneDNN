@@ -417,6 +417,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
             if (problem.bqGroupK % wg[LoopK]) stub();
             kchunk0 = lcm(kchunk0, std::max(1, problem.bqGroupK / wg[LoopK]));
         }
+        if (kchunk0 <= 0) stub("k-interleave incompatible with SLM copy here");
         kInterleaveChunk = align_up(kInterleaveChunk, kchunk0);
         kInterleaveChunk = std::max(kInterleaveChunk, kchunk0);
     }
@@ -441,6 +442,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     if (l3PrefetchA) ukAlign = lcm(ukAlign, ka_prefetchL3);
     if (l3PrefetchB) ukAlign = lcm(ukAlign, kb_prefetchL3);
 
+    if (ukAlign <= 0) stub("Zero k-unroll alignment");
     unroll[LoopK] = align_up(unroll[LoopK], ukAlign);
 
     if (unrollKSLM == 0)
