@@ -83,6 +83,8 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
 
     const int32_t *wei_zero_points = CTX_IN_MEM(
             const int32_t *, DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
+    const int32_t *dst_zero_points = CTX_IN_MEM(
+            const int32_t *, DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_DST);
 
     const auto src_d = ctx.memory_mdw(DNNL_ARG_SRC, pd()->src_md());
     const auto weights_d = ctx.memory_mdw(DNNL_ARG_WEIGHTS, pd()->weights_md());
@@ -119,6 +121,9 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     // Initialize a memory desc for quant entries for easier offset calculation.
     memory_desc_t wei_zp_md {};
     CHECK(attr_zps.get(DNNL_ARG_WEIGHTS).get_md(wei_zp_md, *weights_d.md_));
+
+    const int dst_zp_idx_mult = !attr_zps.has_default_values(DNNL_ARG_DST)
+            && attr_zps.get_mask(DNNL_ARG_DST) > 0;
 
     const int src_mask
             = utils::get_dims_mask(dst_d.dims(), src_d.dims(), ndims);
@@ -324,6 +329,11 @@ status_t ref_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
                         const float dst_scale = io::load_float_value(
                                 dst_scale_dt, dst_scales, dst_scale_off);
                         d /= dst_scale;
+                    }
+                    if (dst_zero_points) {
+                        const int dst_zp = io::load_int_value(data_type::s32,
+                                dst_zero_points, dst_zp_idx_mult * n);
+                        d += static_cast<float>(dst_zp);
                     }
                     if (dst_rnd_mode == rounding_mode::stochastic)
                         // NOTE: dst_off is truncated to 32 bits here. For

@@ -28,16 +28,19 @@
 
 # Zero-points check
 --reset
---dt=s8:s8:s8,s8:s8:s32,u8:s8:f32
+--dt=u8:s8:f32
+--attr-zero-points=src:common:-1+wei:common:1
+--batch=shapes_2d
+
+--dt=s8:s8:s8,s8:s8:s32
 --attr-zero-points=src:common:1+wei:common:-1+dst:common:2, \
-                   src:common:-1+wei:common:1, \
                    src:per_dim_1+wei:common:1+dst:common:2
 --batch=shapes_2d
 
+--dt=s8:s8:s8,s8:s8:s32
 --attr-zero-points=src:common:1+wei:common:-1+dst:common:2, \
                    src:common:-1+wei:common:1
 --batch=shapes_3d
---attr-zero-points=
 
 # Weights decompression
 --reset
