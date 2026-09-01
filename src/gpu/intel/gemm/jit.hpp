@@ -34,6 +34,7 @@
 #include "gpu/intel/gemm/primitive.hpp"
 #include "gpu/intel/gemm/utils.hpp"
 #include "gpu/intel/logging.hpp"
+#include "gpu/intel/primitive_attr.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -115,7 +116,8 @@ struct gen_t : public primitive_t {
                     | smask_t::scales | smask_t::scales_data_type
                     | smask_t::scales_groups | smask_t::precomputed_reductions
                     | smask_t::zero_points | smask_t::zero_points_data_type
-                    | smask_t::zero_points_groups | smask_t::post_ops_inplace;
+                    | smask_t::zero_points_groups | smask_t::post_ops_inplace
+                    | smask_t::gpu_attr;
             VDISPATCH_GEMM(attr()->has_default_values(attr_skip_mask),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GEMM(
@@ -305,6 +307,11 @@ struct gen_t : public primitive_t {
                 kernel_desc_.set_efficient_64b(dev_info_->is_efficient_64bit());
 
             bool kernel_success = false;
+            if (attr()->gpu_attr_) {
+                auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+                        attr()->gpu_attr_.get());
+                kernel_desc_.set_kernel_override(gpu_attr->kernel_override());
+            }
             auto lda = ld(DNNL_ARG_A);
             auto ldb = ld(DNNL_ARG_B);
             if (swap_ab_) std::swap(lda, ldb);
@@ -588,6 +595,15 @@ struct gen_t : public primitive_t {
             return &kernel_desc_;
         }
 
+        // Deployed (post-finalize) strategy string; lazily dumped and cached.
+        const std::string &gemm_kernel_str() const {
+            if (kernel_str_.empty())
+                kernel_str_ = jit::dump_kernel(kernel_desc_.hw(),
+                        *kernel_desc_.problem(), *kernel_desc_.strategy(),
+                        kernel_desc_.aux_params());
+            return kernel_str_;
+        }
+
         int max_k_sliced_groups() const {
             const auto *info = kernel_desc()->driver_info();
 
@@ -607,6 +623,7 @@ struct gen_t : public primitive_t {
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
 
         kernel_desc_t kernel_desc_;
+        mutable std::string kernel_str_; // lazy dump for dnnl_impl_gpu_intel_get_gemm_kernel
     };
 
     gen_t(const pd_t *apd) : primitive_t(apd) {}
