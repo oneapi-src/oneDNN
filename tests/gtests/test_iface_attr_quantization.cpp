@@ -21,6 +21,9 @@
 
 #include "src/cpu/platform.hpp"
 
+#include <set>
+#include <tuple>
+
 namespace dnnl {
 
 // short names for brevity
@@ -477,20 +480,34 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
     // cuDNN doesn't support zero points
     SKIP_IF_CUDA(true, "Test not supported on cuda");
 
-    for (auto a_dt : {data_type::f32, data_type::u8}) {
-        const data_type b_dt
-                = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;
+    static const std::set<std::tuple<data_type, data_type, data_type>> dt_cfgs
+            = {
+                    {data_type::f32, data_type::f32, data_type::f32},
+                    {data_type::u8, data_type::s8, data_type::f32},
+                    {data_type::s8, data_type::s8, data_type::s8},
+            };
+
+    for (const auto &dt_set : dt_cfgs) {
+        const auto a_dt = std::get<0>(dt_set);
+        const auto b_dt = std::get<1>(dt_set);
+        const auto c_dt = std::get<2>(dt_set);
 
         memory::desc a_md {{10, 64}, a_dt, tag::ab};
         memory::desc b_md {{64, 20}, b_dt, tag::ba};
-        memory::desc c_md {{10, 20}, data_type::f32, tag::ab};
+        memory::desc c_md {{10, 20}, c_dt, tag::ab};
 
         CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md));
         CHECK_OK(matmul::primitive_desc(
                 eng, a_md, b_md, c_md, gen_attr_with_scales()));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-            if (a_dt != data_type::u8 && a_dt != data_type::s8) {
+            const auto arg_dt = arg == DNNL_ARG_SRC ? a_dt
+                    : arg == DNNL_ARG_WEIGHTS       ? b_dt
+                                                    : c_dt;
+            const bool arg_dt_is_int = dnnl::impl::utils::one_of(
+                    arg_dt, data_type::u8, data_type::s8);
+
+            if (!arg_dt_is_int) {
                 CHECK_UNIMPL(matmul::primitive_desc(
                         eng, a_md, b_md, c_md, gen_attr_with_zp(arg)));
             } else {
@@ -543,7 +560,7 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
             } else if (arg == DNNL_ARG_SRC) {
                 CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                         gen_attr_with_scales(arg, 1 << 1)));
-                if (a_dt == data_type::u8) {
+                if (arg_dt_is_int) {
                     CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(
                                     arg, 1 << 1, data_type::f32, {1, 32})));
@@ -609,13 +626,21 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
 }
 
 CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
-    for (auto a_dt : {data_type::f32, data_type::u8}) {
-        const data_type b_dt
-                = a_dt == data_type::f32 ? data_type::f32 : data_type::s8;
+    static const std::set<std::tuple<data_type, data_type, data_type>> dt_cfgs
+            = {
+                    {data_type::f32, data_type::f32, data_type::f32},
+                    {data_type::u8, data_type::s8, data_type::f32},
+                    {data_type::s8, data_type::s8, data_type::s8},
+            };
+
+    for (const auto &dt_set : dt_cfgs) {
+        const auto a_dt = std::get<0>(dt_set);
+        const auto b_dt = std::get<1>(dt_set);
+        const auto c_dt = std::get<2>(dt_set);
 
         memory::desc a_md {{2, 5, 10, 64}, a_dt, tag::abcd};
         memory::desc b_md {{2, 5, 64, 20}, b_dt, tag::abdc};
-        memory::desc c_md {{2, 5, 10, 20}, data_type::f32, tag::abcd};
+        memory::desc c_md {{2, 5, 10, 20}, c_dt, tag::abcd};
         const auto ndims = a_md.get_ndims();
 
         CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md));
@@ -623,7 +648,13 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
                 eng, a_md, b_md, c_md, gen_attr_with_scales()));
 
         for (auto arg : {DNNL_ARG_SRC, DNNL_ARG_WEIGHTS, DNNL_ARG_DST}) {
-            if (a_dt != data_type::u8 && a_dt != data_type::s8) {
+            const auto arg_dt = arg == DNNL_ARG_SRC ? a_dt
+                    : arg == DNNL_ARG_WEIGHTS       ? b_dt
+                                                    : c_dt;
+            const bool arg_dt_is_int = dnnl::impl::utils::one_of(
+                    arg_dt, data_type::u8, data_type::s8);
+
+            if (!arg_dt_is_int) {
                 CHECK_UNIMPL(matmul::primitive_desc(
                         eng, a_md, b_md, c_md, gen_attr_with_zp(arg)));
             } else {
@@ -641,7 +672,8 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
                         gen_attr_with_scales(arg, per_oc_mask)));
             }
 
-            if (a_dt != data_type::u8 && a_dt != data_type::s8) continue;
+            if (!arg_dt_is_int) continue;
+
             // scales: all_dims mask for int8 type only.
             const auto all_dims_mask = (1 << ndims) - 1;
             const auto per_ocic_mask = (1 << (ndims - 1)) + (1 << (ndims - 2));

@@ -30,16 +30,26 @@
 --stag=ab,ba,any --wtag=ab,ba,any --dtag=ab,any
 1x30:30x20
 
-# test x8x8x8
+# test x8x8*
 --reset
---dt=u8:s8:s32,u8:s8:f32,s8:s8:s8,u8:s8:f16
+--dt=u8:s8:s32,s8:s8:s8
+--runtime_dims_masks=0:2,1:2
+--bia-dt=undef,f32,u8
+--stag=ab,ba --wtag=ab --dtag=ab
+--attr-scales=src:common:0.25+wei:common:0.5+dst:common:2
+--attr-zero-points=src:common:1+wei:common:-1,src:host_scalar:1+wei:host_scalar:-1
+--attr-post-ops=sum+relu+add:f32+add:u8:per_tensor+linear:0.5:1.5+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01
+100x10:10x10
+
+--reset
+--dt=u8:s8:s32,s8:s8:s8
 --runtime_dims_masks=0:2,1:2
 --bia-dt=undef,f32,u8
 --stag=ab,ba --wtag=ab --dtag=ab
 --attr-scales=src:common:0.25+wei:common:0.5+dst:common:2
 --attr-zero-points=src:common:1+wei:common:-1+dst:common:2,\
                 src:host_scalar:1+wei:host_scalar:-1+dst:host_scalar:2
---attr-post-ops=sum+relu+add:f32+add:u8:per_tensor+linear:0.5:1.5:2.0+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01
+--attr-post-ops=sum+relu+add:f32+add:u8:per_tensor+linear:0.5:1.5+mul:f32:per_dim_0+add:s8:per_oc+add:f32:per_dim_01
 100x10:10x10
 
 --dt=s8:s8:s8,s8:s8:s32,s8:s8:u8
