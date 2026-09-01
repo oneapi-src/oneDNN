@@ -566,6 +566,10 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
                             gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
                                     data_type::f32, {1, 32})));
                 }
+            } else if (arg == DNNL_ARG_DST) {
+                // Static per-N destination scales are not supported.
+                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                        gen_attr_with_scales(arg, 1 << 1)));
             }
         }
     }
@@ -645,7 +649,7 @@ CPU_TEST_F(attr_quantization_test_t, TestMatmulBatch) {
                         gen_attr_with_scales(
                                 arg, per_ocic_mask, data_type::f32, {1, 32})));
             } else {
-                CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                         gen_attr_with_scales(arg, per_tensor_mask)));
             }
         }
