@@ -17,6 +17,8 @@
 #ifndef GPU_INTEL_GEMM_JIT_GEN_KERNEL_HPP
 #define GPU_INTEL_GEMM_JIT_GEN_KERNEL_HPP
 
+#include <string>
+
 #include "common/c_types_map.hpp"
 #include "gemmstone/driver_info.hpp"
 #include "gemmstone/kernel_catalog.hpp"
@@ -66,6 +68,7 @@ struct gen_desc_t {
 
     const gemmstone::GEMMProblem *problem() const { return &problem_; }
     const gemmstone::GEMMStrategy *strategy() const { return &strategy_; }
+    ngen::HW hw() const { return hw_; }
 
     const gemmstone::CommonDriverInfo *driver_info() const {
         return &driver_info_;
@@ -100,6 +103,10 @@ struct gen_desc_t {
         efficient_64b_ = efficient_64b;
     }
 
+    void set_kernel_override(const std::string &kernel) {
+        kernel_override_ = kernel;
+    }
+
 protected:
     compute::gpu_arch_t arch_;
     ngen::HW hw_ = ngen::HW::Unknown;
@@ -114,6 +121,8 @@ protected:
 
     bool efficient_64b_ = false;
 
+    std::string kernel_override_;
+
     /* optional information to fine-tune kernel */
     int m_ = -1, n_ = -1, k_ = -1;
     int eu_count_ = -1;
@@ -121,6 +130,7 @@ protected:
     bool relaxed_acc_ = false;
 
     status_t finalize(const char *tags);
+    status_t apply_kernel_override(std::string ovr_strategy);
     void update_driver_info();
 };
 
@@ -171,6 +181,10 @@ struct gen_xe_systolic_kernel_desc_t : public gen_desc_t {
 
     static int min_block_k(data_type_t a_type) { return 2048; }
 };
+
+std::string dump_kernel(ngen::HW hw, const gemmstone::GEMMProblem &problem,
+        const gemmstone::GEMMStrategy &strategy,
+        const gemmstone::EvaluateAuxOutput *aux = nullptr);
 
 struct gen_kernel_t : public intel::jit::generator_base_t {
 
