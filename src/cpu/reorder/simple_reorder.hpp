@@ -112,7 +112,13 @@ struct conv_req_comp {}; // {s8, u8: asymmetric quantization}
             / (with_dst_scales ? dst_scales[0] : 1.f); \
     MAYBE_UNUSED(alpha); \
     const float beta = pd->beta(); \
-    MAYBE_UNUSED(beta);
+    MAYBE_UNUSED(beta); \
+    /* Kernels folding `1 / dst_scale` into `alpha` need the sum term scaled \
+     * the same way, since `(src_scale * src + beta * dst) / dst_scale != \
+     * alpha * src + beta * dst`. Kernels applying `dst_scale` separately \
+     * (e.g. the reference one) keep using the raw `beta`. */ \
+    const float beta_scaled = with_dst_scales ? beta / dst_scales[0] : beta; \
+    MAYBE_UNUSED(beta_scaled);
 
 #define GET_SCRATCHPAD_SIZE_ZERO() \
     static size_t get_scratchpad_size(const memory_desc_wrapper &input_d, \
@@ -2105,7 +2111,7 @@ struct simple_reorder_impl_t<SIMPLE_REORDER_TEMPL_CALL,
             start = start * block_size;
             end = end * block_size;
 
-            if (alpha == 1.0 && beta == 0.0) {
+            if (alpha == 1.0 && beta_scaled == 0.0) {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
                     output[e]
@@ -2116,9 +2122,9 @@ struct simple_reorder_impl_t<SIMPLE_REORDER_TEMPL_CALL,
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
                     output[e] = q10n::qz_a1_t<data_t<type_i>, data_t<type_o>>()(
-                            input[e], output[e], beta);
+                            input[e], output[e], beta_scaled);
                 }
-            } else if (beta == 0.0) {
+            } else if (beta_scaled == 0.0) {
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
                     output[e] = q10n::qz_b0_t<data_t<type_i>, data_t<type_o>>()(
@@ -2128,12 +2134,12 @@ struct simple_reorder_impl_t<SIMPLE_REORDER_TEMPL_CALL,
                 PRAGMA_OMP_SIMD()
                 for (size_t e = start; e < end; ++e) {
                     output[e] = q10n::qz_t<data_t<type_i>, data_t<type_o>>()(
-                            input[e], output[e], alpha, beta);
+                            input[e], output[e], alpha, beta_scaled);
                 }
             }
 
             if (rem_elems != 0 && ithr == nthr - 1) {
-                if (alpha == 1.0 && beta == 0.0) {
+                if (alpha == 1.0 && beta_scaled == 0.0) {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
                         output[e] = q10n::qz_a1b0_t<data_t<type_i>,
@@ -2143,9 +2149,10 @@ struct simple_reorder_impl_t<SIMPLE_REORDER_TEMPL_CALL,
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
                         output[e] = q10n::qz_a1_t<data_t<type_i>,
-                                data_t<type_o>>()(input[e], output[e], beta);
+                                data_t<type_o>>()(
+                                input[e], output[e], beta_scaled);
                     }
-                } else if (beta == 0.0) {
+                } else if (beta_scaled == 0.0) {
                     PRAGMA_OMP_SIMD()
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
                         output[e] = q10n::qz_b0_t<data_t<type_i>,
@@ -2156,7 +2163,8 @@ struct simple_reorder_impl_t<SIMPLE_REORDER_TEMPL_CALL,
                     for (size_t e = nelems - rem_elems; e < nelems; ++e) {
                         output[e]
                                 = q10n::qz_t<data_t<type_i>, data_t<type_o>>()(
-                                        input[e], output[e], alpha, beta);
+                                        input[e], output[e], alpha,
+                                        beta_scaled);
                     }
                 }
             }
