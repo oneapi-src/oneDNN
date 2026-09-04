@@ -96,6 +96,20 @@ if (NOT DNNL_TARGET_ARCH STREQUAL "X64" OR DNNL_X64_USE_ZEN)
     endif()
 endif()
 
+# Clang/IntelLLVM counterpart of MSVC C4244/C4267, kept enabled above for x64.
+# int-to-float is excluded: MSVC reports it at /W4 only, so it is out of parity.
+# GCC is skipped: it has no equivalent sub-flag and -Wconversion is far broader.
+if (DNNL_TARGET_ARCH STREQUAL "X64" AND NOT DNNL_X64_USE_ZEN AND NOT MSVC)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang"
+            OR CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+        append(CMAKE_CXX_FLAGS "-Wimplicit-int-conversion -Wshorten-64-to-32")
+        append(CMAKE_CXX_FLAGS
+            "-Wimplicit-float-conversion -Wno-implicit-int-float-conversion")
+        # Keep the diagnostics scoped to oneDNN sources.
+        include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/xbyak)
+    endif()
+endif()
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # to make computations more stable and to align the jitted code
     # with the reference one use precise division and square root
