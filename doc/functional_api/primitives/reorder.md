@@ -109,7 +109,7 @@ For instance, the following pseudo-code
             dst = {dims={N, C, H, W}, data_type=dt_dst, memory_format=fmt_dst},
             attr ={
                 scales={ src={mask=0} },
-                zero_points= { src={mask=0}, dst={mask=0} },
+                zero_points= { src={mask=0} },
                 post-ops = { sum={scale=beta} },
             })
 ~~~
@@ -119,17 +119,17 @@ would lead to the following operation:
 \f[
     \dst(\overline{x}) =
             scale_{src} \cdot (\src(\overline{x}) - shift_{src}) +
-            \beta  \cdot \dst(\overline{x}) + shift_{dst}
+            \beta  \cdot \dst(\overline{x})
 \f]
 
 @note
     * The intermediate operations are being done using single precision
       floating point data type.
-    * \f$scale_{src}\f$, \f$shift_{src}\f$, \f$scale_{dst}\f$, and
-      \f$shift_{dst}\f$ must be passed during execution runtime as a separate
-      memory arguments. Using \f$scale_{src}\f$ argument will lead to
-      multiplication of tensor values by a scale value. Using \f$scale_{dst}\f$
-      argument will lead to division of tensor values by a scale value.
+    * \f$scale_{src}\f$, \f$shift_{src}\f$, and \f$scale_{dst}\f$ must be passed
+      during execution runtime as a separate memory arguments. Using
+      \f$scale_{src}\f$ argument will lead to multiplication of tensor values by
+      a scale value. Using \f$scale_{dst}\f$ argument will lead to division of
+      tensor values by a scale value.
 
 ### Sparsity
 
