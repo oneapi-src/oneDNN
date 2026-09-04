@@ -49,7 +49,6 @@
 --sdt=f32,s32,s8,u8
 --ddt=f32,s32,s8,u8
 
---attr-zero-points=,src:common:-1+dst:common:2
 --attr-scales=,src:per_dim_1+dst:per_dim_1
 --stag=abx,axb,aBx4b,aBx8b,aBx16b
 --dtag=abx,axb,aBx8b,aBx16b
@@ -76,7 +75,6 @@
 
 --stag=abx,xba
 --dtag=abx,xba
---attr-zero-points=,src:common:-1+dst:common:2
 --attr-scales=,src:per_dim_1+dst:per_dim_1
 --sdt=f32 --ddt=f16 3x5x7x11
 --sdt=f16 --ddt=f32 3x5x7x11
