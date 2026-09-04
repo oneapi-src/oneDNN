@@ -82,7 +82,9 @@ void compute_ref(const base_prb_t *base_prb, dir_t dir, const args_t &args,
         }
         float s = src.get_f32_elem(idx) - src_zp;
         float d = 0;
-        if (beta_idx >= 0) d = dst.get_f32_elem(idx) - dst_zero_point;
+        // A sum post-op and destination zero-points are mutually exclusive,
+        // hence the accumulator stays in the destination's native domain.
+        if (beta_idx >= 0) d = dst.get_f32_elem(idx);
 
         float src_scale = 1.f, dst_scale = 1.f;
         if (has_src_scale) {

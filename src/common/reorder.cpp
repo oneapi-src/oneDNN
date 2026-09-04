@@ -108,6 +108,12 @@ status_t reorder_desc_init(reorder_desc_t *reorder_desc,
                            zero_points.has_default_values(DNNL_ARG_DST)),
             VERBOSE_UNSUPPORTED_ZP_CFG);
 
+    // Conflicting destination accumulation semantics, and the combination
+    // lacks a practical use case.
+    VCHECK_REORDER(IMPLICATION(attr->post_ops_.find(primitive_kind::sum) != -1,
+                           zero_points.has_default_values(DNNL_ARG_DST)),
+            VERBOSE_UNSUPPORTED_ZP_CFG);
+
     // Check scales
     if (!attr->scales_.has_default_values()) {
         static const std::vector<int> supported_args {
