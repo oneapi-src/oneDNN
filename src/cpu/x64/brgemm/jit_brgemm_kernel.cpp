@@ -2509,7 +2509,8 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators(int bd_block2,
                             for (int bd = 0; bd < adj_bd_block; bd++) {
                                 const auto vreg_idx = accm(1, bd, 0).getIdx();
                                 const auto vreg_zmm = Zmm(vreg_idx);
-                                tilemovrow(vreg_zmm, Tmm(c_tensor), bd);
+                                tilemovrow(vreg_zmm, Tmm(c_tensor),
+                                        static_cast<uint8_t>(bd));
                             }
                         } else {
                             tilestored(ptr[reg_buf + reg_stride_ld_block],
@@ -2566,7 +2567,8 @@ void jit_brgemm_kernel_t<Wmm>::store_accumulators(int bd_block2,
                                         + (bd * brg.LDC) * brg.typesize_C;
                                 const auto vreg_zmm
                                         = Zmm(31); // Use temp register
-                                tilemovrow(vreg_zmm, tmm, bd);
+                                tilemovrow(vreg_zmm, tmm,
+                                        static_cast<uint8_t>(bd));
                                 if (is_ld_tail) {
                                     uni_vmovups(ptr[reg_aux_C + c_offset]
                                                     | ld_tail_mask | T_z,
@@ -3060,7 +3062,7 @@ void jit_brgemm_kernel_t<Wmm>::ace_load_A_4x16bytes(
         mov(reg_tmp_gpr, cur_mask);
         kmovq(ace_load_A_mask, reg_tmp_gpr);
         vmovdqu8(xmm_tmp | ace_load_A_mask | T_z, ptr[reg_A + cur_offset]);
-        vinserti64x2(zmm, zmm, xmm_tmp, i);
+        vinserti64x2(zmm, zmm, xmm_tmp, static_cast<uint8_t>(i));
     }
 }
 

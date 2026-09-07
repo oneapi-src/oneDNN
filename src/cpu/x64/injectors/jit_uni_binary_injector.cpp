@@ -3381,7 +3381,7 @@ void jit_uni_binary_injector_t<Vmm>::execute_broadcast_tail_statically(
         host_->uni_vxorps(tmp_vmm, tmp_vmm, tmp_vmm);
         // The RHS is a scalar broadcast; repeat the one source element.
         for (int i = 0; i < tail_size; ++i)
-            host_->vpinsrw(tmp_xmm, tmp_xmm, rhs_addr, i);
+            host_->vpinsrw(tmp_xmm, tmp_xmm, rhs_addr, static_cast<uint8_t>(i));
         if (data_type == data_type::bf16) {
             host_->vpmovzxwd(tmp_vmm, tmp_xmm);
             host_->vpslld(tmp_vmm, tmp_vmm, 16);
