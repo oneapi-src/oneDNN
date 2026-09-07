@@ -373,6 +373,10 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         if (!sc.has_default_values(DNNL_ARG_DST)) {
             const int mask_dst = sc.get_mask(DNNL_ARG_DST);
             VCHECK_MATMUL_UNIMPL(
+                    IMPLICATION(mask_dst > 0, dst_is_fp8 || dst_is_fp4),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+            VCHECK_MATMUL_UNIMPL(
                     utils::one_of(mask_dst, 0, dst_qmask_N, dst_qmask_M,
                             dst_qmask_N + dst_qmask_M, full_tensor_mask),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
