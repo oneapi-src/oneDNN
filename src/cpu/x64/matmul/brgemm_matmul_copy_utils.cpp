@@ -4648,6 +4648,11 @@ struct jit_brgemm_matmul_copy_b_f32_t
         , req_zp_b_shift_(
                   conf->has_zero_point_b && conf->with_wei_decompression)
         , req_apply_wei_scales_(conf->apply_scales_in_buffer_b)
+        , cached_wei_scales_regs_(is_src_f4_ && !is_ymm_
+                                  && req_apply_wei_scales_
+                                  && conf->is_wei_scale_per_n
+                          ? div_up(conf->wei_n_blk, simd_w_)
+                          : 0)
         , typesize_in_(types::data_type_size(dt_in_))
         , src_elems_per_byte_(is_src_4bit_ ? 2 : 1)
         , src_stride_(conf_->copy_B_wei_stride)
@@ -4671,6 +4676,7 @@ private:
     const int simd_w_;
     const bool is_src_f4_, is_src_int4_, is_src_4bit_;
     const bool req_zp_b_shift_, req_apply_wei_scales_;
+    const int cached_wei_scales_regs_;
     const size_t typesize_in_;
     const int src_elems_per_byte_;
     const size_t typesize_out_ = sizeof(float);
@@ -4694,6 +4700,12 @@ private:
     Vmm vmm_f4_lookup_table = Vmm(4);
     Ymm ymm_tail_mask = ymm1;
 
+    Vmm wei_scales(int n) const {
+        return cached_wei_scales_regs_ > 0
+                ? Vmm(isa_num_vregs(conf_->isa) - 1 - n / simd_w_)
+                : vmm_wei_scales;
+    }
+
     inline void kmovw(Opmask k, unsigned w) {
         if (!isa_has_masks(conf_->isa)) return;
         mov(regw_tmp, w);
@@ -4701,6 +4713,7 @@ private:
     }
 
     void copy_16_x_n_block(int nrows, int ncolumns);
+    void load_scales(int n, int ncolumns);
     void compute_k_loop(int ncolumns);
     void generate() override;
 };
@@ -4713,7 +4726,9 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
             : req_zp_b_shift_            ? 4
             : is_src_int4_               ? 3
                                          : 2;
-    const int max_regs_available = max_isa_regs - reserved_regs;
+    const int max_regs_available
+            = max_isa_regs - reserved_regs - cached_wei_scales_regs_;
+    assert(max_regs_available > 0);
 
     auto get_vmm = [max_regs_available, reserved_regs](int reg_idx) {
         MAYBE_UNUSED(max_regs_available);
@@ -4736,7 +4751,7 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
             load_value(src_vmm, addr, vmm_permd, conf_->orig_wei_dt, is_tail);
 
         decompress_reg(maybe_mask(src_vmm, is_tail), vmm_zp_b_shift,
-                vmm_wei_scales, conf_->orig_wei_dt);
+                wei_scales(n), conf_->orig_wei_dt);
     };
 
     /** Loads zero points, when is_wei_zp_per_n is set.
@@ -4759,26 +4774,6 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
             load_value(vmm_zp_b_shift, vmm_zp_b_shift, vmm_permd, zp_dt, false);
         } else
             load_value(vmm_zp_b_shift, addr, vmm_permd, zp_dt, is_tail);
-    };
-
-    /**  Loads scales, when is_wei_scale_per_n is set.
-    *   Scales size over N dimension always equals to N.
-    */
-    auto load_scales = [this, ncolumns](int n) {
-        if (!conf_->is_wei_scale_per_n || !conf_->apply_scales_in_buffer_b)
-            return;
-
-        const bool is_tail = (ncolumns - n) < simd_w_;
-        const auto &scales_dt = conf_->wei_scales_dt;
-        const auto scales_dt_sz = types::data_type_size(scales_dt);
-        const auto offset = n * scales_dt_sz;
-        const auto addr = maybe_EVEX_compress_addr(reg_wei_scales, offset);
-        if (is_tail && !isa_has_masks(conf_->isa)) {
-            load_bytes(vmm_wei_scales, addr,
-                    static_cast<int>((ncolumns % simd_w_) * scales_dt_sz));
-            load_scale_value(vmm_wei_scales, vmm_wei_scales, scales_dt, false);
-        } else
-            load_scale_value(vmm_wei_scales, addr, scales_dt, is_tail);
     };
 
     const int columns_tail = ncolumns % simd_w_;
@@ -4810,7 +4805,7 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
         }
 
         load_zero_point(n);
-        load_scales(n);
+        if (cached_wei_scales_regs_ == 0) load_scales(n, ncolumns);
         const int blk_idx = iter % max_regs_available;
         load(blk_idx, k, n);
 
@@ -4821,7 +4816,30 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
 }
 
 template <typename Vmm>
+void jit_brgemm_matmul_copy_b_f32_t<Vmm>::load_scales(int n, int ncolumns) {
+    if (!conf_->is_wei_scale_per_n || !req_apply_wei_scales_) return;
+
+    const bool is_tail = (ncolumns - n) < simd_w_;
+    const auto scales_dt = conf_->wei_scales_dt;
+    const auto scales_dt_sz = types::data_type_size(scales_dt);
+    const auto addr
+            = maybe_EVEX_compress_addr(reg_wei_scales, n * scales_dt_sz);
+    const auto vmm_scales = wei_scales(n);
+    if (is_tail && !isa_has_masks(conf_->isa)) {
+        load_bytes(vmm_scales, addr, (ncolumns % simd_w_) * scales_dt_sz);
+        load_scale_value(vmm_scales, vmm_scales, scales_dt, false);
+    } else
+        load_scale_value(vmm_scales, addr, scales_dt, is_tail);
+}
+
+template <typename Vmm>
 void jit_brgemm_matmul_copy_b_f32_t<Vmm>::compute_k_loop(int ncolumns) {
+    if (cached_wei_scales_regs_ > 0) {
+        // Each copy call stays within one K-group, so its scales are invariant.
+        kmovw(kTail, (1 << (ncolumns % simd_w_)) - 1);
+        for (int n = 0; n < ncolumns; n += simd_w_)
+            load_scales(n, ncolumns);
+    }
 
     auto compute_uni_k_loop = [&](int unroll) {
         Label K_start_label, K_end_label;

@@ -1,0 +1,39 @@
+# FP32 activations with grouped FP4 weights: copy-B scale reuse and tails.
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=any,ab,ba
+--attr-scales=wei:per_tensor:e8m0:32x1,wei:per_tensor:f32:32x1
+5x32:32x2
+30x96:96x18
+257x160:160x50
+30x96:96x64
+16x544:544x80
+
+# Bias and accumulation across K chunks.
+--wtag=ab
+--bia-dt=f32
+--attr-post-ops=sum+relu
+30x1056:1056x66
+
+# Per-batch and broadcast weights.
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=any,abc
+--attr-scales=wei:per_tensor:e8m0:32x1
+3x17x96:3x96x50
+3x17x96:1x96x50
+
+# Common, per-N, and absent scales keep their existing behavior.
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=ab
+--attr-scales=,wei:common:2,wei:per_oc
+30x35:35x50
+
+# Small-M fused path remains unchanged.
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=any
+--attr-scales=wei:per_tensor:e8m0:32x1
+1x128:128x64
+4x128:128x64
