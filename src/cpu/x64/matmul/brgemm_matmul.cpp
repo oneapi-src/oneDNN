@@ -2112,6 +2112,13 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     }
 
     dim_t get_data_B_kn_off(dim_t k, dim_t n) const {
+        if (bgmmc_.is_f32_with_f4_wei && bgmmc_.blocked_B) {
+            // The source has K2 packing, while the FP32 buffer has no VNNI.
+            return (B_strides_[1] * (k / 32)
+                           + B_strides_[0] * (n / bgmmc_.wei_n_blk))
+                    / 2
+                    + (k % 32 / 2) * bgmmc_.wei_n_blk + n % bgmmc_.wei_n_blk;
+        }
         const dim_t wei_k_blk = get_data_B_k_blk();
         const dim_t k_idx = bgmmc_.blocked_B ? k / wei_k_blk : k;
         const dim_t n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;

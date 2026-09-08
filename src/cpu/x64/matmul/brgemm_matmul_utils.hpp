@@ -510,6 +510,16 @@ struct brgemm_matmul_conf_utils_t {
     inline cpu_isa_t get_isa() const { return isa_; }
 
     int get_default_n_block(format_tag_t matrix_b_tag) const;
+    bool f4_packed_B_layout_allowed() const {
+        return is_f32_with_f4_wei() && bgmmc.ndims <= 3 && !bgmmc.is_runtime_M
+                && !bgmmc.is_runtime_N && !bgmmc.is_runtime_K && bgmmc.M > 4
+                && bgmmc.K % 32 == 0
+                && (bgmmc.is_wei_scale_per_k || bgmmc.K == 32)
+                && bgmmc.is_wei_scale_per_n && bgmmc.wei_scales_k_gsize == 32
+                && bgmmc.wei_scales_dt == data_type::e8m0
+                && !bgmmc.has_zero_point_b && !bgmmc.is_src_scale_per_k
+                && !bgmmc.is_src_zp_per_k;
+    }
     status_t set_or_check_B_tag(memory_desc_t &B_md,
             const dnnl::impl::cpu::matmul::matmul_helper_t &helper,
             bool init_n_tag = true) const;

@@ -37,3 +37,79 @@
 --attr-scales=wei:per_tensor:e8m0:32x1
 1x128:128x64
 4x128:128x64
+
+# Explicit K2-packed panels, N padding, and multiple K chunks.
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=any,BA16a16b2a,BA16a32b2a,BA16a48b2a,BA16a64b2a
+--attr-scales=wei:per_tensor:e8m0:32x1
+5x32:32x2
+7x96:96x1
+30x96:96x17
+257x160:160x50
+30x1056:1056x66
+30x2112:2112x192
+
+--bia-dt=f32
+--attr-post-ops=sum+relu
+30x1056:1056x65
+
+# Batched packed weights, shared/batched scales and broadcast in both inputs.
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=any,aCB16b16c2b,aCB16b32c2b,aCB16b48c2b,aCB16b64c2b
+--attr-scales=wei:per_tensor:e8m0:32x1,wei:per_ocic:e8m0:32x1
+3x17x96:3x96x49
+3x17x96:1x96x49
+1x17x96:3x96x49
+
+# Batch merging must not switch a small-M plain/fused input to packed.
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=any
+--attr-scales=wei:per_tensor:e8m0:32x1
+3x4x128:1x128x64
+3x4x128:1x128x65
+
+# Transposed A exercises copy-A, N chunks, and K partitioning with packed B.
+--reset
+--dt=f32:f4_e2m1:f32
+--stag=ba
+--wtag=any,BA16a64b2a
+--attr-scales=wei:per_tensor:e8m0:32x1
+17x2112:2112x128
+257x96:96x65
+
+# Outside packed BRGEMM eligibility, use a fallback rather than interpreting
+# a blocked descriptor as plain/transposed (notably for odd N).
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=BA16a64b2a
+--attr-scales=wei:per_tensor:e8m0:32x1
+4x96:96x17
+4x96:96x16
+--attr-scales=wei:per_tensor:f32:32x1
+30x96:96x17
+
+# M-chunk reuse with one/multiple K chunks, non-divisible M and plain/packed B.
+--reset
+--dt=f32:f4_e2m1:f32
+--wtag=any,ab,ba
+--attr-scales=wei:per_tensor:e8m0:32x1
+1024x512:512x128
+2048x1056:1056x256
+--wtag=any,ba
+1009x160:160x65
+
+--wtag=any,ab,ba
+--bia-dt=f32
+--attr-post-ops=sum+relu
+1024x1056:1056x128
+
+# Reuse copied A across N while B is reused across M blocks.
+--reset
+--dt=f32:f4_e2m1:f32
+--stag=ba
+--wtag=any
+--attr-scales=wei:per_tensor:e8m0:32x1
+1024x1056:1056x512
