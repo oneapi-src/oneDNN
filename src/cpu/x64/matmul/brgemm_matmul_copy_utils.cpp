@@ -4737,6 +4737,56 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
         return Vmm(reg_idx + reserved_regs);
     };
 
+    const int columns_tail = ncolumns % simd_w_;
+    if (columns_tail < simd_w_) {
+        if (isa_has_masks(conf_->isa)) {
+            const auto tail_mask = (1 << columns_tail) - 1;
+            kmovw(kTail, tail_mask);
+            if (is_src_4bit_) {
+                const auto bytes_needed
+                        = (columns_tail + src_elems_per_byte_ - 1)
+                        / src_elems_per_byte_;
+                const auto tail_mask_4bit = (1 << bytes_needed) - 1;
+                kmovw(kTail_4bit, tail_mask_4bit);
+            }
+        }
+    }
+
+    if (is_src_f4_ && conf_->blocked_B) {
+        assert(nrows % 2 == 0);
+        const auto lo = get_vmm(0);
+        const auto hi = get_vmm(1);
+        for_(int k = 0; k < nrows; k += 2)
+        for (int n = 0; n < conf_->wei_n_blk; n += simd_w_) {
+            const auto dst_lo = maybe_EVEX_compress_addr(
+                    reg_tr_src, k * tr_src_stride_ + n * typesize_out_);
+            const auto dst_hi = maybe_EVEX_compress_addr(
+                    reg_tr_src, (k + 1) * tr_src_stride_ + n * typesize_out_);
+            if (n >= ncolumns) {
+                uni_vmovups(dst_lo, vmm_zero);
+                uni_vmovups(dst_hi, vmm_zero);
+                continue;
+            }
+            const bool is_tail = ncolumns - n < simd_w_;
+            const auto src = maybe_EVEX_compress_addr(
+                    reg_src, (k / 2) * conf_->wei_n_blk + n);
+            // One byte supplies the same N in two adjacent K rows. VPERMPS
+            // uses only the low four index bits, so the low nibble needs no mask.
+            uni_vpmovzxbd(maybe_mask(lo, is_tail), src);
+            uni_vpsrld(hi, lo, 4);
+            vpermps(lo, lo, vmm_f4_lookup_table);
+            vpermps(hi, hi, vmm_f4_lookup_table);
+            if (cached_wei_scales_regs_ == 0) load_scales(n, ncolumns);
+            decompress_reg(maybe_mask(lo, is_tail), vmm_zp_b_shift,
+                    wei_scales(n), conf_->orig_wei_dt);
+            decompress_reg(maybe_mask(hi, is_tail), vmm_zp_b_shift,
+                    wei_scales(n), conf_->orig_wei_dt);
+            uni_vmovups(dst_lo, lo);
+            uni_vmovups(dst_hi, hi);
+        }
+        return;
+    }
+
     auto load = [this, get_vmm, ncolumns](int blk, int k, int n) {
         auto src_vmm = get_vmm(blk);
         const bool is_tail = ncolumns - n < simd_w_;
@@ -4776,56 +4826,7 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::copy_16_x_n_block(
             load_value(vmm_zp_b_shift, addr, vmm_permd, zp_dt, is_tail);
     };
 
-    const int columns_tail = ncolumns % simd_w_;
-    if (columns_tail < simd_w_) {
-        if (isa_has_masks(conf_->isa)) {
-            const auto tail_mask = (1 << columns_tail) - 1;
-            kmovw(kTail, tail_mask);
-            if (is_src_4bit_) {
-                const auto bytes_needed
-                        = (columns_tail + src_elems_per_byte_ - 1)
-                        / src_elems_per_byte_;
-                const auto tail_mask_4bit = (1 << bytes_needed) - 1;
-                kmovw(kTail_4bit, tail_mask_4bit);
-            }
-        }
-    }
-
     int iter = 0;
-    if (is_src_f4_ && conf_->blocked_B) {
-        assert(nrows % 2 == 0);
-        const auto lo = get_vmm(0);
-        const auto hi = get_vmm(1);
-        for_(int k = 0; k < nrows; k += 2)
-        for (int n = 0; n < conf_->wei_n_blk; n += simd_w_) {
-            const auto dst_lo = maybe_EVEX_compress_addr(
-                    reg_tr_src, k * tr_src_stride_ + n * typesize_out_);
-            const auto dst_hi = maybe_EVEX_compress_addr(
-                    reg_tr_src, (k + 1) * tr_src_stride_ + n * typesize_out_);
-            if (n >= ncolumns) {
-                uni_vmovups(dst_lo, vmm_zero);
-                uni_vmovups(dst_hi, vmm_zero);
-                continue;
-            }
-            const bool is_tail = ncolumns - n < simd_w_;
-            const auto src = maybe_EVEX_compress_addr(
-                    reg_src, (k / 2) * conf_->wei_n_blk + n);
-            // One byte supplies the same N in two adjacent K rows. VPERMPS
-            // uses only the low four index bits, so the low nibble needs no mask.
-            uni_vpmovzxbd(maybe_mask(lo, is_tail), src);
-            uni_vpsrld(hi, lo, 4);
-            vpermps(lo, lo, vmm_f4_lookup_table);
-            vpermps(hi, hi, vmm_f4_lookup_table);
-            if (cached_wei_scales_regs_ == 0) load_scales(n, ncolumns);
-            decompress_reg(maybe_mask(lo, is_tail), vmm_zp_b_shift,
-                    wei_scales(n), conf_->orig_wei_dt);
-            decompress_reg(maybe_mask(hi, is_tail), vmm_zp_b_shift,
-                    wei_scales(n), conf_->orig_wei_dt);
-            uni_vmovups(dst_lo, lo);
-            uni_vmovups(dst_hi, hi);
-        }
-        return;
-    }
     for_(int k = 0; k < nrows; k++)
     for (int n = 0; n < conf_->wei_n_blk; n += simd_w_) {
         const dim_t tr_src_off = k * tr_src_stride_ + n * typesize_out_;

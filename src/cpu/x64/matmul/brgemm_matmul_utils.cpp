@@ -641,10 +641,13 @@ status_t brgemm_matmul_conf_utils_t::set_or_check_B_tag(memory_desc_t &B_md,
                     ? get_default_n_block(format_tag::undef)
                     : static_cast<int>(bgmmc.N_blk);
             // Do not switch a small-M input to packed after batch merging.
-            bgmmc.wei_tag = blocked_B_layouts_allowed && !bgmmc.is_runtime_N
-                            && (bgmmc.wei_packed_elems_per_byte == 1
-                                    || (f4_packed_B_layout_allowed()
-                                            && (init_n_tag || bgmmc.blocked_B)))
+            const bool allow_packed_f4 = f4_packed_B_layout_allowed()
+                    && (init_n_tag || bgmmc.blocked_B);
+            const bool allow_blocked = blocked_B_layouts_allowed
+                    && !bgmmc.is_runtime_N
+                    && (bgmmc.wei_packed_elems_per_byte == 1
+                            || allow_packed_f4);
+            bgmmc.wei_tag = allow_blocked
                     ? this->pick_blocked_B_layout(default_n_block)
                     : bgmmc.wei_packed_elems_per_byte > 1 && bgmmc.N % 2 != 0
                     ? transposed_tensor_layout_tag
@@ -1353,10 +1356,34 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
             && !bgmmc.is_runtime_M;
     if (tune_f4_m_chunk) {
         matmul_avx512_blocking_params_t cur_params(matmul, nthr);
+        // Leave heuristic headroom for other data sharing the L2 cache.
         const dim_t l2_budget = 3 * platform::get_per_core_cache_size(2) / 4;
         const dim_t k_chunk = (dim_t)k_blk * brgemm_bs;
         const dim_t b_bytes = (dim_t)rnd_up(k_blk, bgmmc.wei_k_blk)
                 * bgmmc.wei_n_blk * bgmmc.tr_b_dt_sz * brgemm_bs;
+        const auto limit_m_chunk_by_l2
+                = [&](const matmul_avx512_blocking_params_t &params,
+                          int max_m_chunk) -> int {
+            const dim_t a_bytes = (dim_t)params.m_blk * bgmmc.tr_a_dt_sz
+                    * brgemm_bs
+                    * (bgmmc.use_buffer_a ? params.get_actual_lda(
+                                                    true, bgmmc.tr_a_dt_sz)
+                                          : k_blk);
+            const dim_t c_bytes = (dim_t)params.m_blk * rnd_up(n_blk, 16)
+                    * params.n_chunks * bgmmc.acc_dt_sz;
+            // Copied A is reused across N blocks, and partial C across K
+            // chunks. Otherwise only the current M block needs residency.
+            const bool keep_a = bgmmc.use_buffer_a && params.n_chunks > 1;
+            const bool keep_c = matmul.K > k_chunk;
+            const dim_t fixed_bytes
+                    = b_bytes + (keep_a ? 0 : a_bytes) + (keep_c ? 0 : c_bytes);
+            const dim_t chunk_bytes
+                    = (keep_a ? a_bytes : 0) + (keep_c ? c_bytes : 0);
+            if (fixed_bytes + chunk_bytes > l2_budget) return 0;
+            if (chunk_bytes == 0) return max_m_chunk;
+            return nstl::min<dim_t>(
+                    max_m_chunk, (l2_budget - fixed_bytes) / chunk_bytes);
+        };
         float best_imbalance = 1.f; // reduce
         for (int nthr_k = start_nthr_k; nthr_k >= last_nthr_k; --nthr_k) {
             bool found_best_blocking = false;
@@ -1373,25 +1400,7 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
 
                 cur_params.update_params(1, m_blk, n_chunk_size, n_blk,
                         brgemm_bs, k_blk, nthr_k);
-                const dim_t a_bytes = (dim_t)m_blk * bgmmc.tr_a_dt_sz
-                        * brgemm_bs
-                        * (bgmmc.use_buffer_a ? cur_params.get_actual_lda(
-                                                        true, bgmmc.tr_a_dt_sz)
-                                              : k_blk);
-                const dim_t c_bytes = (dim_t)m_blk * rnd_up(n_blk, 16)
-                        * n_chunk_size * bgmmc.acc_dt_sz;
-                // Copied A is reused across N blocks, and partial C across K
-                // chunks. Otherwise only the current M block needs residency.
-                const bool keep_a = bgmmc.use_buffer_a && n_chunk_size > 1;
-                const bool keep_c = matmul.K > k_chunk;
-                const dim_t fixed_bytes = b_bytes + (keep_a ? 0 : a_bytes)
-                        + (keep_c ? 0 : c_bytes);
-                const dim_t chunk_bytes
-                        = (keep_a ? a_bytes : 0) + (keep_c ? c_bytes : 0);
-                if (fixed_bytes + chunk_bytes > l2_budget) continue;
-                if (chunk_bytes > 0)
-                    max_m_chunk = nstl::min<dim_t>(max_m_chunk,
-                            (l2_budget - fixed_bytes) / chunk_bytes);
+                max_m_chunk = limit_m_chunk_by_l2(cur_params, max_m_chunk);
 
                 for (int m_chunk_size = 1; m_chunk_size <= max_m_chunk;
                         ++m_chunk_size) {

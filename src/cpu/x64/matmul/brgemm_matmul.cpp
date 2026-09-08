@@ -287,7 +287,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
         }
         return ok;
     };
-    const bool problem_dt_correct = one_of(true, is_int8, is_f8, is_bf16,
+    const bool problem_dt_correct = one_of(true, is_f4, is_int8, is_f8, is_bf16,
             is_f32, is_f16, is_f32_f16, is_f32_bf16, is_bf16_with_int_wei,
             is_f16_with_int_wei, is_f32_with_int_wei, is_xf16_fp8,
             with_int8_grouped_quantization, is_f32_with_f4_wei);
@@ -2113,11 +2113,18 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
 
     dim_t get_data_B_kn_off(dim_t k, dim_t n) const {
         if (bgmmc_.is_f32_with_f4_wei && bgmmc_.blocked_B) {
-            // The source has K2 packing, while the FP32 buffer has no VNNI.
-            return (B_strides_[1] * (k / 32)
-                           + B_strides_[0] * (n / bgmmc_.wei_n_blk))
-                    / 2
-                    + (k % 32 / 2) * bgmmc_.wei_n_blk + n % bgmmc_.wei_n_blk;
+            // Source bytes pair adjacent K values at the same N;
+            // the FP32 buffer stores the decoded K rows separately.
+            constexpr dim_t src_k_blk = 32;
+            constexpr dim_t src_elems_per_byte = 2;
+            const dim_t outer_offset_bytes
+                    = (B_strides_[1] * (k / src_k_blk)
+                              + B_strides_[0] * (n / bgmmc_.wei_n_blk))
+                    / src_elems_per_byte;
+            const dim_t inner_offset_bytes
+                    = (k % src_k_blk / src_elems_per_byte) * bgmmc_.wei_n_blk
+                    + n % bgmmc_.wei_n_blk;
+            return outer_offset_bytes + inner_offset_bytes;
         }
         const dim_t wei_k_blk = get_data_B_k_blk();
         const dim_t k_idx = bgmmc_.blocked_B ? k / wei_k_blk : k;

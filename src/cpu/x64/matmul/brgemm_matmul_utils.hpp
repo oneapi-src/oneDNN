@@ -462,6 +462,8 @@ struct brgemm_matmul_conf_utils_t {
 
     inline bool is_f16() const { return f16_dt; }
 
+    inline bool is_f4_via_convert() const { return f4_via_convert_dt; }
+
     inline bool is_f8() const { return f8_dt; }
 
     inline bool is_bf16_fp8() const { return bf16_fp8_dt; }
