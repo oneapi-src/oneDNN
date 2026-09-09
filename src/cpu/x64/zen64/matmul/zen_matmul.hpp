@@ -44,7 +44,7 @@ struct zen_matmul_t : public primitive_t {
     struct pd_t : public ::dnnl::impl::cpu::matmul::cpu_matmul_pd_t {
         using ::dnnl::impl::cpu::matmul::cpu_matmul_pd_t::cpu_matmul_pd_t;
 
-        DECLARE_COMMON_PD_T("zen:matmul:f32|bf16:amd", zen_matmul_t);
+        DECLARE_COMMON_PD_T("zen:matmul:f32|bf16|f16:amd", zen_matmul_t);
 
         status_t init(const engine_t *engine);
     };

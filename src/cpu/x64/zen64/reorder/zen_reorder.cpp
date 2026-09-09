@@ -60,7 +60,7 @@ using zendnnl::ops::matmul_algo_t;
 
 // Zen weight prepack via reorder_direct (is_prepack=true); see
 // ZenDNN/zendnnl/src/lowoha_operators/reorder/lowoha_reorder.hpp.
-// src_dt is the matmul source dtype: for f32/bf16 it equals wei_dt, but for
+// src_dt is the matmul source dtype: for f32/bf16/f16 it equals wei_dt, but for
 // int8 configs it may differ (e.g. u8 source with s8 weights), and the AOCL-DLP
 // blocked layout can depend on it, so it is passed explicitly.
 status_t zen_weight_prepack(const void *src, void *dst, zd wei_dt, zd src_dt,
@@ -93,6 +93,24 @@ status_t f32_to_bf16_plain(const void *src, void *dst, int64_t K, int64_t N,
     zendnnl::lowoha::reorder::reorder_params_t rp;
     rp.src_dtype = zd::f32;
     rp.dst_dtype = zd::bf16;
+    rp.src_shape = {K, N};
+    rp.dst_shape = {K, N};
+    if (src_is_ab)
+        rp.src_strides = {ldb, 1};
+    else
+        rp.src_strides = {1, ldb};
+
+    return to_dnnl_status(
+            zendnnl::lowoha::reorder::reorder_direct(src, dst, rp));
+}
+
+// Plain f32 -> f16 element conversion (standard reorder_direct path).
+// Same contract as f32_to_bf16_plain() above.
+status_t f32_to_f16_plain(const void *src, void *dst, int64_t K, int64_t N,
+        int64_t ldb, bool src_is_ab) {
+    zendnnl::lowoha::reorder::reorder_params_t rp;
+    rp.src_dtype = zd::f32;
+    rp.dst_dtype = zd::f16;
     rp.src_shape = {K, N};
     rp.dst_shape = {K, N};
     if (src_is_ab)
@@ -186,7 +204,8 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
     VDISPATCH_REORDER(::dnnl::impl::cpu::x64::cpu().has(Xbyak::util::Cpu::tAMD),
             "This implementation only supports AMD CPUs");
 
-    // Zen weight prepack requires AVX-512 core support regardless of data type.
+    // Zen weight prepack requires AVX-512 core support for f32/bf16. F16
+    // prepack additionally requires avx512_core_fp16 (AVX512-FP16, Zen5+).
     VDISPATCH_REORDER(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
 
     const memory_desc_wrapper id(src_md_), od(dst_md_);
@@ -203,9 +222,12 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
     const auto type_o = od.data_type();
     // Supported dtype combos:
     //   bf16 -> bf16  : reorder_direct prepack (Zen blocked algo)
+    //   f16  -> f16   : reorder_direct prepack (Zen blocked algo)
     //   f32  -> f32   : reorder_direct prepack (Zen blocked algo)
     //   f32  -> bf16  : f32->bf16 plain reorder_direct, then bf16 prepack
     //                   (avoids the backend f32->bf16 fringe-N bug; see execute)
+    //   f32  -> f16   : f32->f16 plain reorder_direct, then f16 prepack
+    //                   (same two-step pattern as f32->bf16)
     //   s8   -> s8    : int8 static-quant weight prepack (Zen blocked algo)
     //   f32  -> s8    : f32->s8 plain cast, then s8 prepack (for callers that
     //                   keep integer-valued weights in f32, e.g. benchdnn)
@@ -215,8 +237,10 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
     //                   that keep integer-valued 4-bit codes in f32, e.g.
     //                   benchdnn)
     const bool dt_ok = (type_i == data_type::bf16 && type_o == data_type::bf16)
+            || (type_i == data_type::f16 && type_o == data_type::f16)
             || (type_i == data_type::f32 && type_o == data_type::f32)
             || (type_i == data_type::f32 && type_o == data_type::bf16)
+            || (type_i == data_type::f32 && type_o == data_type::f16)
             || (type_i == data_type::s8 && type_o == data_type::s8)
             || (type_i == data_type::f32 && type_o == data_type::s8)
             || (type_i == data_type::s4 && type_o == data_type::s4)
@@ -224,6 +248,9 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
             || (type_i == data_type::f32
                     && utils::one_of(type_o, data_type::s4, data_type::u4));
     VDISPATCH_REORDER(dt_ok, VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_REORDER(
+            IMPLICATION(type_o == data_type::f16, mayiuse(avx512_core_fp16)),
+            VERBOSE_UNSUPPORTED_ISA);
 
     // Dispatch trigger: only fire when the dst uses the dedicated opaque
     // Zen packed format; otherwise let the regular reorder list handle it.
@@ -314,7 +341,7 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
     const auto &zpd = od.zen_packed_desc();
     // The per-slice packed size can depend on the matmul source dtype (recorded
     // in the packed descriptor as gemm_src_dt), so query with
-    // (wei=type_o, src=gemm_src_dt) -- for f32/bf16 gemm_src_dt == type_o.
+    // (wei=type_o, src=gemm_src_dt) -- for f32/bf16/f16 gemm_src_dt == type_o.
     const dim_t expected_per_slice
             = zen_prepack_size(type_o, zpd.gemm_src_dt, K, N);
     VDISPATCH_REORDER(expected_per_slice > 0
@@ -333,17 +360,17 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
             zpd.size == zpd.per_slice_size * batch_sz && od.size() == zpd.size,
             VERBOSE_INCONSISTENT_MDS, "dst", "packed-size");
 
-    // The f32 -> {bf16, s8, s4, u4} prepack paths need a per-slice K*N
-    // conversion buffer (bf16 = 2 bytes/elem, s8 = 1 byte/elem, s4/u4 =
+    // The f32 -> {bf16, f16, s8, s4, u4} prepack paths need a per-slice K*N
+    // conversion buffer (bf16/f16 = 2 bytes/elem, s8 = 1 byte/elem, s4/u4 =
     // 2 elems/byte). Book it on the primitive scratchpad (declared here,
     // consumed in execute() via the grantor), reused across batches so
     // execution stays allocation-free.
     if (type_i == data_type::f32
-            && utils::one_of(type_o, data_type::bf16, data_type::s8,
-                    data_type::s4, data_type::u4)) {
+            && utils::one_of(type_o, data_type::bf16, data_type::f16,
+                    data_type::s8, data_type::s4, data_type::u4)) {
         const size_t nelems = static_cast<size_t>(K) * static_cast<size_t>(N);
         size_t conv_bytes;
-        if (type_o == data_type::bf16)
+        if (utils::one_of(type_o, data_type::bf16, data_type::f16))
             conv_bytes = nelems * sizeof(int16_t);
         else if (type_o == data_type::s8)
             conv_bytes = nelems * sizeof(int8_t);
@@ -421,19 +448,19 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
     const auto *src_base = CTX_IN_MEM(const uint8_t *, DNNL_ARG_FROM);
     auto *dst_base = CTX_OUT_MEM(uint8_t *, DNNL_ARG_TO);
 
-    // f32 -> {bf16, s8, s4, u4} prepack needs a per-slice conversion buffer
-    // (booked in pd_t::init), reused across batches so execute() stays
+    // f32 -> {bf16, f16, s8, s4, u4} prepack needs a per-slice conversion
+    // buffer (booked in pd_t::init), reused across batches so execute() stays
     // allocation-free.
     void *conv = nullptr;
     if (src_dt == data_type::f32
-            && utils::one_of(dst_dt, data_type::bf16, data_type::s8,
-                    data_type::s4, data_type::u4)) {
+            && utils::one_of(dst_dt, data_type::bf16, data_type::f16,
+                    data_type::s8, data_type::s4, data_type::u4)) {
         conv = ctx.get_scratchpad_grantor().get<void>(
                 memory_tracking::names::key_reorder_space);
         if (conv == nullptr) return status::out_of_memory;
     }
 
-    // The matmul source dtype (u8/s8 for int8; f32/bf16 otherwise) is recorded
+    // The matmul source dtype (u8/s8 for int8; f32/bf16/f16 otherwise) is recorded
     // in the packed descriptor; the AOCL-DLP blocked layout can depend on it,
     // so forward it explicitly to the packer.
     const zd gemm_src = to_zen_dt(dst_d.zen_packed_desc().gemm_src_dt);
@@ -443,6 +470,10 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
         if (src_dt == data_type::bf16 && dst_dt == data_type::bf16)
             return zen_weight_prepack(
                     src, dst, zd::bf16, zd::bf16, K, N, ldb, transposed);
+
+        if (src_dt == data_type::f16 && dst_dt == data_type::f16)
+            return zen_weight_prepack(
+                    src, dst, zd::f16, zd::f16, K, N, ldb, transposed);
 
         if (src_dt == data_type::f32 && dst_dt == data_type::f32)
             return zen_weight_prepack(
@@ -467,6 +498,17 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
             status_t st = f32_to_bf16_plain(src, conv, K, N, ldb, src_is_ab);
             if (st == success)
                 st = zen_weight_prepack(conv, dst, zd::bf16, zd::bf16, K, N,
+                        /*ldb=*/N, /*transposed=*/false);
+            return st;
+        }
+
+        if (src_dt == data_type::f32 && dst_dt == data_type::f16) {
+            // Convert f32 -> plain f16 (contiguous `ab`), then prepack that
+            // f16 slice into the Zen blocked layout (same two-step pattern as
+            // f32->bf16).
+            status_t st = f32_to_f16_plain(src, conv, K, N, ldb, src_is_ab);
+            if (st == success)
+                st = zen_weight_prepack(conv, dst, zd::f16, zd::f16, K, N,
                         /*ldb=*/N, /*transposed=*/false);
             return st;
         }

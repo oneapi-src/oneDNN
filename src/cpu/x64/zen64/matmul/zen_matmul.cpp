@@ -162,16 +162,41 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
     //  1. Uniform f32:  f32 src, f32 wei, f32 dst
     //  2. Uniform bf16: bf16 src, bf16 wei, bf16 dst
     //  3. bf16 mixed:   bf16 src, bf16 wei, f32 dst
-    // Explicitly unsupported: f32 src with bf16 dst.
+    //  4. Uniform f16:  f16 src, f16 wei, f16 dst  (AVX512-FP16, acc-mode f16/any)
+    //  5. f16 mixed:    f16 src, f16 wei, f32 dst   (AVX512-FP16, acc-mode f16/any)
+    // Explicitly unsupported: f32 src with bf16/f16 dst.
     // int8 static quant is handled by the dedicated zen_lowp_matmul_t impl.
     const bool all_f32 = utils::everyone_is(f32, src_dt, wei_dt, dst_dt);
     const bool all_bf16 = utils::everyone_is(bf16, src_dt, wei_dt, dst_dt);
     const bool bf16_mixed
             = utils::everyone_is(bf16, src_dt, wei_dt) && dst_dt == f32;
-    VDISPATCH_MATMUL(utils::one_of(true, all_f32, all_bf16, bf16_mixed),
+    const bool all_f16 = utils::everyone_is(f16, src_dt, wei_dt, dst_dt);
+    const bool f16_mixed
+            = utils::everyone_is(f16, src_dt, wei_dt) && dst_dt == f32;
+    VDISPATCH_MATMUL(utils::one_of(true, all_f32, all_bf16, bf16_mixed, all_f16,
+                             f16_mixed),
             VERBOSE_UNSUPPORTED_DT_CFG);
+    // Accumulation mode must match what ZenDNN/AOCL-DLP can execute for each
+    // config. oneDNN keeps desc()->accum_data_type at the library default (f32
+    // for f16 tensors); the user's choice is attr()->acc_mode_ (e.g. benchdnn
+    // --attr-acc-mode=f16). Both uniform f16 (f16f16f16of16) and mixed
+    // f16->f32 (f16f16f16of32) use native FP16 matmul accumulation on DLP;
+    // accept f16 configs when acc-mode is f16 or any (fastest/low-precision
+    // accumulation allowed). Default strict/f32 accumulation is left to brgemm.
+    const auto acc_mode = attr()->acc_mode_;
+    const bool is_f16_gemm = all_f16 || f16_mixed;
+    const bool f16_acc_mode_ok = utils::one_of(
+            acc_mode, accumulation_mode::f16, accumulation_mode::any);
+    const bool acc_mode_ok = IMPLICATION(is_f16_gemm, f16_acc_mode_ok)
+            && IMPLICATION(all_f32 || all_bf16 || bf16_mixed,
+                    acc_mode != accumulation_mode::f16
+                            && acc_mode != accumulation_mode::s32);
+    VDISPATCH_MATMUL(acc_mode_ok, VERBOSE_UNSUPPORTED_ATTR);
+    // F16 requires AVX512-FP16 (Zen5+). Gate here so f32/bf16 configs on
+    // Zen4 still dispatch to this impl without needing FP16 ISA.
     VDISPATCH_MATMUL(
-            desc()->accum_data_type == f32, VERBOSE_UNSUPPORTED_DT_CFG);
+            IMPLICATION(all_f16 || f16_mixed, mayiuse(avx512_core_fp16)),
+            VERBOSE_UNSUPPORTED_ISA);
 
     // ---- Bias validation ----
     // Zen supports bias with matching/compatible dtypes;
@@ -181,16 +206,21 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
         const auto bia_dt = weights_md(1)->data_type;
         const bool bia_dt_ok = IMPLICATION(all_f32, bia_dt == f32)
                 && IMPLICATION(all_bf16 || bf16_mixed,
-                        utils::one_of(bia_dt, bf16, f32));
+                        utils::one_of(bia_dt, bf16, f32))
+                && IMPLICATION(
+                        all_f16 || f16_mixed, utils::one_of(bia_dt, f16, f32));
         return bia_dt_ok && is_bias_1xN();
     };
     VDISPATCH_MATMUL(check_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
 
     // ---- Attribute validation ----
-    // For f32/bf16: post-ops (eltwise + binary + sum) are supported;
-    // fpmath_mode, scales and zero-points must be default.
-    VDISPATCH_MATMUL(attr()->has_default_values(
-                             smask_t::post_ops | smask_t::sum_dt, dst_dt),
+    // For f32/bf16/f16: post-ops (eltwise + binary + sum) are supported;
+    // fpmath_mode, scales and zero-points must be default. accumulation_mode
+    // is validated explicitly above (f16 configs require acc-mode f16 or any).
+    VDISPATCH_MATMUL(
+            attr()->has_default_values(smask_t::post_ops | smask_t::sum_dt
+                            | smask_t::accumulation_mode,
+                    dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
 
     // Sum-consistency check (catches sum.dt != dst_dt precision bugs).
@@ -243,7 +273,11 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
                 if (!utils::one_of(entry.binary.alg, binary_add, binary_mul))
                     return false;
                 const auto src1_dt = entry.binary.src1_desc.data_type;
-                if (!utils::one_of(src1_dt, f32, bf16)) return false;
+                if (!utils::one_of(src1_dt, f32, bf16, f16)) return false;
+                // F16 binary operands require AVX512-FP16 (Zen5+); without it
+                // the runtime cannot allocate/process f16 post-op buffers even
+                // when the matmul itself is f32/bf16.
+                if (src1_dt == f16 && !mayiuse(avx512_core_fp16)) return false;
             } else {
                 // Unsupported post-op kind.
                 return false;
@@ -254,7 +288,7 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
     VDISPATCH_MATMUL(check_postops(), VERBOSE_UNSUPPORTED_POSTOP);
 
     // ---- Scales / zero-points validation ----
-    // f32/bf16 path does not support scales or zero-points.
+    // f32/bf16/f16 path does not support scales or zero-points.
     VDISPATCH_MATMUL(attr()->scales_.has_default_values(),
             VERBOSE_UNSUPPORTED_SCALES_CFG);
     VDISPATCH_MATMUL(attr()->zero_points_.has_default_values(),
@@ -265,7 +299,7 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
     VDISPATCH_MATMUL(
             !has_runtime_dims_or_strides(), VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
-    // Zen f32/bf16 matmul: prepack path. When the framework leaves the
+    // Zen f32/bf16/f16 matmul: prepack path. When the framework leaves the
     // weights layout open (format_any) we advertise the dedicated opaque
     // `format_kind::zen_packed` weights format. The bytes are produced by
     // zen_reorder_t (the Zen backend packer) and consumed directly by the
@@ -293,7 +327,7 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
     // produced by zen_reorder_t and consumed here with mem_format_b='r' plus a
     // per-slice batch_stride_wei.
     bool wei_zen_packed = wei_already_packed;
-    if (wei_format_any && (wei_dt == bf16 || wei_dt == f32)) {
+    if (wei_format_any && utils::one_of(wei_dt, f32, bf16, f16)) {
         VDISPATCH_MATMUL_SC(zen::init_zen_packed_md(weights_md_, src_dt, K(),
                                     N(), is_batched ? wei_batch : 1),
                 VERBOSE_UNSUPPORTED_TAG);
@@ -533,6 +567,7 @@ status_t zen_matmul_t::init(engine_t *engine) {
             switch (entry.binary.src1_desc.data_type) {
                 case f32: lpo.dtype = zd::f32; break;
                 case bf16: lpo.dtype = zd::bf16; break;
+                case f16: lpo.dtype = zd::f16; break;
                 default: return status::runtime_error;
             }
             const auto &src1_desc = entry.binary.src1_desc;
@@ -586,7 +621,10 @@ status_t zen_matmul_direct(data_type_t src_dt, data_type_t wei_dt,
     params.dtypes.wei = to_zen_dt(wei_dt);
     params.dtypes.dst = to_zen_dt(dst_dt);
     params.dtypes.bias = (bias ? to_zen_dt(bia_dt) : zd::none);
-    params.dtypes.compute = zd::f32; // always accumulate in f32
+    // pd_t::init accepts f16 src/wei only with acc-mode f16 or any (uniform and
+    // mixed); GEMM backend accumulates the matmul product in native FP16 only.
+    params.dtypes.compute
+            = utils::everyone_is(f16, src_dt, wei_dt) ? zd::f16 : zd::f32;
 
     // 'r' = pre-packed, 'n' = plain weights;
     params.mem_format_b = mem_format_b;
