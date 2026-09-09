@@ -34,7 +34,8 @@ struct StructuredType {
         u8,
         s8,
         u4,
-        s4, //    integral
+        s4,
+        u3, //    integral
         f64,
         f32,
         f16,

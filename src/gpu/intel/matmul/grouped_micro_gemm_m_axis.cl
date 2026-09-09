@@ -157,7 +157,7 @@ void find_sparse_batch(off_t *batch, int2 *src_range,
 
     // Find the tile containing the current batch, use shuffle_up to
     // query the next src_offset.
-    int carry_b = sg_carry;
+    off_t carry_b = sg_carry;
 #pragma unroll
     for (int b = 0, idx = sg_batch0 + get_sub_group_local_id();
             b < offsets_tile_nbr; b++, idx += SUBGROUP_SIZE) {
@@ -357,7 +357,7 @@ grouped_micro_gemm_m_axis(const global SRC_DATA_T *src, long ldsrc,
     off_t sg_j0 = wg_j0 + sg_j * ugemm_grouped_sg_tile_n;
 
     src += src_offset * ldsrc / SRC_ELEMS_PER_BYTE;
-    wei += batch * wei_strides[0] / WEI_ELEMS_PER_BYTE;
+    wei += batch * WEI_STRIDE0;
     dst += src_offset * lddst;
 
     off_t ldwei = wei_strides[2] == 1 ? wei_strides[1] : wei_strides[2];
