@@ -233,6 +233,7 @@ status_t grouped_micro_gemm_t::pd_t::init_microkernels(
         if (!s8s4_dpas_ok) problem.Tb = Type::s8;
     }
 
+    if (problem.Ta.is3()) problem.Ta = Type::u4;
     // When both A and B are integers and group sums are needed, we
     // can avoid using group sums by converting one of the inputs to
     // f16/bf16.
@@ -486,7 +487,7 @@ status_t grouped_micro_gemm_t::pd_t::init_m_axis(const impl::engine_t *engine) {
     VDISPATCH_MATMUL(utils::one_of(src_dt, f32, f16, bf16, u8, s8, f8_e5m2,
                              f8_e4m3, f4_e2m1),
             VERBOSE_UNSUPPORTED_DT_CFG);
-    VDISPATCH_MATMUL(utils::one_of(wei_dt, f32, f16, bf16, u8, s8, s4, u4,
+    VDISPATCH_MATMUL(utils::one_of(wei_dt, f32, f16, bf16, u8, s8, s4, u4, u3,
                              f8_e5m2, f8_e4m3, f4_e2m1),
             VERBOSE_UNSUPPORTED_DT_CFG);
     VDISPATCH_MATMUL(
@@ -503,6 +504,10 @@ status_t grouped_micro_gemm_t::pd_t::init_m_axis(const impl::engine_t *engine) {
     VDISPATCH_MATMUL(IMPLICATION(wei_subbyte, (K() % 2) == 0), VERBOSE_BAD_DIM,
             "weights", 1);
     VDISPATCH_MATMUL(IMPLICATION(wei_subbyte, (N() % 2) == 0), VERBOSE_BAD_DIM,
+            "weights", 2);
+    VDISPATCH_MATMUL(IMPLICATION(wei_dt == u3, (K() % 8) == 0), VERBOSE_BAD_DIM,
+            "weights", 1);
+    VDISPATCH_MATMUL(IMPLICATION(wei_dt == u3, (N() % 8) == 0), VERBOSE_BAD_DIM,
             "weights", 2);
 
     // Check offsets are int32
@@ -640,8 +645,22 @@ status_t grouped_micro_gemm_t::pd_t::init_kernel_ctx_m_axis() {
 
     kernel_ctx_.define_int(
             "SRC_ELEMS_PER_BYTE", types::bytes_to_elements(src_dt, 1));
-    kernel_ctx_.define_int(
-            "WEI_ELEMS_PER_BYTE", types::bytes_to_elements(wei_dt, 1));
+    switch (wei_dt) {
+        case data_type::f4_e2m1:
+        case data_type::s4:
+        case data_type::u4:
+        case data_type::u3:
+            kernel_ctx_.define_int("WEI_STRIDE0",
+                    types::elements_to_bytes(wei_dt,
+                            memory_desc_wrapper(weights_md(0)).strides()[0]));
+            break;
+        default:
+            kernel_ctx_.define_int("WEI_STRIDE0",
+                    memory_desc_wrapper(weights_md(0)).strides()[0]);
+    }
+    if (memory_desc_wrapper(weights_md(0)).strides()[0] * ngroups_
+            >= std::numeric_limits<int>::max())
+        kernel_ctx_.use_int32_offset(false);
 
     src_quant_.define_macros(kernel_ctx_, "SRC");
     wei_quant_.define_macros(kernel_ctx_, "WEI");
