@@ -78,6 +78,9 @@ struct avx512_backend_t {
         if (mem_dt == reg_dt
                 && utils::one_of(reg_dt, data_type::f32, data_type::bf16)) {
             gen().vmovups(Xbyak::Zmm(d), addr);
+        } else if (mem_dt == data_type::bf16 && reg_dt == data_type::f32) {
+            gen().vpmovzxwd(Xbyak::Zmm(d), addr);
+            gen().vpslld(Xbyak::Zmm(d), Xbyak::Zmm(d), 16);
         } else if (mem_dt == data_type::f16 && reg_dt == data_type::f32) {
             gen().vcvtph2ps(Xbyak::Zmm(d), addr);
         } else {
@@ -116,9 +119,17 @@ struct avx512_backend_t {
     void vload_bcast(int d, int base, dim_t disp, data_type_t mem_dt,
             data_type_t reg_dt) {
         const auto addr = gen().ptr[Xbyak::Reg64(base) + (int)disp];
-        if (mem_dt == data_type::f32 && reg_dt == data_type::f32)
+        if (mem_dt == data_type::f32 && reg_dt == data_type::f32) {
             gen().vbroadcastss(Xbyak::Zmm(d), addr);
-        else { JIT_ASSERT(!"vload_bcast: dtype not implemented"); }
+        } else if (mem_dt == data_type::bf16 && reg_dt == data_type::f32) {
+            gen().vpbroadcastw(Xbyak::Zmm(d), addr);
+            gen().vpslld(Xbyak::Zmm(d), Xbyak::Zmm(d), 16);
+        } else if (mem_dt == data_type::f16 && reg_dt == data_type::f32) {
+            gen().vpbroadcastw(Xbyak::Ymm(d), addr);
+            gen().vcvtph2ps(Xbyak::Zmm(d), Xbyak::Ymm(d));
+        } else {
+            JIT_ASSERT(!"vload_bcast: dtype not implemented");
+        }
     }
 
     void vadd(int d, int s, data_type_t dt) { // dst += s0
@@ -198,6 +209,9 @@ struct avx512_backend_t {
             gen().vmovups(Xbyak::Zmm(d) | k | gen().T_z, addr);
         } else if (mem_dt == data_type::bf16 && reg_dt == data_type::bf16) {
             gen().vmovdqu16(Xbyak::Zmm(d) | k | gen().T_z, addr);
+        } else if (mem_dt == data_type::bf16 && reg_dt == data_type::f32) {
+            gen().vpmovzxwd(Xbyak::Zmm(d) | k | gen().T_z, addr);
+            gen().vpslld(Xbyak::Zmm(d), Xbyak::Zmm(d), 16);
         } else if (mem_dt == data_type::f16 && reg_dt == data_type::f32) {
             gen().vmovdqu16(Xbyak::Ymm(d) | k | gen().T_z, addr);
             gen().vcvtph2ps(Xbyak::Zmm(d), Xbyak::Ymm(d));

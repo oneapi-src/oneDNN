@@ -137,6 +137,8 @@ struct brgemv_ir_conf_t {
         , kblk_a_off(acc_elems > 1 ? dt_sz_a * (dim_t)k_block * lda
                                    : dt_sz_a * (dim_t)k_block)
         , kblk_x_off(dt_sz_x * k_block)
+        , prefetch_a_off(
+                  brg.transA && brg.dt_a != data_type::f32 ? 8 * kblk_a_off : 0)
         , with_bias(brg.with_bias)
         , treat_y_as_row(brg.treat_y_as_row)
         , dt_bias(brg.dt_bias)
@@ -166,6 +168,7 @@ struct brgemv_ir_conf_t {
     const int gemv_tail;
     const dim_t mblk_a_off, mblk_y_off;
     const dim_t kblk_a_off, kblk_x_off;
+    const dim_t prefetch_a_off;
     const bool with_bias, treat_y_as_row;
     const data_type_t dt_bias;
     const int dt_sz_bias;
@@ -180,10 +183,6 @@ struct brgemv_ir_conf_t {
         return with_bias || with_injector_postops || with_src_scales
                 || with_wei_scales;
     }
-
-    // The `elems` value the post-ops injector expects for a fully occupied
-    // accumulator: a whole vector is -1, a single output is a one-element tail.
-    int full_acc_elems() const { return acc_elems > 1 ? -1 : 1; }
 };
 
 // M-loop input register classification
@@ -326,14 +325,6 @@ int acc_elems_at(const brgemv_ir_conf_t &cfg, int r, dim_t rows) {
             cfg.acc_elems, rows - (dim_t)r * cfg.acc_elems);
 }
 
-// A mask register is only needed for a partial vector. A single element and a
-// full vector lower to plain moves.
-ir::vreg_t acc_mask(
-        const brgemv_ir_conf_t &cfg, int elems, ir::vreg_t gemv_tail_mask) {
-    const bool needs_mask = elems > 1 && elems < cfg.acc_elems;
-    return needs_mask ? gemv_tail_mask : ir::vreg_t::none;
-}
-
 // Byte offset of accumulator `r` from the start of the current M block in `y`.
 dim_t acc_y_off(const brgemv_ir_conf_t &cfg, int r) {
     return cfg.dt_sz_y * (dim_t)r * cfg.acc_elems * cfg.incy;
@@ -344,15 +335,15 @@ dim_t acc_y_off(const brgemv_ir_conf_t &cfg, int r) {
 void emit_bcast(ir::ir_t &ir, const brgemv_ir_conf_t &cfg, ir::vreg_t dst,
         ir::vreg_t base, dim_t disp, data_type_t mem_dt) {
     if (cfg.acc_elems > 1)
-        ir.vbcast(dst, base, disp, mem_dt);
+        ir.vload_bcast(dst, base, disp, mem_dt);
     else
         ir.vload_scalar(dst, base, disp, mem_dt);
 }
 
-void emit_acc_load(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
-        ir::vreg_t dst, ir::vreg_t base, dim_t disp, ir::vreg_t mask,
-        int elems, data_type_t mem_dt) {
-    if (elems == 1)
+void emit_acc_load(ir::ir_t &ir, const brgemv_ir_conf_t &cfg, ir::vreg_t dst,
+        ir::vreg_t base, dim_t disp, ir::vreg_t mask, int elems,
+        data_type_t mem_dt) {
+    if (elems == 1 && mem_dt == data_type::f32)
         ir.vload_scalar(dst, base, disp, mem_dt);
     else if (elems == cfg.acc_elems)
         ir.vload(dst, base, disp, mem_dt);
@@ -378,7 +369,7 @@ std::vector<ir::vreg_t> init_accumulators(ir::ir_t &ir,
             ir.vzero(acc[r]);
         } else {
             const int elems = acc_elems_at(cfg, r, rows);
-                emit_acc_load(ir, cfg, acc[r], regs.advancing.y_ptr,
+            emit_acc_load(ir, cfg, acc[r], regs.advancing.y_ptr,
                     acc_y_off(cfg, r), regs.invariant.gemv_tail_mask, elems,
                     cfg.dt_y);
         }
@@ -449,7 +440,7 @@ void emit_epilogue(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
         if (cfg.with_src_scales) {
             // Loaded once and applied to every output.
             const ir::vreg_t sc = ir.new_vec(cfg.dt_src_scales);
-                emit_bcast(ir, cfg, sc, regs.invariant.src_scale_ptr, 0,
+            emit_bcast(ir, cfg, sc, regs.invariant.src_scale_ptr, 0,
                     cfg.dt_src_scales);
 
             for (int r = 0; r < n_acc; r++)
@@ -462,12 +453,12 @@ void emit_epilogue(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
             const ir::vreg_t sc = ir.new_vec(cfg.dt_wei_scales);
             if (cfg.single_wei_scale)
                 emit_bcast(ir, cfg, sc, regs.advancing.wei_scale_ptr, 0,
-                    cfg.dt_wei_scales);
+                        cfg.dt_wei_scales);
 
             for (int r = 0; r < n_acc; r++) {
                 if (!cfg.single_wei_scale) {
                     const int elems = acc_elems_at(cfg, r, rows);
-                        emit_acc_load(ir, cfg, sc, regs.advancing.wei_scale_ptr,
+                    emit_acc_load(ir, cfg, sc, regs.advancing.wei_scale_ptr,
                             cfg.dt_sz_wei_scales * (dim_t)r * cfg.acc_elems,
                             gemv_tail_mask, elems, cfg.dt_wei_scales);
                 }
@@ -480,13 +471,13 @@ void emit_epilogue(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
             // loop. A row output loads a separate bias per output element.
             const ir::vreg_t bias = ir.new_vec(cfg.dt_bias);
             if (!cfg.treat_y_as_row)
-                emit_bcast(ir, cfg, bias, regs.advancing.bias_ptr, 0,
-                    cfg.dt_bias);
+                emit_bcast(
+                        ir, cfg, bias, regs.advancing.bias_ptr, 0, cfg.dt_bias);
 
             for (int r = 0; r < n_acc; r++) {
                 if (cfg.treat_y_as_row) {
                     const int elems = acc_elems_at(cfg, r, rows);
-                        emit_acc_load(ir, cfg, bias, regs.advancing.bias_ptr,
+                    emit_acc_load(ir, cfg, bias, regs.advancing.bias_ptr,
                             cfg.dt_sz_bias * (dim_t)r * cfg.acc_elems,
                             gemv_tail_mask, elems, cfg.dt_bias);
                 }
@@ -508,12 +499,13 @@ void emit_epilogue(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
                     full_acc.push_back(acc[r]);
                     full_off.push_back(off);
                 } else {
-                        ir.inject_postops({acc[r]}, regs.advancing.store_ptr, {off});
+                    ir.inject_postops(
+                            {acc[r]}, regs.advancing.store_ptr, {off});
                 }
             }
             if (!full_acc.empty())
                 ir.inject_postops(full_acc, regs.advancing.store_ptr, full_off,
-                    cfg.acc_elems == 1);
+                        cfg.acc_elems == 1);
         }
 
         ir.if_end(if_post_ops);
@@ -523,13 +515,13 @@ void emit_epilogue(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
         const int elems = acc_elems_at(cfg, r, rows);
         if (elems == 1)
             ir.vstore_scalar(regs.advancing.store_ptr, acc_y_off(cfg, r),
-                acc[r], cfg.dt_y);
+                    acc[r], cfg.dt_y);
         else if (elems == cfg.acc_elems)
             ir.vstore(regs.advancing.store_ptr, acc_y_off(cfg, r), acc[r],
-                cfg.dt_y);
+                    cfg.dt_y);
         else
             ir.vstore_masked(regs.advancing.store_ptr, acc_y_off(cfg, r),
-                acc[r], gemv_tail_mask, cfg.dt_y);
+                    acc[r], gemv_tail_mask, cfg.dt_y);
     }
 
     // Advance to next M block
@@ -674,9 +666,12 @@ void emit_microkernel(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
     ir.vload_bcast(x, x_ptr, 0, cfg.dt_x);
     for (int r = 0; r < (int)acc.size(); r++) {
         const int elems = acc_elems_at(cfg, r, rows);
-        emit_acc_load(ir, cfg, a, a_ptr,
-            cfg.dt_sz_a * (dim_t)r * cfg.acc_elems, gemv_tail_mask,
-            elems, cfg.dt_a);
+        if (cfg.prefetch_a_off != 0)
+            ir.prefetch(a_ptr,
+                    cfg.dt_sz_a * (dim_t)r * cfg.acc_elems
+                            + cfg.prefetch_a_off);
+        emit_acc_load(ir, cfg, a, a_ptr, cfg.dt_sz_a * (dim_t)r * cfg.acc_elems,
+                gemv_tail_mask, elems, cfg.dt_a);
         ir.vdot(acc[r], a, x);
     }
 }
@@ -800,8 +795,6 @@ status_t brgemv_ir_supported(const brgemm_desc_t &brg) {
     VCONDCHECK_BRGEMV_IR(brg.dt_b == brg.dt_a, VERBOSE_UNSUPPORTED_DT);
     // The kernel accumulates in f32 and has no conversion on the way out.
     VCONDCHECK_BRGEMV_IR(brg.dt_c == f32, VERBOSE_UNSUPPORTED_DT);
-        VCONDCHECK_BRGEMV_IR(IMPLICATION(brg.transA, brg.dt_a == f32),
-            VERBOSE_UNSUPPORTED_DT);
 
     // A vector accumulator stores neighboring outputs with a single
     // instruction, so `y` has to be contiguous.
@@ -885,6 +878,9 @@ status_t brgemv_ir_supported(const brgemm_desc_t &brg) {
             "A block offset overflows int32");
     VCONDCHECK_BRGEMV_IR(fits(kblk_a_off), VERBOSE_UNSUPPORTED_FEATURE,
             "A reduction step overflows int32");
+    VCONDCHECK_BRGEMV_IR(IMPLICATION(brg.transA && brg.dt_a != f32,
+                                 fits(8 * kblk_a_off + mblk_a_off)),
+            VERBOSE_UNSUPPORTED_FEATURE, "A prefetch offset overflows int32");
     VCONDCHECK_BRGEMV_IR(fits(dt_sz_y * (dim_t)m_block * incy),
             VERBOSE_UNSUPPORTED_FEATURE, "y block offset overflows int32");
 
