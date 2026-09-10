@@ -576,10 +576,30 @@ void jit_uni_binary_injector_t<Vmm>::compute_vector_range(
             = should_preserve_oc_offset_conversion_regs
             || should_preserve_w_offset_conversion_regs
             || should_preserve_spatial_offset_conversion_regs;
+    const bool scalar_f32_memory_operand = has_avx512_core_
+            && post_op.is_binary() && !needs_ternary_input
+            && rhs_broadcasting_strategy == broadcasting_strategy_t::scalar
+            && rhs_arg_data_type == data_type::f32 && !dt_helper_vmm_needed
+            && (!rhs_arg_static_params_.is_tail
+                    || rhs_arg_static_params_.is_opmask_set())
+            && utils::one_of(post_op.binary.alg, alg_kind::binary_add,
+                    alg_kind::binary_sub, alg_kind::binary_mul,
+                    alg_kind::binary_div, alg_kind::binary_min,
+                    alg_kind::binary_max);
 
     // Phase 2 Protect temporary registers content.
+    // Scalar memory arithmetic only modifies the existing RHS address helper.
+    // It does not borrow caller registers or compute destination offsets.
     const injector_utils::register_preserve_guard_t register_guard {host_,
-            (rhs_arg_static_params_.preserve_gpr_helpers
+            (scalar_f32_memory_operand
+                            ? (rhs_arg_static_params_.preserve_gpr_helpers
+                                              ? std::initializer_list<
+                                                        Xbyak::Reg64>(
+                                                        {rhs_arg_static_params_
+                                                                        .rhs_addr_reg})
+                                              : std::initializer_list<
+                                                        Xbyak::Reg64>())
+                            : rhs_arg_static_params_.preserve_gpr_helpers
                                     && should_preserve_w_or_oc_offset_conversion_regs
                             ? std::initializer_list<
                                       Xbyak::Reg64>({rhs_arg_static_params_
