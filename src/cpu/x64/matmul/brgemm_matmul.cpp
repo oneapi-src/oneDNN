@@ -619,6 +619,14 @@ status_t brgemm_matmul_t<isa>::execute_body(const exec_ctx_t &ctx) const {
     const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, pd()->dst_md());
     matmul_helper_t helper(src_d, weights_d, dst_d);
 
+    // Shared_ptr is used to support asynchronous threadpool runtime through
+    // preserving underlying object's lifetime when correspondent parallel task
+    // captures-by-copy. In cases where the underlying object doesn't hold
+    // anything unique (can be picked up from pd()), shared_ptr is still useful
+    // to avoid underlying object deep copy.
+    // Note: use only `_ptr` name until the parallel call to avoid any
+    // shadowing.
+    // Anchor: CONTEXT_SHARED_PTR_ASYNC.
     auto brgmm_ctx_ptr
             = std::make_shared<brg_matmul_exec_ctx_t>(ctx, pd(), helper);
 
