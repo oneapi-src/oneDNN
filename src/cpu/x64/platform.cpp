@@ -90,12 +90,31 @@ size_t find_representative_cpu(Xbyak::util::CoreType target_type,
     return SIZE_MAX;
 }
 
-// Calculate per-core cache size for a specific cache level and CPU index.
-// Matches the legacy getCoresSharingDataCache semantics: divides by the number
-// of PHYSICAL cores sharing the cache, not logical CPUs.  The legacy Xbyak Cpu
-// path (CPUID leaf 4) uses L1d sharing count as the SMT width and divides it
-// out of every level's logical-CPU sharing count.  We replicate that here so
-// that non-hybrid results are identical to the legacy path.
+// Physical cores sharing the given cache level/CPU index, from
+// Xbyak::util::CpuTopology. Divides the logical-CPU sharing count by L1d's
+// (the SMT width), mirroring legacy getCoresSharingDataCache semantics.
+// Returns 0 if the level is not present.
+unsigned topology_sharing_cores(size_t cpu_index, int level) {
+    const auto &topo = get_topology_cache().topology;
+
+    Xbyak::util::CacheType cache_type = convert_cache_level(level);
+    if (cache_type == Xbyak::util::CACHE_UNKNOWN) { return 0; }
+
+    const auto &cache = topo.getCache(cpu_index, cache_type);
+    if (cache.size == 0) { return 0; }
+
+    size_t sharing_logical = cache.getSharedCpuNum();
+    if (sharing_logical == 0) sharing_logical = 1;
+
+    size_t smt_width
+            = topo.getCache(cpu_index, Xbyak::util::L1d).getSharedCpuNum();
+    if (smt_width == 0) smt_width = 1;
+
+    return static_cast<unsigned>(
+            std::max(sharing_logical / smt_width, size_t(1)));
+}
+
+// Per-core cache size for a specific cache level and CPU index, in bytes.
 uint32_t calculate_per_core_cache(size_t cpu_index, int level) {
     const auto &topo = get_topology_cache().topology;
 
@@ -105,20 +124,10 @@ uint32_t calculate_per_core_cache(size_t cpu_index, int level) {
     const auto &cache = topo.getCache(cpu_index, cache_type);
     if (cache.size == 0) { return 0; }
 
-    // Number of logical CPUs (threads) sharing this cache instance.
-    size_t sharing_logical = cache.getSharedCpuNum();
-    if (sharing_logical == 0) sharing_logical = 1;
+    unsigned sharing_cores = topology_sharing_cores(cpu_index, level);
+    if (sharing_cores == 0) sharing_cores = 1;
 
-    // SMT width = logical CPUs sharing L1d (L1 is always private to one
-    // physical core, so this count equals the number of HT threads per core).
-    size_t smt_width
-            = topo.getCache(cpu_index, Xbyak::util::L1d).getSharedCpuNum();
-    if (smt_width == 0) smt_width = 1;
-
-    // Physical cores sharing this cache (mirrors legacy smt_width division).
-    size_t sharing_cores = std::max(sharing_logical / smt_width, size_t(1));
-
-    return static_cast<uint32_t>(cache.size / sharing_cores);
+    return cache.size / sharing_cores;
 }
 
 struct cache_level_info_t {
@@ -351,14 +360,19 @@ unsigned get_topology_cores_sharing_cache(unsigned level) {
 
 // Number of physical cores sharing the data/unified cache at 0-based index `l`.
 // Leaf 4's EAX[25:14]+1 is an ID reservation that can overstate the true
-// sharing count; prefer leaf 0x1F/0xB's real count when a topology level
-// maps exactly onto the cache's ID width, else raw CPUID.
+// sharing count; prefer leaf 0x1F/0xB, then OS-reported topology (the same
+// Xbyak::util::CpuTopology used for hybrid systems), and fall back to raw
+// CPUID.
 unsigned compute_cores_sharing_cache(unsigned l) {
     // Absent level (e.g. no L3 exposed under a hypervisor): Xbyak's getter
     // would record a sticky ERR_BAD_PARAMETER that fails every later JIT.
     if (l >= cpu().getDataCacheLevels()) return 1;
     const unsigned topo_sharing = get_topology_cores_sharing_cache(l + 1);
     if (topo_sharing > 0) return topo_sharing;
+
+    const unsigned os_sharing = topology_sharing_cores(0, (int)l + 1);
+    if (os_sharing > 0) return os_sharing;
+
     const unsigned sharing = cpu().getCoresSharingDataCache(l);
     return sharing > 0 ? sharing : 1;
 }
