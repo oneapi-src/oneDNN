@@ -576,22 +576,28 @@ void jit_uni_binary_injector_t<Vmm>::compute_vector_range(
             = should_preserve_oc_offset_conversion_regs
             || should_preserve_w_offset_conversion_regs
             || should_preserve_spatial_offset_conversion_regs;
-    const bool scalar_f32_memory_operand = has_avx512_core_
-            && post_op.is_binary() && !needs_ternary_input
+    const bool scalar_arithmetic = has_avx512_core_ && post_op.is_binary()
+            && !needs_ternary_input
             && rhs_broadcasting_strategy == broadcasting_strategy_t::scalar
-            && rhs_arg_data_type == data_type::f32 && !dt_helper_vmm_needed
-            && (!rhs_arg_static_params_.is_tail
-                    || rhs_arg_static_params_.is_opmask_set())
             && utils::one_of(post_op.binary.alg, alg_kind::binary_add,
                     alg_kind::binary_sub, alg_kind::binary_mul,
                     alg_kind::binary_div, alg_kind::binary_min,
                     alg_kind::binary_max);
+    const bool scalar_f32_memory_operand = scalar_arithmetic
+            && rhs_arg_data_type == data_type::f32 && !dt_helper_vmm_needed
+            && (!rhs_arg_static_params_.is_tail
+                    || rhs_arg_static_params_.is_opmask_set());
+    const bool scalar_bf16_broadcast_once = scalar_arithmetic
+            && rhs_arg_data_type == data_type::bf16
+            && vmm_idxs.count(vmm_hint) == 0
+            && !(rhs_arg_static_params_.is_tail && tail_exists_in_range
+                    && rhs_arg_static_params_.use_exact_tail_scalar_bcast);
 
     // Phase 2 Protect temporary registers content.
-    // Scalar memory arithmetic only modifies the existing RHS address helper.
-    // It does not borrow caller registers or compute destination offsets.
+    // These scalar paths only modify the existing RHS address GPR helper.
+    // Neither computes destination offsets or needs other GPR helpers.
     const injector_utils::register_preserve_guard_t register_guard {host_,
-            (scalar_f32_memory_operand
+            ((scalar_f32_memory_operand || scalar_bf16_broadcast_once)
                             ? (rhs_arg_static_params_.preserve_gpr_helpers
                                               ? std::initializer_list<
                                                         Xbyak::Reg64>(
@@ -651,6 +657,22 @@ void jit_uni_binary_injector_t<Vmm>::compute_vector_range(
             (rhs_arg_static_params_.preserve_vmm_helper && dt_helper_vmm_needed
                             ? std::initializer_list<Xbyak::Xmm>({Vmm(vmm_hint)})
                             : std::initializer_list<Xbyak::Xmm>())};
+
+    if (scalar_bf16_broadcast_once) {
+        // Reuse the converted scalar only within this invocation. Exact tails
+        // and an overlapping helper retain the per-vector path below.
+        const Vmm rhs_vmm(vmm_hint);
+        const auto rhs_addr
+                = prepare_rhs_arg_addr(start_idx, rhs_arg_idx, post_op,
+                        rhs_arg_params, rhs_broadcasting_strategy, true, false);
+        execute_broadcast_no_tail(
+                rhs_arg_data_type, rhs_vmm, remove_bcast_bit(rhs_addr));
+        for (const auto vmm_idx : vmm_idxs) {
+            const Vmm dst_vmm(vmm_idx);
+            execute_binary(post_op.binary.alg, dst_vmm, dst_vmm, rhs_vmm);
+        }
+        return;
+    }
 
     bool vmm0_was_preserved = false;
     static const Vmm zero_vmm(0);
