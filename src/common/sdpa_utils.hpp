@@ -217,6 +217,12 @@ static inline status_t sdpa_attr_check(const memory_desc_t *q_desc,
         const auto &zp = vs_attr->zero_points_;
 
         if (!sc.has_default_values()) {
+            // The softmax output and the VS result are internal, so only V
+            // takes scales here
+            VCHECK_SDPA_UNIMPL(sc.has_default_values(DNNL_ARG_SRC)
+                            && sc.has_default_values(DNNL_ARG_DST),
+                    VERBOSE_UNSUPPORTED_SCALES_CFG);
+
             const auto &scale_dt = sc.get_data_type(DNNL_ARG_WEIGHTS);
             VCHECK_SDPA_ATTR_TYPE(utils::one_of(scale_dt, f16, bf16, f32),
                     vs_attr, "scales", "f16, bf16, or f32");

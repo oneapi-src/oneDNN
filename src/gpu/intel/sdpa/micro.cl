@@ -71,8 +71,11 @@ typedef qry_tile_data_t fma_tile_data_t;
     into_float(AS_NATIVE_LAYOUT_TYPE(MSK_DATA_T, value))
 
 #if VS_S_QUANT
+// Internal power-of-two scale for rounding the unnormalized probabilities to
+// e4m3, undone in the final rescale. Values >= 2^-6 round as an unscaled cast
+// would, while small ones stay normal instead of flushing below 2^-10.
 #ifndef VS_S_FP8_SCALE
-#define VS_S_FP8_SCALE 448.0f
+#define VS_S_FP8_SCALE 256.0f
 #endif
 #endif
 
