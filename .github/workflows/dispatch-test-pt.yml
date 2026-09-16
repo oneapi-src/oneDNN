@@ -1,0 +1,213 @@
+name: oneDNN test_pt
+
+# Comment a `make test_pt` command on a PR to run the torch-xpu-ops acceptance
+# comparison (`acceptance_ondemand.yml`). A commit status on the PR head,
+# `PyTorch XPU: oneDNN acceptance tests`, auto-refreshes: pending here (linked to
+# the dispatched run) and finalized cross-repo when that run posts a status back.
+# (This dispatch job itself is visible under the repo's Actions tab.)
+#
+# Command syntax — one directive per line (comment on the PR):
+#   make test_pt          # required first line
+#   enable <opt> ...      # optional
+#   disable <opt> ...     # optional
+#   set <key>=<value> ... # optional
+#     opt : smoke | ut | e2e | all (= ut e2e)
+#     run : enabled set (default ut+e2e) minus disabled set
+#     set : python= pytorch= torch_xpu_ops= target= baseline= (default PR head/base)
+#   Example:
+#     make test_pt
+#     enable e2e
+#     set python=3.12 baseline=<sha>
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+  issues: write
+
+concurrency:
+  group: onednn-test-pt-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+env:
+  XPU_OPS_REPO: intel/torch-xpu-ops
+  XPU_OPS_WORKFLOW: acceptance_ondemand.yml
+  XPU_OPS_REF: main
+  ACCEPT_CONTEXT: 'PyTorch XPU: oneDNN acceptance tests'
+
+jobs:
+  dispatch:
+    name: dispatch acceptance
+    if: >-
+      github.repository_owner == 'uxlfoundation' &&
+      github.event.issue.pull_request &&
+      (github.event.comment.author_association == 'OWNER' ||
+       github.event.comment.author_association == 'MEMBER' ||
+       github.event.comment.author_association == 'COLLABORATOR') &&
+      startsWith(github.event.comment.body, 'make test_pt')
+    runs-on: ubuntu-latest
+    env:
+      PR_NUMBER: ${{ github.event.issue.number }}
+    steps:
+      - name: Parse command
+        id: cmd
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = (process.env.COMMENT_BODY || '').trim();
+            // First line `make test_pt`, then one directive per line:
+            //   enable/disable <opt>...  (opt: smoke|ut|e2e|all=ut,e2e)
+            //   set <key>=<value>...
+            const m = body.match(/^make\s+test_pt\b([\s\S]*)$/i);
+            if (!m) { core.setOutput('run', 'false'); return; }
+            const expand = (o) => o === 'all' ? ['ut', 'e2e']
+              : ['smoke', 'ut', 'e2e'].includes(o) ? [o] : [];
+            const enable = new Set(), disable = new Set();
+            const opts = { python: '3.10', pytorch: 'main', torch_xpu_ops: 'main', target: '', baseline: '' };
+            // A directive keyword sets the mode; following tokens are its args,
+            // so directives may span a line or several (one per line).
+            let mode = null, enableSeen = false;
+            for (const raw of m[1].trim().split(/\s+/).filter(Boolean)) {
+              const t = raw.toLowerCase();
+              if (t === 'enable' || t === 'disable' || t === 'set') {
+                mode = t; if (t === 'enable') enableSeen = true; continue;
+              }
+              if (mode === 'enable') expand(t).forEach((x) => enable.add(x));
+              else if (mode === 'disable') expand(t).forEach((x) => disable.add(x));
+              else if (mode === 'set') {
+                const kv = raw.match(/^([a-zA-Z_]+)=(.+)$/);
+                if (kv && kv[1].toLowerCase() in opts) opts[kv[1].toLowerCase()] = kv[2];
+              }
+            }
+            // enabled = (enable set if `enable` was used, else ut+e2e) minus disable
+            const base = enableSeen ? enable : new Set(['ut', 'e2e']);
+            const on = new Set([...base].filter((x) => !disable.has(x)));
+            // map the enabled set to the receiver's single test_pattern
+            let pattern = '';
+            if (on.size === 1 && on.has('smoke')) pattern = 'test_pt_smoke';
+            else if (on.has('ut') && on.has('e2e')) pattern = 'test_pt';
+            else if (on.has('ut')) pattern = 'test_pt_ut';
+            else if (on.has('e2e')) pattern = 'test_pt_e2e';
+            if (!pattern) {
+              core.warning(`Nothing to run for: ${body}`);
+              core.setOutput('run', 'false');
+              return;
+            }
+            const { owner, repo } = context.repo;
+            const pr = (await github.rest.pulls.get({
+              owner, repo, pull_number: context.payload.issue.number,
+            })).data;
+            core.setOutput('run', 'true');
+            core.setOutput('pattern', pattern);
+            core.setOutput('python', opts.python);
+            core.setOutput('pytorch', opts.pytorch);
+            core.setOutput('torch_xpu_ops', opts.torch_xpu_ops);
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('target_version', opts.target || pr.head.sha);
+            core.setOutput('baseline_version', opts.baseline || pr.base.sha);
+
+      - name: Set pending status
+        if: steps.cmd.outputs.run == 'true'
+        uses: actions/github-script@v7
+        env:
+          HEAD_SHA: ${{ steps.cmd.outputs.head_sha }}
+          PATTERN: ${{ steps.cmd.outputs.pattern }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = process.env.HEAD_SHA, pattern = process.env.PATTERN;
+            const wfUrl = `https://github.com/${process.env.XPU_OPS_REPO}/actions/workflows/${process.env.XPU_OPS_WORKFLOW}`;
+            await github.rest.repos.createCommitStatus({
+              owner, repo, sha, state: 'pending', context: process.env.ACCEPT_CONTEXT,
+              target_url: wfUrl, description: `Queued oneDNN acceptance (${pattern})`,
+            });
+
+      - name: Dispatch acceptance workflow
+        id: dispatch
+        if: steps.cmd.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          PATTERN: ${{ steps.cmd.outputs.pattern }}
+          PYVER: ${{ steps.cmd.outputs.python }}
+          PYTORCH: ${{ steps.cmd.outputs.pytorch }}
+          TXO: ${{ steps.cmd.outputs.torch_xpu_ops }}
+          TARGET: ${{ steps.cmd.outputs.target_version }}
+          BASELINE: ${{ steps.cmd.outputs.baseline_version }}
+          CALLBACK_SHA: ${{ steps.cmd.outputs.head_sha }}
+        run: |
+          # Record a start time so we can locate the run we just dispatched.
+          echo "since=$(date -u -d '-1 minute' +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          gh workflow run "${XPU_OPS_WORKFLOW}" \
+            --repo "${XPU_OPS_REPO}" \
+            --ref "${XPU_OPS_REF}" \
+            -f caller="onednn-pr-${PR_NUMBER}" \
+            -f callback_repo="${{ github.repository }}" \
+            -f callback_sha="${CALLBACK_SHA}" \
+            -f callback_context="${ACCEPT_CONTEXT}" \
+            -f test_pattern="${PATTERN}" \
+            -f python="${PYVER}" \
+            -f pytorch="${PYTORCH}" \
+            -f torch_xpu_ops="${TXO}" \
+            -f test_component="onednn" \
+            -f target_version="${TARGET}" \
+            -f baseline_version="${BASELINE}"
+
+      - name: React to dispatched command
+        if: ${{ success() && steps.cmd.outputs.run == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content='+1' || true
+
+      - name: Locate dispatched run
+        id: locate
+        if: ${{ success() && steps.cmd.outputs.run == 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          SINCE: ${{ steps.dispatch.outputs.since }}
+        run: |
+          # Find the run we just dispatched, matched by our caller id.
+          url=""
+          for _ in $(seq 1 10); do
+            url=$(gh run list --repo "${XPU_OPS_REPO}" --workflow "${XPU_OPS_WORKFLOW}" \
+              --event workflow_dispatch --created ">=${SINCE}" \
+              --limit 20 --json url,name \
+              --jq "[.[] | select((.name // \"\") | test(\"caller:onednn-pr-${PR_NUMBER}$\"))] | .[0].url // empty" 2>/dev/null || true)
+            [ -n "$url" ] && break
+            sleep 3
+          done
+          echo "run_url=${url}" >> "$GITHUB_OUTPUT"
+
+      - name: Finalize statuses
+        if: ${{ always() && steps.cmd.outputs.run == 'true' }}
+        uses: actions/github-script@v7
+        env:
+          HEAD_SHA: ${{ steps.cmd.outputs.head_sha }}
+          PATTERN: ${{ steps.cmd.outputs.pattern }}
+          DISPATCH_OUTCOME: ${{ steps.dispatch.outcome }}
+          RUN_URL: ${{ steps.locate.outputs.run_url }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const sha = process.env.HEAD_SHA, pattern = process.env.PATTERN;
+            const ok = process.env.DISPATCH_OUTCOME === 'success';
+            const wfUrl = `https://github.com/${process.env.XPU_OPS_REPO}/actions/workflows/${process.env.XPU_OPS_WORKFLOW}`;
+            const runUrl = process.env.RUN_URL || wfUrl;
+            // Link the acceptance check at the actual run (the run finalizes it
+            // to success/failure); if the dispatch failed, mark failure so it is
+            // not stuck pending.
+            await github.rest.repos.createCommitStatus({
+              owner, repo, sha, state: ok ? 'pending' : 'failure',
+              context: process.env.ACCEPT_CONTEXT, target_url: runUrl,
+              description: ok ? `Running oneDNN acceptance (${pattern}) in ${process.env.XPU_OPS_REPO}`
+                              : 'Not started (dispatch failed).',
+            });
