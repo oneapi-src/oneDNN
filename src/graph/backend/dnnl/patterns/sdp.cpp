@@ -1024,17 +1024,25 @@ DNNL_BACKEND_REGISTER_PATTERN_MATCHER_PASS(dnnl, x8_sdpa_fusion)
 
                     auto softmax = pgraph->append_op(graph::op_kind::SoftMax,
                             in_edges_t {in_edge(0, p_select2, 0)});
-                    auto quantize_softmax
-                            = pgraph->append_op(graph::op_kind::DynamicQuantize,
-                                    in_edges_t {in_edge(0, softmax, 0)});
-                    auto dequantize_softmax = pgraph->append_op(
+
+                    // Absent when the fused kernel quantizes probabilities itself
+                    auto probs_quant_graph = std::make_shared<pb_graph_t>();
+                    auto quantize_softmax = probs_quant_graph->append_op(
+                            graph::op_kind::DynamicQuantize);
+                    auto dequantize_softmax = probs_quant_graph->append_op(
                             graph::op_kind::DynamicDequantize,
                             in_edges_t {in_edge(0, quantize_softmax, 0)});
+                    probs_quant_graph->create_input_port(
+                            0, quantize_softmax, 0);
+                    probs_quant_graph->create_output_port(
+                            0, dequantize_softmax, 0);
+                    auto probs = pgraph->append_optional(
+                            probs_quant_graph, {in_edge(0, softmax, 0)});
 
                     auto dequantize_value = pgraph->append_op(
                             graph::op_kind::DynamicDequantize);
                     auto matmul_v = pgraph->append_op(graph::op_kind::MatMul,
-                            in_edges_t {in_edge(0, dequantize_softmax, 0),
+                            in_edges_t {in_edge(0, probs, 0),
                                     in_edge(1, dequantize_value, 0)});
 
                     // Optional transpose + reshape/reorder
