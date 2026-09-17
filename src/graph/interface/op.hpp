@@ -382,6 +382,7 @@ public:
             CASE(is_invert_scale);
             CASE(mask_type);
             CASE(is_rms);
+            CASE(with_probs_scales);
             CASE(partition_id);
             CASE(op_depth);
             CASE(alg_kind);

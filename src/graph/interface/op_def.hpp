@@ -2360,6 +2360,10 @@ DNNL_GRAPH_OP_SCHEMA(_sdpa, 1,
                         false)
                 .set_attr(op_attr::is_training, false, attribute_kind::b)
                 .set_attr(op_attr::with_dropout, false, attribute_kind::b)
+                // trailing inputs are the softmax quantize and dequantize
+                // scales, checked to cancel and not passed to the primitive
+                .set_attr(op_attr::with_probs_scales, false, attribute_kind::b,
+                        false)
                 // mask_type attribute indicates existence of explicit mask,
                 // top-left implicit causal mask or bottm-right implicit causal mask
                 .set_attr(op_attr::mask_type, true, attribute_kind::i)

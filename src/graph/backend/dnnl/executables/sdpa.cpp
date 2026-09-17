@@ -25,6 +25,13 @@ namespace dnnl_impl {
 
 using ltw = logical_tensor_wrapper_t;
 
+namespace {
+// Graph-only arguments for the softmax quantize/dequantize scales. They are
+// read on the host and never reach the primitive.
+constexpr int probs_quant_scale_arg = DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC_3;
+constexpr int probs_dequant_scale_arg = DNNL_ARG_ATTR_SCALES | DNNL_ARG_DST;
+} // namespace
+
 sdpa_executable_t::sdpa_executable_t(std::shared_ptr<op_t> &op,
         const dnnl::engine &p_engine, pd_cache_t &pd_cache,
         const fpmath_t &fpmath, bool use_block_layout)
@@ -32,7 +39,9 @@ sdpa_executable_t::sdpa_executable_t(std::shared_ptr<op_t> &op,
     , is_training_(op->get_attr<bool>(op_attr::is_training))
     , mask_type_(static_cast<attn_mask_type_t>(
               op->get_attr<int64_t>(op_attr::mask_type)))
-    , with_dropout_(op->get_attr<bool>(op_attr::with_dropout)) {
+    , with_dropout_(op->get_attr<bool>(op_attr::with_dropout))
+    , with_probs_scales_(op->has_attr(op_attr::with_probs_scales)
+              && op->get_attr<bool>(op_attr::with_probs_scales)) {
 
     auto md_q = make_dnnl_memory_desc(op->get_input_logical_tensor(0));
     auto md_k = make_dnnl_memory_desc(op->get_input_logical_tensor(1));
@@ -113,12 +122,33 @@ sdpa_executable_t::sdpa_executable_t(std::shared_ptr<op_t> &op,
     if (prim && ret == dnnl_success) { prim_.reset(prim); }
 }
 
-void sdpa_executable_t::execute(const stream &stream,
+std::vector<dnnl_exec_arg_t> sdpa_executable_t::make_c_args(
         const std::unordered_map<int, memory> &args) const {
+    if (with_probs_scales_) {
+        const float quant
+                = args.at(probs_quant_scale_arg).get_host_scalar_value<float>();
+        const float dequant = args.at(probs_dequant_scale_arg)
+                                      .get_host_scalar_value<float>();
+        if (quant != dequant)
+            throw dnnl::error(dnnl_unimplemented,
+                    "sdpa: softmax quantize and dequantize scales must be "
+                    "equal");
+    }
+
     std::vector<dnnl_exec_arg_t> c_args;
     c_args.reserve(args.size());
-    for (const auto &a : args)
+    for (const auto &a : args) {
+        if (a.first == probs_quant_scale_arg
+                || a.first == probs_dequant_scale_arg)
+            continue;
         c_args.push_back({a.first, a.second.get()});
+    }
+    return c_args;
+}
+
+void sdpa_executable_t::execute(const stream &stream,
+        const std::unordered_map<int, memory> &args) const {
+    const auto c_args = make_c_args(args);
 
     auto ret = dnnl_primitive_execute(prim_.get(), stream.get(),
             static_cast<int>(c_args.size()), c_args.data());
@@ -129,10 +159,7 @@ void sdpa_executable_t::execute(const stream &stream,
 std::optional<::sycl::event> sdpa_executable_t::execute_sycl(
         const stream &stream, const std::unordered_map<int, memory> &args,
         const std::vector<::sycl::event> &deps) const {
-    std::vector<dnnl_exec_arg_t> c_args;
-    c_args.reserve(args.size());
-    for (const auto &a : args)
-        c_args.push_back({a.first, a.second.get()});
+    const auto c_args = make_c_args(args);
 
     sycl::event return_event;
     auto ret = dnnl_sycl_interop_primitive_execute(prim_.get(), stream.get(),
@@ -148,10 +175,7 @@ std::optional<::sycl::event> sdpa_executable_t::execute_sycl(
 ocl_event_t sdpa_executable_t::execute_ocl(const stream &stream,
         const std::unordered_map<int, memory> &args,
         const std::vector<ocl_event_t> &deps) const {
-    std::vector<dnnl_exec_arg_t> c_args;
-    c_args.reserve(args.size());
-    for (const auto &a : args)
-        c_args.push_back({a.first, a.second.get()});
+    const auto c_args = make_c_args(args);
 
     std::vector<cl_event> raw_deps(deps.begin(), deps.end());
     const cl_event *c_deps = raw_deps.empty() ? nullptr : raw_deps.data();
@@ -214,6 +238,12 @@ arg_indices_t sdpa_executable_t::get_arg_indices(const op_t *op) {
     if (sdpa_fusion_info.with_runtime_zero_points(true, DNNL_ARG_VALUES)) {
         args.insert({DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_VALUES,
                 {indices_t::type_t::input, idx++}});
+    }
+    if (op->has_attr(op_attr::with_probs_scales)
+            && op->get_attr<bool>(op_attr::with_probs_scales)) {
+        args.insert({probs_quant_scale_arg, {indices_t::type_t::input, idx++}});
+        args.insert(
+                {probs_dequant_scale_arg, {indices_t::type_t::input, idx++}});
     }
 
     // outputs
