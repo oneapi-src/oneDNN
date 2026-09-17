@@ -1379,8 +1379,8 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
                     = (keep_a ? a_bytes : 0) + (keep_c ? c_bytes : 0);
             if (fixed_bytes + chunk_bytes > l2_budget) return 0;
             if (chunk_bytes == 0) return max_m_chunk;
-            return nstl::min<dim_t>(
-                    max_m_chunk, (l2_budget - fixed_bytes) / chunk_bytes);
+            return static_cast<int>(nstl::min<dim_t>(
+                    max_m_chunk, (l2_budget - fixed_bytes) / chunk_bytes));
         };
         float best_imbalance = 1.f; // reduce
         for (int nthr_k = start_nthr_k; nthr_k >= last_nthr_k; --nthr_k) {
@@ -1388,13 +1388,15 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
             for_(int n_chunk_size = n_chunks_start; n_chunk_size >= 1;
                     --n_chunk_size)
             for (int m_blk = max_m_blk; m_blk >= min_m_blk; --m_blk) {
-                const int num_m_blocks = div_up(matmul.M, m_blk);
-                const int num_n_chunks = div_up(matmul.N, n_blk * n_chunk_size);
+                const dim_t num_m_blocks = div_up(matmul.M, m_blk);
+                const dim_t num_n_chunks
+                        = div_up(matmul.N, n_blk * n_chunk_size);
                 const int nthr_bmn = nthr / nthr_k;
-                int max_m_chunk = nstl::max(1,
-                        nstl::min(num_m_blocks,
-                                (int)((dim_t)num_m_blocks * num_n_chunks
-                                        * matmul.batch / nthr_bmn)));
+                int max_m_chunk = static_cast<int>(nstl::max<dim_t>(1,
+                        nstl::min<dim_t>(nstl::numeric_limits<int>::max(),
+                                nstl::min(num_m_blocks,
+                                        num_m_blocks * num_n_chunks
+                                                * matmul.batch / nthr_bmn))));
 
                 cur_params.update_params(1, m_blk, n_chunk_size, n_blk,
                         brgemm_bs, k_blk, nthr_k);

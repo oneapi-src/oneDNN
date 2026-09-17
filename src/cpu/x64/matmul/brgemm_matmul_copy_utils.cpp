@@ -4861,7 +4861,8 @@ void jit_brgemm_matmul_copy_b_f32_t<Vmm>::load_scales(int n, int ncolumns) {
             = maybe_EVEX_compress_addr(reg_wei_scales, n * scales_dt_sz);
     const auto vmm_scales = wei_scales(n);
     if (is_tail && !isa_has_masks(conf_->isa)) {
-        load_bytes(vmm_scales, addr, (ncolumns % simd_w_) * scales_dt_sz);
+        load_bytes(vmm_scales, addr,
+                static_cast<int>((ncolumns % simd_w_) * scales_dt_sz));
         load_scale_value(vmm_scales, vmm_scales, scales_dt, false);
     } else
         load_scale_value(vmm_scales, addr, scales_dt, is_tail);
