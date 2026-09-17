@@ -131,9 +131,8 @@ void bench_gated_mlp(engine::kind ekind, logical_tensor::data_type dt,
             id++, data_type::u8, wei0_scales_sz, layout_type::strided);
     auto wei0_dt = logical_tensor(id++, dt, wei0_sz, layout_type::strided);
     auto deq_gate = op(id++, op::kind::DynamicDequantize, "deq_gate");
-    deq_gate.set_attr<std::string>(op::attr::qtype, "per_group");
+    deq_gate.set_attr<int64_t>(op::attr::mask, 3);
     deq_gate.set_attr<dims>(op::attr::group_shape, {1, p.gr});
-    deq_gate.set_attr<int64_t>(op::attr::axis, -1);
     deq_gate.add_inputs({wei0_int4, wei0_scales, wei0_zps});
     deq_gate.add_outputs({wei0_dt});
 
@@ -153,9 +152,8 @@ void bench_gated_mlp(engine::kind ekind, logical_tensor::data_type dt,
             id++, data_type::u8, wei0_scales_sz, layout_type::strided);
     auto wei1_dt = logical_tensor(id++, dt, wei0_sz, layout_type::strided);
     auto deq_up = op(id++, op::kind::DynamicDequantize, "deq_up");
-    deq_up.set_attr<std::string>(op::attr::qtype, "per_group");
+    deq_up.set_attr<int64_t>(op::attr::mask, 3);
     deq_up.set_attr<dims>(op::attr::group_shape, {1, p.gr});
-    deq_up.set_attr<int64_t>(op::attr::axis, -1);
     deq_up.add_inputs({wei1_int4, wei1_scales, wei1_zps});
     deq_up.add_outputs({wei1_dt});
 
@@ -201,9 +199,8 @@ void bench_gated_mlp(engine::kind ekind, logical_tensor::data_type dt,
             id++, data_type::u8, wei2_scales_sz, layout_type::strided);
     auto wei2_dt = logical_tensor(id++, dt, wei2_sz, layout_type::strided);
     auto deq_down = op(id++, op::kind::DynamicDequantize, "deq_down");
-    deq_down.set_attr<std::string>(op::attr::qtype, "per_group");
+    deq_down.set_attr<int64_t>(op::attr::mask, 3);
     deq_down.set_attr<dims>(op::attr::group_shape, {1, p.gr});
-    deq_down.set_attr<int64_t>(op::attr::axis, -1);
     deq_down.add_inputs({wei2_int4, wei2_scales, wei2_zps});
     deq_down.add_outputs({wei2_dt});
 
