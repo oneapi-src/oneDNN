@@ -38,6 +38,13 @@
 1x128:128x64
 4x128:128x64
 
+# Fused nibble masks must not overwrite the output/scales tail masks.
+--wtag=ab
+1x32:32x2
+4x96:96x18
+4x160:160x50
+4x1056:1056x66
+
 # Explicit K2-packed panels, N padding, and multiple K chunks.
 --reset
 --dt=f32:f4_e2m1:f32

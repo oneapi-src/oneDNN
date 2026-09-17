@@ -312,8 +312,7 @@ private:
     // only, so the gemv path is never generated together with it.
     Xbyak::Opmask ace_load_A_mask = Xbyak::Opmask(2);
 
-    Xbyak::Opmask f4_k_lo_mask = Xbyak::Opmask(1);
-    Xbyak::Opmask f4_k_hi_mask = Xbyak::Opmask(7);
+    Xbyak::Opmask f4_k_hi_mask = Xbyak::Opmask(4);
     Xbyak::Opmask f4_byte_tail_mask = Xbyak::Opmask(5);
 
     static int get_max_effective_vregs(const brgemm_desc_t &brg) {
@@ -3626,9 +3625,8 @@ void jit_brgemm_kernel_t<Wmm>::gemm_microkernel(int bd_block2, bool is_bdb_tail,
                 uni_vpmovzxbd(vmm_out_lower, addr);
             }
             vpermd(vmm_out, vmm_f4_permd(), vmm_out);
-            vpslld(vmm_out | f4_k_lo_mask, vmm_out, 28);
-            vpsrld(vmm_out | f4_k_lo_mask, vmm_out, 28);
             vpsrld(vmm_out | f4_k_hi_mask, vmm_out, 4);
+            // ZMM vpermps uses only the low four index bits.
             vpermps(vmm_out, vmm_out, vmm_f4_lut());
             return;
         }
@@ -4366,8 +4364,6 @@ void jit_brgemm_kernel_t<Wmm>::generate() {
         mov(reg_tmp_gpr, reinterpret_cast<size_t>(f4_permd));
         vmovups(vmm_f4_permd(), ptr[reg_tmp_gpr]);
 
-        mov(reg_tmp_gpr.cvt32(), 0x5555);
-        kmovw(f4_k_lo_mask, reg_tmp_gpr.cvt32());
         mov(reg_tmp_gpr.cvt32(), 0xAAAA);
         kmovw(f4_k_hi_mask, reg_tmp_gpr.cvt32());
         if (brg.ldb_tail > 0) {
