@@ -601,3 +601,105 @@ INSTANTIATE_TEST_SUITE_P(test_interface_op_def_constraint, quant_check_t,
                 dnnl_graph_quant_params_t {DynamicDequantize, 1, 2,
                         "per_tensor", graph::check_dyn_quant_dequant_scales_zps,
                         false}));
+
+TEST(test_interface_op_def_constraint, DynamicDequantizeMaskWithGroupShape) {
+    auto check = [](const dims &scales_shape, const dims &group_shape) {
+        graph::op_t op(DynamicDequantize);
+        op.add_input(utils::logical_tensor_init(0, {2, 64}, s4));
+        op.add_input(utils::logical_tensor_init(1, scales_shape, f32));
+        op.add_output(utils::logical_tensor_init(2, {2, 64}, f32));
+        op.set_attr<int64_t>(graph::op_attr::mask, 3);
+        op.set_attr<dims>(graph::op_attr::group_shape, group_shape);
+        return graph::check_dyn_quant_dequant_scales_zps(&op);
+    };
+
+    EXPECT_TRUE(check({2, 2}, {1, 32}));
+    EXPECT_FALSE(check({2, 4}, {1, 32}));
+    EXPECT_FALSE(check({2, 2}, {32}));
+}
+
+TEST(test_interface_op_def_constraint, DynamicDequantizeMaskPerHead) {
+    auto check = [](const dims &src_shape, int64_t mask,
+                         const dims &scales_shape) {
+        graph::op_t op(DynamicDequantize);
+        op.add_input(utils::logical_tensor_init(0, src_shape, s8));
+        op.add_input(utils::logical_tensor_init(1, scales_shape, f32));
+        op.add_output(utils::logical_tensor_init(2, src_shape, f32));
+        op.set_attr<int64_t>(graph::op_attr::mask, mask);
+        return graph::check_dyn_quant_dequant_scales_zps(&op);
+    };
+    // src (N,H,S,D) = (2,3,4,5), mask=3 -> scales vary along N and H.
+    EXPECT_TRUE(check({2, 3, 4, 5}, 3, {2, 3})); // packed
+    EXPECT_TRUE(check({2, 3, 4, 5}, 3, {2, 3, 1, 1})); // full-rank
+    EXPECT_FALSE(check({2, 3, 4, 5}, 3, {2, 4})); // wrong size
+    EXPECT_FALSE(check({2, 3, 4, 5}, 3, {2, 3, 4})); // wrong rank
+    EXPECT_FALSE(check({2, 3, 4, 5}, 1 << 4, {2})); // mask beyond rank
+}
+
+TEST(test_interface_op_def_constraint, DynamicDequantizeMaskPerChannel) {
+    auto check = [](int64_t mask, const dims &scales_shape) {
+        graph::op_t op(DynamicDequantize);
+        op.add_input(utils::logical_tensor_init(0, {2, 3, 4, 5}, s8));
+        op.add_input(utils::logical_tensor_init(1, scales_shape, f32));
+        op.add_output(utils::logical_tensor_init(2, {2, 3, 4, 5}, f32));
+        op.set_attr<int64_t>(graph::op_attr::mask, mask);
+        return graph::check_dyn_quant_dequant_scales_zps(&op);
+    };
+    EXPECT_TRUE(check(1 << 2, {4})); // packed 1D maps to dim 2
+    EXPECT_TRUE(check(1 << 2, {1, 1, 4, 1})); // full-rank
+    EXPECT_FALSE(check(1 << 2, {3})); // wrong size
+}
+
+TEST(test_interface_op_def_constraint, DynamicDequantizePerTensorScalarForms) {
+    auto check = [](const dims &scales_shape) {
+        graph::op_t op(DynamicDequantize);
+        op.add_input(utils::logical_tensor_init(0, {2, 3}, s8));
+        op.add_input(utils::logical_tensor_init(1, scales_shape, f32));
+        op.add_output(utils::logical_tensor_init(2, {2, 3}, f32));
+        op.set_attr<int64_t>(graph::op_attr::mask, 0);
+        return graph::check_dyn_quant_dequant_scales_zps(&op);
+    };
+    EXPECT_TRUE(check({})); // scalar
+    EXPECT_TRUE(check({1})); // single element
+    EXPECT_TRUE(check({1, 1})); // all-ones full-rank
+    EXPECT_FALSE(check({2})); // not scalar
+}
+
+TEST(test_interface_op_def_constraint, DynamicPerGroupRequiresGroupShape) {
+    // qtype=per_group without group_shape is rejected for both ops. For
+    // DynamicQuantize, group_shape itself is rejected earlier by the op schema.
+    for (auto kind : {DynamicQuantize, DynamicDequantize}) {
+        graph::op_t op(kind);
+        op.add_input(utils::logical_tensor_init(0, {2, 64}, f32));
+        op.add_input(utils::logical_tensor_init(1, {2, 2}, f32));
+        op.add_output(utils::logical_tensor_init(2, {2, 64}, u8));
+        op.set_attr<std::string>(graph::op_attr::qtype, "per_group");
+        EXPECT_FALSE(graph::check_dyn_quant_dequant_scales_zps(&op));
+    }
+}
+
+TEST(test_interface_op_def_constraint, DynamicDequantizeMaskAxisConflict) {
+    graph::op_t op(DynamicDequantize);
+    op.add_input(utils::logical_tensor_init(0, {2, 3, 4}, s8));
+    op.add_input(utils::logical_tensor_init(1, {3}, f32));
+    op.add_output(utils::logical_tensor_init(2, {2, 3, 4}, f32));
+    op.set_attr<int64_t>(graph::op_attr::mask, 1 << 1);
+    op.set_attr<int64_t>(graph::op_attr::axis, 2); // non-default with mask
+    EXPECT_FALSE(graph::check_dyn_quant_dequant_scales_zps(&op));
+}
+
+TEST(test_interface_op_def_constraint, DynamicDequantizeZpsBroadcast) {
+    auto check = [](const dims &zps_shape) {
+        graph::op_t op(DynamicDequantize);
+        op.add_input(utils::logical_tensor_init(0, {2, 3, 4}, s8));
+        op.add_input(
+                utils::logical_tensor_init(1, {3}, f32)); // vary along dim 1
+        op.add_input(utils::logical_tensor_init(2, zps_shape, s8));
+        op.add_output(utils::logical_tensor_init(3, {2, 3, 4}, f32));
+        op.set_attr<int64_t>(graph::op_attr::mask, 1 << 1);
+        return graph::check_dyn_quant_dequant_scales_zps(&op);
+    };
+    EXPECT_TRUE(check({1})); // scalar broadcast
+    EXPECT_TRUE(check({3})); // matches scales
+    EXPECT_FALSE(check({2})); // mismatched
+}

@@ -353,132 +353,180 @@ bool check_quant_dequant_scales_zps(const op_t *n) {
     return true;
 }
 
-// check function for scales and zps of DynamicQuantize/DynamicDequantize.
-// the number of scales and zps should keep same.
-// especially, when qtype == "per-tensor", sz_scales/zps should be 1.
-// unlike Quantize/Dequantize, scales and zps are inputs here.
+// Validates the shape/attribute constraints of DynamicQuantize and
+// DynamicDequantize. These checks run at op-schema (graph build) time so that
+// invalid graphs are rejected early instead of failing later at compilation.
 bool check_dyn_quant_dequant_scales_zps(const op_t *n) {
-    const int64_t inputs_num = n->num_inputs();
+    const std::string op_name = op_t::kind2str(n->get_kind());
+    const bool has_zps = n->num_inputs() == 3;
     const auto &src_lt = n->get_input_logical_tensor(0);
     const auto &scales_lt = n->get_input_logical_tensor(1);
-    const int64_t sz_scales = scales_lt.ndims == 0 ? 1 : scales_lt.dims[0];
-    // in case of not setting value for scales
-    if (sz_scales == DNNL_GRAPH_UNKNOWN_DIM) { return true; }
 
-    // FP8 quantization does not support zps regardless of mask or qtype.
-    if (inputs_num == 3) {
+    // f8 quantization/dequantization does not support zps.
+    if (has_zps) {
         const auto &dst_lt = n->get_output_logical_tensor(0);
-        const bool f8_src = utils::one_of(
-                src_lt.data_type, data_type::f8_e5m2, data_type::f8_e4m3);
-        const bool f8_dst = utils::one_of(
-                dst_lt.data_type, data_type::f8_e5m2, data_type::f8_e4m3);
-        VCHECK_SHAPE_INFER(!(f8_src || f8_dst),
+        const bool f8 = utils::one_of(src_lt.data_type, data_type::f8_e5m2,
+                                data_type::f8_e4m3)
+                || utils::one_of(dst_lt.data_type, data_type::f8_e5m2,
+                        data_type::f8_e4m3);
+        VCHECK_SHAPE_INFER(!f8,
                 "%s, f8 quantization or dequantization does not support zps.",
-                op_t::kind2str(n->get_kind()).c_str());
+                op_name.c_str());
     }
 
-    // qtype is not a required attribute.
-    const auto qtype = n->has_attr(op_attr::qtype)
+    const bool has_mask = n->has_attr(op_attr::mask);
+    const bool has_group = n->has_attr(op_attr::group_shape)
+            && !n->get_attr<dims>(op_attr::group_shape).empty();
+    const std::string qtype = n->has_attr(op_attr::qtype)
             ? n->get_attr<std::string>(op_attr::qtype)
             : "per_tensor";
-    if (n->has_attr(op_attr::mask)) {
+
+    // There is a usage of graph API that the input/output logical tensors of
+    // the op are not fully specialized (containing unknown ndim and dims) when
+    // adding the op into a graph. The concrete shapes and layouts will be
+    // deferred to the compile API. For this case, skip the checks and allow the
+    // op to be added.
+    const int64_t r = src_lt.ndims;
+    if (r < 0) return true; // unknown source rank
+
+    // Attribute/structure checks that do not depend on dimension sizes.
+    int64_t norm_axis = 1;
+    if (has_group) {
+        const auto &group_shape = n->get_attr<dims>(op_attr::group_shape);
+        VCHECK_SHAPE_INFER(r >= 2,
+                "%s, per_group quantization requires source rank >= 2.",
+                op_name.c_str());
+        VCHECK_SHAPE_INFER(static_cast<int64_t>(group_shape.size()) == r,
+                "%s, group_shape length must equal source rank.",
+                op_name.c_str());
+        VCHECK_SHAPE_INFER(has_mask || qtype == "per_group",
+                "%s, group_shape requires mask or per_group qtype.",
+                op_name.c_str());
+        for (int64_t d = 0; d < r; ++d)
+            VCHECK_SHAPE_INFER(group_shape[d] >= 1,
+                    "%s, group_shape values must be positive.",
+                    op_name.c_str());
+    }
+    if (has_mask) {
         const int64_t mask = n->get_attr<int64_t>(op_attr::mask);
         VCHECK_SHAPE_INFER(mask >= 0,
                 "%s, mask must be non-negative, given mask: %d.",
-                op_t::kind2str(n->get_kind()).c_str(), static_cast<int>(mask));
-        VCHECK_SHAPE_INFER((mask >> src_lt.ndims) == 0,
+                op_name.c_str(), static_cast<int>(mask));
+        VCHECK_SHAPE_INFER((mask >> r) == 0,
                 "%s, mask must not select dimensions outside the source rank. "
                 "given mask: %d, source rank: %d.",
-                op_t::kind2str(n->get_kind()).c_str(), static_cast<int>(mask),
-                src_lt.ndims);
+                op_name.c_str(), static_cast<int>(mask), static_cast<int>(r));
         VCHECK_SHAPE_INFER(qtype == "per_tensor",
-                "%s, qtype must be per_tensor when mask is specified.",
-                op_t::kind2str(n->get_kind()).c_str());
-
-        int64_t scale_dim = 0;
-        for (int64_t dim = 0; dim < src_lt.ndims; ++dim) {
-            if ((mask & (1LL << dim)) == 0) continue;
-            VCHECK_SHAPE_INFER(scale_dim < scales_lt.ndims,
-                    "%s, scales rank does not match mask.",
-                    op_t::kind2str(n->get_kind()).c_str());
-            VCHECK_SHAPE_INFER(scales_lt.dims[scale_dim] == src_lt.dims[dim],
-                    "%s, scales shape does not match masked source dimensions.",
-                    op_t::kind2str(n->get_kind()).c_str());
-            ++scale_dim;
+                "%s, qtype must be per_tensor (default) when mask is set.",
+                op_name.c_str());
+        if (n->has_attr(op_attr::axis))
+            VCHECK_SHAPE_INFER(n->get_attr<int64_t>(op_attr::axis) == 1,
+                    "%s, axis must be the default (1) when mask is set.",
+                    op_name.c_str());
+        if (has_group && r >= 2) {
+            // Primitive API requires the last two mask bits set for per_group.
+            const int64_t last_two = (1LL << (r - 1)) | (1LL << (r - 2));
+            VCHECK_SHAPE_INFER((mask & last_two) == last_two,
+                    "%s, per_group requires the last two mask bits to be set.",
+                    op_name.c_str());
         }
-        VCHECK_SHAPE_INFER(scale_dim == scales_lt.ndims,
-                "%s, scales rank does not match mask.",
-                op_t::kind2str(n->get_kind()).c_str());
-
-        if (inputs_num == 3) {
-            const auto &zps_lt = n->get_input_logical_tensor(2);
-            VCHECK_SHAPE_INFER(zps_lt.ndims == scales_lt.ndims,
-                    "%s, zps rank does not match scales rank.",
-                    op_t::kind2str(n->get_kind()).c_str());
-            VCHECK_SHAPE_INFER(
-                    std::equal(scales_lt.dims, scales_lt.dims + scales_lt.ndims,
-                            zps_lt.dims),
-                    "%s, zps shape does not match scales shape.",
-                    op_t::kind2str(n->get_kind()).c_str());
-        }
-
-        return true;
-    }
-    // zps is not a required input.
-    if (inputs_num == 2) {
-        if (qtype == "per_tensor") {
-            VCHECK_SHAPE_INFER((sz_scales == 1),
-                    "%s, scales should be 1 for per_tensor policy. "
-                    "given scale size: %d.",
-                    op_t::kind2str(n->get_kind()).c_str(),
-                    static_cast<int>(sz_scales));
-        }
-
-        return true;
-    } else {
-        const int64_t sz_zps = n->get_input_logical_tensor(2).dims[0];
-
-        // in case of not setting value for zps
-        if (sz_zps == DNNL_GRAPH_UNKNOWN_DIM) { return true; }
-
-        if (qtype == "per_group") {
-            const auto &ndims = n->get_input_logical_tensor(1).ndims;
-            const auto &scale_ndims = n->get_input_logical_tensor(1).ndims;
-            const auto &scale_dims = n->get_input_logical_tensor(1).dims;
-            const auto &zp_ndims = n->get_input_logical_tensor(2).ndims;
-            const auto &zp_dims = n->get_input_logical_tensor(2).dims;
-            VCHECK_SHAPE_INFER((ndims >= 2),
-                    "group quantization requires at least two dimensions");
-            VCHECK_SHAPE_INFER(((ndims == scale_ndims) && (ndims == zp_ndims)),
-                    "%s, input, scales and zps should keep the number of "
-                    "dimensions for group quantization",
-                    op_t::kind2str(n->get_kind()).c_str());
-            VCHECK_SHAPE_INFER(
-                    (std::equal(scale_dims, scale_dims + ndims, zp_dims)),
-                    "%s, scales and zps should keep the same shape for group "
-                    "quantization",
-                    op_t::kind2str(n->get_kind()).c_str());
-        }
-
+    } else if (!has_group) {
         if (qtype == "per_channel") {
-            VCHECK_SHAPE_INFER((sz_zps == 1 || sz_scales == sz_zps),
-                    "%s, zps should be 1 or equals to scales size for "
-                    "per_channel policy, given zps size: %d and scales size: "
-                    "%d",
-                    op_t::kind2str(n->get_kind()).c_str(),
-                    static_cast<int>(sz_zps), static_cast<int>(sz_scales));
+            norm_axis = n->has_attr(op_attr::axis)
+                    ? n->get_attr<int64_t>(op_attr::axis)
+                    : 1;
+            if (norm_axis < 0) norm_axis += r;
+            VCHECK_SHAPE_INFER(norm_axis >= 0 && norm_axis < r,
+                    "%s, axis is out of range.", op_name.c_str());
+        } else if (qtype == "per_group") {
+            VCHECK_SHAPE_INFER(false,
+                    "%s, per_group quantization requires group_shape.",
+                    op_name.c_str());
+        } else {
+            VCHECK_SHAPE_INFER(qtype == "per_tensor",
+                    "%s, unsupported qtype: %s.", op_name.c_str(),
+                    qtype.c_str());
         }
-
-        if (qtype == "per_tensor") {
-            VCHECK_SHAPE_INFER((sz_zps == 1),
-                    "%s, zps should be 1 for per_tensor policy. "
-                    "given zps size: %d.",
-                    op_t::kind2str(n->get_kind()).c_str(),
-                    static_cast<int>(sz_zps));
-        }
-
-        return true;
     }
+
+    // Size validation runs only when every involved shape is fully known.
+    using ltw = logical_tensor_wrapper_t;
+    if (ltw(src_lt).is_shape_unknown() || ltw(scales_lt).is_shape_unknown())
+        return true;
+    if (has_zps && ltw(n->get_input_logical_tensor(2)).is_shape_unknown())
+        return true;
+
+    // Canonical (full-rank) expected scales size per dim; 1 == shared dim.
+    std::vector<int64_t> exp(r, 1);
+    if (has_group) {
+        const auto &group_shape = n->get_attr<dims>(op_attr::group_shape);
+        for (int64_t d = 0; d < r; ++d) {
+            const int64_t sd = src_lt.dims[d], gd = group_shape[d];
+            VCHECK_SHAPE_INFER(gd <= sd && sd % gd == 0,
+                    "%s, group_shape[%d] must divide src[%d].", op_name.c_str(),
+                    static_cast<int>(d), static_cast<int>(d));
+            exp[d] = sd / gd;
+        }
+    } else if (has_mask) {
+        const int64_t mask = n->get_attr<int64_t>(op_attr::mask);
+        for (int64_t d = 0; d < r; ++d)
+            if (mask & (1LL << d)) exp[d] = src_lt.dims[d];
+    } else if (qtype == "per_channel") {
+        exp[norm_axis] = src_lt.dims[norm_axis];
+    }
+
+    // Packed dims
+    std::vector<int64_t> packed_exp;
+    for (int64_t d = 0; d < r; ++d)
+        if (exp[d] != 1) packed_exp.push_back(exp[d]);
+
+    // scales must match the full-rank or the packed dims.
+    const int64_t snd = scales_lt.ndims;
+    if (packed_exp.empty()) {
+        for (int64_t d = 0; d < snd; ++d)
+            VCHECK_SHAPE_INFER(scales_lt.dims[d] == 1,
+                    "%s, scales must be scalar for per_tensor quantization.",
+                    op_name.c_str());
+    } else if (snd == r) {
+        for (int64_t d = 0; d < r; ++d)
+            VCHECK_SHAPE_INFER(scales_lt.dims[d] == exp[d],
+                    "%s, scales dim %d does not match expected size %d.",
+                    op_name.c_str(), static_cast<int>(d),
+                    static_cast<int>(exp[d]));
+    } else if (static_cast<size_t>(snd) == packed_exp.size()) {
+        for (size_t k = 0; k < packed_exp.size(); ++k)
+            VCHECK_SHAPE_INFER(scales_lt.dims[k] == packed_exp[k],
+                    "%s, packed scales dim %d does not match expected size %d.",
+                    op_name.c_str(), static_cast<int>(k),
+                    static_cast<int>(packed_exp[k]));
+    } else {
+        VCHECK_SHAPE_INFER(false,
+                "%s, scales rank %d matches neither the full-rank (%d) nor the "
+                "packed (%d) layout.",
+                op_name.c_str(), static_cast<int>(snd), static_cast<int>(r),
+                static_cast<int>(packed_exp.size()));
+    }
+
+    // zps: scalar (broadcast) or exactly the scales shape. The grouped
+    // lowering path does not support scalar broadcast and indexes zps against
+    // the full scales shape, so require a shape match when groups are set.
+    if (has_zps) {
+        const auto &zps_lt = n->get_input_logical_tensor(2);
+        const int64_t znd = zps_lt.ndims;
+        bool zps_scalar = !has_group;
+        for (int64_t d = 0; d < znd; ++d)
+            if (zps_lt.dims[d] != 1) zps_scalar = false;
+        if (!zps_scalar) {
+            VCHECK_SHAPE_INFER(znd == scales_lt.ndims,
+                    "%s, zps must be scalar or match the scales shape.",
+                    op_name.c_str());
+            for (int64_t d = 0; d < znd; ++d)
+                VCHECK_SHAPE_INFER(zps_lt.dims[d] == scales_lt.dims[d],
+                        "%s, zps shape does not match scales shape.",
+                        op_name.c_str());
+        }
+    }
+
     return true;
 }
 } // namespace graph
