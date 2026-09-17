@@ -109,7 +109,7 @@ dependencies for forward propagation kind part.
 
 This option supports several values: `ALL` (the default) which enables all
 primitives implementations or any subset of the following list: `BATCH_NORMALIZATION`,
-`BINARY`, `CONCAT`, `CONVOLUTION`, `DECONVOLUTION`, `ELTWISE`, `GATED_MLP`, `GROUP_NORMALIZATION`,
+`BINARY`, `CONCAT`, `CONVOLUTION`, `DECONVOLUTION`, `ELTWISE`, `GROUP_NORMALIZATION`,
 `INNER_PRODUCT`, `LAYER_NORMALIZATION`, `LRN`, `MATMUL`, `POOLING`, `PRELU`,
 `REDUCTION`, `REORDER`, `RESAMPLING`, `RNN`, `SDPA`, `SHUFFLE`, `SOFTMAX`,
 `SUM`. When a set is used, only those selected primitives implementations will

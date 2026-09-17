@@ -247,7 +247,6 @@ run_balanced_ci_tests() {
         [test_iface_sparse]=2
         [test_iface_weights_format]=2
         [test_internals_env_vars_onednn]=2
-        [test_internals_gmlp]=1
         [test_matmul]=3
         [test_persistent_cache_api]=2
         [test_primitive_cache_mt]=2
