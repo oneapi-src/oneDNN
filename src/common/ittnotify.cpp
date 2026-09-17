@@ -106,7 +106,6 @@ void primitive_task_start(primitive_kind_t kind, const char *log_kind) {
             CASE(layer_normalization),
             CASE(group_normalization),
             CASE(sdpa),
-            CASE(gated_mlp),
     };
 #undef CASE
     int kind_idx = (int)kind;

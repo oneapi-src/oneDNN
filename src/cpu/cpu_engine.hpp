@@ -118,7 +118,6 @@ public:
             CASE(shuffle);
             CASE(softmax);
             case primitive_kind::sdpa: return empty_list;
-            case primitive_kind::gated_mlp: return empty_list;
             default: assert(!"unknown primitive kind"); return empty_list;
         }
 #undef CASE

@@ -42,7 +42,6 @@
 #include "convolution_pd.hpp"
 #include "deconvolution_pd.hpp"
 #include "eltwise_pd.hpp"
-#include "gated_mlp_pd.hpp"
 #include "gemm_pd.hpp"
 #include "group_normalization_pd.hpp"
 #include "inner_product_pd.hpp"
@@ -1080,32 +1079,6 @@ std::string init_info_eltwise(const engine_t *e, const pd_t *pd) {
 }
 
 template <typename pd_t>
-std::string init_info_gated_mlp(const engine_t *e, const pd_t *pd) {
-    stringstream_t ss;
-    ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
-       << ",";
-
-    ss << md2fmt_str("src", pd->arg_md(DNNL_ARG_SRC), format_kind::undef)
-       << " ";
-    ss << md2fmt_str(
-            "wei_gate", pd->arg_md(DNNL_ARG_WEIGHTS_GATE), format_kind::undef)
-       << " ";
-    ss << md2fmt_str(
-            "wei_up", pd->arg_md(DNNL_ARG_WEIGHTS_UP), format_kind::undef)
-       << " ";
-    ss << md2fmt_str(
-            "wei_down", pd->arg_md(DNNL_ARG_WEIGHTS_DOWN), format_kind::undef)
-       << " ";
-    ss << md2fmt_str("dst", pd->arg_md(DNNL_ARG_DST), format_kind::undef);
-
-    ss << "," << pd->attr() << ",";
-    ss << "alg:" << pd->activation() << ",";
-    ss << "mb" << pd->MB() << "ic" << pd->IC() << "oc" << pd->OC();
-
-    return ss.str();
-}
-
-template <typename pd_t>
 std::string init_info_gemm(const engine_t *e, const pd_t *pd) {
     stringstream_t ss;
     ss << e << "," << pd->kind() << "," << pd->name() << "," << prop_kind::undef
@@ -1878,7 +1851,6 @@ void pd_info_t::init(const engine_t *engine, const primitive_desc_t *pd) {
             CASE(convolution);
             CASE(deconvolution);
             CASE(eltwise);
-            CASE(gated_mlp);
             CASE(gemm);
             CASE(group_normalization);
             CASE(inner_product);

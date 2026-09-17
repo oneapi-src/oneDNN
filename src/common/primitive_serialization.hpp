@@ -53,7 +53,6 @@ void serialize(serialization_stream_t &sstream, const sdpa_desc_t &desc);
 void serialize(serialization_stream_t &sstream, const shuffle_desc_t &desc);
 void serialize(serialization_stream_t &sstream, const softmax_desc_t &desc);
 void serialize(serialization_stream_t &sstream, const sum_desc_t &desc);
-void serialize(serialization_stream_t &sstream, const gated_mlp_desc_t &desc);
 
 status_t serialize_desc(
         serialization_stream_t &sstream, const op_desc_t *op_desc);

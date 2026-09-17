@@ -1156,17 +1156,6 @@ inline bool operator==(const sdpa_desc_t &lhs, const sdpa_desc_t &rhs) {
     return ret;
 }
 
-inline bool operator==(const gated_mlp_desc_t &lhs, const gated_mlp_desc_t &rhs) {
-    bool ret = COMPARE_DESC_MEMBERS(primitive_kind)
-            && COMPARE_DESC_MEMBERS(src_desc)
-            && COMPARE_DESC_MEMBERS(w_gate_desc)
-            && COMPARE_DESC_MEMBERS(w_up_desc)
-            && COMPARE_DESC_MEMBERS(w_down_desc)
-            && COMPARE_DESC_MEMBERS(dst_desc)
-            && COMPARE_DESC_MEMBERS(activation);
-    return ret;
-}
-
 // clang-format on
 
 #undef COMPARE_DESC_MEMBERS

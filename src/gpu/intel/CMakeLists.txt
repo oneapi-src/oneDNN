@@ -23,7 +23,7 @@ endif()
 file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.[ch]pp)
 file(GLOB SOURCES_GEMM ${CMAKE_CURRENT_SOURCE_DIR}/gemm/*.[ch]pp)
 list(APPEND SOURCES "${SOURCES_GEMM}")
-set(DIRS "binary;bnorm;conv;concat;eltwise;gated_mlp;gnorm;ip;lnorm;lrn;matmul;pool;prelu;reduction;reorder;resampling;rnn;sdpa;shuffle;softmax;sum;zeropad")
+set(DIRS "binary;bnorm;conv;concat;eltwise;gnorm;ip;lnorm;lrn;matmul;pool;prelu;reduction;reorder;resampling;rnn;sdpa;shuffle;softmax;sum;zeropad")
 foreach(dir ${DIRS})
     file(GLOB_RECURSE SOURCES_EXTRA
         ${CMAKE_CURRENT_SOURCE_DIR}/${dir}/*.[ch]pp

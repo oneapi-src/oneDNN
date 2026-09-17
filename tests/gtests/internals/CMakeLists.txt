@@ -57,12 +57,6 @@ register_exe(${TEST_EXE}_isa_compat
         "test" "dnnl_gtest")
 list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_isa_compat.cpp)
 
-# Register GMLP tests as a separate executable
-register_exe(${TEST_EXE}_gmlp
-    "${MAIN_SRC_GTEST};${CMAKE_CURRENT_SOURCE_DIR}/test_gated_mlp.cpp;${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp"
-        "test" "dnnl_gtest")
-list(REMOVE_ITEM TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_gated_mlp.cpp)
-
 # Register SDPA tests as a separate executable due to their runtime
 register_exe(${TEST_EXE}_sdpa
         "${MAIN_SRC_GTEST};${CMAKE_CURRENT_SOURCE_DIR}/test_sdpa.cpp;${CMAKE_CURRENT_SOURCE_DIR}/test_utils.cpp"
