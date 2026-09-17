@@ -887,8 +887,7 @@ format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
     const bool is_amx_or_avx2_vnni_2 = is_superset(bgmmc.isa, avx512_core_amx)
             || is_superset(bgmmc.isa, avx2_vnni_2);
     const bool prefer_amx_or_avx2_vnni_2 = is_f16() || is_f32_f16()
-            || is_f32_bf16() || is_f16_with_int_wei() || is_f32_with_int_wei()
-            || is_f32_with_f4_wei();
+            || is_f32_bf16() || is_f16_with_int_wei() || is_f32_with_int_wei();
 
     if ((prefer_amx_or_avx2_vnni_2 && is_amx_or_avx2_vnni_2) || is_bf16()
             || is_bf16_with_int_wei() || (is_f8() && bgmmc.isa == avx10_2)
@@ -904,8 +903,7 @@ format_tag_t brgemm_matmul_conf_utils_t::pick_blocked_B_layout(
 
     // Note: bf32 assumes f32 blocking
     if (is_f32() || is_bf32() || is_f16() || is_f32_f16() || is_f32_bf16()
-            || is_f16_with_int_wei() || is_f32_with_int_wei()
-            || is_f32_with_f4_wei()) {
+            || is_f16_with_int_wei() || is_f32_with_int_wei()) {
         switch (n_blk) {
             case 64: return bgmmc.ndims == 3 ? aCB16b64c : BA16a64b;
             case 48: return bgmmc.ndims == 3 ? aCB16b48c : BA16a48b;
