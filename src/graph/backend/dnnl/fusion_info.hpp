@@ -364,12 +364,18 @@ inline int get_quant_mask(const op_t *quant_op) {
         // For per_group, mask bit i is set when scale_dims[i] > 1.
         // Dynamic ops have the scale tensor as input 1.
         if (quant_op->num_inputs() >= 2) {
+            const auto &data_lt = quant_op->get_input_logical_tensor(0);
             const auto &scale_lt = quant_op->get_input_logical_tensor(1);
             const int ndims = scale_lt.ndims;
             if (ndims > 0) {
                 int mask = 0;
                 for (int i = 0; i < ndims; ++i) {
-                    if (scale_lt.dims[i] > 1) mask |= (1 << i);
+                    // If both the scale dimension and data dimension are 1, we
+                    // also set the mask bit for the dimension. For example,
+                    // data (1, 16, 1, 1024) and scale (1, 16, 1, 32) would
+                    // result in a mask 15.
+                    if (scale_lt.dims[i] > 1 || data_lt.dims[i] == 1)
+                        mask |= (1 << i);
                 }
                 // Primitive API requires mask to cover last two dims
                 // when groups are specified.

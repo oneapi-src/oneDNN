@@ -21,7 +21,11 @@
 
 #include "interface/c_types_map.hpp"
 
+#include "graph/unit/utils.hpp"
+
 namespace graph = dnnl::impl::graph;
+
+using namespace dnnl::graph::tests::unit::utils;
 
 TEST(test_fusion_info, GetMutableZeroPoints) {
     auto zp_op
@@ -30,4 +34,24 @@ TEST(test_fusion_info, GetMutableZeroPoints) {
     graph::dnnl_impl::fusion_info_t info;
     ASSERT_NO_THROW(info.set_zero_points(zp_op, false, 0));
     ASSERT_EQ(info.get_mutable_zero_points(false, 0), zp_op.get());
+}
+
+TEST(test_fusion_info, GetPerGroupMaskWithDegenerateDimension) {
+    graph::op_t deq_0(0, graph::op_kind::DynamicDequantize, "deq_0");
+    deq_0.set_attr<std::string>(graph::op_attr::qtype, "per_group");
+    deq_0.add_input(
+            logical_tensor_init(0, {1, 16, 256, 1024}, graph::data_type::s8));
+    deq_0.add_input(
+            logical_tensor_init(1, {1, 16, 1, 1024}, graph::data_type::f32));
+
+    EXPECT_EQ(graph::dnnl_impl::get_quant_mask(&deq_0), 15);
+
+    graph::op_t deq_1(1, graph::op_kind::DynamicDequantize, "deq_1");
+    deq_1.set_attr<std::string>(graph::op_attr::qtype, "per_group");
+    deq_1.add_input(
+            logical_tensor_init(2, {2, 16, 256, 1024}, graph::data_type::s8));
+    deq_1.add_input(
+            logical_tensor_init(3, {1, 16, 1, 1024}, graph::data_type::f32));
+
+    EXPECT_EQ(graph::dnnl_impl::get_quant_mask(&deq_1), 14);
 }
