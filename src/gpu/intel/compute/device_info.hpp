@@ -204,6 +204,8 @@ public:
     size_t max_wg_size(
             int grf_per_thread = 128, size_t subgroup_size = 0) const;
     int eu_count() const { return eu_count_; }
+    // Max GPU core clock in MHz (0 if the runtime did not report it).
+    int max_clock_mhz() const { return max_clock_mhz_; }
     int hw_threads(int grf_per_thread = 128) const {
         return eu_count_ * threads_per_eu(*product_, grf_per_thread);
     }
@@ -284,6 +286,7 @@ protected:
     xpu::runtime_version_t runtime_version_;
 
     int32_t eu_count_ = 0;
+    int32_t max_clock_mhz_ = 0;
     int32_t max_eus_per_wg_ = 0;
     int32_t max_subgroup_size_ = 16;
     int max_exec_size_ = 0;
