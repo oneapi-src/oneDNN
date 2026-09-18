@@ -587,6 +587,8 @@ void jit_uni_binary_injector_t<Vmm>::compute_vector_range(
             && rhs_arg_data_type == data_type::f32 && !dt_helper_vmm_needed
             && (!rhs_arg_static_params_.is_tail
                     || rhs_arg_static_params_.is_opmask_set());
+    const bool scalar_s32_broadcast
+            = scalar_arithmetic && rhs_arg_data_type == data_type::s32;
     const bool scalar_bf16_broadcast_once = scalar_arithmetic
             && rhs_arg_data_type == data_type::bf16
             && vmm_idxs.count(vmm_hint) == 0
@@ -597,7 +599,8 @@ void jit_uni_binary_injector_t<Vmm>::compute_vector_range(
     // These scalar paths only modify the existing RHS address GPR helper.
     // Neither computes destination offsets or needs other GPR helpers.
     const injector_utils::register_preserve_guard_t register_guard {host_,
-            ((scalar_f32_memory_operand || scalar_bf16_broadcast_once)
+            ((scalar_f32_memory_operand || scalar_s32_broadcast
+                     || scalar_bf16_broadcast_once)
                             ? (rhs_arg_static_params_.preserve_gpr_helpers
                                               ? std::initializer_list<
                                                         Xbyak::Reg64>(
