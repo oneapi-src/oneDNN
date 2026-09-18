@@ -266,7 +266,9 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
 
 #if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE \
         && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL)
+    // Print once: skip the primitive-cache-check creation on a temp engine.
     if (prb->query_kernel && init_pd_args.pd
+            && init_pd_args.engine == get_test_engine()
             && query_engine_kind(init_pd_args.engine) == dnnl_gpu) {
         const char *kernel = "";
         DNN_SAFE_STATUS(

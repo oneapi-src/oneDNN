@@ -225,12 +225,14 @@ static const std::string help_kernel
           "attribute. A bare integer `N` selects the Nth candidate after sort "
           "(rank); `gN` selects the candidate with global catalog index `N`; "
           "any other string is a strategy override. An empty string means no "
-          "override. Ignored on non-GPU engines.\n";
+          "override. Ignored on non-GPU engines. Requires a dev-mode library "
+          "(ONEDNN_DEV_MODE=ON).\n";
 
 static const std::string help_query_kernel
         = "BOOL    (Default: `false`)\n    When `true`, prints the selected "
           "jit:gemm kernel override string of the created primitive as "
-          "`onednn_kernel:<STR>`. Intel GPU only.\n";
+          "`onednn_kernel:<STR>`. Intel GPU only. Requires a dev-mode library "
+          "(ONEDNN_DEV_MODE=ON).\n";
 
 bool parse_legacy_dt(std::vector<dnnl_data_type_t> &dt,
         const std::vector<dnnl_data_type_t> &def_dt, const char *str,

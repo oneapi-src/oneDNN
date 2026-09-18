@@ -85,9 +85,6 @@ private:
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_set_kernel_override(
         dnnl_primitive_attr_t attr, const char *kernel);
 
-extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel_override(
-        const_dnnl_primitive_attr_t attr, const char **kernel);
-
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel(
         const_dnnl_primitive_desc_t pd, const char **kernel);
 

@@ -29,6 +29,7 @@ using namespace dnnl::impl::gpu::intel;
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_set_kernel_override(
         primitive_attr_t *attr, const char *kernel) {
     if (utils::any_null(attr)) return status::invalid_arguments;
+    if (!is_dev_mode()) return status::unimplemented; // dev-only feature
 
     // Preserve any GRF/DPAS setting already carried by the gpu attribute.
     int grf_per_thread = 0;
@@ -43,19 +44,6 @@ extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_set_kernel_override(
             grf_per_thread, use_dpas, kernel ? kernel : ""));
 }
 
-extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel_override(
-        const primitive_attr_t *attr, const char **kernel) {
-    if (utils::any_null(attr, kernel)) return status::invalid_arguments;
-
-    *kernel = "";
-    if (attr->gpu_attr_) {
-        auto *cur = utils::downcast<const gpu_primitive_attr_t *>(
-                attr->gpu_attr_.get());
-        *kernel = cur->kernel_override().c_str();
-    }
-    return status::success;
-}
-
 // Deployed (post-preflight/modifyStrategy) gemm strategy string for the kernel
 // the primitive descriptor selected -- the catalog default when no override is
 // set. "" if the chosen impl is not jit:gemm. Points into the pd; valid for its
@@ -63,6 +51,7 @@ extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel_override(
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel(
         const_dnnl_primitive_desc_t pd, const char **kernel) {
     if (utils::any_null(pd, kernel)) return status::invalid_arguments;
+    if (!is_dev_mode()) return status::unimplemented; // dev-only feature
     *kernel = "";
 
     const primitive_desc_t *impl = pd->impl().get();

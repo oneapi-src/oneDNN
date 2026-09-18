@@ -82,10 +82,11 @@ where *matmul-knobs* are:
             strategy override. A strategy string contains spaces, so it must be
             double-quoted (e.g. `--kernel="gemm ..."`) on the command line and
             in batch files. Empty by default (no override). Ignored on non-GPU
-            engines.
+            engines. Requires a dev-mode library (`ONEDNN_DEV_MODE=ON`).
  - `--query-kernel=BOOL` -- when `true`, prints the selected jit:gemm
             kernel override string of the created primitive as
-            `onednn_kernel:STR`. `false` by default. Intel GPU only.
+            `onednn_kernel:STR`. `false` by default. Intel GPU only. Requires a
+            dev-mode library (`ONEDNN_DEV_MODE=ON`).
  - `--match=REGEX` -- skip problems not matching the regular expression in
             `REGEX`. By default no pattern is applied (run everything).
             Note: Windows may interpret only string arguments surrounded by

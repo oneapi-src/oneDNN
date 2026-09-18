@@ -43,12 +43,23 @@ enum class log_level_t {
 
 // Parses `ONEDNN_VERBOSE` for a `xe=<level>` token independently of the generic
 // `debuginfo=<level>` verbose infrastructure. This provides a mechanism to
-// isolate gpu specific logs.
+// isolate gpu specific logs. Accepts a severity name (`xe=info`, `xe=debug`,
+// `xe=all`) or the equivalent integer on the `debuginfo` scale (`xe=160`).
 inline int get_xe_debug_level() {
     if (!is_dev_mode()) return 0;
     static const int level = [] {
-        for (auto &tok : gpu_utils::split(getenv_string_user("VERBOSE"), ","))
-            if (tok.rfind("xe=", 0) == 0) return std::atoi(tok.c_str() + 3);
+        for (auto &tok : gpu_utils::split(getenv_string_user("VERBOSE"), ",")) {
+            if (tok.rfind("xe=", 0) != 0) continue;
+            auto v = tok.substr(3);
+            if (v == "off") return (int)log_level_t::off;
+            if (v == "warning") return (int)log_level_t::warning;
+            if (v == "suggestion") return (int)log_level_t::suggestion;
+            if (v == "info") return (int)log_level_t::info;
+            if (v == "debug") return (int)log_level_t::debug;
+            if (v == "perf") return (int)log_level_t::perf;
+            if (v == "trace" || v == "all") return (int)log_level_t::trace;
+            return std::atoi(v.c_str()); // numeric alias
+        }
         return 0;
     }();
     return level;

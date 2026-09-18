@@ -308,7 +308,7 @@ struct gen_t : public primitive_t {
             // = candidate with global catalog index N; else strategy string.
             int index = -1;
             bool global = false;
-            if (attr()->gpu_attr_) {
+            if (is_dev_mode() && attr()->gpu_attr_) {
                 auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
                         attr()->gpu_attr_.get());
                 const auto &ovr = gpu_attr->kernel_override();
