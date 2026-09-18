@@ -109,7 +109,8 @@ CacheSettingsLSC getCaching(char l1, char l3)
     }
 }
 
-CacheSettingsLSC getCaching(char l1, char l2, char l3) {
+CacheSettingsLSC getCaching(char l1, char l2, char l3)
+{
     if (l3 == 'u' || l3 == 'i') return getCaching(l1, l2);
 
     if (l3 == 'c' || l3 == 'b') {
@@ -449,6 +450,7 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         {"st", [](ParserContext& ctx) { ctx.strategy.stallAfterLoad = true; }},
         {"dm", [](ParserContext& ctx) { ctx.strategy.doubleMasking = true; }},
         {"kd", [](ParserContext& ctx) { ctx.strategy.kDescRem = true; }},
+        {"cp", [](ParserContext& ctx) { ctx.strategy.chainPrefetches = true; }},
         {"dsl", [](ParserContext& ctx) { ctx.strategy.isDSLGenerator = true; }},
 
         /* SLM Settings */
@@ -584,19 +586,47 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
                 case 'c': {
                     mod.erase(0, 1);
                     if (mod[0] == 'a') {
+                        bool cab_case = false;
                         mod.erase(0, 1);
+                        if (mod[0] == 'b') {
+                            mod.erase(0, 1);
+                            cab_case = true;
+                        }
+                        std::stringstream ms(mod);
                         strategy.slmA = true;
+                        ms.imbue(std::locale::classic());
+                        ms >> strategy.slmBuffersA;
+                        if (cab_case) {
+                            strategy.slmBuffersB = strategy.slmBuffersA;
+                            strategy.slmB = true;
+                        }
+                        ms >> eat;
+                        if (!ms.eof())
+                            ms >> strategy.slmCopies; //TODO, split to A/B copies
                     }
                     if (mod[0] == 'b') {
+                        bool cba_case = false;
                         mod.erase(0, 1);
+                        if (mod[0] == 'a') {
+                            mod.erase(0, 1);
+                            cba_case = true;
+                        }
+                        std::stringstream ms(mod);
                         strategy.slmB = true;
+                        ms.imbue(std::locale::classic());
+                        ms >> strategy.slmBuffersB;
+                        if (cba_case) {
+                            strategy.slmBuffersA = strategy.slmBuffersB;
+                            strategy.slmA = true;
+                        }
+                        ms >> eat;
+                        if (!ms.eof())
+                            ms >> strategy.slmCopies; //TODO, split to A/B copies
+                        if (strategy.slmA && strategy.slmB && strategy.slmBuffersB != strategy.slmBuffersA) {
+                            stub("slm buffer A must be specified if slm buffer B is specified.");
+                        }
                     }
-                    std::stringstream ms(mod);
-                    ms.imbue(std::locale::classic());
-                    ms >> strategy.slmBuffers;
-                    ms >> eat;
-                    if (!ms.eof())
-                        ms >> strategy.slmCopies;
+
                     break;
                 }
                 case 'k': {
@@ -644,8 +674,8 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         astrategy.newDP = strategy.C.newDP;
     }
 
-    bool surfaceAq = ((problem.quantized2DA() || problem.needsAGroupSums()) && !strategy.A.base.isStateless());
-    bool surfaceBq = ((problem.quantized2DB() || problem.needsBGroupSums()) && !strategy.B.base.isStateless());
+    bool surfaceAq = ((problem.quantized2DA() || problem.needsSeparateASums()) && !strategy.A.base.isStateless());
+    bool surfaceBq = ((problem.quantized2DB() || problem.needsSeparateBSums()) && !strategy.B.base.isStateless());
 
     bool surfaceAO = surfaceAq && problem.aOffset2D();
     bool surfaceBO = surfaceBq && problem.bOffset2D();
@@ -885,7 +915,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
         s << " c";
         if (strategy.slmA) s << 'a';
         if (strategy.slmB) s << 'b';
-        s << strategy.slmBuffers;
+        s << std::max(strategy.slmBuffersA, strategy.slmBuffersB);
         if (strategy.slmCopies > 1)
             s << 'x' << strategy.slmCopies;
 
@@ -969,6 +999,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.strictFence)               s << " sf";
     if (strategy.slmATrans)                 s << " ta";
     if (strategy.slmBTrans)                 s << " tb";
+    if (strategy.chainPrefetches)           s << " cp";
     if (!strategy.altCRemainder)            s << " sr";
     else if (!strategy.block2DCRemainder)   s << " ar";
     if (strategy.block2DCFull)              s << " bf";

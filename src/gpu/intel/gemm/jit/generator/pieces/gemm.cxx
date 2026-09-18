@@ -130,12 +130,12 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
         mov(1, s, 0);
     };
 
-    if (!strategy.AO.base.isStateless() && problem.aOffset2D())       replace0(state.inputs.aoPtr);
-    if (!strategy.BO.base.isStateless() && problem.bOffset2D())       replace0(state.inputs.boPtr);
-    if (!strategy.A_scale.base.isStateless() && problem.aScale2D())   replace0(state.inputs.aScalePtr);
-    if (!strategy.B_scale.base.isStateless() && problem.bScale2D())   replace0(state.inputs.bScalePtr);
-    if (!strategy.Ag.base.isStateless() && problem.needsAGroupSums()) replace0(state.inputs.agPtr);
-    if (!strategy.Bg.base.isStateless() && problem.needsBGroupSums()) replace0(state.inputs.bgPtr);
+    if (!strategy.AO.base.isStateless() && problem.aOffset2D())          replace0(state.inputs.aoPtr);
+    if (!strategy.BO.base.isStateless() && problem.bOffset2D())          replace0(state.inputs.boPtr);
+    if (!strategy.A_scale.base.isStateless() && problem.aScale2D())      replace0(state.inputs.aScalePtr);
+    if (!strategy.B_scale.base.isStateless() && problem.bScale2D())      replace0(state.inputs.bScalePtr);
+    if (!strategy.Ag.base.isStateless() && problem.needsSeparateASums()) replace0(state.inputs.agPtr);
+    if (!strategy.Bg.base.isStateless() && problem.needsSeparateBSums()) replace0(state.inputs.bgPtr);
 
     // Scale LDs/offsets.
     gemmScaleInputs(problem, strategy, state);
@@ -276,10 +276,10 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
     state.ra.safeRelease(state.inputs.offsetAScale);
     state.ra.safeRelease(state.inputs.offsetBScale);
 
-    // Group sum address handling.
-    if (problem.needsAGroupSums() && state.inputs.offsetAg.isValid())
+    // Sum address handling.
+    if (problem.needsSeparateASums() && state.inputs.offsetAg.isValid())
         eadd(1, state.inputs.agPtr, state.inputs.agPtr, state.inputs.offsetAg, strategy, state);
-    if (problem.needsBGroupSums() && state.inputs.offsetBg.isValid())
+    if (problem.needsSeparateBSums() && state.inputs.offsetBg.isValid())
         eadd(1, state.inputs.bgPtr, state.inputs.bgPtr, state.inputs.offsetBg, strategy, state);
 
     state.ra.safeRelease(state.inputs.offsetAg);
@@ -496,7 +496,8 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
         min_(1, state.inputs.k, state.inputs.k, state.inputs.k0);
 
         bool keepK0 = false;
-        keepK0 |= strategy.kParallelLocal && (strategy.barrierFreq > 0 || strategy.slmBuffers > 0);
+        keepK0 |= strategy.kParallelLocal && (strategy.barrierFreq > 0 ||
+                std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0);
         keepK0 |= strategy.persistentLoop();
 
         if (keepK0)
@@ -583,6 +584,16 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
         if (checkB) emov(1 | f1[1], state.offsetB, 0, strategy, state);
     }
 
+    // Compute addresses for separate A/B row/column sums.
+    if (problem.bOffset == ABOffset::Load && !isPacked(problem.A.layout)) {
+        state.effAs = state.ra.allocSub(state.inputs.agPtr.getType());
+        emad(1, state.effAs, state.inputs.agPtr, state.i0, Tc.size(), strategy, state);
+    }
+    if (problem.aOffset == ABOffset::Load && !isPacked(problem.B.layout)) {
+        state.effBs = state.ra.allocSub(state.inputs.bgPtr.getType());
+        emad(1, state.effBs, state.inputs.bgPtr, state.j0, Tc.size(), strategy, state);
+    }
+
     gemmSetupABC(problem, strategy, state);
     gemmSubkernel(problem, strategy, state);
 
@@ -600,7 +611,7 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
         auto persistentRestore = [&] {
             gemmRestoreOffsets(problem, strategy, state);
 
-            if (strategy.slmBuffers > 0) {
+            if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0) {
                 temp = state.ra.alloc();
                 useR0(state, doBarrier);
                 state.ra.safeRelease(temp);
@@ -743,15 +754,17 @@ void Generator<hw>::gemmSubkernel(GEMMProblem &problem, GEMMStrategy &strategy, 
             cmp(1 | lt | flag, state.unclampedI0, 0);
             mov(1, upper, strategy.unroll[LoopM]);
             add(1 | sat | flag, upper, state.unclampedI0, strategy.unroll[LoopM]);
-            min_(1, state.remainders[LoopM], state.remainders[LoopM], upper);
+            emin_(1, state.remainders[LoopM], state.remainders[LoopM], upper, state);
             cmp(1 | le | f0[1], state.remainders[LoopM], 0);
             state.ra.safeRelease(flag);
             state.ra.safeRelease(state.unclampedI0);
-        } else
+        } else {
             min_(1, state.remainders[LoopM], state.remainders[LoopM], uint16_t(strategy.unroll[LoopM]));
+        }
     }
-    if (remN)
+    if (remN) {
         min_(1, state.remainders[LoopN], state.remainders[LoopN], uint16_t(strategy.unroll[LoopN]));
+    }
 
     gemmCalcIncrements(problem, strategy, state);
 
@@ -1161,10 +1174,11 @@ bool Generator<hw>::mnRemainderHandling(LoopType loop, Problem &problem, GEMMStr
 
         // Jump to remainder loop if needed.
         // If threads fused in this direction, factor fused ID into calculation.
-        if (wgRemCheck(problem, strategy))
+        if (wgRemCheck(problem, strategy)) {
             cmp(1 | lt | f0[0], null.d(), state.remaindersWG[loop], uint16_t(unroll * strategy.wg[loop]));
-        else
+        } else {
             cmp(1 | lt | f0[0], null.d(), state.remaindersFused[loop], uint16_t(unroll));
+        }
 
         if (splitThresh) {
             cmp(1 | lt | f1[0], null.d(), mn, int32_t(splitThresh));
@@ -1347,7 +1361,6 @@ bool Generator<hw>::mnJointSplitRemainderHandling(Problem &problem, GEMMStrategy
             cmp(1 | lt | f1[0], null.d(), state.remaindersFused[LoopN], uint16_t(unrollN));
         }
         ejmpi(1 | f0[0] | anyv, label_remainder);
-
         // First generate code that ignores remainder handling.
         GEMMStrategy substrategy = strategy;
         substrategy.remHandling[LoopM] = RemainderHandling::Ignore;

@@ -21,6 +21,7 @@
 
 #include "gemmstone/microkernel/package.hpp"
 
+#ifdef MICROKERNEL_INTERFACE
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
 
@@ -42,4 +43,5 @@ std::string generateShim(const Package &package, HostLanguage language,
 }
 GEMMSTONE_NAMESPACE_END
 
+#endif
 #endif

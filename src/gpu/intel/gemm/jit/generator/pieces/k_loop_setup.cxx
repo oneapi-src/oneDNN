@@ -396,7 +396,6 @@ void Generator<hw>::kLoopTeardown(const GEMMProblem &problem, const GEMMStrategy
     gemmTeardownL3Prefetch(problem, strategy, state);
 }
 
-
 // Prepare for GEMM k loop with m/n masked A/B accesses. Returns true if ka_lda/kb_ldb need recalculating.
 template <HW hw>
 bool Generator<hw>::gemmPrepMaskedAB(const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state)
@@ -453,7 +452,6 @@ bool Generator<hw>::gemmPrepMaskedAB(const GEMMProblem &problem, GEMMStrategy &s
     return recalc;
 }
 
-
 // Calculate kSLMA/kSLMB -- countdown variables for SLM copies.
 template <HW hw>
 void Generator<hw>::gemmCalcKSLM(const Subregister &kSLM, const Subregister &lid, int kgran, int kdiv, int krep,
@@ -461,9 +459,9 @@ void Generator<hw>::gemmCalcKSLM(const Subregister &kSLM, const Subregister &lid
 {
     if (kBase.isInvalid()) kBase = state.K;
 
-    if (kdiv == 1)
+    if (kdiv == 1) {
         mov(1, kSLM, kBase);
-    else {
+    } else {
         auto modLID = lid;
         if (krep > 1) {
             if (!is_zero_or_pow2(krep)) stub();
@@ -558,10 +556,11 @@ void Generator<hw>::gemmCalcKLoopBarrierCount(Subregister &count, const Subregis
             maySkipSplitBarrier ? add(1 | state.flagAP, count, count, 1)
                                 : add(1,                count, count, 1);
         }
-    } else if (strategy.slmBuffers > 0) {
+    // TODO: Check if this needs to change for different slmBuffer sizes.
+    } else if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0) {
         if (!is_zero_or_pow2(unrollKSLM)) stub();
 
-        if (strategy.slmBuffers == 1) {
+        if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) == 1) {
             add(1 | sat, count, k, unrollKSLM - 1);
             if (unrollKSLM == 2)
                 and_(1, count, count, ~uint32_t(1));

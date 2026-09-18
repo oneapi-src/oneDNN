@@ -1135,7 +1135,8 @@ void Generator<hw>::updateCLayout(const RegisterLayout &layoutExt, const Registe
 
                 auto &sublayoutSrc = copyC ? sublayoutExt : sublayoutAcc;
                 auto &C_srcRange = copyC ? C_extRange : C_accRange;
-                    FOR_EACH_C storeMatrix(C_srcRange, sublayoutSrc, C_addrs[q], strategy, state);
+
+                FOR_EACH_C storeMatrix(C_srcRange, sublayoutSrc, C_addrs[q], strategy, state);
             }
 
             state.setTacc(originalTacc);
@@ -1760,8 +1761,9 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
     }
 
     // Clear f0[1] for any16h trick.
-    if (strategy.fused && !lateYLoopCheck)
+    if (strategy.fused && !lateYLoopCheck) {
         mov(1, f0[1], uint16_t(0));
+    }
 
     // Update C with scattered accesses.
     // Get mask and set up header.
@@ -1859,9 +1861,9 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
 
     add(1, cYInc[0], ix_init, uint16_t(1));
     mulConstant(1, cYInc[0], cYInc[0], uint16_t(nec * (!transpose ?  Tc_ext.size() : 1)));
-    if (!transpose)
+    if (!transpose) {
         FOR_EACH_C_REV add(1, cYInc[q], -cYInc[0], state.inputs.ldc[q]);
-    else {
+    } else {
         FOR_EACH_C_REV mul(1, cYInc[q], state.inputs.ldc[q], cYInc[0].w());
         FOR_EACH_C_REV add(1, cYInc[q], -cYInc[q], uint16_t(Tc_ext.size()));
     }
@@ -1975,8 +1977,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
                 !byte_access         ? load(16 | mod, Cload, D32    | strategy.C.cachingR, strategy.C.base, header[0]) :
                 (Tc_ext.size() == 2) ? load(16 | mod, Cload, D16U32 | strategy.C.cachingR, strategy.C.base, header[0])
                                      : load(16 | mod, Cload, D8U32  | strategy.C.cachingR, strategy.C.base, header[0]);
-            } else
-            {
+            } else {
                 byte_access ? load(16 | mod, Cload, scattered_byte(Tc_ext.size()), strategy.C.base, header[0]) :
                    !surface ? load(16 | mod, Cload, scattered_dword(),             strategy.C.base, header[0])
                             : load(16 | mod, Cload, surface_dword(ChannelMask::r), strategy.C.base, header[0]);
@@ -2014,8 +2015,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
                 !byte_access         ? store(16 | mod, D32    | strategy.C.cachingW, strategy.C.base, header[q], Cacc) :
                 (Tc_ext.size() == 2) ? store(16 | mod, D16U32 | strategy.C.cachingW, strategy.C.base, header[q], Cacc)
                                      : store(16 | mod, D8U32  | strategy.C.cachingW, strategy.C.base, header[q], Cacc);
-            } else
-            {
+            } else {
                 byte_access ? store(16 | mod, scattered_byte(Tc_ext.size()), strategy.C.base, header[q], Cacc) :
                    !surface ? store(16 | mod, scattered_dword(),             strategy.C.base, header[q], Cacc)
                             : store(16 | mod, surface_dword(ChannelMask::r), strategy.C.base, header[q], Cacc);
@@ -2067,7 +2067,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
     //  The any16h is a trick: only the lowest bit of f0[1] is updated when decrementing iy,
     //  but we want to apply it to all channels.
     strategy.fused ? simtDoWhileLoop(16 | f0[1] | any16h, yLoop)
-                  : jmpi(1 | f0[1], yLoop);
+                   : jmpi(1 | f0[1], yLoop);
 
     // Wait for indirect moves to C registers.
     if (op != COperation::UpdateStore)
@@ -2346,7 +2346,7 @@ void Generator<hw>::gemmKReduce(const GEMMProblem &problem, const GEMMStrategy &
 
     GRF r0_info = state.r0InfoGRF();
 
-    bool initialBarrier = (strategy.slmBuffers > 0 || strategy.persistentLoop());
+    bool initialBarrier = (std::max(strategy.slmBuffersA, strategy.slmBuffersB) || strategy.persistentLoop());
     MOCK_BARRIERS if (initialBarrier)
         activeThreadBarrierSignal(barrierTemp, r0_info, strategy);
 

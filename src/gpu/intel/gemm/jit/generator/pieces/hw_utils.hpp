@@ -81,10 +81,10 @@ static inline bool hasNativeAtomicAdd(ngen::HW hw, Type T, const MatrixAddressin
         return true;
     else if (T == Type::f32)
         return floatAtomics && (hw >= HW::XeHP);
-    else if (T == Type::f16 || T == Type::bf16)
-        return (hw >= HW::Xe3p);
     else if (T == Type::f64)
         return floatAtomics && (hw >= HW::XeHPC);
+    else if (T == Type::f16 || T == Type::bf16)
+        return (hw >= HW::Xe3p);
     else
         return false;
 }
@@ -126,8 +126,8 @@ static inline int eusPerSubslice(ngen::HW hw)
     switch (hw) {
         case HW::XeHPC:
         case HW::Xe2:
-        case HW::Xe3p:
         case HW::Xe3:
+        case HW::Xe3p:
             return 8;
         case HW::Gen12LP:
         case HW::XeHP:

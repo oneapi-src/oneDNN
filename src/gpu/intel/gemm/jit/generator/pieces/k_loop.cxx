@@ -59,7 +59,8 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto A_copies = strategy.A_copies;
     auto B_copies = strategy.B_copies;
     auto slmCopies = strategy.slmCopies;
-    auto slmBuffers = strategy.slmBuffers;
+    auto slmBuffersA = strategy.slmBuffersA;
+    auto slmBuffersB = strategy.slmBuffersB;
     auto ka_loadMain = strategy.ka_load, ka_loadRem = state.ka_loadRem;
     auto kb_loadMain = strategy.kb_load, kb_loadRem = state.kb_loadRem;
     auto ka_repackMain = state.ka_repack, ka_repackRem = state.ka_repackRem;
@@ -273,13 +274,22 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     LoopSequencer ls;
     using namespace loop_sequencer;
 
-    int slmBufferLA = 0;
-    switch (slmBuffers) {
+    int slmBufferLA_A = 0;
+    switch (slmBuffersA) {
         case 0:
-        case 1: slmBufferLA = 0; break;
+        case 1: slmBufferLA_A = 0; break;
         case 2:
-        case 3: slmBufferLA = 1; break;
-        case 4: slmBufferLA = 2; break;
+        case 3: slmBufferLA_A = 1; break;
+        case 4: slmBufferLA_A = 2; break;
+        default: stub();
+    }
+    int slmBufferLA_B = 0;
+    switch (slmBuffersB) {
+        case 0:
+        case 1: slmBufferLA_B = 0; break;
+        case 2:
+        case 3: slmBufferLA_B = 1; break;
+        case 4: slmBufferLA_B = 2; break;
         default: stub();
     }
 
@@ -288,7 +298,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     int lookaheadALoadRem = ka_loadRem  * (A_copies - 1);
     int lookaheadBLoadRem = kb_loadRem  * (B_copies - 1);
     int lookaheadSLMLoad  = unrollKSLM  * (slmCopies - 1) + unrollKSLM - 1;
-    int lookaheadSLMStore = unrollKSLM  * slmBufferLA + 1;
+    int lookaheadSLMStore = unrollKSLM  * std::max(slmBufferLA_A, slmBufferLA_B) + 1;
 
     if (slmA && slmB) {
         if (lookaheadALoad != lookaheadBLoad) stub();
@@ -321,14 +331,17 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto B_regs = [&](Iteration h) -> GRFMultirange& { return state.B_regs[B_copy(h)]; };
     auto A_layout = [&](Iteration h) -> RegisterLayout& { return A_remActive(h) ? state.A_layoutRem : state.A_layout; };
     auto B_layout = [&](Iteration h) -> RegisterLayout& { return B_remActive(h) ? state.B_layoutRem : state.B_layout; };
+    auto Ai_layout = [&](Iteration h) -> RegisterLayout& { return slmRemActive(h) ? state.Ai_layoutRem : state.Ai_layout; };
+    auto Bi_layout = [&](Iteration h) -> RegisterLayout& { return slmRemActive(h) ? state.Bi_layoutRem : state.Bi_layout; };
+
     auto Ar_regs = [&](Iteration h) -> GRFMultirange& { return repackA(h) ? state.Ar_regs : A_regs(h); };
     auto Br_regs = [&](Iteration h) -> GRFMultirange& { return repackB(h) ? state.Br_regs : B_regs(h); };
     auto Ar_layout = [&](Iteration h) -> RegisterLayout& { return repackA(h) ? state.Ar_layout : A_layout(h); };
     auto Br_layout = [&](Iteration h) -> RegisterLayout& { return repackB(h) ? state.Br_layout : B_layout(h); };
     auto slmCopy = [&](Iteration h) { return (h / unrollKSLM) % slmCopies; };
-    auto slmBuffer = [&](Iteration h) { return (h / unrollKSLM) % slmBuffers; };
-    auto Ai_layout = [&](Iteration h) -> RegisterLayout& { return slmRemActive(h) ? state.Ai_layoutRem : state.Ai_layout; };
-    auto Bi_layout = [&](Iteration h) -> RegisterLayout& { return slmRemActive(h) ? state.Bi_layoutRem : state.Bi_layout; };
+
+    auto slmBufferA = [&](Iteration h) { return (slmA ? ((h / unrollKSLM) % slmBuffersA) : 0); };
+    auto slmBufferB = [&](Iteration h) { return (slmB ? ((h / unrollKSLM) % slmBuffersB) : 0); };
     auto Ai_addrs = [&](Iteration h) -> vector<RegisterRange>& { return slmRemActive(h) ? state.Ai_addrsRem : state.Ai_addrs; };
     auto Bi_addrs = [&](Iteration h) -> vector<RegisterRange>& { return slmRemActive(h) ? state.Bi_addrsRem : state.Bi_addrs; };
     auto Ai_allRegs = [&](Iteration h) -> vector<GRFMultirange>& { return slmRemActive(h) ? state.Ai_regsRem : state.Ai_regs; };
@@ -653,8 +666,9 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
             add(1 | gt | f0[0], state.K, state.K, -unrollK);
             if (lateKLoopCheck) {
                 state.raVFlag.lock(state.flagAP);
-                if (state.vflagsEnabled())
+                if (state.vflagsEnabled()) {
                     state.activeVFlags[state.flagAP.index()].clear();
+                }
             }
         },
         [&](Iteration h) {
@@ -664,15 +678,18 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
 
     // SLM store address increments.
     auto doSLMStoreInc = [&](Iteration h) {
-        int kIncSLMStore = (slmBuffer(h) == slmBuffers - 1) ? -(slmBuffers - 1) : +1;
-        kIncSLMStore *= unrollKSLM;
+        int kIncSLMStoreA = (slmBufferA(h) == slmBuffersA - 1) ? -(slmBuffersA - 1) : +1;
+        int kIncSLMStoreB = (slmBufferB(h) == slmBuffersB - 1) ? -(slmBuffersB - 1) : +1;
+        kIncSLMStoreA *= unrollKSLM;
+        kIncSLMStoreB *= unrollKSLM;
+        // TODO: Should be reviewed.
         if (slmA)
-            gemmAIncrement(state.Ao_layout, state.Ao_addrs, kIncSLMStore, problem, strategy, state);
+            gemmAIncrement(state.Ao_layout, state.Ao_addrs, kIncSLMStoreA, problem, strategy, state);
         if (slmB)
-            gemmBIncrement(state.Bo_layout, state.Bo_addrs, kIncSLMStore, problem, strategy, state);
+            gemmBIncrement(state.Bo_layout, state.Bo_addrs, kIncSLMStoreB, problem, strategy, state);
     };
 
-    if (strategy.slmBuffers >= 2) {
+    if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) >= 2) {
         ls.schedule({
             {(reqSLMStore | duration(durationSLMMainLoad)).delay(1), doSLMStoreInc},
             {reqSLMStoreABRem.delay(1),                              doSLMStoreInc}
@@ -782,7 +799,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto ka_inc = [&](Iteration h) {
         auto inc = ka_load(h);
         if (slmA) {
-            int kWraparound = unrollKSLM * slmBuffers;
+            int kWraparound = unrollKSLM * slmBuffersA;
             if ((h + inc) % kWraparound < inc)
                 inc -= kWraparound;
             return inc;
@@ -805,7 +822,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto kb_inc = [&](Iteration h) {
         auto inc = kb_load(h);
         if (slmB) {
-            int kWraparound = unrollKSLM * slmBuffers;
+            int kWraparound = unrollKSLM * slmBuffersB;
             if ((h + inc) % kWraparound < inc)
                 inc -= kWraparound;
             return inc;
@@ -1261,7 +1278,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     };
 
     auto doSLMAfterStore2 = [&](Iteration h) {
-        switch (slmBuffers) {
+        switch (std::max(slmBuffersA, slmBuffersB)) {
             case 1:
             case 2:
             case 3: break;
@@ -1273,7 +1290,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     };
 
     auto doSLMAfterStore = [&](Iteration h) {
-        switch (slmBuffers) {
+        switch (std::max(slmBuffersA, slmBuffersB)) {
             case 1: break;
             case 2:
                 slm1x2xFencedBarrier();
@@ -1299,7 +1316,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto doSLMStore = [&](Iteration h) {
         if (!slmA && !slmB) return;
 
-        switch (slmBuffers) {
+        switch (std::max(slmBuffersA, slmBuffersB)) {
             case 1:
                 slm1x2xFencedBarrier();
                 break;
@@ -1317,7 +1334,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         if (slmASums) accumulateSum(false, effAo_regs(h), state.Ao_layout, state.As_regs, state.As_layout, strategy, state);
         if (slmBSums) accumulateSum(true,  effBo_regs(h), state.Bo_layout, state.Bs_regs, state.Bs_layout, strategy, state);
 
-        switch (slmBuffers) {
+        switch (std::max(slmBuffersA, slmBuffersB)) {
             case 1:
                 kLoopBarrier(true, KBarrierType::Normal);
                 break;
@@ -1339,13 +1356,13 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         }
     };
 
-    if (slmBuffers > 0) {
-        if (slmBuffers >= 4) ls.schedule({
+    if (std::max(slmBuffersA, slmBuffersB) > 0) {
+        if (std::max(slmBuffersA, slmBuffersB) >= 4) ls.schedule({
             {reqSLMAfterStore2,      doSLMAfterStore2},
             {reqSLMAfterStoreABRem2, doSLMAfterStore2}
         });
 
-        if (slmBuffers >= 2) ls.schedule({
+        if (std::max(slmBuffersA, slmBuffersB) >= 2) ls.schedule({
             {reqSLMAfterStore,      doSLMAfterStore},
             {reqSLMAfterStoreABRem, doSLMAfterStore}
         });
@@ -1507,8 +1524,9 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     ls.setCallback(CT::JumpIfLT, [&](int thresh, int label) {
         if (size_t(label) >= labels.size())
             labels.resize(label + 1);
-        if (thresh != lastThresh)
+        if (thresh != lastThresh) {
             cmp(1 | lt | state.flagAP, state.K, thresh);
+        }
         jmpi(1 | state.flagAP, labels[label]);
         lastThresh = thresh;
     });
@@ -1586,7 +1604,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         Subregister myBarriers, k0Barriers;
         Label lSkipExtraBarriers, lExtraBarrierLoop;
         int maxExtraBarriers = 0;
-        if (strategy.slmBuffers == 2)
+        if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) == 2)
             maxExtraBarriers = div_up(strategy.unroll[LoopK], strategy.unrollKSLM);
 
         if (strategy.barrierFreq > 0 && prefetchCPeelLoops > 0) stub();
@@ -1655,9 +1673,9 @@ void Generator<hw>::gemmAIncrementInternal(const RegisterLayout &layout, const s
 
     if (ka_inc == 0)
         /* no-op */;
-    else if (astrategy.address2D)
+    else if (astrategy.address2D) {
         incDecAddr(addrs, Subregister(), 0, ka_inc, layout, strategy, state, problem.backward());
-    else if (atype.layout == MatrixLayout::N) {
+    } else if (atype.layout == MatrixLayout::N) {
         bool release = false;
         auto lda_ka = lookupIncrement(state.ldaIncrements, state.lda, ka_inc, strategy, state, &release);
         incDecAddr(addrs, lda_ka, layout, strategy, state, problem.backward());
@@ -1736,9 +1754,9 @@ void Generator<hw>::gemmBIncrementInternal(const RegisterLayout &layout, const s
     const auto &astrategy = layout.addressingStrategy();
     if (kb_inc == 0)
         /* no-op */;
-    else if (astrategy.address2D)
+    else if (astrategy.address2D) {
         incDecAddr(addrs, Subregister(), kb_inc, 0, layout, strategy, state, problem.backward());
-    else if (atype.layout == MatrixLayout::T) {
+    } else if (atype.layout == MatrixLayout::T) {
         bool release = false;
         auto ldb_kb = lookupIncrement(state.ldbIncrements, state.ldb, kb_inc, strategy, state, &release);
         incDecAddr(addrs, ldb_kb, layout, strategy, state, problem.backward());
@@ -1816,7 +1834,7 @@ void Generator<hw>::gemmAiBiRemLoadInc(int h, bool incremental, bool incremental
                                        const GRFMultirange &Xo_regs, const RegisterLayout &Xo_layout,
                                        const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    auto kx_slm = doA ? state.ka_slm   : state.kb_slm;
+    auto kx_slm = doA ? state.ka_slm : state.kb_slm;
 
     auto unrollKSLM = strategy.unrollKSLM;
     bool kSLMCountUp = state.kSLMCountUp;
@@ -2144,7 +2162,7 @@ void Generator<hw>::kLoopActivateSLMRemainder(bool active, bool preactivate, con
         }
 
         if ((needKSLMA || needKSLMB) && kOffset != 0) {
-                add(2 | sat, kSLMStorage.uw()(1), kSLMStorage.uw()(1), kOffset);
+            add(2 | sat, kSLMStorage.uw()(1), kSLMStorage.uw()(1), kOffset);
         }
 
         initSLMKOffset = kOffset;

@@ -492,6 +492,7 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
         }
     }
 
+#ifdef MICROKERNEL_INTERFACE
     // Track clobbers which cannot be determined from decoded assembly.
     auto addClobbers = [&](const std::vector<GRFMultirange> &regs) {
         for (const auto &reg : regs) {
@@ -503,6 +504,7 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
 
     if (strategy.A.base.getModel() != ngen::ModelInvalid) { addClobbers(state.A_regs); }
     if (strategy.B.base.getModel() != ngen::ModelInvalid) { addClobbers(state.B_regs); }
+#endif
 
     if (repackC) {
         state.Cr_regs = C_regs;
@@ -536,12 +538,16 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
     if (strategy.slmA) {
         for (int q = 0; q < strategy.slmCopies; q++)
             state.Ai_regs[q] = state.ra.alloc_range(state.Ai_regCount);
+#ifdef MICROKERNEL_INTERFACE
         addClobbers(state.Ai_regs);
+#endif
     }
     if (strategy.slmB) {
         for (int q = 0; q < strategy.slmCopies; q++)
             state.Bi_regs[q] = state.ra.alloc_range(state.Bi_regCount);
+#ifdef MICROKERNEL_INTERFACE
         addClobbers(state.Bi_regs);
+#endif
     }
 
     // Allocate registers for A/B sums.
@@ -575,6 +581,7 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
     state.Bg_regs = state.ra.alloc_range(state.Bg_layout.regs());
     state.Agr_regs = state.ra.alloc_range(state.Agr_layout.regs());
     state.Bgr_regs = state.ra.alloc_range(state.Bgr_layout.regs());
+
 }
 
 template <HW hw>

@@ -194,7 +194,8 @@ struct GEMMProblem : public CommonProblem {
     ABOffset bOffset = ABOffset::None;              //
     int aoPtrDims = -1, boPtrDims = -1;             // A/B offset dimensionality (-1: none; 0: scalar; 1: vector, 2: matrix)
     int coPtrDims = -1;                             // C offset dimensionality (-1: none or hostscalar; 0 - others)
-    int asPtrDims = -1, bsPtrDims = -1, csPtrDims = -1;           // A/B scale dimensionality (-1: none; 0: scalar; 1: vector, 2: matrix)
+    int asPtrDims = -1, bsPtrDims = -1;             // A/B scale dimensionality (-1: none; 0: scalar; 1: vector, 2: matrix)
+    int csPtrDims = -1;
     int aqGroupM = 0, aqGroupK = 0;                 // Group sizes for A quantization parameters (offsets and scales)
     int bqGroupN = 0, bqGroupK = 0;                 // Group sizes for B quantization parameters (offsets and scales)
     int cqGroupM = 0, cqGroupN = 0;                 // Group sizes for C quantization parameters (offsets and scales)
@@ -206,9 +207,9 @@ struct GEMMProblem : public CommonProblem {
     bool hasGroupSumsB = false;
     bool bdpasEnabled = false;                             // bdpas enabled for problem.
     bool cMXScale = false;
+    ngen::Product product;
     MatrixAddressing sroundSeed;
     PostOpsProblem postOps;                         // Fused post operations to apply
-    ngen::Product product;
 
     // The following data is derived from the postOps and does not need
     //   to be considered for equality/hashing purposes.
@@ -234,7 +235,6 @@ struct GEMMProblem : public CommonProblem {
             postOps.ops.pop_back();
     }
     bool binaryPostProcess() const { return postOps.cStochasticRound || hasCScale(); }
-
 
     bool beta0() const   { return (beta  ==  0); }
     bool beta1() const   { return (beta  ==  1); }
@@ -311,6 +311,9 @@ struct GEMMProblem : public CommonProblem {
     bool needsAGroupSums() const { return (bOffset == ABOffset::Calc && quantized2DB() && !earlyDequantizableOffset(Tb_ext, Tbo, Tb)); }
     bool needsBGroupSums() const { return (aOffset == ABOffset::Calc && quantized2DA() && !earlyDequantizableOffset(Ta_ext, Tao, Ta)); }
 
+    bool needsSeparateASums() const { return needsAGroupSums() || (bOffset == ABOffset::Load && !isPacked(A.layout)); }
+    bool needsSeparateBSums() const { return needsBGroupSums() || (aOffset == ABOffset::Load && !isPacked(B.layout)); }
+
     bool usesCOPtr() const { return (hasCOffsetPtr() && cOffset != COffset::None) || sumA || sumB; }
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
 
@@ -351,6 +354,7 @@ struct GEMMProblem : public CommonProblem {
         s.append(A_scale, B_scale, C_scale);
         s.append(checkBeta0);
         s.append(bdpasEnabled);
+        s.append(cMXScale);
         s.append(aOffset, bOffset);
         s.append(aoPtrDims, boPtrDims, coPtrDims);
         s.append(asPtrDims, bsPtrDims, csPtrDims);
@@ -384,8 +388,7 @@ void GEMMProblem::autoTypeConversions(bool systolicAvailable)
 
     if (Ta == Ta_ext.asSigned()) Ta = Ta_ext;
     if (Tb == Tb_ext.asSigned()) Tb = Tb_ext;
-    if (hw < HW::Xe3p || !systolicAvailable)
-    {
+    if (hw < HW::Xe3p || !systolicAvailable) {
         if (Ta.isF8()) Ta = Type::f16;
         if (Tb.isF8()) Tb = Type::f16;
     }

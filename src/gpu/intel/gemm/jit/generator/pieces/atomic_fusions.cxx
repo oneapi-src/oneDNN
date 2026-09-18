@@ -460,7 +460,7 @@ bool Generator<hw>::gemmFusedPostOpsFinalize(Label &labelLateExit, GEMMProblem &
         auto strategy0 = modStrategy;
         auto state0 = modState;
 
-        if (!problem.beta0() && !state.useTempC) stub();    /* todo: implement beta scaling */
+        if (!problem.beta0() && !state.useTempC) stub();    /* TODO: implement beta scaling */
 
         and_(1 | nz | state.flagAP, null.ud(), state.inputs.flags, FlagDidBeta);
         jmpi(1 | ~state.flagAP, lTileAccumulate);
@@ -504,7 +504,7 @@ bool Generator<hw>::gemmFusedPostOpsFinalize(Label &labelLateExit, GEMMProblem &
 
     broadcastToWG(f0[0], kDone, modStrategy, modState, 4);
 
-    if (strategy.slmBuffers > 0 || strategy.kParallelLocal) {
+    if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0 || strategy.kParallelLocal) {
         useTempAndR0(modState, [&](GRF temp, GRF r0_info) {
             slmBarrier(temp, r0_info, strategy);
         });

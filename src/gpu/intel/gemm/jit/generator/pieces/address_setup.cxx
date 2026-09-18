@@ -223,8 +223,9 @@ void Generator<hw>::setupAddr(Type T, const RegisterRange &addr, const BO &ptr, 
                         auto iv2 = accessIndexVec(simd1 / consecutive, state)(tblock, tblock * consecutive, 0);
                         mulConstant(simd2, addr[2].ud(0)(udStride), iv2, stride);
                         mulConstant(simd1, addr[0].ud(0)(udStride), iv, stride);
-                    } else
+                    } else {
                         mulConstant(simdSize, addr[0].ud(0)(udStride), iv, stride);
+                    }
                     if (simd2)
                         eadd(simd2, addr[2].uq(), addr[udStride].ud(0)(udStride), ptrShifted, strategy, state);
                     eadd(simd1, addr[0].uq(), addr[0].ud(0)(udStride), ptrShifted, strategy, state);

@@ -28,6 +28,8 @@
 #include "gemmstone/microkernel/fuser.hpp"
 #include "ngen_elf.hpp"
 
+#ifdef MICROKERNEL_INTERFACE
+
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
 
@@ -467,3 +469,5 @@ bool hasMicrokernels(const char *source) {
 
 }
 GEMMSTONE_NAMESPACE_END
+
+#endif

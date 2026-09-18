@@ -25,6 +25,8 @@
 
 #include "gemmstone/config.hpp"
 
+#ifdef MICROKERNEL_INTERFACE
+
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
 
@@ -216,4 +218,5 @@ void storeSectionEntries(std::vector<uint8_t> &binary, std::size_t index,
 }
 GEMMSTONE_NAMESPACE_END
 
+#endif
 #endif

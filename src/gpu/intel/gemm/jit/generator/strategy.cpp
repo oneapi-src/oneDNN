@@ -55,7 +55,7 @@ bool GEMMStrategy::needsUnnamedBarrier(const GEMMProblem &problem) const
 {
     if (needsKLoopBarrier() && (!namedBarriers[LoopM] || !namedBarriers[LoopN]))
         return true;
-    if (slmBuffers > 0) {
+    if (std::max(slmBuffersA, slmBuffersB) > 0) {
         if (persistentLoop()) return true;
         if (problem.needsASums() || problem.needsBSums()) return true;
     }
@@ -173,8 +173,8 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     if (!(kParallelVariable || (kParallel && altFusedBeta)))
         kPadding = 0;
 
-    slmA &= (slmBuffers > 0);
-    slmB &= (slmBuffers > 0);
+    slmA &= (slmBuffersA > 0);
+    slmB &= (slmBuffersB > 0);
 
     A.preflight(hw); A_prefetch.preflight(hw); AO.preflight(hw);
     B.preflight(hw); B_prefetch.preflight(hw); BO.preflight(hw);
@@ -220,6 +220,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     checkBeta1 |= C.atomic && !problem.beta1();
 
     GRFs = std::min(GRFs, GRF::maxRegs(hw));
+
     // CRI has unique GRF mode behaviour - automatically update to optimal options
     if (problem.product.family == ngen::ProductFamily::CRI) {
         if (GRFs == 128) GRFs = 192;
@@ -233,7 +234,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         bool doubleM = (wg[LoopM] == 8);
 
         slmCopies = (slmCopies == 3) ? 3 : 1;
-        slmBuffers = (splitCopy || doubleM) ? 4 : 3;
+        slmBuffersA = slmBuffersB = (splitCopy || doubleM) ? 4 : 3;
         slmA = slmB = true;
         GRFs = 256;
         altCRemainder = false;
@@ -288,6 +289,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     spf &= !C.atomic;
     spf &= !doubleMasking;
 
+    // 64-bit strength reduction handling.
     checkAdd32 &= !emulate.emulate64_add32;
     checkAdd32 &= (A.base.isStateless() || B.base.isStateless() || problem.quantized2DA() || problem.quantized2DB());
     checkAdd32 &= !(A.address2D && B.address2D && (!prefetchA || A_prefetch.address2D) && (!prefetchB || B_prefetch.address2D));
@@ -300,8 +302,8 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         moveR0 = MoveR0::None;
 
     // SLM copy logic.
-    int slmVersions = std::max(1, lcm(slmCopies, slmBuffers));
-    if (slmBuffers > 0) {
+    int slmVersions = std::max(1, lcm(slmCopies, std::max(slmBuffersA, slmBuffersB)));
+    if (std::max(slmBuffersA, slmBuffersB) > 0) {
         moveR0 = MoveR0::None;
         barrierFreq = 0;
         if (wg[LoopM] <= 0 || wg[LoopN] <= 0)
@@ -316,7 +318,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     if (kb_load_masked == 0) kb_load_masked = kb_load;
 
     int maskedOPCount = minOPCount;
-    if(problem.product.family == ProductFamily::CRI && kChain >= 2)
+    if (problem.product.family == ProductFamily::CRI && kChain >= 2)
         // On CRI, dpas fwd modifier is required for optimal compute throughput
         maskedOPCount *= 2;
 
@@ -345,6 +347,9 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         dotVL = align_up(dotVL, elementsPerGRF(hw, Tc));
         forceCopyC = doubleMasking = true;
     }
+
+    // Repack C if using sub-DWord atomics.
+    forceCopyC |= (C.atomic && Tc.real().size() < 4);
 
     // Prefetch handling.
     cooperativePF &= (prefetchA || prefetchB);
@@ -589,7 +594,7 @@ int GEMMStrategy::kAlign(const GEMMProblem &problem) const
 {
     int align = lcm(ka_load, kb_load);
     align = lcm(align, extraKAlign);
-    if (slmBuffers > 0) align = lcm(align, unrollKSLM);
+    if (std::max(slmBuffersA, slmBuffersB) > 0) align = lcm(align, unrollKSLM);
 
     if (kParallelLocal && kInterleave) {
         /* Ensure k0 is aligned to prefetch strides */

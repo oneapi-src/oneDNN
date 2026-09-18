@@ -17,8 +17,6 @@
 #ifndef GEMMSTONE_INCLUDE_GEMMSTONE_GENERATOR_HPP
 #define GEMMSTONE_INCLUDE_GEMMSTONE_GENERATOR_HPP
 
-#define BINARY_OUTPUT
-
 #include <array>
 #include <bitset>
 #include <complex>
@@ -34,12 +32,15 @@
 #include "gemmstone/type.hpp"
 #include "gemmstone/problem.hpp"
 #include "gemmstone/strategy.hpp"
-#include "gemmstone/microkernel_selector.hpp"
-#include "generator/pieces/copy_plan.hpp"
-#include "generator/pieces/register_layout.hpp"
-#include "generator/pieces/state.hpp"
+#include "gemmstone/../../generator/pieces/copy_plan.hpp"
+#include "gemmstone/../../generator/pieces/register_layout.hpp"
+#include "gemmstone/../../generator/pieces/state.hpp"
 #include "ngen_emulation.hpp"
 
+#include "gemmstone/microkernel/package.hpp"
+#include "gemmstone/microkernel/protocol.hpp"
+
+#include "internal/ngen_elf_hw_list.hpp"
 
 GEMMSTONE_NAMESPACE_START
 
@@ -47,15 +48,7 @@ GEMMSTONE_NAMESPACE_START
 #ifndef GENERATOR_BASE
 
 #define GENERATOR_SUPER(hw) ngen::OpenCLCodeGenerator<hw>
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-#define FORWARD(hw) NGEN_FORWARD_SYCL(hw)
-#endif
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #define FORWARD(hw) NGEN_FORWARD_OPENCL(hw)
-#endif
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_ZE
-#define FORWARD(hw) NGEN_FORWARD_LEVEL_ZERO(hw)
-#endif
 #define GENERATOR_DEBUGINFO {__FILE__, __LINE__}
 
 #define GENERATOR_BASE(hw) GENERATOR_SUPER(hw)
@@ -161,6 +154,11 @@ protected:
     template <typename BO, typename BI> typename std::enable_if<std::is_base_of<ngen::RegData, BO>::value>::type
     doneShift(const BO &ptr, const BI &ptrShifted, int shift, CommonState &state);
     void doneShift(const SubregisterPair &ptr, const SubregisterPair &ptrShifted, int shift, CommonState &state);
+
+    template <typename DT = void> void emin_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::Immediate &src1, CommonState &state, ngen::SourceLocation loc = {});
+    template <typename DT = void> void emin_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, CommonState &state, ngen::SourceLocation loc = {});
+    template <typename DT = void> void emax_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::Immediate &src1, CommonState &state, ngen::SourceLocation loc = {});
+    template <typename DT = void> void emax_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, CommonState &state, ngen::SourceLocation loc = {});
 
     // asm_helpers.cxx
     void goto12(const ngen::InstructionModifier &mod, ngen::Label &jip) { goto12(mod, jip, jip); }
@@ -455,7 +453,7 @@ protected:
     ngen::InstructionModifier registerBlockMasking(const RegisterBlock &block, CommonState &state, ngen::FlagRegister *outFlag = nullptr);
     void finishRegisterBlockMasking(CommonState &state);
 
-    void loadMatrixBlock(const ngen::Register &dest, const RegisterBlock &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, const ngen::RegisterRange &addr, const CommonStrategy &strategy, CommonState &state, bool readCheck = false, bool series = false);
+    void loadMatrixBlock(const ngen::Register &dest, const RegisterBlock &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, const ngen::RegisterRange &addr, const CommonStrategy &strategy, CommonState &state, ngen::DataType T, bool readCheck = false, bool series = false, bool chain = false);
     void loadMatrix(const GRFMultirange &dest, const RegisterLayout &layout, const std::vector<ngen::RegisterRange> &addrs, const CommonStrategy &strategy, CommonState &state, bool readCheck = false);
     void prefetchMatrix(const RegisterLayout &layout, const std::vector<ngen::RegisterRange> &addrs, const CommonStrategy &strategy, CommonState &state);
     void storeMatrixBlock(const ngen::GRF &src, const RegisterBlock &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, const ngen::RegisterRange &addr, const CommonStrategy &strategy, CommonState &state, bool series = false);
@@ -523,6 +521,7 @@ protected:
     void dequantizeSubByteInt(bool doA, const RegisterLayout &layoutSrc, const RegisterLayout &layoutDst, const RegisterLayout &layoutOffset, const RegisterLayout &layoutScale, const GRFMultirange &src, const GRFMultirange &dst, const GRFMultirange &offset, const GRFMultirange &scale, int offR, int offC, int h, int kab_load, int kq_load, const GEMMProblem *problem, const CommonStrategy &strategy, CommonState &state, bool signedShift = true);
     void gemmDequantizeOperation(bool doA, Type T, Type Tq, BinaryOp op, const RegisterLayout &layout, const RegisterLayout &qlayout, const GRFMultirange &regs, const GRFMultirange &qregs, int h, int kab_load, int kq_load, const GEMMProblem &problem, const CommonStrategy &strategy, CommonState &state);
     void gemmDequantizeAB(bool doA, const RegisterLayout &layoutSrc, const RegisterLayout &layoutDst, const GRFMultirange &src, const GRFMultirange &dst, int h, int kab_load, int kab_repack, int kq_load, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, bool s4Shift = true);
+
     // register_allocation.cxx
     ngen::Bundle getHint(HintType type);
     ngen::Bundle getHint(HintType type, const CommonStrategy &strategy);

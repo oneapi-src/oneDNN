@@ -23,6 +23,7 @@ using namespace ngen;
 using namespace ngen::utils;
 
 
+#ifdef MICROKERNEL_INTERFACE
 template <HW hw>
 void Generator<hw>::gemmMicrokernel(GEMMProblem problem, GEMMStrategy strategy, const ngen::InterfaceHandler &interface_)
 {
@@ -37,7 +38,9 @@ void Generator<hw>::gemmMicrokernel(GEMMProblem problem, GEMMStrategy strategy, 
 
     outputCRange = GRFMultirange();
     outputCLayout.clear();
+#ifdef MICROKERNEL_INTERFACE
     knownClobbers.clear();
+#endif
 
     strategy.forceWGUpdate = WGFixed;
     strategy.forceFixedWGK = true;
@@ -159,7 +162,7 @@ void Generator<hw>::gemmMicrokernel(GEMMProblem problem, GEMMStrategy strategy, 
             state.fullK = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
             mov(1, state.fullK, state.inputs.k);
         }
-        
+
         if (strategy.kInterleave) {
             emad(1, state.h0, state.h0, state.lidK, strategy.kInterleaveChunk, strategy, state);
         } else {
@@ -378,5 +381,7 @@ static inline microkernel::StructuredType::Type microType(Type T)
     }
 #undef CASE
 }
+
+#endif /* MICROKERNEL_INTERFACE */
 
 GEMMSTONE_NAMESPACE_END
