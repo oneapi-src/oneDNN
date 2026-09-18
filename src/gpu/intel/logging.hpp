@@ -54,6 +54,12 @@ inline int get_xe_debug_level() {
     return level;
 }
 
+// Left-pad an integer with spaces to at least `width` chars (aligned logs).
+inline std::string lpad(long long v, int width) {
+    auto s = std::to_string(v);
+    return (int)s.size() < width ? std::string(width - s.size(), ' ') + s : s;
+}
+
 template <typename T, typename = void>
 struct print_helper_t {
     static void call(std::ostream &out, const T &t) { out << t; }
