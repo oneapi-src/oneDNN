@@ -378,6 +378,22 @@ int batch(const char *fname, bench_f bench) {
             continue;
         }
 
+        // double-quoted value (e.g. --opt="a b c"): join whitespace-split
+        // pieces up to the closing quote, then drop the quotes.
+        if (std::count(str.begin(), str.end(), '"') % 2 == 1) {
+            std::string piece;
+            bool closed = false;
+            while (ifs >> piece) {
+                str += " " + piece;
+                if (std::count(piece.begin(), piece.end(), '"') % 2 == 1) {
+                    closed = true;
+                    break;
+                }
+            }
+            if (!closed) SAFE_V(FAIL); // unterminated quote
+            str.erase(std::remove(str.begin(), str.end(), '"'), str.end());
+        }
+
         // shell style line break
         if (continued_line) {
             if (opts.empty()) SAFE_V(FAIL);
