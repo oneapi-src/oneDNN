@@ -18,6 +18,7 @@
 #define GPU_INTEL_LOGGING_HPP
 
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -58,7 +59,16 @@ inline int get_xe_debug_level() {
             if (v == "debug") return (int)log_level_t::debug;
             if (v == "perf") return (int)log_level_t::perf;
             if (v == "trace" || v == "all") return (int)log_level_t::trace;
-            return std::atoi(v.c_str()); // numeric alias
+            // Numeric alias (e.g. xe=160); an unrecognized token is a typo.
+            if (v.empty()
+                    || v.find_first_not_of("0123456789") != std::string::npos) {
+                std::cerr << "Error: ONEDNN_VERBOSE xe=" << v
+                          << " is not a valid level (use a name off/warning/"
+                             "suggestion/info/debug/perf/trace/all or an integer)"
+                          << std::endl;
+                std::abort();
+            }
+            return std::atoi(v.c_str());
         }
         return 0;
     }();
