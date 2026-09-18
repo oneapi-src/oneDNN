@@ -82,10 +82,11 @@ private:
 } // namespace impl
 } // namespace dnnl
 
+// Dev-only jit:gemm kernel override; the symbol is absent from a release
+// library. Read back the deployed kernel via ONEDNN_VERBOSE=xe=info.
+#ifdef DNNL_DEV_MODE
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_set_kernel_override(
         dnnl_primitive_attr_t attr, const char *kernel);
-
-extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel(
-        const_dnnl_primitive_desc_t pd, const char **kernel);
+#endif
 
 #endif

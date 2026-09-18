@@ -34,11 +34,9 @@
 #include "matmul/matmul.hpp"
 
 #if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE \
-        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL)
+        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL) && defined(DNNL_DEV_MODE)
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_set_kernel_override(
         dnnl_primitive_attr_t attr, const char *kernel);
-extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel(
-        const_dnnl_primitive_desc_t pd, const char **kernel);
 #endif
 
 namespace matmul {
@@ -250,7 +248,7 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args, prb->ndims));
 
 #if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE \
-        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL)
+        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL) && defined(DNNL_DEV_MODE)
     // GPU-only internal attribute; skipped for cpu (e.g. prim_ref) engines.
     if (!prb->kernel.empty()
             && query_engine_kind(init_pd_args.engine) == dnnl_gpu) {
@@ -263,19 +261,6 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
             &init_pd_args.pd, init_pd_args.engine,
             init_pd_args.src_md ? init_pd_args.src_md : src_d, wei_d, bia_d,
             dst_d, dnnl_attr)));
-
-#if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE \
-        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL)
-    // Print once: skip the primitive-cache-check creation on a temp engine.
-    if (prb->query_kernel && init_pd_args.pd
-            && init_pd_args.engine == get_test_engine()
-            && query_engine_kind(init_pd_args.engine) == dnnl_gpu) {
-        const char *kernel = "";
-        DNN_SAFE_STATUS(
-                dnnl_impl_gpu_intel_get_kernel(init_pd_args.pd, &kernel));
-        BENCHDNN_PRINT(0, "onednn_kernel:%s\n", kernel);
-    }
-#endif
 
     return dnnl_success;
 }

@@ -419,6 +419,8 @@ struct gen_t : public primitive_t {
                     status = try_create();
                     if (status == status::success) {
                         kernel_success = true;
+                        // Print the finalized, replayable kernel string
+                        // (pin it via --kernel), not the catalog form.
                         if (kernel_desc_.has_entry())
                             gpu_info() << "[" << lpad(g, 4) << "] use "
                                        << entry_idx << "/" << entries.size()
@@ -426,7 +428,7 @@ struct gen_t : public primitive_t {
                                                        ? (global ? " pin=g"
                                                                  : " pin=k")
                                                        : "")
-                                       << " " << entry->str();
+                                       << " " << kernel_str();
                         else
                             gpu_info() << "[override] use " << kernel_str();
                         break;
@@ -637,7 +639,7 @@ struct gen_t : public primitive_t {
         compute::gpu_arch_t arch_ = compute::gpu_arch_t::unknown;
 
         kernel_desc_t kernel_desc_;
-        mutable std::string kernel_str_; // lazy dump for dnnl_impl_gpu_intel_get_kernel
+        mutable std::string kernel_str_; // lazy dump for the verbose use line
     };
 
     gen_t(const pd_t *apd) : primitive_t(apd) {}

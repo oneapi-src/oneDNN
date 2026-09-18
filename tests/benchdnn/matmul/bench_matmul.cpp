@@ -49,7 +49,6 @@ void check_correctness(
     for_(const auto &i_strides : s.strides)
     for_(const auto &i_rt_dims_masks : s.rt_dims_masks)
     for_(const auto &i_kernel : s.kernel)
-    for_(const auto i_query_kernel : s.query_kernel)
     for_(const auto &i_attr : s.attributes)
     for_(const auto &i_ctx_init : s.ctx_init)
     for_(const auto &i_ctx_exe : s.ctx_exe)
@@ -57,7 +56,7 @@ void check_correctness(
         auto prb = std::make_shared<prb_t>(s.prb_vdims, i_dt, i_stag, i_wtag,
                 i_dtag, i_strides, i_bia_cfg.first, i_bia_cfg.second,
                 i_rt_dims_masks, i_sparse_options, i_attr, i_ctx_init,
-                i_ctx_exe, s.impl_filter, i_kernel, i_query_kernel);
+                i_ctx_exe, s.impl_filter, i_kernel);
         if (s.pattern && !match_regex(prb->str(), s.pattern)) return;
 
         task_executor.submit(prb, s.perf_template, createit, checkit, doit);
@@ -219,6 +218,7 @@ static const std::string help_runtime_dims_masks
           "For tensors with runtime dimensions specified a correspondent "
           "memory format must be specified, too.\n";
 
+#ifdef DNNL_DEV_MODE
 static const std::string help_kernel
         = "STR    (Default: empty)\n    Specifies a GPU kernel override "
           "description passed to the implementation via a primitive "
@@ -227,12 +227,7 @@ static const std::string help_kernel
           "any other string is a strategy override. An empty string means no "
           "override. Ignored on non-GPU engines. Requires a dev-mode library "
           "(ONEDNN_DEV_MODE=ON).\n";
-
-static const std::string help_query_kernel
-        = "BOOL    (Default: `false`)\n    When `true`, prints the selected "
-          "jit:gemm kernel override string of the created primitive as "
-          "`onednn_kernel:<STR>`. Intel GPU only. Requires a dev-mode library "
-          "(ONEDNN_DEV_MODE=ON).\n";
+#endif // DNNL_DEV_MODE
 
 bool parse_legacy_dt(std::vector<dnnl_data_type_t> &dt,
         const std::vector<dnnl_data_type_t> &def_dt, const char *str,
@@ -270,15 +265,14 @@ int bench(int argc, char **argv) {
                 || parse_multivector_option(s.rt_dims_masks, def.rt_dims_masks,
                         atoi, argv[0], "runtime_dims_masks",
                         help_runtime_dims_masks)
+#ifdef DNNL_DEV_MODE
                 // Single-value parse: kernel strings may contain commas.
                 || parse_single_value_option(s.kernel, def.kernel,
                         [](const char *s_) {
                             return std::vector<std::string> {s_};
                         },
                         argv[0], "kernel", help_kernel)
-                || parse_vector_option(s.query_kernel,
-                        def.query_kernel, parser::parsers::str2bool,
-                        argv[0], "query-kernel", help_query_kernel)
+#endif
                 || parse_driver_shared_settings(s, def, argv[0]);
         if (!parsed_options) {
             catch_unknown_options(argv[0]);

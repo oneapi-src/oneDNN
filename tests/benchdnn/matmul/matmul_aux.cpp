@@ -99,8 +99,6 @@ std::string prb_t::set_repro_line() {
         bool q = kernel.find(' ') != std::string::npos;
         s << "--kernel=" << (q ? "\"" : "") << kernel << (q ? "\"" : "") << " ";
     }
-    if (canonical || query_kernel != def.query_kernel[0])
-        s << "--query-kernel=" << bool2str(query_kernel) << " ";
 
     s << attr;
     if (canonical || ctx_init != def.ctx_init[0])

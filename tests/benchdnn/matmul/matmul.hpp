@@ -51,7 +51,6 @@ struct settings_t : public base_settings_t {
     std::vector<int> bia_mask {2};
     std::vector<std::vector<dims_mask_t>> rt_dims_masks {{}};
     std::vector<std::string> kernel {""};
-    std::vector<bool> query_kernel {false};
 
     const char *perf_template_csv() const {
         static const std::string args = "%sdt%,%bia_dt%,%stag%,%wtag%,%dtag%";
@@ -64,7 +63,7 @@ struct settings_t : public base_settings_t {
         return dt.size() == 1 && stag.size() == 1 && wtag.size() == 1
                 && dtag.size() == 1 && strides.size() == 1 && bia_dt.size() == 1
                 && bia_mask.size() == 1 && rt_dims_masks.size() == 1
-                && kernel.size() == 1 && query_kernel.size() == 1
+                && kernel.size() == 1
                 && base_settings_t::has_single_setup();
     }
 };
@@ -75,8 +74,7 @@ struct prb_t : public prb_vdims_t, public base_prb_t {
         : prb_t(s.prb_vdims, s.dt[0], s.stag[0], s.wtag[0], s.dtag[0],
                   s.strides[0], s.bia_dt[0], s.bia_mask[0], s.rt_dims_masks[0],
                   s.sparse_options[0], s.attributes.front(), s.ctx_init[0],
-                  s.ctx_exe[0], s.impl_filter, s.kernel[0],
-                  s.query_kernel[0]) {
+                  s.ctx_exe[0], s.impl_filter, s.kernel[0]) {
         SAFE_V(s.has_single_setup() ? OK : FAIL);
     }
 
@@ -88,8 +86,7 @@ struct prb_t : public prb_vdims_t, public base_prb_t {
             const sparse_options_t &sparse_options, const attr_t &attr,
             const thr_ctx_t &ctx_init, const thr_ctx_t &ctx_exe,
             const impl_filter_t &impl_filter,
-            const std::string &kernel = {},
-            bool query_kernel = false)
+            const std::string &kernel = {})
         : prb_vdims_t(prb_vdims)
         , base_prb_t(FLAG_FWD, false, attr, ctx_init, ctx_exe, impl_filter)
         , dt(dt)
@@ -101,8 +98,7 @@ struct prb_t : public prb_vdims_t, public base_prb_t {
         , bia_mask(bia_mask)
         , rt_dims_masks(rt_dims_masks)
         , sparse_options(sparse_options)
-        , kernel(kernel)
-        , query_kernel(query_kernel) {
+        , kernel(kernel) {
 
         // Broadcast data types if needed
         broadcast_vector(this->dt, dt[0], 3);
@@ -143,7 +139,6 @@ struct prb_t : public prb_vdims_t, public base_prb_t {
     std::vector<dims_mask_t> rt_dims_masks;
     sparse_options_t sparse_options;
     std::string kernel;
-    bool query_kernel;
     double ops;
 
     const dims_t &src_dims() const { return vdims[0]; }
