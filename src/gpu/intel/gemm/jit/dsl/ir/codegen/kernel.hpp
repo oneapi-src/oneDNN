@@ -116,6 +116,24 @@ public:
         expr2operand_.erase(it);
     }
 
+    std::string str() const {
+        ostringstream_t oss;
+        oss << "operands: [";
+        const char *prefix = "";
+        for (auto &kv : expr2operand_) {
+            oss << prefix << kv.first << ": " << kv.second;
+            prefix = ", ";
+        }
+        oss << "], dsts: [";
+        prefix = "";
+        for (auto &kv : expr2dst_) {
+            oss << prefix << kv.first << ": " << kv.second;
+            prefix = ", ";
+        }
+        oss << "]";
+        return oss.str();
+    }
+
 private:
     ngen::HW hw_;
     object_map_t<expr_t, ngen_operand_t> expr2dst_;
@@ -168,21 +186,24 @@ public:
     const hw_t &hw_info() const { return options_.hw(); }
 
     void generate_prologue() {
-        BaseGeneratorT::setDefaultNoMask();
+        const bool no_mask = true;
+        const bool ieee_setup = true;
+        if (no_mask) BaseGeneratorT::setDefaultNoMask();
         BaseGeneratorT::setDefaultAutoSWSB(true);
 
         BaseGeneratorT::prologue();
 
-        // Data in r0 is necessary for epilogue generation
-        ra_.claim(BaseGeneratorT::r0);
-
         // Enable IEEE f32 -> s32 rounding and f64/f32/f16 denormals.
-        or_(1, BaseGeneratorT::cr0, BaseGeneratorT::cr0, uint16_t(0x14C0));
+        if (ieee_setup)
+            or_(1, BaseGeneratorT::cr0, BaseGeneratorT::cr0, uint16_t(0x14C0));
     }
 
     void bind_external_vars(
             const stmt_t &kernel_body, const walk_order_t *walk_order) {
         alloc_manager_t alloc_mgr(kernel_body);
+
+        // Data in r0 is necessary for epilogue generation
+        ra_.claim(BaseGeneratorT::r0);
 
         // Bind local IDs.
         for (int i = 0; i < 3; i++) {
@@ -202,16 +223,12 @@ public:
 
         // Bind arguments.
         for (size_t i = 0; i < kernel_iface_.nargs(); i++) {
-            auto &arg_var = kernel_iface_[i];
+            auto arg_var = kernel_iface_[i];
             auto &name = arg_var.as<var_t>().name;
-            if (arg_var.type().is_ptr()) {
-                auto alloc_buf
-                        = alloc_mgr.find_buffer(name, /*allow_empty=*/true);
-                if (alloc_buf.is_empty()) {
-                    dsl_warning() << "Unused argument: " << arg_var;
-                    continue;
-                }
-                dsl_assert(alloc_buf.is_same(arg_var));
+            if (arg_var.type().is_gm()) {
+                // Pointer arithmetic lower may change the variable type.
+                auto body_var = alloc_mgr.find_var(name, /*allow_empty=*/true);
+                if (body_var) arg_var = body_var;
             }
             auto arg_reg = BaseGeneratorT::getArgument(name);
             ra_.claim(arg_reg);
@@ -240,7 +257,7 @@ public:
         // Bind grid indices.
         int r0_sub_idxs[] = {1, 6, 7};
         for (int i = 0; i < 3; i++) {
-            auto tg_idx = alloc_mgr.find_var(ir::tg_idx_name(i), true);
+            auto tg_idx = alloc_mgr.find_var(ir::group_id_name(i), true);
             if (tg_idx) {
                 ngen::Subregister tg_reg = r0_info.ud(r0_sub_idxs[i]);
                 expr_binding().bind(tg_idx, tg_reg);

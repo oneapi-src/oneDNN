@@ -23,6 +23,7 @@
 #include <numeric>
 #include <string>
 
+#include "gemmstone/../../dsl/dsl_impl.hpp"
 #include "gemmstone/../../dsl/utils/utils.hpp"
 #include "gemmstone/dsl/ir.hpp"
 
@@ -270,19 +271,26 @@ inline bool is_ref(const expr_t &e);
 inline bool all_of(const expr_t &e, const expr_t &value);
 
 // Unary and binary operators.
-enum class op_kind_t {
-    undef,
+enum class op_kind_t : int {
+    undef = (int)op::kind_t::undef,
+    _add = (int)op::add,
+    _sub = (int)op::sub,
+    _mul = (int)op::mul,
+    _div = (int)op::div,
+    _mod = (int)op::mod,
+    _min = (int)op::min,
+    _max = (int)op::max,
 
+    // Parametric ReLU.
+    // if (a > 0) op = a
+    // else       op = a * b
+    _prelu = (int)op::prelu,
+
+    // Operations internal to the IR (not exposed in op::kind_t)
     _minus,
-    _add,
-    _sub,
-    _mul,
-    _div,
-    _mod,
+    _exp,
     _shl,
     _shr,
-    _min,
-    _max,
 
     _lt,
     _le,
@@ -296,10 +304,6 @@ enum class op_kind_t {
     _xor,
 
     // Ternary operations.
-    // Parametric ReLU.
-    // if (a > 0) op = a
-    // else       op = a * b
-    _prelu,
     // Ternary add.
     // op = a + b + c
     _add3,
@@ -307,8 +311,7 @@ enum class op_kind_t {
     // op = a + b * c
     _mad,
     // Integer division by a constant with rounding up.
-    // if (a >= 1) op = 1 + (a - 1) / b
-    // else        op = 0
+    // op = (a + b - 1) / b
     _div_up,
     // Integer division by a non-constant (rounding down behavior).
     // if (a % b < 0) op = a / b - 1
@@ -338,6 +341,8 @@ op_kind_t negate_cmp_op(op_kind_t op_kind);
 type_t unary_op_type(op_kind_t op_kind, const expr_t &a);
 
 type_t common_int_type(const type_t &_a, const type_t &_b);
+
+type_t common_type(const type_t &base, const type_t &a, const type_t &b);
 
 type_t common_type(const type_t &a, const type_t &b);
 
@@ -573,10 +578,17 @@ public:
 
 private:
     iif_t(const expr_t &cond, const expr_t &true_expr, const expr_t &false_expr)
-        : expr_iface_t(common_type(true_expr.type(), false_expr.type()))
+        : expr_iface_t(
+                  iif_type(cond.type(), true_expr.type(), false_expr.type()))
         , cond(cond)
         , true_expr(true_expr)
         , false_expr(false_expr) {}
+
+    static type_t iif_type(
+            const type_t &cond, const type_t &T, const type_t &F) {
+        auto type = common_type(T, F);
+        return common_type(type, type, cond);
+    }
 };
 
 // Linear combination expression:
@@ -697,8 +709,24 @@ public:
 
 private:
     ptr_t(const expr_t &base, const expr_t &off)
-        : expr_iface_t(base.type().with_ptr()), base(base), off(off) {
+        : expr_iface_t(ptr_type(base.type(), off.type()))
+        , base(base)
+        , off(off) {
         normalize(this->base, this->off);
+    }
+
+    static type_t ptr_type(type_t base, const type_t &off) {
+        if (!base.is_ptr()) {
+            if (!base.is_slm())
+                dsl_assert(off.is_scalar())
+                        << "Pointer to register buffer can be scalar only.";
+            // base is not a pointer -> treat it as a pointer to the base.
+            base = base.scalar().with_ptr();
+        }
+        int elems = std::max(base.elems(), off.elems());
+        dsl_assert(one_of(base.elems(), {1, elems}));
+        dsl_assert(one_of(off.elems(), {1, elems}));
+        return common_type(base, base, off);
     }
 };
 
@@ -923,11 +951,17 @@ private:
         : expr_iface_t(type), name(name), is_mutable(is_mutable) {}
 };
 
-const std::string &tg_idx_name(int idx);
-const std::string &thr_idx_name(int idx);
 const std::string &local_id_name(int idx);
 const std::string &local_size_name(int idx);
 const std::string &group_id_name(int idx);
+const std::string &group_subgroup_count_name();
+const std::string &subgroup_id_name(int idx);
+const std::string &subgroup_local_id_name();
+const std::string &subgroup_linear_id_name();
+
+// Deprecated
+const std::string &tg_idx_name(int idx);
+const std::string &thr_idx_name(int idx);
 
 // Index into a buffer
 // off is offset in number of elements

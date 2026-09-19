@@ -18,6 +18,7 @@
 #define GEMMSTONE_DSL_IR_PASS_SEND_HPP
 
 #include "gemmstone/dsl/ir/object.hpp"
+#include "gemmstone/dsl/kernel.hpp"
 
 GEMMSTONE_NAMESPACE_START
 namespace dsl {
@@ -26,6 +27,7 @@ class ir_context_t;
 
 stmt_t lift_buffer_offsets_in_send(const stmt_t &s, ir_context_t &ir_ctx);
 
+void inject_send(kernel_t &k);
 stmt_t inject_send(const stmt_t &s, ir_context_t &ir_ctx);
 
 // Lifts loop-invariant header assignments related to block 2D messages.

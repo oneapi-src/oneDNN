@@ -803,6 +803,11 @@ stmt_t eliminate_common_subexprs(const stmt_t &stmt, ir_context_t &ir_ctx,
     return eliminate_common_subexprs(stmt, ir_ctx, memory_usage_limit);
 }
 
+void eliminate_common_subexprs(kernel_t &k, int memory_usage_limit) {
+    ir_context_t ir_ctx(k);
+    k.body = eliminate_common_subexprs(k.body, ir_ctx, memory_usage_limit);
+}
+
 } // namespace ir
 } // namespace dsl
 GEMMSTONE_NAMESPACE_END

@@ -73,6 +73,12 @@ stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx) {
     return ret;
 }
 
+void fixup_if_conditions(kernel_t &k) {
+    trace_start();
+    k.body = if_condition_fixer_t(k.options.simd()).mutate(k.body);
+    trace_pass("fixup_if_conditions", k);
+}
+
 } // namespace ir
 } // namespace dsl
 GEMMSTONE_NAMESPACE_END

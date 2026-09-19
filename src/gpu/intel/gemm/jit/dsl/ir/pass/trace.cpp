@@ -49,6 +49,11 @@ void trace_perf() {
     if (get_trace_profiler()) dsl_perf() << *get_trace_profiler();
 }
 
+void trace_pass(const char *pass_name, const kernel_t &kernel) {
+    trace_stop(pass_name);
+    dsl_trace() << "=== After " << pass_name << "\n" << kernel;
+}
+
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, const ir_context_t &ir_ctx) {
     trace_stop(pass_name);

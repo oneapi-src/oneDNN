@@ -32,6 +32,7 @@ namespace ir {
 //     if (cond) { ... }
 // After (for SIMD8):
 //     if (bcast8(cond)) { ... }
+void fixup_if_conditions(kernel_t &k);
 stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx);
 
 } // namespace ir

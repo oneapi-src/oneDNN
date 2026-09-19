@@ -21,6 +21,7 @@
 #include <string>
 
 #include "gemmstone/config.hpp"
+#include "gemmstone/type.hpp"
 #include "internal/utils.hpp"
 
 namespace ngen {
@@ -31,7 +32,15 @@ GEMMSTONE_NAMESPACE_START
 namespace dsl {
 
 namespace type {
-enum class attr_t : uint32_t { undef = 0, ptr = 1, mut = 2, simd = 4, slm = 8 };
+enum class attr_t : uint32_t {
+    undef = 0,
+    ptr = 1,
+    mut = 2,
+    simd = 4,
+    slm = 8,
+    gm = 16,
+    packed = 32
+};
 
 constexpr attr_t operator&(attr_t a, attr_t b) {
     return static_cast<attr_t>(
@@ -63,46 +72,48 @@ public:
 
     static type_t undef() { return type_t(kind_t::undef); }
 
-    static type_t _bool(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t _bool(
+            int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::_bool, elems, attr);
     }
 
-    static type_t u2(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t u2(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::u2, elems, attr);
     }
-    static type_t u4(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t u4(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::u4, elems, attr);
     }
-    static type_t s4(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t s4(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::s4, elems, attr);
     }
-    static type_t u8(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t u8(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::u8, elems, attr);
     }
-    static type_t s8(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t s8(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::s8, elems, attr);
     }
-    static type_t u16(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t u16(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::u16, elems, attr);
     }
-    static type_t s16(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t s16(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::s16, elems, attr);
     }
-    static type_t u32(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t u32(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::u32, elems, attr);
     }
-    static type_t s32(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t s32(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::s32, elems, attr);
     }
-    static type_t u64(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t u64(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::u64, elems, attr);
     }
-    static type_t s64(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t s64(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::s64, elems, attr);
     }
 
     // Returns unsigned integer type.
-    static type_t u(int bits, int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t u(
+            int bits, int elems = elems_default, attr_t attr = attr_t::undef) {
         switch (bits) {
             case 2: return u2(elems, attr);
             case 4: return u4(elems, attr);
@@ -116,7 +127,8 @@ public:
     }
 
     // Returns signed integer type.
-    static type_t s(int bits, int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t s(
+            int bits, int elems = elems_default, attr_t attr = attr_t::undef) {
         switch (bits) {
             case 4: return s4(elems, attr);
             case 8: return s8(elems, attr);
@@ -128,50 +140,62 @@ public:
         return type_t::undef();
     }
 
-    static type_t f4_e2m1(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t f4_e2m1(
+            int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::f4_e2m1, elems, attr);
     }
-    static type_t f8_e5m2(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t f8_e5m2(
+            int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::f8_e5m2, elems, attr);
     }
-    static type_t f8_e4m3(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t f8_e4m3(
+            int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::f8_e4m3, elems, attr);
     }
-    static type_t bf8(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t bf8(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::bf8, elems, attr);
     }
-    static type_t hf8(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t hf8(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::hf8, elems, attr);
     }
-    static type_t bf16(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t bf16(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::bf16, elems, attr);
     }
-    static type_t f16(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t f16(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::f16, elems, attr);
     }
-    static type_t tf32(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t tf32(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::tf32, elems, attr);
     }
-    static type_t f32(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t f32(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::f32, elems, attr);
     }
-    static type_t f64(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t f64(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::f64, elems, attr);
     }
-    static type_t byte(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t e8m0(int elems = elems_default, attr_t attr = attr_t::undef) {
+        return type_t(kind_t::e8m0, elems, attr);
+    }
+    static type_t byte(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::byte, elems, attr);
     }
-    static type_t byte(attr_t attr) { return type_t(kind_t::byte, 1, attr); }
-    static type_t dword(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t byte(attr_t attr) {
+        return type_t(kind_t::byte, elems_default, attr);
+    }
+    static type_t dword(
+            int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::dword, elems, attr);
     }
-    static type_t qword(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t qword(
+            int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::qword, elems, attr);
     }
-    static type_t oword(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t oword(
+            int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::oword, elems, attr);
     }
-    static type_t hword(int elems = 1, attr_t attr = attr_t::undef) {
+    static type_t hword(
+            int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::hword, elems, attr);
     }
 
@@ -189,7 +213,7 @@ public:
             case kind_t::s32:
             case kind_t::u64:
             case kind_t::s64: {
-                int bits = base().bitsize();
+                int bits = scalar().bitsize();
                 if (is_signed()) bits--;
                 T ret = T(1) << (bits - 1);
                 return ret + (ret - 1);
@@ -223,10 +247,16 @@ public:
 
     type_t() : type_t(type_t::undef()) {}
 
-    type_t(ngen::DataType type, uint32_t elems = 1,
+    type_t(ngen::DataType type, uint32_t elems = elems_default,
             attr_t attr = attr_t::undef);
 
-    int elems() const { return elems_; }
+    type_t(Type type, uint32_t elems = elems_default,
+            attr_t attr = attr_t::undef);
+
+    int elems() const {
+        if (elems_ == elems_default) return is_gm() ? 0 : 1;
+        return elems_;
+    }
 
     attr_t attr() const { return attr_; }
 
@@ -242,6 +272,8 @@ public:
     size_t get_hash() const;
 
     bool is_ptr() const { return any(attr() & attr_t::ptr); }
+
+    bool is_gm() const { return any(attr() & attr_t::gm); }
 
     bool is_slm() const { return any(attr() & attr_t::slm); }
 
@@ -265,6 +297,8 @@ public:
 
     bool is_fp4() const { return is_f4_e2m1(); }
     bool is_fp8() const { return is_bf8() || is_hf8(); }
+
+    bool is_e8m0() const { return kind() == kind_t::e8m0; }
 
     bool is_int() const {
         return is_x2() || is_x4() || is_x8() || is_x16() || is_x32()
@@ -300,58 +334,72 @@ public:
     bool is_oword() const { return kind() == kind_t::oword; }
     bool is_hword() const { return kind() == kind_t::hword; }
 
-    bool is_signed(int elems = -1) const {
-        if (elems != -1 && elems_ != elems) return false;
+    bool is_signed(int req_elems = -1) const {
+        if (req_elems != -1 && elems() != req_elems) return false;
         return is_s4() || is_s8() || is_s16() || is_s32() || is_s64();
     }
 
-    bool is_unsigned(int elems = -1) const {
-        if (elems != -1 && elems_ != elems) return false;
+    bool is_unsigned(int req_elems = -1) const {
+        if (req_elems != -1 && elems() != req_elems) return false;
         return is_u2() || is_u4() || is_u8() || is_u16() || is_u32()
                 || is_u64();
     }
 
-    bool is_scalar() const { return elems() == 1; }
+    bool is_scalar() const { return *this == scalar(); }
 
     bool is_mutable() const { return any(attr() & attr_t::mut); }
 
     bool is_simd() const { return any(attr() & attr_t::simd); }
 
-    type_t with_elems(int new_elems) const {
+    bool is_packed() const { return any(attr() & attr_t::packed); }
+
+    type_t with_scalar(const type_t &other) const {
         type_t copy = *this;
-        copy.elems_ = new_elems;
+        copy.kind_ = other.kind_;
         copy.check();
         return copy;
     }
 
-    type_t with_ptr() const {
-        type_t copy = *this;
-        copy.attr_ |= attr_t::ptr;
-        copy.elems_ = 1;
-        copy.check();
-        return copy;
+    type_t with_elems(int elems) const { return type_t(kind(), elems, attr()); }
+
+    type_t with_ptr(bool value = true) const {
+        auto attr = value ? (this->attr() | attr_t::ptr)
+                          : (this->attr() & ~attr_t::ptr);
+        return type_t(kind(), elems(), attr);
+    }
+
+    type_t with_gm(bool value = true) const {
+        auto attr = value ? (this->attr() | attr_t::gm)
+                          : (this->attr() & ~attr_t::gm);
+        // Use elems_ directly (not elems()) to preserve elems_default.
+        // elems() returns 0 for gm types with default elems, but
+        // constructing a non-gm type with 0 elems fails the check.
+        return type_t(kind(), elems_, attr);
+    }
+
+    type_t with_mut(bool value = true) const {
+        auto attr = value ? (this->attr() | attr_t::mut)
+                          : (this->attr() & ~attr_t::mut);
+        return type_t(kind(), elems(), attr);
     }
 
     type_t with_attr(attr_t attr) const {
-        type_t copy = *this;
-        copy.attr_ = attr;
-        if (copy.is_ptr()) copy.elems_ = 1;
-        copy.check();
-        return copy;
+        auto elems = any(attr & attr_t::ptr) ? 1 : this->elems();
+        return type_t(kind(), elems, attr);
     }
 
-    type_t with_simd() const {
-        type_t copy = *this;
-        copy.attr_ |= attr_t::simd;
-        copy.check();
-        return copy;
+    type_t with_simd(bool value = true) const {
+        auto attr = value ? (this->attr() | attr_t::simd)
+                          : (this->attr() & ~attr_t::simd);
+        return type_t(kind(), elems(), attr);
+    }
+
+    type_t with_packed() const {
+        return type_t(kind(), elems(), attr() | attr_t::packed);
     }
 
     type_t with_slm() const {
-        type_t copy = *this;
-        copy.attr_ |= attr_t::slm;
-        copy.check();
-        return copy;
+        return type_t(kind(), elems(), attr() | attr_t::slm);
     }
 
     type_t scalar() const { return type_t(kind()); }
@@ -363,6 +411,7 @@ public:
     // Returns size in bits.
     int bitsize() const {
         if (is_ptr()) return 64;
+        if (is_gm()) return scalar().bitsize() * elems();
         // 8 elements occupy the same number of bytes that a single element
         // occupies in bits.
         constexpr int bits_per_byte = 8;
@@ -420,6 +469,9 @@ protected:
         f32,
         f64,
 
+        // Scale types.
+        e8m0,
+
         // Message data types.
         byte,
         dword,
@@ -428,8 +480,13 @@ protected:
         hword
     };
 
-    type_t(kind_t kind, uint32_t elems = 1, attr_t attr = attr_t::undef)
+    type_t(kind_t kind, uint32_t elems = elems_default,
+            attr_t attr = attr_t::undef)
         : kind_(kind), elems_(elems), attr_(attr) {
+        // XXX: check for packed attribute MUST come first to avoid recursion
+        if ((attr_ & attr_t::packed) != attr_t::undef
+                && type_t(kind).size() >= 4)
+            attr_ &= ~attr_t::packed;
         check();
     }
 
@@ -438,15 +495,21 @@ protected:
     int mantissa_bits() const;
 
 private:
+    static constexpr int elems_default = -1;
     kind_t kind_ = kind_t::undef;
-    int elems_ = 0;
+    int elems_ = elems_default;
     attr_t attr_ = attr_t::undef;
 
     void check() const {
-        if (is_ptr())
-            gemm_assert(
-                    elems_ == 1, "Pointer type must have default elems value.");
-        ;
+        int mem_attrs = int(is_simd()) + int(is_slm()) + int(is_gm());
+        gemm_assert(mem_attrs <= 1,
+                "simd/slm/gm attributes are mutually exclusive");
+        if (is_gm() || is_slm()) {
+            gemm_assert(!is_ptr(), "gm/slm and ptr cannot be combined");
+            gemm_assert(!is_packed(), "gm/slm and packed cannot be combined");
+        }
+        if (!is_undef() && !is_gm())
+            gemm_assert(elems() > 0, "Expected elems > 0");
     }
 };
 
@@ -460,8 +523,12 @@ static type_t u32 = type_t::u32();
 static type_t s64 = type_t::s64();
 static type_t u64 = type_t::u64();
 static type_t f32 = type_t::f32();
+static type_t f64 = type_t::f64();
 static type_t f16 = type_t::f16();
 static type_t bf16 = type_t::bf16();
+static type_t hf8 = type_t::hf8();
+static type_t bf8 = type_t::bf8();
+static type_t e8m0 = type_t::e8m0();
 
 } // namespace dsl
 GEMMSTONE_NAMESPACE_END

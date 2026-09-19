@@ -51,6 +51,7 @@ T to_cpp(const ngen::Immediate &imm) {
 
 // type_t to ngen::DataType convertor.
 inline ngen::DataType to_ngen(const type_t &type) {
+    if (type.is_undef()) return ngen::DataType::invalid;
     dsl_assert(type.is_scalar()) << "Expected scalar type.";
 
 #define CASE(_kind, ngen_enum) \

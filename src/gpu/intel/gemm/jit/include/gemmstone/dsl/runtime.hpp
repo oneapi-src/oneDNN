@@ -33,12 +33,12 @@ std::vector<uint8_t> make_binary(const kernel_t &kernel);
 ::sycl::kernel make_kernel(
         const kernel_t &kernel, ::sycl::context ctx, ::sycl::device dev);
 #endif
-#ifdef GEMMSTONE_WITH_OPENCL_RUNTIME
-cl_kernel make_kernel(const kernel_t &kernel, cl_context ctx, cl_device_id dev);
-#endif
 #ifdef GEMMSTONE_WITH_L0_RUNTIME
 LevelZeroKernelAndModule make_kernel(const kernel_t &kernel,
         ze_context_handle_t ctx, ze_device_handle_t dev);
+#endif
+#ifdef GEMMSTONE_WITH_OPENCL_RUNTIME
+cl_kernel make_kernel(const kernel_t &kernel, cl_context ctx, cl_device_id dev);
 #endif
 
 } // namespace dsl

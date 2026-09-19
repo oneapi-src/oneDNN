@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gemmstone/runtime.hpp"
+#include "dsl/utils/utils.hpp"
 #include "gemmstone/dsl/hw.hpp"
 #include "gemmstone/dsl/runtime.hpp"
 #include "generator_dsl/builder.hpp"

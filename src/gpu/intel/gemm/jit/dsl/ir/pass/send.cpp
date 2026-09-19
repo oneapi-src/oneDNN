@@ -138,6 +138,11 @@ stmt_t inject_send(const stmt_t &s, ir_context_t &ir_ctx) {
     return ret;
 }
 
+void inject_send(kernel_t &k) {
+    ir_context_t ir_ctx(k);
+    k.body = inject_send(k.body, ir_ctx);
+}
+
 class send_2d_header_store_lifter_t : public ir_mutator_t {
 public:
     send_2d_header_store_lifter_t(const stmt_t &root) {

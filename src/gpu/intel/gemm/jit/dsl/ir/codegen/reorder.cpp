@@ -351,10 +351,10 @@ void reorder_2d_impl_t::emit(
             src.type = dst.type = to_ngen(type);
             src.offset = (uint8_t)(src.offset * orig_bits / type_bits);
             dst.offset = (uint8_t)(dst.offset * orig_bits / type_bits);
-            auto src_off
-                    = src_layout.offset<int>(start) * orig_bits / type_bits;
-            auto dst_off
-                    = dst_layout.offset<int>(start) * orig_bits / type_bits;
+            auto src_off = src_layout.offset<int>(start, /*ignore_offset=*/true)
+                    * orig_bits / type_bits;
+            auto dst_off = dst_layout.offset<int>(start, /*ignore_offset=*/true)
+                    * orig_bits / type_bits;
             src.advance(hw_, src_off);
             dst.advance(hw_, dst_off);
             src.stride = (uint8_t)x_stride;
@@ -900,8 +900,10 @@ void reorder_impl_t::emit_1d(copy_plan_t &plan, const reorder_operand_t &dst,
         auto tile_src = src.buffer, tile_dst = dst.buffer;
         tile_src.stride = (uint8_t)src_stride;
         tile_dst.stride = (uint8_t)dst_stride;
-        tile_src.advance(hw_, src.layout.offset<int>(start));
-        tile_dst.advance(hw_, dst.layout.offset<int>(start));
+        tile_src.advance(
+                hw_, src.layout.offset<int>(start, /*ignore_offset=*/true));
+        tile_dst.advance(
+                hw_, dst.layout.offset<int>(start, /*ignore_offset=*/true));
         plan.mov(tile_elems, mod, tile_dst, tile_src);
     };
     ++plan.phase;
@@ -952,8 +954,10 @@ bool reorder_impl_t::try_emit_2d(copy_plan_t &plan,
 
         auto emit_2d_tile = [&](const icoord_t &start) {
             auto tile_src = src.buffer, tile_dst = dst.buffer;
-            tile_src.advance(hw_, src.layout.offset<int>(start));
-            tile_dst.advance(hw_, dst.layout.offset<int>(start));
+            tile_src.advance(
+                    hw_, src.layout.offset<int>(start, /*ignore_offset=*/true));
+            tile_dst.advance(
+                    hw_, dst.layout.offset<int>(start, /*ignore_offset=*/true));
             plan.phase = base_phase;
             r.emit(plan, tile_src, tile_dst);
         };

@@ -52,6 +52,10 @@ struct copy_plan_t : gemmstone::CopyPlan {
     copy_plan_t(ngen::ProductFamily product_family, reg_allocator_t &ra,
             bool systolic_support)
         : CopyPlan(product_family, systolic_support), ra_(ra) {}
+    copy_plan_t(ngen::ProductFamily product_family,
+            ngen_register_scope_t &scope, bool systolic_support)
+        : CopyPlan(product_family, systolic_support)
+        , ra_(scope.register_allocator()) {}
 
     ngen::HW hw() const { return CopyPlan::hw; }
 
@@ -92,6 +96,36 @@ protected:
 
     reg_allocator_t &ra_;
 };
+
+template <typename GeneratorT>
+void emit_reorder_1d_tile(GeneratorT *host, const hw_t &hw,
+        ngen_register_scope_t &scope, int width, const reg_buf_data_t &src,
+        int src_stride, const reg_buf_data_t &dst, int dst_stride) {
+    copy_plan_t plan(host->getProductFamily(), scope, hw.systolic_support());
+    copy_operand_t dst_op = dst;
+    copy_operand_t src_op = src;
+    dst_op.stride = (uint8_t)dst_stride;
+    src_op.stride = (uint8_t)src_stride;
+
+    if (!is_pow2(src_stride) || !is_pow2(dst_stride)) {
+        for (int i = 0; i < width; ++i) {
+            plan.mov(1, dst_op, src_op);
+            dst_op.advance(plan.hw(), dst_stride);
+            src_op.advance(plan.hw(), src_stride);
+        }
+    } else
+        plan.mov(width, dst_op, src_op);
+    plan.transform();
+    plan.execute(*host);
+}
+
+template <typename GeneratorT>
+void emit_reorder_1d_tile(GeneratorT *host, ngen_register_scope_t &scope,
+        int width, const reg_buf_data_t &src, int src_stride,
+        const reg_buf_data_t &dst, int dst_stride) {
+    emit_reorder_1d_tile(host, host->hw_info(), scope, width, src, src_stride,
+            dst, dst_stride);
+}
 
 template <typename GeneratorT>
 void emit_reorder_1d_tile(GeneratorT *host, reg_allocator_t &ra,
@@ -365,8 +399,8 @@ public:
                     scope.register_allocator(),
                     host->hw_info().systolic_support());
             const auto base_phase = plan.phase;
-            auto src_sub = src_layout_.sub(tile).with_offset(0);
-            auto dst_sub = dst_layout_.sub(tile).with_offset(0);
+            auto src_sub = src_layout_.sub(tile);
+            auto dst_sub = dst_layout_.sub(tile);
             auto emit_tile = [&](const dsl::icoord_t &start) {
                 auto src_off = src_layout_.offset<int>(start);
                 auto dst_off = dst_layout_.offset<int>(start);

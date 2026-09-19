@@ -40,6 +40,9 @@ public:
         , block_regs_(range.getLen())
         , block_bases_({range.getBase()}) {}
 
+    reg_buf_t(ngen::HW hw, const ngen::GRF &grf)
+        : hw_(hw), block_regs_(1), block_bases_({grf.getBase()}) {}
+
     reg_buf_t(ngen::HW hw, int block_regs, const std::vector<int> &block_bases)
         : hw_(hw), block_regs_(block_regs), block_bases_(block_bases) {}
 
@@ -140,6 +143,9 @@ public:
         : reg_buf_(std::make_shared<reg_buf_t>(
                   hw, ngen::GRFRange(sub.getBase(), 1)))
         , rd_(sub) {}
+
+    reg_buf_data_t(ngen::HW hw, const ngen::GRF &grf)
+        : reg_buf_(std::make_shared<reg_buf_t>(hw, grf)), rd_(grf) {}
 
     const reg_buf_t &reg_buf() const { return *reg_buf_; }
 
