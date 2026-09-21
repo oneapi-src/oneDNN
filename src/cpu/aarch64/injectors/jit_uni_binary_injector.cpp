@@ -43,16 +43,19 @@ static bcast_set_t get_all_strategies_supported_by_injector() {
             broadcasting_strategy_t::no_broadcast};
 }
 
-bool is_data_supported(cpu_isa_t isa, data_type_t data_type) {
-    UNUSED(isa);
-    return !(data_type == data_type::bf16);
+bool is_data_supported(data_type_t data_type) {
+    using namespace data_type;
+
+    return utils::one_of(data_type, f32, s32, s8, u8);
 }
 
 bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set) {
-    VCHECK_BIN_INJ_BOOL(is_data_supported(isa, src1_desc.data_type),
-            VERBOSE_ISA_DT_MISMATCH);
+    VCHECK_BIN_INJ_BOOL(utils::one_of(isa, sve, asimd), VERBOSE_UNSUPPORTED_ISA)
+
+    VCHECK_BIN_INJ_BOOL(
+            is_data_supported(src1_desc.data_type), VERBOSE_ISA_DT_MISMATCH);
 
     VCHECK_BIN_INJ_BOOL(memory_desc_wrapper(src1_desc).is_dense(true),
             VERBOSE_NONTRIVIAL_STRIDE);

@@ -359,7 +359,7 @@ struct rhs_arg_dynamic_params_t {
 /*
  * Checks if src1 data type is supported by binary injector.
  */
-bool is_data_supported(cpu_isa_t isa, data_type_t data_type);
+bool is_data_supported(data_type_t data_type);
 
 /*
  * Checks if broadcast of src1 is supported by binary injector.
