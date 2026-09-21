@@ -144,7 +144,7 @@ Team: @uxlfoundation/onednn-cpu-aarch64
 
 | Name               | Github ID             | Affiliation       | Role       |
 | ------------------ | --------------------- | ----------------- | ---------- |
-| Hamza Butt         | @theComputeKid        | Arm Ltd           | Maintainer |
+| Hamza Butt         | @HamzaAB0             | Arm Ltd           | Maintainer |
 | Siddhartha Menon   | @Sqvid                | Arm Ltd           | Maintainer |
 | Aditya Tewari      | @aditew01             | Arm Ltd           | Code Owner |
 | Crefeda Rodrigues  | @cfRod                | Arm Ltd           | Code Owner |
@@ -232,7 +232,7 @@ Team: @uxlfoundation/onednn-devops
 | ------------------ | --------------------- | ----------------- | ---------- |
 | Sergey Razumovskiy | @srazumov             | Intel Corporation | Maintainer |
 | Vadim Pirogov      | @vpirogov             | Intel Corporation | Maintainer |
-| Hamza Butt         | @theComputeKid        | Arm Ltd           | Code Owner |
+| Hamza Butt         | @HamzaAB0             | Arm Ltd           | Code Owner |
 | Ryo Suzuki         | @Ryo-not-rio          |                   | Code Owner |
 | Siddhartha Menon   | @Sqvid                | Arm Ltd           | Code Owner |
 
