@@ -27,9 +27,9 @@ const impl_list_map_t &comp_f32_s8_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         // f32 -> s8
         {{f32, s8, 2}, {
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
-            DNNL_RV64_ONLY(CPU_REORDER_INSTANCE(rv64::jit_uni_reorder_t))
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
+            CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
+            CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
             DNNL_NON_X64_ONLY(REG_SR(f32, oi, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, format_tag::io, s8, OI4i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, oi, s8, OI4i32o4i, fmt_order::keep, spec::conv_req_comp))
@@ -48,9 +48,9 @@ const impl_list_map_t &comp_f32_s8_impl_list_map() {
         }},
         // f32 -> s8
         {{f32, s8, 3}, {
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
-            DNNL_RV64_ONLY(CPU_REORDER_INSTANCE(rv64::jit_uni_reorder_t))
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
+            CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
+            CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
             DNNL_NON_X64_ONLY(REG_SR(f32, any, s8, wio, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, iwo, s8, OIw4i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, iwo, s8, OIw4i32o4i, fmt_order::keep, spec::conv_req_comp))
@@ -87,9 +87,9 @@ const impl_list_map_t &comp_f32_s8_impl_list_map() {
             nullptr,
         }},
         {{f32, s8, 4}, {
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
-            DNNL_RV64_ONLY(CPU_REORDER_INSTANCE(rv64::jit_uni_reorder_t))
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
+            CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
+            CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
             DNNL_NON_X64_ONLY(REG_SR(f32, any, s8, hwio, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, any, s8, wigo, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, goiw, s8, gOIw4i16o4i, fmt_order::keep, spec::conv_req_comp))
@@ -137,9 +137,9 @@ const impl_list_map_t &comp_f32_s8_impl_list_map() {
             nullptr,
         }},
         {{f32, s8, 5}, {
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
-            DNNL_RV64_ONLY(CPU_REORDER_INSTANCE(rv64::jit_uni_reorder_t))
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
+            CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
+            CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
 
             DNNL_NON_X64_ONLY(REG_SR(f32, any, s8, hwigo, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, any, s8, dhwio, fmt_order::keep, spec::conv_req_comp))
@@ -185,9 +185,9 @@ const impl_list_map_t &comp_f32_s8_impl_list_map() {
             nullptr,
         }},
         {{f32, s8, 6}, {
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
-            DNNL_RV64_ONLY(CPU_REORDER_INSTANCE(rv64::jit_uni_reorder_t))
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
+            CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
+            CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
             DNNL_NON_X64_ONLY(REG_SR(f32, any, s8, dhwigo, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, goidhw, s8, gOIdhw4i16o4i, fmt_order::keep, spec::conv_req_comp))
             DNNL_NON_X64_ONLY(REG_SR(f32, goidhw, s8, gOIdhw2i8o4i, fmt_order::keep, spec::conv_req_comp))
