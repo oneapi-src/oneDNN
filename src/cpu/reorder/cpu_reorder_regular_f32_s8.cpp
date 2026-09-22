@@ -27,20 +27,20 @@ const impl_list_map_t &regular_f32_s8_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         // f32 -> s8
         {{f32, s8, 0}, {
-            CPU_REORDER_INSTANCE(rnn_data_reorder_t<f32, s8>)
-            CPU_REORDER_INSTANCE(rnn_weights_reorder_s8_t<f32>)
-            CPU_REORDER_INSTANCE(rnn_brgemm_weights_reorder_s8_t<f32, s8>)
-            DNNL_X64_ZEN(CPU_REORDER_INSTANCE(x64::zen::reorder::zen_reorder_t))
+            CPU_INSTANCE(rnn_data_reorder_t<f32, s8>)
+            CPU_INSTANCE(rnn_weights_reorder_s8_t<f32>)
+            CPU_INSTANCE(rnn_brgemm_weights_reorder_s8_t<f32, s8>)
+            CPU_INSTANCE_X64_ZEN(x64::zen::reorder::zen_reorder_t)
 
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_direct_copy_t))
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_blk_reorder_t))
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(x64::jit_uni_reorder_t))
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_direct_copy_t)
+            CPU_INSTANCE_X64(x64::jit_blk_reorder_t)
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
 
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_blk_reorder_t))
-            DNNL_AARCH64_ONLY(CPU_REORDER_INSTANCE(aarch64::jit_uni_reorder_t))
+            CPU_INSTANCE_AARCH64(aarch64::jit_blk_reorder_t)
+            CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
 
-            DNNL_RV64_ONLY(CPU_REORDER_INSTANCE(rv64::jit_blk_reorder_t))
-            DNNL_RV64_ONLY(CPU_REORDER_INSTANCE(rv64::jit_uni_reorder_t))
+            CPU_INSTANCE_RV64(rv64::jit_blk_reorder_t)
+            CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
 
             REG_FAST_DIRECT_COPY(f32, s8)
 
@@ -50,7 +50,7 @@ const impl_list_map_t &regular_f32_s8_impl_list_map() {
 
             REG_SR(f32, any, s8, any, fmt_order::any, spec::reference)
 
-            DNNL_X64_ONLY(CPU_REORDER_INSTANCE(simple_sparse_reorder_t<f32, impl::format_tag_t, any, s8, impl::format_tag_t, any>))
+            CPU_INSTANCE_X64(simple_sparse_reorder_t<f32, impl::format_tag_t, any, s8, impl::format_tag_t, any>)
 
             nullptr,
         }},

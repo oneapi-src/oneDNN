@@ -140,10 +140,6 @@ extern const impl_list_map_t &comp_s8_s8_impl_list_map();
 #define REG_FAST_DIRECT_COPY(sdt, ddt)
 #endif
 
-#define CPU_REORDER_INSTANCE(...) \
-    impl_list_item_t( \
-            impl_list_item_t::type_deduction_helper_t<__VA_ARGS__::pd_t>()),
-
 } // namespace cpu
 } // namespace impl
 } // namespace dnnl
