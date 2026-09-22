@@ -96,7 +96,7 @@ inline std::vector<int> block_2d_counts(ngen::HW hw, bool is_prefetch,
         if (nbytes <= 64) res.push_back(i);
         if (allow_256b && nbytes == 256) res.push_back(i);
     }
-    if (res.empty()) gpu_error_not_expected();
+    if (res.empty()) stub();
     return res;
 }
 

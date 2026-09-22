@@ -30,7 +30,9 @@ struct generator_dsl_desc_t {
         : problem(problem)
         , strategy(strategy)
         , iface(ngen_iface)
-        , options(hw, strategy.GRFs, strategy.subgroupSize) {}
+        , options(hw, strategy.GRFs, strategy.subgroupSize) {
+        apply_strategy_to_iface();
+    }
 
     generator_dsl_desc_t(const GEMMProblem &problem,
             const GEMMStrategy &strategy,
@@ -42,6 +44,16 @@ struct generator_dsl_desc_t {
         , options(options) {
         this->options.set_regs(strategy.GRFs);
         this->options.set_simd(strategy.subgroupSize);
+        apply_strategy_to_iface();
+    }
+
+    generator_dsl_desc_t(const GEMMProblem &problem,
+            const GEMMStrategy &strategy, const dsl::kernel::iface_t &iface,
+            const dsl::kernel::options_t &options)
+        : problem(problem), strategy(strategy), iface(iface), options(options) {
+        this->options.set_regs(strategy.GRFs);
+        this->options.set_simd(strategy.subgroupSize);
+        apply_strategy_to_iface();
     }
 
     const std::string &kernel_name() const { return iface.kernel_name(); }
@@ -51,6 +63,9 @@ struct generator_dsl_desc_t {
     const GEMMStrategy &strategy;
     dsl::kernel::iface_t iface;
     dsl::kernel::options_t options;
+
+private:
+    void apply_strategy_to_iface() {}
 };
 
 // Not all strategies parameters are supported via DSL. This attempts to fixup

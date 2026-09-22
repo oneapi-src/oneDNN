@@ -100,7 +100,6 @@ private:
             return ret;
 #endif
         }
-
         uint64_t numeric_value() const {
             uint64_t ret;
             static_assert(sizeof(*this) == sizeof(ret),
@@ -280,6 +279,7 @@ public:
     iterator_t end() const { return iterator_t(map_.end()); }
     size_t size() const { return map_.size(); }
     bool is_empty() const { return map_.empty(); }
+    explicit operator bool() const { return !is_empty(); }
     void set(const idx_t &key, const ValueT &value) { map_[key] = value; }
 
     void unset(const idx_t &key) {
@@ -295,9 +295,8 @@ public:
     }
 
     const ValueT &operator[](const idx_t &key) const {
-        auto it = map_.find(key);
-        if (it == map_.end()) stub(("Key not found: " + key.str()).c_str());
-        return it->second;
+        gemm_assert(has(key), "Key not found: " + key.str());
+        return map_.at(key);
     }
 
     ValueT &operator[](const idx_t &key) {
@@ -310,6 +309,19 @@ public:
         DerivedT ret = static_cast<const DerivedT &>(*this);
         ret[key] = value;
         return ret;
+    }
+
+    template <typename DerivedT>
+    DerivedT with_impl(const idx_map_t &other) const {
+        DerivedT ret = static_cast<const DerivedT &>(*this);
+        for (auto &key : other) {
+            ret.set(key, other.at(key));
+        }
+        return ret;
+    }
+
+    idx_map_t with(const idx_t &key, const ValueT &value) const {
+        return with_impl<idx_map_t>(key, value);
     }
 
     const ValueT &at(const idx_t &key) const { return operator[](key); }
@@ -526,6 +538,19 @@ public:
         return idx_map_t<int64_t>::with_impl<tile_t>(key, value);
     }
 
+    tile_t with(const tile_t &other) const {
+        return idx_map_t<int64_t>::with_impl<tile_t>(other);
+    }
+
+    tile_t operator/(const tile_t &divisor) const {
+        gemm_assert(is_divisible(divisor));
+        tile_t result = *this;
+        for (auto &dim : divisor) {
+            result[dim] = result.at(dim) / divisor.at(dim);
+        }
+        return result;
+    }
+
 #if __cplusplus >= 202002L
     bool operator==(const tile_t &other) const = default;
 #endif
@@ -563,6 +588,9 @@ public:
     expr_t default_value() const override { return expr_t(0); }
     coord_t with(const idx_t &key, const expr_t &value) const {
         return idx_map_t<expr_t>::with_impl<coord_t>(key, value);
+    }
+    coord_t with(const coord_t &other) const {
+        return idx_map_t<expr_t>::with_impl<coord_t>(other);
     }
 };
 
@@ -859,80 +887,128 @@ extern template int64_t layout_t::offset<int64_t>(
 struct tensor_t : public stringify_t<tensor_t> {
     tensor_t() = default;
     tensor_t(const expr_t &buf, const layout_t &layout)
-        : buf(buf), layout(layout) {
-        gemm_assert(buf.type().is_ptr(), "Buffer must be of a pointer type.");
+        : buf_(buf)
+        , base_layout_(layout)
+        , layout_(layout)
+        , tile_(layout.tile()) {}
+
+    const expr_t &buf() const { return buf_; }
+    const layout_t &layout() const { return layout_; }
+    const type_t &type() const { return buf_.type(); }
+    type_t scalar_type() const { return type().scalar(); }
+    const icoord_t &coord() const { return coord_; }
+    const tile_t &tile() const { return tile_; }
+    bool is_empty() const { return buf_.is_empty(); }
+    bool is_simd() const { return type().is_simd(); }
+    int64_t elems() const {
+        if (tile_.is_empty()) return base_layout_.elems();
+        return tile_.elems();
     }
-    const type_t &type() const { return layout.type(); }
+
     tensor_t sub(const tile_t &tile, const icoord_t &coord) const {
         // coord is not measured relative to tile size
         for (auto &var : coord)
-            gemm_assert(coord[var] % tile[var] == 0);
-        return {subbuf(coord), layout.sub(tile)};
+            gemm_assert(coord[var] % tile.get(var) == 0);
+        tensor_t ret = *this;
+        ret.coord_ = coord_ + coord;
+        ret.tile_ = tile;
+        ret.layout_ = base_layout_.sub(tile, ret.coord_);
+        return ret;
     }
-    expr_t subbuf(const icoord_t &coord) const {
-        return buf[layout.offset<int>(coord)];
-    }
+
+    // Returns a reference (`ir::ref_t`) to a contiguous vector of `elems` elements starting at `coord`.
+    expr_t subvec(const icoord_t &coord, int elems) const;
 
     std::string str() const {
         std::ostringstream oss;
-        oss << "buffer:    " << buf.str() << "\n";
-        oss << "layout: " << layout.str();
+        oss << "buf:     " << buf_.str() << "\n";
+        oss << "layout:  " << layout_.str();
         return oss.str();
     }
 
-    expr_t buf;
-    layout_t layout;
+private:
+    const layout_t &base_layout() const { return base_layout_; }
+
+    expr_t buf_;
+    layout_t base_layout_;
+    layout_t layout_;
+    icoord_t coord_;
+    tile_t tile_;
 };
 
 struct global_tensor_t : public stringify_t<global_tensor_t> {
     global_tensor_t() = default;
+    global_tensor_t(const expr_t &buf, const expr_t &base_offset,
+            const idx_map_t<expr_t> &sizes, const idx_map_t<expr_t> &strides)
+        : buf_(buf)
+        , base_offset_(base_offset)
+        , sizes_(sizes)
+        , strides_(strides) {
+        gemm_assert(
+                buf.type().is_gm(), "Buffer must be of a global memory type.");
+    }
     global_tensor_t(const expr_t &buf, const idx_map_t<expr_t> &sizes,
             const idx_map_t<expr_t> &strides)
-        : buf(buf), type(buf.type().base()), sizes(sizes), strides(strides) {
-        gemm_assert(buf.type().is_ptr(), "Buffer must be of a pointer type.");
-    }
-    global_tensor_t(const expr_t &buf, const type_t &type,
-            const expr_t &base_offset, const coord_t &coord,
-            const idx_map_t<expr_t> &sizes, const idx_map_t<expr_t> &strides,
-            const tile_t &tile)
-        : buf(buf)
-        , type(type)
-        , base_offset(base_offset)
-        , coord(coord)
-        , sizes(sizes)
-        , strides(strides)
-        , tile(tile) {
-        gemm_assert(buf.type().is_ptr(), "Buffer must be of a pointer type.");
+        : global_tensor_t(buf, {}, sizes, strides) {}
+    global_tensor_t(const expr_t &buf, const expr_t &base_offset,
+            const coord_t &coord, const idx_map_t<expr_t> &sizes,
+            const idx_map_t<expr_t> &strides, const tile_t &tile)
+        : buf_(buf)
+        , base_offset_(base_offset)
+        , coord_(coord)
+        , sizes_(sizes)
+        , strides_(strides)
+        , tile_(tile) {
+        gemm_assert(
+                buf.type().is_gm(), "Buffer must be of a global memory type.");
     }
 
-    expr_t offset(const icoord_t &sub_coord) const;
+    const expr_t &buf() const { return buf_; }
+    expr_t buf_u64(const expr_t &off = {}) const;
+    const type_t &type() const { return buf_.type(); }
+    type_t scalar_type() const { return type().scalar(); }
+    const expr_t &base_offset() const { return base_offset_; }
+    const coord_t &coord() const { return coord_; }
+    const idx_map_t<expr_t> &sizes() const { return sizes_; }
+    const idx_map_t<expr_t> &strides() const { return strides_; }
+    const tile_t &tile() const { return tile_; }
 
-    global_tensor_t sub(const tile_t &tile, const coord_t &coord) const {
+    void set_coord(const coord_t &coord) { coord_ = coord; }
+    void set_coord(const idx_t &key, const expr_t &value) {
+        coord_[key] = value;
+    }
+    void set_base_offset(const expr_t &offset) { base_offset_ = offset; }
+
+    expr_t offset(const coord_t &sub_coord) const;
+
+    global_tensor_t sub(
+            const tile_t &sub_tile, const coord_t &sub_coord) const {
         global_tensor_t ret = *this;
-        ret.coord = coord;
-        ret.tile = tile;
+        for (auto &d : sub_coord) {
+            if (sizes_.has(d)) ret.coord_[d] = coord_.get(d) + sub_coord[d];
+        }
+        for (auto &d : sub_tile) {
+            if (sizes_.has(d)) ret.tile_[d] = sub_tile[d];
+        }
         return ret;
     }
 
     std::string str() const {
         std::ostringstream oss;
-        oss << "(" << buf << "+" << base_offset << ")." << type << " : ";
-        for (auto &k : coord) {
-            oss << " " << k << " - (coord: " << coord[k]
-                << ", stride: " << strides[k] << ", size: " << sizes[k];
-            if (!tile.is_empty()) oss << ", tile: " << tile[k];
-            oss << ")";
-        }
+        oss << "buf:           " << buf_;
+        if (base_offset_) oss << "\nbase_offset: " << base_offset_ << "\n";
+        if (coord_) oss << "\ncoord:         " << coord_.str();
+        if (tile_) oss << "\ntile:          " << tile_.str();
         return oss.str();
     }
 
-    expr_t buf;
-    type_t type;
-    expr_t base_offset;
-    coord_t coord;
-    idx_map_t<expr_t> sizes;
-    idx_map_t<expr_t> strides;
-    tile_t tile;
+private:
+    expr_t buf_;
+    expr_t base_offset_;
+    coord_t coord_;
+    idx_map_t<expr_t> sizes_;
+    idx_map_t<expr_t> strides_;
+    tile_t tile_;
 };
 
 } // namespace dsl

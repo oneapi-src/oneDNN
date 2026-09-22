@@ -95,9 +95,9 @@ public:
     virtual object_t _mutate(ir_mutator_t &mutator) const;
     virtual void _visit(ir_visitor_t &visitor) const;
 
-protected:
     virtual size_t compute_hash() const = 0;
 
+protected:
     friend class gemmstone::dsl::ir::object_t;
     template <typename T>
     friend struct info_t;
@@ -247,9 +247,9 @@ public:
 
     // Comparison with equality semantics.
     bool is_equal(const object_t &other) const {
-        if (impl_ == other.impl()) return true;
         if (is_empty() || other.is_empty())
             return is_empty() == other.is_empty();
+        if (impl_ == other.impl()) return true;
 
         return impl_->is_equal(*other.impl());
     }

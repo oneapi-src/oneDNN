@@ -94,7 +94,7 @@ offset_t offset_scope_t::get_offset(int version, const expr_t &base0,
         if (auto *shuffle = shift_vec.as_ptr<shuffle_t>()) {
             if (shuffle->is_broadcast()) {
                 shift_vec = shuffle->vec[0];
-                type = type.base();
+                type = type.scalar();
             }
         }
     }

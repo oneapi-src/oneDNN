@@ -116,6 +116,24 @@ public:
         expr2operand_.erase(it);
     }
 
+    std::string str() const {
+        ostringstream_t oss;
+        oss << "operands: [";
+        const char *prefix = "";
+        for (auto &kv : expr2operand_) {
+            oss << prefix << kv.first << ": " << kv.second;
+            prefix = ", ";
+        }
+        oss << "], dsts: [";
+        prefix = "";
+        for (auto &kv : expr2dst_) {
+            oss << prefix << kv.first << ": " << kv.second;
+            prefix = ", ";
+        }
+        oss << "]";
+        return oss.str();
+    }
+
 private:
     ngen::HW hw_;
     object_map_t<expr_t, ngen_operand_t> expr2dst_;
@@ -128,13 +146,12 @@ class expr_evaluator_t;
 template <typename GeneratorT>
 class ir_to_ngen_t;
 
-struct setup_flags_t {
-    bool has_send_atomics;
-    bool has_dpas;
-    bool has_signal_header;
+struct kernel_attr_t {
+    kernel_attr_t(const stmt_t &s);
+    bool has_send_atomics = false;
+    bool has_dpas = false;
+    bool has_signal_header = false;
 };
-
-setup_flags_t get_setup_flags(const stmt_t &s);
 
 template <typename BaseGeneratorT>
 class ir_to_ngen_generator_t : public BaseGeneratorT {
@@ -168,29 +185,41 @@ public:
     const hw_t &hw_info() const { return options_.hw(); }
 
     void generate_prologue() {
-        BaseGeneratorT::setDefaultNoMask();
+        const bool no_mask = true;
+        if (no_mask) BaseGeneratorT::setDefaultNoMask();
         BaseGeneratorT::setDefaultAutoSWSB(true);
 
         BaseGeneratorT::prologue();
 
-        // Data in r0 is necessary for epilogue generation
-        ra_.claim(BaseGeneratorT::r0);
-
         // Enable IEEE f32 -> s32 rounding and f64/f32/f16 denormals.
-        or_(1, BaseGeneratorT::cr0, BaseGeneratorT::cr0, uint16_t(0x14C0));
+        if (getHardware() <= ngen::HW::Xe3p) {
+            or_(1, BaseGeneratorT::cr0, BaseGeneratorT::cr0, uint16_t(0x14C0));
+        }
     }
 
     void bind_external_vars(
             const stmt_t &kernel_body, const walk_order_t *walk_order) {
         alloc_manager_t alloc_mgr(kernel_body);
 
+        // Data in r0 is necessary for epilogue generation
+        ra_.claim(BaseGeneratorT::r0);
+
         // Bind local IDs.
         for (int i = 0; i < 3; i++) {
             auto local_id = alloc_mgr.find_var(ir::local_id_name(i), true);
             if (!local_id.is_empty()) {
-                auto local_id_reg = BaseGeneratorT::getLocalID(i).uw(0);
-                ra_.claim(local_id_reg);
-                expr_binding().bind(local_id, local_id_reg);
+                if (local_id.type().elems() == 1) {
+                    // Used by legacy oneDNN applications
+                    auto local_id_reg = BaseGeneratorT::getLocalID(i).uw(0);
+                    ra_.claim(local_id_reg);
+                    reg_buf_data_t local_reg_buf(getHardware(), local_id_reg);
+                    expr_binding().bind(local_id, local_reg_buf);
+                } else {
+                    auto local_id_reg = BaseGeneratorT::getLocalID(i);
+                    ra_.claim(local_id_reg);
+                    reg_buf_data_t local_reg_buf(getHardware(), local_id_reg);
+                    expr_binding().bind(local_id, local_reg_buf);
+                }
             }
             auto local_size = alloc_mgr.find_var(ir::local_size_name(i), true);
             if (!local_size.is_empty()) {
@@ -202,16 +231,12 @@ public:
 
         // Bind arguments.
         for (size_t i = 0; i < kernel_iface_.nargs(); i++) {
-            auto &arg_var = kernel_iface_[i];
+            auto arg_var = kernel_iface_[i];
             auto &name = arg_var.as<var_t>().name;
-            if (arg_var.type().is_ptr()) {
-                auto alloc_buf
-                        = alloc_mgr.find_buffer(name, /*allow_empty=*/true);
-                if (alloc_buf.is_empty()) {
-                    dsl_warning() << "Unused argument: " << arg_var;
-                    continue;
-                }
-                dsl_assert(alloc_buf.is_same(arg_var));
+            if (arg_var.type().is_gm()) {
+                // Pointer arithmetic lower may change the variable type.
+                auto body_var = alloc_mgr.find_var(name, /*allow_empty=*/true);
+                if (body_var) arg_var = body_var;
             }
             auto arg_reg = BaseGeneratorT::getArgument(name);
             ra_.claim(arg_reg);
@@ -240,7 +265,7 @@ public:
         // Bind grid indices.
         int r0_sub_idxs[] = {1, 6, 7};
         for (int i = 0; i < 3; i++) {
-            auto tg_idx = alloc_mgr.find_var(ir::tg_idx_name(i), true);
+            auto tg_idx = alloc_mgr.find_var(ir::group_id_name(i), true);
             if (tg_idx) {
                 ngen::Subregister tg_reg = r0_info.ud(r0_sub_idxs[i]);
                 expr_binding().bind(tg_idx, tg_reg);
@@ -263,9 +288,9 @@ public:
             emu_state_.temp[1] = ra_.alloc();
         }
 
-        auto setup_flags = get_setup_flags(kernel_body);
+        auto kernel_attrs = kernel_attr_t(kernel_body);
         // Allocate and initialize signal header for future use.
-        if (setup_flags.has_signal_header) {
+        if (kernel_attrs.has_signal_header) {
             signal_header_ = ra_.alloc();
             BaseGeneratorT::barrierheader(signal_header_);
         }
@@ -1144,6 +1169,9 @@ public:
 
     const ngen::NEOInterfaceHandler &getInterface() const { return interface_; }
     int getSIMD() const { return interface_.getSIMD(); }
+    ngen::Subregister getGroupID(int dim) const {
+        return interface_.getGroupID(dim);
+    }
     void prologue() { interface_.generatePrologue(*this); }
     void epilogue(ngen::RegData r0_info) {
         int GRFCount = interface_.getGRFCount();

@@ -131,6 +131,11 @@ private:
     ir_context_t &ir_ctx_;
 };
 
+void inject_send(kernel_t &k) {
+    ir_context_t ir_ctx(k);
+    k.body = inject_send(k.body, ir_ctx);
+}
+
 stmt_t inject_send(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = send_injector_t(ir_ctx).mutate(s);

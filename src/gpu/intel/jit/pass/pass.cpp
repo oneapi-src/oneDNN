@@ -57,7 +57,7 @@ public:
 
     object_t _mutate(const store_t &obj) override {
         int elems = obj.value.type().elems();
-        int elem_size = obj.value.type().base().size();
+        int elem_size = obj.value.type().scalar().size();
         int stride = (obj.has_default_stride() ? 1 : obj.stride / elem_size);
         int store_size = elem_size * stride * elems;
         const auto grf_size = hw_.grf_size();
@@ -90,7 +90,7 @@ private:
         auto *load = e.as_ptr<load_t>();
         if (load) {
             int stride = load->stride;
-            if (load->has_default_stride()) stride = load->type.base().size();
+            if (load->has_default_stride()) stride = load->type.scalar().size();
             return load_t::make(load->type.with_elems(end - beg), load->buf,
                     load->off + beg * stride, load->stride);
         }

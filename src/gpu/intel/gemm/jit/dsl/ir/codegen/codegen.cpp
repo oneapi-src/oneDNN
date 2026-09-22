@@ -29,6 +29,7 @@
 #include "dsl/ir/codegen/reorder.hpp"
 #include "dsl/ir/codegen/send.hpp"
 #include "dsl/ir/fma.hpp"
+
 #include "gemmstone/runtime.hpp"
 #include "ngen.hpp"
 #ifdef GEMMSTONE_WITH_BINARY_RUNTIME
@@ -142,6 +143,13 @@ public:
         if (use_bc_alloc) release_bank_conflict_allocation(obj);
     }
 
+    void _visit(const assign_t &obj) override {
+        host_->comment(obj.str());
+        ngen_register_scope_t scope(host_->ra());
+        auto var = evaluate(obj.var, scope);
+        evaluate(obj.value, scope, var);
+    }
+
     void _visit(const for_t &obj) override {
         host_->comment(obj.line_str());
         ngen_register_scope_t scope(host_->ra());
@@ -185,7 +193,7 @@ public:
     }
 
     void _visit(const func_call_t &obj) override {
-        host_->comment(obj.line_str());
+        if (!obj.func.as_ptr<builtin_t>()) host_->comment(obj.line_str());
         ngen_register_scope_t scope(host_->ra());
 
         auto &func = obj.func;
@@ -233,6 +241,35 @@ public:
         } else if (func.is_same(funcs::zero_out_func())) {
             auto buf_op = evaluate(obj.args[0], scope);
             fill_buf(buf_op.reg_buf_data(), to_cpp<int>(obj.args[1]));
+        } else if (auto *builtin = obj.func.as_ptr<builtin_t>()) {
+            if (builtin->name == "alloc") {
+                auto &var = obj.args[0].as<var_t>();
+                if (!var.type.is_slm())
+                    host_->expr_binding().bind(var, [&]() {
+                        auto type = var.type;
+                        if (type.is_scalar()) {
+                            auto sub = host_->ra().alloc_sub(to_ngen(type));
+                            return ngen_operand_t(reg_buf_data_t(hw(), sub));
+                        }
+
+                        int grf_size = ngen::GRF::bytes(hw());
+                        int regs = div_up(
+                                type.with_elems(type.elems()).size(), grf_size);
+                        reg_buf_t buf(hw(), host_->ra().alloc_range(regs));
+                        return ngen_operand_t(
+                                reg_buf_data_t(buf).format(0, type.elems(), 1,
+                                        to_ngen(type.scalar())),
+                                type.elems());
+                    }());
+                host_->comment(obj.line_str() + " -> "
+                        + host_->expr_binding().get(var).str());
+            } else if (builtin->name == "free") {
+                host_->comment(obj.str());
+                auto &var = obj.args[0].as<var_t>();
+                if (!var.type.is_slm()) host_->expr_binding().unbind(var);
+            } else {
+                dsl_error() << "Unknown builtin: " << obj.str();
+            }
         } else if (options().extension_handler()) {
             options().extension_handler()(obj, *this);
         } else {
@@ -331,20 +368,20 @@ public:
         auto mask_op = evaluate(obj.mask, scope);
 
         auto &type = obj.value.type();
-        auto base_type = type.base();
+        auto stype = type.scalar();
 
         int stride;
         if (obj.has_default_stride()) {
             stride = 1;
         } else {
-            dsl_assert(obj.stride % base_type.size() == 0);
-            stride = obj.stride / base_type.size();
+            dsl_assert(obj.stride % stype.size() == 0);
+            stride = obj.stride / stype.size();
         }
 
         ngen::InstructionModifier mod = type.elems();
         if (!mask_op.is_invalid()) mod |= mask_op.flag_register_mod();
-        auto dst_rbd = buf_op.reg_buf_data().format(off / base_type.size(),
-                type.elems(), stride, to_ngen(base_type));
+        auto dst_rbd = buf_op.reg_buf_data().format(
+                off / stype.size(), type.elems(), stride, to_ngen(stype));
         ngen_operand_t dst(dst_rbd, mod);
         evaluate(
                 obj.value, scope, dst, obj.fill_mask0 && !mask_op.is_invalid());
@@ -823,19 +860,6 @@ private:
     std::vector<int> last_used_header_regs_;
 };
 
-bool is_src1_ok(ngen::HW hw, const ngen_operand_t &dst,
-        const ngen_operand_t &src0, const ngen_operand_t &src1) {
-    if (hw == ngen::HW::Xe3p) {
-        if (!src1.is_reg_data()) return true;
-        auto src1_rd = src1.reg_data();
-        if (src1_rd.isScalar()) return true;
-        auto dst_rd = dst.reg_data();
-        return src1_rd.getType() == dst_rd.getType()
-                && src1_rd.getHS() == dst_rd.getHS();
-    }
-    return true;
-}
-
 // Evaluates expression by emitting instructions with nGEN.
 template <typename ngen_generator_t>
 class expr_evaluator_t : public ir_visitor_t {
@@ -1102,28 +1126,28 @@ public:
 
     void _visit(const load_t &obj) override {
         auto &type = obj.type;
-        auto base_type = type.base();
+        auto stype = type.scalar();
         auto buf_op = eval(obj.buf);
         auto off_op = eval(obj.off);
         int stride;
         if (obj.has_default_stride()) {
             stride = 1;
         } else {
-            dsl_assert(obj.stride % base_type.size() == 0);
-            stride = obj.stride / base_type.size();
+            dsl_assert(obj.stride % stype.size() == 0);
+            stride = obj.stride / stype.size();
         }
         int off = to_cpp<int>(off_op.immediate());
-        auto load_rbd = buf_op.reg_buf_data().format(off / base_type.size(),
-                type.elems(), stride, to_ngen(base_type));
+        auto load_rbd = buf_op.reg_buf_data().format(
+                off / stype.size(), type.elems(), stride, to_ngen(stype));
         bind(obj, load_rbd);
     }
     void _visit(const ref_t &obj) override {
         auto &type = obj.type;
-        auto base_type = type.base();
+        auto stype = type.scalar();
         auto buf_op = eval(obj.var);
         int off = obj.off;
         auto load_rbd = buf_op.reg_buf_data().format(
-                off, type.elems(), /*stride=*/1, to_ngen(base_type));
+                off, type.elems(), /*stride=*/1, to_ngen(stype));
         bind(obj, load_rbd);
     }
 
@@ -1139,7 +1163,7 @@ public:
 
         int elem_off = to_cpp<int>(obj.off);
         int byte_off
-                = utils::safe_divide(elem_off * obj.type.base().bitsize(), 8);
+                = utils::safe_divide(elem_off * obj.type.scalar().bitsize(), 8);
         bind(obj, base_op.reg_buf_data().format(byte_off, ngen::DataType::ub));
     }
 
@@ -1300,8 +1324,8 @@ private:
         // Need q-strided region for `e` if res_type is q/uq and `e` is of a
         // sub-q data type and not a scalar.
         if (e.type().is_scalar()) return ngen_operand_t();
-        if (!res_type.base().is_x64()) return ngen_operand_t();
-        if (e.type().base().is_x64()) return ngen_operand_t();
+        if (!res_type.scalar().is_x64()) return ngen_operand_t();
+        if (e.type().scalar().is_x64()) return ngen_operand_t();
 
         auto *shuffle = e.as_ptr<shuffle_t>();
         if (shuffle && shuffle->is_broadcast()) return ngen_operand_t();
@@ -1639,35 +1663,10 @@ private:
     object_eq_map_t<expr_t, type_t> int_up_converts_;
 };
 
-class setup_visitor_t : public ir_visitor_t {
-public:
-    void _visit(const func_call_t &obj) override {
-        auto &func = obj.func;
-        auto *dpas = func.as_ptr<dpas_t>();
-        auto *send = func.as_ptr<send_t>();
-        if (dpas)
-            flags.has_dpas = true;
-        else if (send && send->is_atomic())
-            flags.has_send_atomics = true;
-        else if (func.is_same(funcs::signal_func()))
-            flags.has_signal_header = true;
-        else if (func.is_same(funcs::barrier_func()))
-            flags.has_signal_header = true;
-    }
-
-    setup_flags_t flags = {};
-};
-
-setup_flags_t get_setup_flags(const stmt_t &s) {
-    setup_visitor_t visitor;
-    visitor.visit(s);
-    return visitor.flags;
-}
-
 // This interface is relied on by the oneDNN ir_kernel_t extensions. Do not
 // modify without propagating this change.
 template <typename GeneratorT>
-void convert_ir_to_ngen(const stmt_t &body, GeneratorT &host,
+void convert_ir_to_ngen_impl(const stmt_t &body, GeneratorT &host,
         const walk_order_t *kernel_grid_walk_order = nullptr) {
     host.comment("Prologue");
     host.generate_prologue();
@@ -1684,10 +1683,45 @@ void convert_ir_to_ngen(const stmt_t &body, GeneratorT &host,
     host.generate_epilogue();
 }
 
+template <typename GeneratorT>
+void convert_ir_to_ngen(const stmt_t &body, GeneratorT &host,
+        const walk_order_t *kernel_grid_walk_order = nullptr) {
+    return convert_ir_to_ngen_impl(body, host, kernel_grid_walk_order);
+}
+
 #ifdef NGEN_ASM
-template void convert_ir_to_ngen<ir_asm_generator_t>(const stmt_t &body,
-        ir_asm_generator_t &host, const walk_order_t *kernel_grid_walk_order);
+template <>
+void convert_ir_to_ngen<ir_asm_generator_t>(const stmt_t &body,
+        ir_asm_generator_t &host, const walk_order_t *kernel_grid_walk_order) {
+
+    return convert_ir_to_ngen_impl(body, host, kernel_grid_walk_order);
+}
 #endif
+
+kernel_attr_t::kernel_attr_t(const stmt_t &s) {
+    class visitor_t : public ir_visitor_t {
+    public:
+        visitor_t(kernel_attr_t &attrs) : attrs(attrs) {};
+
+        void _visit(const func_call_t &obj) override {
+            auto &func = obj.func;
+            auto *dpas = func.as_ptr<dpas_t>();
+            auto *send = func.as_ptr<send_t>();
+            if (dpas)
+                attrs.has_dpas = true;
+            else if (send && send->is_atomic())
+                attrs.has_send_atomics = true;
+            else if (func.is_same(funcs::signal_func()))
+                attrs.has_signal_header = true;
+            else if (func.is_same(funcs::barrier_func()))
+                attrs.has_signal_header = true;
+        }
+
+        kernel_attr_t &attrs;
+    };
+
+    visitor_t(*this).visit(s);
+}
 
 // This interface is relied on by the oneDNN ir_kernel_t extensions. Do not
 // modify without propagating this change.
@@ -1702,11 +1736,12 @@ ngen::NEOInterfaceHandler generate_ngen_interface(
     interface.requireGRF(options.regs());
     interface.requireSIMD(options.simd());
     interface.requireBarrier();
-    auto setup_flags = get_setup_flags(kernel_body);
+    auto kernel_attrs = kernel_attr_t(kernel_body);
 
     // Allow dpas override to avoid context switch overhead on XeHPG
-    if (setup_flags.has_dpas || options.require_dpas()) interface.requireDPAS();
-    if (setup_flags.has_send_atomics) interface.requireGlobalAtomics();
+    if (kernel_attrs.has_dpas || options.require_dpas())
+        interface.requireDPAS();
+    if (kernel_attrs.has_send_atomics) interface.requireGlobalAtomics();
 
     if (options.hw() == ngen::HW::Xe3p && !options.hw().efficient_64_bit())
         interface.setEfficient64Bit(false);
@@ -1714,7 +1749,7 @@ ngen::NEOInterfaceHandler generate_ngen_interface(
     for (size_t i = 0; i < kernel_iface.nargs(); i++) {
         auto &name = kernel_iface[i].as<var_t>().name;
         auto &type = kernel_iface[i].type();
-        if (type.is_ptr()) {
+        if (type.is_ptr() || type.is_gm()) {
             interface.newArgument(name, ngen::ExternalArgumentType::GlobalPtr,
                     ngen::GlobalAccessType::Stateless);
         } else {
@@ -1772,6 +1807,8 @@ ngen::NEOInterfaceHandler generate_ngen_interface(
 #define GEMMSTONE_XE3P_ISA(...)
 #endif
 
+#define GEMMSTONE_OTHER_CASES
+
 #define GPU_HW_CASE_(hw) \
     case ngen::HW::hw: { \
         GPU_HW_CASE(ngen::HW::hw); \
@@ -1787,6 +1824,7 @@ ngen::NEOInterfaceHandler generate_ngen_interface(
         GEMMSTONE_XE2_ISA(GPU_HW_CASE_(Xe2)); \
         GEMMSTONE_XE3_ISA(GPU_HW_CASE_(Xe3)); \
         GEMMSTONE_XE3P_ISA(GPU_HW_CASE_(Xe3p)); \
+        GEMMSTONE_OTHER_CASES \
         default: dsl_assert(false) << "Unexpected GPU architecture"; \
     }
 
@@ -1809,6 +1847,9 @@ std::string make_asm(const kernel_t &ir_kernel) {
 #endif
 
 #ifdef GEMMSTONE_WITH_BINARY_RUNTIME
+template <ngen::HW hw>
+using binary_gen_t = ir::ir_to_ngen_generator_t<ngen::ELFCodeGenerator<hw>>;
+
 std::vector<uint8_t> make_binary(const kernel_t &ir_kernel) {
     auto &iface = ir_kernel.iface;
     auto &options = ir_kernel.options;
@@ -1820,8 +1861,7 @@ std::vector<uint8_t> make_binary(const kernel_t &ir_kernel) {
             iface, options, body);
 
 #define GPU_HW_CASE(hw) \
-    ir::ir_to_ngen_generator_t<ngen::ELFCodeGenerator<(hw)>> g( \
-            iface, options, debug_cfg); \
+    binary_gen_t<(hw)> g(iface, options, debug_cfg); \
     g.setInterface(interface); \
     ir::convert_ir_to_ngen(body, g); \
     return g.getBinary(); \
@@ -1836,6 +1876,7 @@ std::vector<uint8_t> make_binary(const kernel_t &ir_kernel) {
 #ifdef GEMMSTONE_WITH_SYCL_RUNTIME
 template <ngen::HW hw>
 using sycl_gen_t = ir::ir_to_ngen_generator_t<ngen::SYCLCodeGenerator<hw>>;
+
 GEMMSTONE_XELP_ISA(
         template void ir::convert_ir_to_ngen<sycl_gen_t<ngen::HW::XeLP>>(
                 const stmt_t &body, sycl_gen_t<ngen::HW::XeLP> &host,
@@ -1889,9 +1930,66 @@ GEMMSTONE_XE3P_ISA(
     return kernel.value();
 }
 #endif
+
+#ifdef GEMMSTONE_WITH_L0_RUNTIME
+template <ngen::HW hw>
+using l0_gen_t = ir::ir_to_ngen_generator_t<ngen::LevelZeroCodeGenerator<hw>>;
+
+GEMMSTONE_XELP_ISA(
+        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::XeLP>>(
+                const stmt_t &body, l0_gen_t<ngen::HW::XeLP> &host,
+                const walk_order_t *kernel_grid_walk_order));
+GEMMSTONE_XEHP_ISA(
+        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::XeHP>>(
+                const stmt_t &body, l0_gen_t<ngen::HW::XeHP> &host,
+                const walk_order_t *kernel_grid_walk_order));
+GEMMSTONE_XEHPG_ISA(
+        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::XeHPG>>(
+                const stmt_t &body, l0_gen_t<ngen::HW::XeHPG> &host,
+                const walk_order_t *kernel_grid_walk_order));
+GEMMSTONE_XEHPC_ISA(
+        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::XeHPC>>(
+                const stmt_t &body, l0_gen_t<ngen::HW::XeHPC> &host,
+                const walk_order_t *kernel_grid_walk_order));
+GEMMSTONE_XE2_ISA(template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::Xe2>>(
+        const stmt_t &body, l0_gen_t<ngen::HW::Xe2> &host,
+        const walk_order_t *kernel_grid_walk_order));
+GEMMSTONE_XE3_ISA(template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::Xe3>>(
+        const stmt_t &body, l0_gen_t<ngen::HW::Xe3> &host,
+        const walk_order_t *kernel_grid_walk_order));
+GEMMSTONE_XE3P_ISA(
+        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::Xe3p>>(
+                const stmt_t &body, l0_gen_t<ngen::HW::Xe3p> &host,
+                const walk_order_t *kernel_grid_walk_order));
+
+LevelZeroKernelAndModule make_kernel(const kernel_t &ir_kernel,
+        ze_context_handle_t ctx, ze_device_handle_t dev) {
+    auto &iface = ir_kernel.iface;
+    auto &options = ir_kernel.options;
+    auto &body = ir_kernel.body;
+    auto &debug_cfg = ir_kernel.debug_cfg;
+    maybe_unused(debug_cfg);
+
+    ngen::NEOInterfaceHandler interface = generate_ngen_interface(
+            iface, options, body);
+
+#define GPU_HW_CASE(hw) \
+    l0_gen_t<(hw)> g(iface, options, debug_cfg); \
+    g.setInterface(interface); \
+    ir::convert_ir_to_ngen(body, g); \
+    auto km = g.getModuleAndKernel(ctx, dev); \
+    return {km.second, km.first};
+
+    GEMMSTONE_HW_SWITCH(options.hw().ngen_hw());
+#undef GPU_HW_CASE
+    return {};
+}
+#endif
+
 #ifdef GEMMSTONE_WITH_OPENCL_RUNTIME
 template <ngen::HW hw>
 using ocl_gen_t = ir::ir_to_ngen_generator_t<ngen::OpenCLCodeGenerator<hw>>;
+
 GEMMSTONE_XELP_ISA(
         template void ir::convert_ir_to_ngen<ocl_gen_t<ngen::HW::XeLP>>(
                 const stmt_t &body, ocl_gen_t<ngen::HW::XeLP> &host,
@@ -1937,55 +2035,6 @@ cl_kernel make_kernel(
     g.setInterface(std::move(interface)); \
     ir::convert_ir_to_ngen(body, g); \
     return g.getKernel(ctx, dev);
-
-    GEMMSTONE_HW_SWITCH(options.hw().ngen_hw());
-#undef GPU_HW_CASE
-    return {};
-}
-#endif
-#ifdef GEMMSTONE_WITH_L0_RUNTIME
-template <ngen::HW hw>
-using l0_gen_t = ir::ir_to_ngen_generator_t<ngen::LevelZeroCodeGenerator<hw>>;
-GEMMSTONE_XELP_ISA(
-        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::XeLP>>(
-                const stmt_t &body, l0_gen_t<ngen::HW::XeLP> &host,
-                const walk_order_t *kernel_grid_walk_order));
-GEMMSTONE_XEHP_ISA(
-        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::XeHP>>(
-                const stmt_t &body, l0_gen_t<ngen::HW::XeHP> &host,
-                const walk_order_t *kernel_grid_walk_order));
-GEMMSTONE_XEHPG_ISA(
-        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::XeHPG>>(
-                const stmt_t &body, l0_gen_t<ngen::HW::XeHPG> &host,
-                const walk_order_t *kernel_grid_walk_order));
-GEMMSTONE_XEHPC_ISA(
-        template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::XeHPC>>(
-                const stmt_t &body, l0_gen_t<ngen::HW::XeHPC> &host,
-                const walk_order_t *kernel_grid_walk_order));
-GEMMSTONE_XE2_ISA(template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::Xe2>>(
-        const stmt_t &body, l0_gen_t<ngen::HW::Xe2> &host,
-        const walk_order_t *kernel_grid_walk_order));
-GEMMSTONE_XE3_ISA(template void ir::convert_ir_to_ngen<l0_gen_t<ngen::HW::Xe3>>(
-        const stmt_t &body, l0_gen_t<ngen::HW::Xe3> &host,
-        const walk_order_t *kernel_grid_walk_order));
-
-LevelZeroKernelAndModule make_kernel(const kernel_t &ir_kernel,
-        ze_context_handle_t ctx, ze_device_handle_t dev) {
-    auto &iface = ir_kernel.iface;
-    auto &options = ir_kernel.options;
-    auto &body = ir_kernel.body;
-    auto &debug_cfg = ir_kernel.debug_cfg;
-    maybe_unused(debug_cfg);
-
-    ngen::NEOInterfaceHandler interface = generate_ngen_interface(
-            iface, options, body);
-
-#define GPU_HW_CASE(hw) \
-    l0_gen_t<(hw)> g(iface, options, debug_cfg); \
-    g.setInterface(interface); \
-    ir::convert_ir_to_ngen(body, g); \
-    auto km = g.getModuleAndKernel(ctx, dev); \
-    return {km.second, km.first};
 
     GEMMSTONE_HW_SWITCH(options.hw().ngen_hw());
 #undef GPU_HW_CASE

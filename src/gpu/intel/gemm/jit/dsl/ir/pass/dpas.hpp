@@ -31,4 +31,5 @@ stmt_t inject_dpas_fwd(const stmt_t &stmt);
 } // namespace ir
 } // namespace dsl
 GEMMSTONE_NAMESPACE_END
+
 #endif

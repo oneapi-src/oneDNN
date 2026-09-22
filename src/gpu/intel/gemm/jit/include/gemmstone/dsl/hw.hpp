@@ -94,6 +94,7 @@ public:
     int stepping() const;
     ngen::HW ngen_hw() const { return hw_; }
     operator ngen::HW() const { return hw_; }
+    attr_t attr() const { return attr_; }
 
     bool has_fp64_atomic_support() const {
         return any(attr_ & attr_t::atomic_fp64);
@@ -122,15 +123,7 @@ public:
     bool operator>=(ngen::HW rhs) const { return hw_ >= rhs; }
     bool operator==(ngen::HW rhs) const { return hw_ == rhs; }
     bool operator!=(ngen::HW rhs) const { return hw_ != rhs; }
-    bool operator==(const hw_t &other) const {
-        return hw_ == other.hw_ && eu_count_ == other.eu_count_
-                && max_wg_size_ == other.max_wg_size_
-                && l3_cache_size_ == other.l3_cache_size_
-                && attr_ == other.attr_
-                && (product_ == other.product_
-                        || (product_ && other.product_
-                                && *product_ == *other.product_));
-    }
+    bool operator==(const hw_t &other) const;
 
 protected:
     // use product_t as an opaque handle to ngen::Product to avoid ngen dependency here

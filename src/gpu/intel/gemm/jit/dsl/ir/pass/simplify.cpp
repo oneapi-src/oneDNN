@@ -33,6 +33,7 @@ namespace ir {
 using namespace utils;
 
 expr_t simplify_expr(const expr_t &_e, const constraint_set_t &cset);
+expr_t simplify_expr_impl(const expr_t &_e, const constraint_set_t &cset);
 
 // Generic pattern expression, used as a wild card during pattern matching. Can
 // match any expression.
@@ -1824,15 +1825,15 @@ private:
     constraint_set_t cset_;
 };
 
-expr_t simplify_expr_impl(const expr_t &_e, const constraint_set_t &cset);
-
 expr_t simplify_expr(const expr_t &_e, const constraint_set_t &cset) {
     if (!cset.is_empty()) return simplify_expr_impl(_e, cset);
     if (is_const(_e) || is_var(_e)) return _e;
+
     static const size_t max_cache_size = 4096;
     static thread_local object_eq_map_t<expr_t, expr_t> cache;
     auto it = cache.find(_e);
     if (it != cache.end()) return it->second;
+
     auto ret = simplify_expr_impl(_e, cset);
     if (cache.size() >= max_cache_size) cache.clear();
     cache.emplace(_e, ret);
@@ -1948,8 +1949,8 @@ struct op_traits_t<op_kind_t::_div_up> {
     template <typename T,
             typename = typename std::enable_if<is_int_t<T>::value>::type>
     static auto compute(T a, T b) -> decltype(a / b) {
-        dsl_assert(b > 0);
-        return div_up(a, b);
+        return op_traits_t<op_kind_t::_div>::compute(
+                static_cast<T>(a + b - 1), b);
     }
 };
 
@@ -2088,11 +2089,11 @@ expr_t const_fold_binary(const type_t &compute_type, op_kind_t op_kind,
         const expr_t &a, const expr_t &b) {
     if (!compute_type.is_scalar()) {
         int elems = compute_type.elems();
-        auto base_type = compute_type.base();
+        auto stype = compute_type.scalar();
         std::vector<expr_t> ret;
         ret.reserve(elems);
         for (int i = 0; i < elems; i++) {
-            ret.push_back(const_fold_binary(base_type, op_kind, a[i], b[i]));
+            ret.push_back(const_fold_binary(stype, op_kind, a[i], b[i]));
         }
         return shuffle_t::make(ret);
     }
@@ -2413,7 +2414,8 @@ expr_t const_fold_non_recursive(const expr_t &e) {
         if (cast->expr.is<bool_imm_t>())
             return to_expr(to_cpp<bool>(cast->expr), cast->type);
         if (cast->expr.is<int_imm_t>())
-            return to_expr(to_cpp<int64_t>(cast->expr), cast->type);
+            return int_imm_t::make(
+                    cast->expr.as<int_imm_t>().value, cast->type);
         if (cast->expr.is<float_imm_t>())
             return to_expr(to_cpp<double>(cast->expr), cast->type);
     }
@@ -2437,6 +2439,7 @@ expr_t nary_op_canonicalize(const expr_t &_e) {
     e = mul_nary_op_expander_t().mutate(e);
 
     dsl_assert(is_nary_op_canonical(e)) << e;
+    maybe_unused(is_nary_op_canonical(e));
 
     return e;
 }

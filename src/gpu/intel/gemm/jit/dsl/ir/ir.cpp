@@ -16,10 +16,6 @@
 
 #include "dsl/ir/ir.hpp"
 
-#include <functional>
-#include <numeric>
-#include <sstream>
-
 #include "dsl/ir/codegen/allocation_size.hpp"
 #include "dsl/ir/core.hpp"
 #include "dsl/ir/pass/simplify.hpp"
@@ -35,7 +31,8 @@ namespace {
 // Helper class to print IR objects.
 class ir_printer_t : public ir_visitor_t {
 public:
-    ir_printer_t(std::ostream &out) : out_(out) {}
+    ir_printer_t(std::ostream &out, int indent = 0)
+        : out_(out), indent_(indent) {}
 
     void _visit(const assign_t &obj) override {
         print_indent();
@@ -60,6 +57,10 @@ public:
                 out_ << to_string(obj.op_kind) << "(" << obj.a << ", " << obj.b
                      << ")";
                 return;
+            case op_kind_t::_prelu:
+                out_ << "(" << obj.a << " > 0 ? " << obj.a << " : " << obj.a
+                     << " * " << obj.b << ")";
+                break;
             default:
                 out_ << "(";
                 visit(obj.a);
@@ -378,6 +379,12 @@ public:
 
 } // namespace
 
+std::string to_string(const object_t &object, int indent) {
+    ostringstream_t oss;
+    ir_printer_t printer(oss, indent);
+    printer.visit(object);
+    return oss.str();
+}
 std::string object::impl_t::str() const {
     ostringstream_t oss;
     ir_printer_t printer(oss);
@@ -830,10 +837,19 @@ bool is_linear_var_transform(const expr_t &e, linear_transform_t &t) {
 }
 
 ir_context_t::ir_context_t(
-        const kernel::options_t &options, constraint_set_t &cset)
+        const kernel::options_t &options, const constraint_set_t &cset)
     : options_(options), cset_(cset) {
     for (auto &a : options_.assumptions()) {
         add_constraint(a);
+    }
+}
+
+ir_context_t::ir_context_t(const kernel_t &kernel) : options_(kernel.options) {
+    for (auto &a : options_.assumptions()) {
+        add_constraint(a);
+    }
+    for (auto &var : find_objects<var_t>(kernel.body)) {
+        all_names_.insert(var.as<var_t>().name);
     }
 }
 
@@ -910,6 +926,10 @@ bool constraint_set_t::is_single_value(const expr_t &e, expr_t &value) const {
             case op_kind_t::_eq:
                 lo = hi = rel.rhs();
                 do_break = true;
+                break;
+            case op_kind_t::_ne:
+                // Ignore for now as there is little benefit to implementing a
+                // proper search.
                 break;
             case op_kind_t::_ge:
             case op_kind_t::_gt: {

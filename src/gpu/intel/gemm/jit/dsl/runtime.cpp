@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gemmstone/runtime.hpp"
+#include "dsl/utils/utils.hpp"
 #include "gemmstone/dsl/hw.hpp"
 #include "gemmstone/dsl/runtime.hpp"
 #include "generator_dsl/builder.hpp"
@@ -217,8 +218,8 @@ dsl::hw_t get_hardware(ze_device_handle_t device, ze_context_handle_t context) {
     }
 
     dsl::hw::attr_t attr = {};
-    ngen::HW hw = ngen::getCore(product.family);
-    if (hw >= ngen::HW::XeHPC) attr |= dsl::hw::attr_t::large_grf;
+    if (ngen::getCore(product.family) >= ngen::HW::XeHPC)
+        attr |= dsl::hw::attr_t::large_grf;
 
     {
         auto deviceModPropsExt = ze_intel_device_module_dp_exp_properties_t();

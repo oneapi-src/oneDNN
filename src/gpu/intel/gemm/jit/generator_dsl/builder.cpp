@@ -14,48 +14,19 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dsl/ir/pass/pass.hpp"
-#include "dsl/ir/pass/trace.hpp"
+#include "dsl/ir/fma.hpp"
+#include "dsl/ir/pass/dpas.hpp"
+#include "dsl/ir/pass/simplify.hpp"
 #include "dsl/utils/logging.hpp"
 #include "dsl/utils/utils.hpp"
 #include "gemmstone/config.hpp"
 #include "gemmstone/dsl/dsl.hpp"
 #include "gemmstone/strategy.hpp"
 #include "generator_dsl/kernel_desc.hpp"
-#include "gpu/intel/jit/utils/type_bridge.hpp"
 
 GEMMSTONE_NAMESPACE_START
 
 using namespace dsl;
-
-inline type_t into_ir(Type t, int elems = 1) {
-    using namespace ir;
-    switch (t) {
-        case Type::invalid: return type_t::undef();
-
-        case Type::f4_e2m1: return type_t::f4_e2m1(elems);
-        case Type::bf8: return type_t::bf8(elems);
-        case Type::hf8: return type_t::hf8(elems);
-        case Type::bf16: return type_t::bf16(elems);
-        case Type::f16: return type_t::f16(elems);
-        case Type::tf32: return type_t::tf32(elems);
-        case Type::f32: return type_t::f32(elems);
-        case Type::f64: return type_t::f64(elems);
-
-        case Type::u4: return type_t::u4(elems);
-        case Type::s4: return type_t::s4(elems);
-        case Type::u8: return type_t::u8(elems);
-        case Type::s8: return type_t::s8(elems);
-        case Type::u16: return type_t::u16(elems);
-        case Type::s16: return type_t::s16(elems);
-        case Type::u32: return type_t::u32(elems);
-        case Type::s32: return type_t::s32(elems);
-        case Type::u64: return type_t::u64(elems);
-        case Type::s64: return type_t::s64(elems);
-
-        default: stub(); return type_t::undef();
-    }
-}
 
 struct transform_t {
     // Sample transforms on bf16 data with pack_size 16:
@@ -197,6 +168,106 @@ transform_t get_transform(const MatrixAddressingStrategy &matrix_strategy,
         default: stub(); return {};
     }
 }
+static void multiply(const tensor_t &C, const tensor_t &A, const tensor_t &B,
+        const tile_t &tile, const icoord_t &base, bool is_systolic) {
+    using ir::dpas_t;
+    if (is_systolic) {
+        int64_t simd = 16;
+        int64_t sdepth = 8;
+        int64_t max_rcount = 8;
+
+        auto C_layout = C.layout();
+        auto simd_idx = C_layout[0].idx;
+        auto sdepth_idx = A.layout()[0].idx == C_layout[0].idx
+                ? A.layout()[1].idx
+                : A.layout()[0].idx;
+        auto rcount_idx = C_layout[1].idx;
+        auto sdepth_pack = 4 / A.type().size();
+
+        tile_t inst_tile {{simd_idx, simd}, {sdepth_idx, sdepth * sdepth_pack},
+                {rcount_idx, max_rcount}};
+
+        dsl_assert(tile[simd_idx] % simd == 0);
+        dsl_assert(tile[sdepth_idx] % (sdepth_pack * sdepth) == 0);
+        dsl_assert(C_layout[0].size == simd);
+
+        std::vector<layout::block_t> dpas_blocks;
+        dpas_blocks.emplace_back(sdepth_idx, tile[sdepth_idx]);
+        for (auto &b : C_layout.blocks()) {
+            dpas_blocks.emplace_back(b.idx, b.size);
+        }
+        auto dpas_layout = C_layout.with(dpas_blocks);
+
+        std::vector<stmt_t> dpas_stmts;
+        for (auto &coord : dpas_layout.iter(inst_tile)) {
+            int simd = (int)inst_tile[simd_idx];
+            auto sdepth = inst_tile[sdepth_idx] / sdepth_pack;
+            auto rcount = std::min(inst_tile[rcount_idx],
+                    tile[rcount_idx] - coord[rcount_idx]);
+
+            auto dpas = dpas_t::make(false, simd, into<uint8_t>(sdepth),
+                    into<uint8_t>(rcount), C.type(), B.type(), A.type());
+            // FIXME: This code can access out-of-bounds coordinates, adding
+            // modulus to keep the old behavior with v2 layout.
+            auto get_coord = [](const tensor_t &t, icoord_t coord) {
+                for (auto &d : coord) {
+                    coord[d] = coord[d] % t.tile().get(d, coord[d] + 1);
+                }
+                return coord;
+            };
+            auto dst = C.subvec(base + coord, 1);
+            auto src1 = A.subvec(get_coord(A, base + coord), 1);
+            auto src2 = B.subvec(get_coord(B, base + coord), 1);
+            dpas_stmts.emplace_back(dpas.as<dpas_t>()(dst, dst, src1, src2));
+        }
+        append(inject_dpas_atomic(ir::stmt_seq_t::make(dpas_stmts),
+                /*filter_by_label=*/false));
+    } else {
+        auto max_simd = 32;
+
+        auto C_layout = C.layout();
+        auto simd_idx = C_layout[0].idx;
+        auto rcount_idx = C_layout[1].idx;
+        const auto &m_idx = simd_idx;
+        const auto &n_idx = rcount_idx;
+        auto k_idx = one_of(A.layout()[1].idx, {simd_idx, rcount_idx})
+                ? A.layout()[0].idx
+                : A.layout()[1].idx;
+
+        tile_t inst_tile {{{simd_idx, max_simd}, {rcount_idx, 1}, {k_idx, 1}}};
+
+        int M = (int)inst_tile.get(m_idx, 1);
+        int N = (int)inst_tile.get(n_idx, 1);
+        int K = (int)inst_tile.get(k_idx, 1);
+        bool is_a_bcast = (M * K == 1);
+        bool is_b_bcast = (K * N == 1);
+        int a_stride = is_a_bcast ? 0 : int(A.layout().stride(m_idx));
+        int b_stride = is_b_bcast ? 0 : int(B.layout().stride(n_idx));
+
+        std::vector<layout::block_t> mad_blocks;
+        mad_blocks.emplace_back(k_idx, tile[k_idx]);
+        for (auto &b : C_layout.blocks()) {
+            mad_blocks.emplace_back(b.idx, b.size);
+        }
+        auto mad_layout = C_layout.with(mad_blocks);
+
+        dsl_assert(tile[simd_idx] * C.type().size() % grf_size() == 0);
+        for (auto &coord : mad_layout.iter(inst_tile)) {
+            int simd = (int)std::min(
+                    inst_tile[simd_idx], tile[simd_idx] - coord[simd_idx]);
+
+            auto mad = ir::mad_t::make(get_hw(), C.type(), simd, A.type(),
+                    a_stride, B.type(), b_stride);
+
+            auto dst = C.subvec(base + coord, 1);
+            auto src1 = A.subvec(base + coord, 1);
+            auto src2 = B.subvec(base + coord, 1);
+
+            append(mad.as<ir::mad_t>()(dst, dst, src1, src2));
+        }
+    }
+}
+
 idx_map_t<expr_t> get_strides(
         MatrixLayout layout, std::array<idx_t, 2> pvars, expr_t ld) {
     switch (layout) {
@@ -209,8 +280,8 @@ idx_map_t<expr_t> get_strides(
 struct tensor_config_t {
     tensor_config_t(const global_tensor_t &g, transform_t t, int copies)
         : transform(t) {
-        tile = g.tile;
-        layout = t.get_layout(g.tile, g.type);
+        tile = g.tile();
+        layout = t.get_layout(g.tile(), g.scalar_type());
         layout = layout.with_block({k_var, copies});
     }
 
@@ -265,13 +336,13 @@ void apply_post_ops(const dnnl::impl::gpu::intel::gpu_post_ops_t &ops,
                             : expr_t(0); //TODO: Get actual size
                 }
 
-                return {arg("binary" + i_s),
-                        dnnl::impl::gpu::intel::jit::to_ir(e.src1_desc.dt),
-                        src_g_offset, coord_t(), g_sizes, g_strides, {}};
+                return {arg("binary" + i_s), src_g_offset, coord_t(), g_sizes,
+                        g_strides, {}};
             }();
 
-            layout_t src_layout = {src_g.type};
-            for (auto &b : C.layout.blocks()) {
+            layout_t src_layout = {src_g.scalar_type()};
+            auto C_layout = C.layout();
+            for (auto &b : C_layout.blocks()) {
                 if (!e.src1_desc.is_broadcast(dim_to_md[b.idx], ndims)) {
                     src_layout = src_layout.with_block({b.idx, b.size});
                 } else {
@@ -285,9 +356,7 @@ void apply_post_ops(const dnnl::impl::gpu::intel::gpu_post_ops_t &ops,
             load(src, src_g);
 
             switch (e.alg) {
-                case dnnl::impl::alg_kind::binary_add:
-                    binary(ir::op_kind_t::_add, C, C, src);
-                    break;
+                case dnnl::impl::alg_kind::binary_add: C += src; break;
                 default: stub();
             }
 
@@ -302,27 +371,27 @@ struct basic_iterator_t : kloop_iterator_t {
     basic_iterator_t(const global_tensor_t &A, int A_prefetch_k_blk,
             int A_load_k_blk, const global_tensor_t &B, int B_prefetch_k_blk,
             int B_load_k_blk, const global_tensor_t &C)
-        : m_idx_ {C.coord[m_var]}
-        , m_(C.sizes[m_var])
-        , n_idx_ {C.coord[n_var]}
-        , n_(C.sizes[n_var])
-        , k_idx_ {A.coord[k_var]}
-        , k_ {A.sizes[k_var]}
-        , A_prefetch_ {A.buf, A.type, A.base_offset, A.coord, A.sizes,
-                  A.strides,
-                  tile_t {{m_var, C.tile[m_var]}, {k_var, A_prefetch_k_blk}}}
-        , A_load_ {A.buf, A.type, A.base_offset, A.coord, A.sizes, A.strides,
-                  tile_t {{m_var, C.tile[m_var]}, {k_var, A_load_k_blk}}}
-        , B_prefetch_ {B.buf, B.type, B.base_offset, B.coord, B.sizes,
-                  B.strides,
-                  tile_t {{k_var, B_prefetch_k_blk}, {n_var, C.tile[n_var]}}}
-        , B_load_ {B.buf, B.type, B.base_offset, B.coord, B.sizes, B.strides,
-                  tile_t {{k_var, B_load_k_blk}, {n_var, C.tile[n_var]}}}
+        : m_idx_ {C.coord()[m_var]}
+        , m_(C.sizes()[m_var])
+        , n_idx_ {C.coord()[n_var]}
+        , n_(C.sizes()[n_var])
+        , k_idx_ {A.coord()[k_var]}
+        , k_ {A.sizes()[k_var]}
+        , A_prefetch_ {A.buf(), A.base_offset(), A.coord(), A.sizes(),
+                  A.strides(),
+                  tile_t {{m_var, C.tile()[m_var]}, {k_var, A_prefetch_k_blk}}}
+        , A_load_ {A.buf(), A.base_offset(), A.coord(), A.sizes(), A.strides(),
+                  tile_t {{m_var, C.tile()[m_var]}, {k_var, A_load_k_blk}}}
+        , B_prefetch_ {B.buf(), B.base_offset(), B.coord(), B.sizes(),
+                  B.strides(),
+                  tile_t {{k_var, B_prefetch_k_blk}, {n_var, C.tile()[n_var]}}}
+        , B_load_ {B.buf(), B.base_offset(), B.coord(), B.sizes(), B.strides(),
+                  tile_t {{k_var, B_load_k_blk}, {n_var, C.tile()[n_var]}}}
         , C_store_ {C}
 
     {
-        assume(m_idx_ % C.tile[m_var] == 0);
-        assume(n_idx_ % C.tile[n_var] == 0);
+        assume(m_idx_ % C.tile()[m_var] == 0);
+        assume(n_idx_ % C.tile()[n_var] == 0);
 
         assume(m_idx_ >= 0);
         assume(n_idx_ >= 0);
@@ -337,22 +406,22 @@ struct basic_iterator_t : kloop_iterator_t {
 
     void A_prefetch_inc(int64_t k_block) override {
         A_prefetch_off += k_block;
-        A_prefetch_.coord[k_var] = k_idx_ + A_prefetch_off;
+        A_prefetch_.set_coord(k_var, k_idx_ + A_prefetch_off);
     }
 
     void A_load_inc(int64_t k_block) override {
         A_load_off += k_block;
-        A_load_.coord[k_var] = k_idx_ + A_load_off;
+        A_load_.set_coord(k_var, k_idx_ + A_load_off);
     }
 
     void B_prefetch_inc(int64_t k_block) override {
         B_prefetch_off += k_block;
-        B_prefetch_.coord[k_var] = k_idx_ + B_prefetch_off;
+        B_prefetch_.set_coord(k_var, k_idx_ + B_prefetch_off);
     }
 
     void B_load_inc(int64_t k_block) override {
         B_load_off += k_block;
-        B_load_.coord[k_var] = k_idx_ + B_load_off;
+        B_load_.set_coord(k_var, k_idx_ + B_load_off);
     }
 
     void kloop_inc(int64_t k_block) override {
@@ -393,9 +462,12 @@ private:
 
 struct generator_dsl_t {
     generator_dsl_t(const generator_dsl_desc_t &desc)
-        : problem(desc.problem), strategy(desc.strategy) {}
+        : problem(desc.problem)
+        , strategy(desc.strategy)
+        , iface(desc.kernel_iface())
+        , options(desc.options) {}
 
-    kernel_t build(kernel::iface_t iface, ir::ir_context_t &ctx) {
+    kernel_t build() {
         if (strategy.kParallel || strategy.kParallelLocal) {
             dsl_warning() << "kParallel support is unimplemented";
             return {};
@@ -431,7 +503,7 @@ struct generator_dsl_t {
             return {};
         }
 
-        declare_kernel(iface, ctx);
+        declare_kernel(iface, options);
 
         const auto m = arg("m");
         const auto n = arg("n");
@@ -456,20 +528,22 @@ struct generator_dsl_t {
         tile_t C_dims {{{m_var, m_blk}, {n_var, n_blk}}};
         auto C_store_transform = get_transform(strategy.C, C_vars);
 
-        tensor_t C = def("C_blk",
-                C_store_transform.get_layout(C_dims, into_ir(problem.Tc)), 0);
+        tensor_t C = def(
+                "C_blk", C_store_transform.get_layout(C_dims, problem.Tc), 0);
 
-        idx_t subgroup_dim = C.layout[0].idx;
+        idx_t subgroup_dim = C.layout()[0].idx;
         int m_group_idx = strategy.loopOrder[0] == LoopM ? 0 : 1;
+        auto thr_local_id = [](int idx) { return extract(local_id(idx), 0); };
+
         auto m_idx = let("m_idx",
                 (group_id(m_group_idx) * local_size(m_group_idx)
-                        + local_id(m_group_idx))
+                        + thr_local_id(m_group_idx))
                         * (subgroup_dim == m_var ? m_blk / strategy.subgroupSize
                                                  : m_blk));
         int n_group_idx = strategy.loopOrder[0] == LoopN ? 0 : 1;
         auto n_idx = let("n_idx",
                 (group_id(n_group_idx) * local_size(n_group_idx)
-                        + local_id(n_group_idx))
+                        + thr_local_id(n_group_idx))
                         * (subgroup_dim == n_var ? n_blk / strategy.subgroupSize
                                                  : n_blk));
         auto k_idx = def("k_idx", k.type(), 0);
@@ -500,17 +574,17 @@ struct generator_dsl_t {
             }();
 
             auto id = let("batch_id" + std::to_string(problem.batchDims - 1),
-                    group_id(2) * local_size(2) + local_id(2));
+                    group_id(2) * local_size(2) + thr_local_id(2));
             for (int i = problem.batchDims - 1; i >= 0; i--) {
                 std::string i_s = std::to_string(i);
 
                 auto idx = let("batch_idx" + i_s, [&]() {
-                    if (i == 0) return id;
+                    if (i == 0) return expr_t(id);
                     auto id_next = let("batch_id" + std::to_string(i - 1),
                             ternary_idiv(id, info[i - 1].size,
                                     info[i - 1].idiv_magic));
                     auto ret = id - info[i - 1].size * id_next;
-                    id = id_next;
+                    id.assign(id_next);
                     return ret;
                 }());
                 C_idxs.emplace_back(idx);
@@ -521,13 +595,13 @@ struct generator_dsl_t {
             }
         }
 
-        global_tensor_t A_base {arg("A"), into_ir(problem.Ta_ext), offset_A,
+        global_tensor_t A_base {arg("A"), offset_A,
                 {{m_var, m_idx}, {k_var, k_idx}}, {{m_var, m}, {k_var, k}},
                 get_strides(problem.A.layout, A_vars, arg("lda")), {}};
-        global_tensor_t B_base {arg("B"), into_ir(problem.Tb_ext), offset_B,
+        global_tensor_t B_base {arg("B"), offset_B,
                 {{k_var, k_idx}, {n_var, n_idx}}, {{k_var, k}, {n_var, n}},
                 get_strides(problem.B.layout, B_vars, arg("ldb")), {}};
-        global_tensor_t C_base {arg("C"), into_ir(problem.Tc_ext), offset_B,
+        global_tensor_t C_base {arg("C"), offset_B,
                 {{m_var, m_idx}, {n_var, n_idx}}, {{m_var, m}, {n_var, n}},
                 get_strides(problem.C.layout, C_vars, arg("ldc")),
                 {{m_var, m_blk}, {n_var, n_blk}}};
@@ -565,9 +639,9 @@ struct generator_dsl_t {
                 std::move(A_load), std::move(B_load), A_prefetch_transform,
                 B_prefetch_transform, C};
 
-        dsl_assert(k_loop_main.A_load_warmup() % kloop_it.A_load().tile[k_var]
+        dsl_assert(k_loop_main.A_load_warmup() % kloop_it.A_load().tile()[k_var]
                 == 0);
-        dsl_assert(k_loop_main.B_load_warmup() % kloop_it.B_load().tile[k_var]
+        dsl_assert(k_loop_main.B_load_warmup() % kloop_it.B_load().tile()[k_var]
                 == 0);
 
         tensor_config_t A_load_short(kloop_it.A_load(), A_load_transform, 1);
@@ -577,7 +651,7 @@ struct generator_dsl_t {
                 = (int)lcm(A_load_short.tile[k_var], B_load_short.tile[k_var]);
         k_loop_config_t k_loop_short {k_blk_short, 0, 0, kloop_it,
                 std::move(A_load_short), std::move(B_load_short),
-                A_prefetch_transform, B_prefetch_transform, std::move(C)};
+                A_prefetch_transform, B_prefetch_transform, C};
         dsl_assert(k_loop_short.k_warmup() == 0);
 
         if (problem.A.alignment) {
@@ -639,8 +713,9 @@ struct generator_dsl_t {
             return (loop_idx + warmup_size) % period;
         };
 
-        auto A_prefetch_blk
-                = cfg.A_prefetch_warmup ? kloop_it.A_prefetch().tile[k_var] : 0;
+        auto A_prefetch_blk = cfg.A_prefetch_warmup
+                ? kloop_it.A_prefetch().tile()[k_var]
+                : 0;
         auto A_prefetch = [&](int64_t k_unroll_idx) {
             if (cfg.A_prefetch_warmup == 0) return;
             auto idx = pipeline_idx(
@@ -661,11 +736,12 @@ struct generator_dsl_t {
             kloop_it.A_load_inc(A_load_blk);
         };
 
-        auto B_prefetch_blk
-                = cfg.B_prefetch_warmup ? kloop_it.B_prefetch().tile[k_var] : 0;
+        auto B_prefetch_blk = cfg.B_prefetch_warmup
+                ? kloop_it.B_prefetch().tile()[k_var]
+                : 0;
         auto B_prefetch = [&](int64_t k_unroll_idx) {
             if (cfg.B_prefetch_warmup == 0) return;
-            auto idx = pipeline_idx(
+            int64_t idx = pipeline_idx(
                     k_unroll_idx, cfg.B_prefetch_warmup, B_prefetch_blk);
             if (idx % B_prefetch_blk != 0) return;
             prefetch(kloop_it.B_prefetch(), {{k_var, 0}},
@@ -683,7 +759,7 @@ struct generator_dsl_t {
             kloop_it.B_load_inc(B_load_blk);
         };
 
-        auto k_unroll_blk = [&]() {
+        int64_t k_unroll_blk = [&]() {
             auto ret = k_blk;
             for (auto v :
                     {A_prefetch_blk, A_load_blk, B_prefetch_blk, B_load_blk}) {
@@ -705,9 +781,10 @@ struct generator_dsl_t {
 
             if (do_mma) {
                 if (k_offset % mma_k_blk == 0) {
-                    tile_t tile = C.layout.tile();
+                    tile_t tile = C.tile();
                     tile[k_var] = mma_k_blk;
-                    mma(C, A, B, tile, {{k_var, k_offset}}, strategy.systolic);
+                    multiply(C, A, B, tile, {{k_var, k_offset}},
+                            strategy.systolic);
                 }
             }
         };
@@ -748,24 +825,12 @@ struct generator_dsl_t {
 
     const GEMMProblem &problem;
     const GEMMStrategy &strategy;
+    const kernel::iface_t &iface;
+    const kernel::options_t &options;
 };
 
 kernel_t make_kernel(const generator_dsl_desc_t &desc) {
-    ir::constraint_set_t cset;
-    ir::ir_context_t ctx(desc.options, cset);
-
-    ir::trace_start();
-    auto k = generator_dsl_t(desc).build(desc.kernel_iface(), ctx);
-    ir::trace_pass("build generator_dsl_t", k.body, ctx);
-
-    k.body = ir::simplify(k.body, ctx);
-    k.body = ir::inject_send(k.body, ctx);
-
-    // TODO: This should be unnecessary as it could happen at codegen
-    k.body = ir::fixup_if_conditions(k.body, ctx);
-    k.body = ir::eliminate_common_subexprs(
-            k.body, ctx, desc.strategy.GRFs * ctx.hw().grf_size());
-    return k;
+    return generator_dsl_t(desc).build();
 }
 
 GEMMSTONE_NAMESPACE_END

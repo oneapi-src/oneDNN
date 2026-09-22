@@ -37,7 +37,7 @@ public:
         auto expr = mutate(obj.expr);
         if (!type.is_scalar()) {
             gpu_assert(type.elems() == elems_) << expr;
-            type = type.base();
+            type = type.scalar();
         }
         return cast_t::make(type, expr, obj.saturate);
     }
