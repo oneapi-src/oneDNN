@@ -20,8 +20,10 @@
 #include <assert.h>
 
 #include "common/c_types_map.hpp"
+#include "common/dnnl_thread.hpp"
 #include "common/reorder_pd.hpp"
 #include "common/utils.hpp"
+
 #include "cpu/cpu_engine.hpp"
 
 namespace dnnl {
