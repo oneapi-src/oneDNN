@@ -44,7 +44,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
 
             REG_FAST_DIRECT_COPY_F32_F32
 
-            REG_SR(f32, any, f32, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},
@@ -81,7 +81,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, IOw8o8i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, IOw16o16i))
 
-            REG_SR(f32, any, f32, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},
@@ -137,7 +137,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, OIhw4i16o4i))
 
-            REG_SR(f32, any, f32, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},
@@ -195,7 +195,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
 
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gOIhw4i16o4i))
 
-            REG_SR(f32, any, f32, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},
@@ -226,7 +226,7 @@ const impl_list_map_t &regular_f32_f32_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gIOdhw8o8i))
             DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, f32, gIOdhw16o16i))
 
-            REG_SR(f32, any, f32, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},

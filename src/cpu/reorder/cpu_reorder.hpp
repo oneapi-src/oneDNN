@@ -21,6 +21,7 @@
 #include <map>
 #include <vector>
 
+#include "cpu/reorder/ref_reorder.hpp"
 #include "cpu/reorder/simple_reorder.hpp"
 #include "cpu/reorder/simple_sparse_reorder.hpp"
 

@@ -480,6 +480,30 @@ struct memory_desc_wrapper {
         return non_unit_dims <= n;
     }
 
+    /** returns the index of the innermost (most densely packed) logical
+     * dimension, i.e. the one that varies fastest in memory. When the format
+     * has inner blocks, it is the dimension of the last block; otherwise it is
+     * the dimension with the smallest stride, excluding unit and broadcast dims
+     * whose strides would otherwise tie with and mask the real packed axis
+     * (e.g. dims [1, N] with a `ba` layout has strides [1, 1], yet dim 1 is the
+     * packed axis). */
+    int innermost_dim() const {
+        const auto &bd = blocking_desc();
+        if (bd.inner_nblks > 0)
+            return static_cast<int>(bd.inner_idxs[bd.inner_nblks - 1]);
+
+        int inner_dim = ndims() - 1;
+        dim_t min_stride = 0;
+        for (int d = 0; d < ndims(); d++) {
+            if (dims()[d] == 1 || bd.strides[d] == 0) continue;
+            if (min_stride == 0 || bd.strides[d] < min_stride) {
+                min_stride = bd.strides[d];
+                inner_dim = d;
+            }
+        }
+        return inner_dim;
+    }
+
     /** returns true if data is dense in memory */
     bool is_dense(bool with_padding = false) const {
         if (utils::one_of(format_kind(), format_kind::undef, format_kind::any))

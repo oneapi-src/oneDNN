@@ -35,7 +35,7 @@ const impl_list_map_t &regular_f32_f16_impl_list_map() {
             CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
             CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
 
-            REG_SR(f32, any, f16, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},
