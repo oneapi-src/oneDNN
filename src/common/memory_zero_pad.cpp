@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <atomic>
 #include <cassert>
 
 #include "dnnl_thread.hpp"
@@ -189,6 +190,72 @@ void typed_zero_pad_generic_blocked(
     });
 }
 
+// Sub-byte data types pack several elements into a shared byte or bytes, thus
+// a byte-based zeroing (as in the routines above) would write past the buffer
+// and corrupt neighbor elements. The physical offset of each element is
+// resolved individually (via `off_l`) because for formats with multiple inner
+// blocks the innermost logical run is not physically contiguous. A byte may be
+// shared between a padded and a non-padded element, or between two parallel
+// threads, so every byte an element occupies is updated with an atomic
+// bit-clear that keeps the byte's other elements intact regardless of the
+// update order.
+template <data_type_t dt>
+void typed_zero_pad_sub_byte(
+        const memory_desc_wrapper &m_d, void *data_handle) {
+    auto *data = reinterpret_cast<uint8_t *>(data_handle);
+    const int ndims = m_d.ndims();
+    const auto &dims = m_d.dims();
+    const auto &pdims = m_d.padded_dims();
+    const ptrdiff_t nelems = (ptrdiff_t)m_d.nelems(true);
+    const int bits_per_elem = types::data_type_bits(dt);
+
+    ptrdiff_t step = 1;
+    int step_dim = ndims - 1;
+    for (; step_dim >= 0; --step_dim) {
+        if (dims[step_dim] != pdims[step_dim]) break;
+        step *= dims[step_dim];
+    }
+
+    assert(step_dim >= 0 && "no zero padding is required");
+    if (step_dim < 0) return;
+
+    parallel_nd(nelems / step, [=](ptrdiff_t e1) {
+        bool need_zero = false;
+
+        ptrdiff_t idx = e1;
+        for (int d = step_dim; d >= 0; --d) {
+            if (idx % pdims[d] >= dims[d]) {
+                need_zero = true;
+                break;
+            }
+            idx /= pdims[d];
+        }
+
+        if (need_zero) {
+            for (ptrdiff_t e0 = 0; e0 < step; ++e0) {
+                const auto off = m_d.off_l(e1 * step + e0, true);
+                const size_t start_bit
+                        = static_cast<size_t>(off * bits_per_elem);
+                const size_t end_bit = start_bit + bits_per_elem;
+                const size_t first_byte = start_bit / 8;
+                const size_t last_byte = (end_bit - 1) / 8;
+                for (size_t b = first_byte; b <= last_byte; ++b) {
+                    const int lo = b == first_byte
+                            ? static_cast<int>(start_bit - b * 8)
+                            : 0;
+                    const int hi = b == last_byte
+                            ? static_cast<int>(end_bit - b * 8)
+                            : 8;
+                    const uint8_t clear_mask = ~static_cast<uint8_t>(
+                            ((1u << (hi - lo)) - 1) << lo);
+                    reinterpret_cast<std::atomic<uint8_t> *>(&data[b])
+                            ->fetch_and(clear_mask, std::memory_order_relaxed);
+                }
+            }
+        }
+    });
+}
+
 template <data_type_t dt>
 status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     const memory_desc_wrapper mdw(memory->md());
@@ -275,12 +342,35 @@ status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     return success;
 }
 
+template <data_type_t dt>
+status_t typed_zero_pad_sub_byte_entry(
+        const memory_t *memory, const exec_ctx_t &ctx) {
+    const memory_desc_wrapper mdw(memory->md());
+    memory_storage_t *memory_storage = memory->memory_storage();
+
+    if (mdw.format_kind() != format_kind::blocked) return unimplemented;
+
+    if (mdw.nelems(false) == mdw.nelems(true)) return success;
+
+    const size_t map_size = mdw.size();
+    assert(!is_runtime_value(map_size));
+
+    void *mapped_ptr
+            = ctx.map_memory_storage(memory_storage, ctx.stream(), map_size);
+
+    typed_zero_pad_sub_byte<dt>(mdw, mapped_ptr);
+
+    ctx.unmap_memory_storage(memory_storage, mapped_ptr, ctx.stream());
+    return success;
+}
+
 static status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     memory_desc_wrapper mdw(memory->md());
     switch (mdw.data_type()) {
         case f16: return typed_zero_pad<f16>(memory, ctx);
         case bf16: return typed_zero_pad<bf16>(memory, ctx);
-        case f4_e2m1: return typed_zero_pad<f4_e2m1>(memory, ctx);
+        case f4_e2m1:
+            return typed_zero_pad_sub_byte_entry<f4_e2m1>(memory, ctx);
         case e8m0: return typed_zero_pad<e8m0>(memory, ctx);
         case f8_e5m2: return typed_zero_pad<f8_e5m2>(memory, ctx);
         case f8_e4m3: return typed_zero_pad<f8_e4m3>(memory, ctx);
@@ -288,9 +378,9 @@ static status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
         case s32: return typed_zero_pad<s32>(memory, ctx);
         case s8: return typed_zero_pad<s8>(memory, ctx);
         case u8: return typed_zero_pad<u8>(memory, ctx);
-        case s4: return typed_zero_pad<s8>(memory, ctx);
-        case u4: return typed_zero_pad<u8>(memory, ctx);
-        case u2: return typed_zero_pad<u8>(memory, ctx);
+        case s4: return typed_zero_pad_sub_byte_entry<s4>(memory, ctx);
+        case u4: return typed_zero_pad_sub_byte_entry<u4>(memory, ctx);
+        case u2: return typed_zero_pad_sub_byte_entry<u2>(memory, ctx);
         case f64: return typed_zero_pad<f64>(memory, ctx);
         default: assert(!"memory is undefined"); return unimplemented;
     }
