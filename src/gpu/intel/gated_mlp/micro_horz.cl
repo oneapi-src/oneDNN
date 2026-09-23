@@ -49,7 +49,8 @@ DECLARE_2D_TILE_BLOCK_OPS(wgu_tile_type, uint, SUBGROUP_SIZE,
         ugemm_wgu_wg_tile_m / 2, 1, 1, wgu_tile_sg_n)
 #elif SRC_ALIGN < 4
 DECLARE_2D_TILE_LOAD_PACKED_VEC(wgu_tile_type, SRC_DATA_T, VEC_TYPE2,
-        SUBGROUP_SIZE, ugemm_wgu_wg_tile_m / 2, 1, 1, wgu_tile_sg_n)
+        as_native_layout, 2, SUBGROUP_SIZE, ugemm_wgu_wg_tile_m / 2, 1, 1,
+        wgu_tile_sg_n)
 #endif
 
 #if PREFETCH_REMAINDER
@@ -175,7 +176,7 @@ micro_gated_mlp_horz(const __global SRC_DATA_T *src,
         tile_load(&src_tile, (global uint *)src, (lds + 1) >> 1, IC, lds >> 1,
                 k0 / 2, wg_i0 + wgu0_copy);
 #else
-        tile_load_packed_vec2(
+        tile_load_packed_vec(
                 &src_tile, src, IC, MB, lds, k0, wg_i0 + wgu0_copy);
 #endif
 
