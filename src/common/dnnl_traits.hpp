@@ -24,6 +24,7 @@
 #include "float8.hpp"
 #include "int2.hpp"
 #include "int4.hpp"
+#include "nibble.hpp"
 
 #include <cstdint>
 
@@ -42,6 +43,7 @@ struct pkind_traits_t {}; /* ::desc_type, ::query_d */
 template <>
 struct prec_traits_t<data_type::f4_e2m1> {
     using type = float4_e2m1_t;
+    using nibble_type = nibble2_t;
 };
 template <>
 struct prec_traits_t<data_type::e8m0> {
@@ -90,14 +92,17 @@ struct prec_traits_t<data_type::u8> {
 template <>
 struct prec_traits_t<data_type::s4> {
     using type = int4_t;
+    using nibble_type = nibble2_t;
 };
 template <>
 struct prec_traits_t<data_type::u4> {
     using type = uint4_t;
+    using nibble_type = nibble2_t;
 };
 template <>
 struct prec_traits_t<data_type::u2> {
     using type = uint2_t;
+    using nibble_type = nibble4_t;
 };
 template <>
 struct prec_traits_t<data_type::boolean> {

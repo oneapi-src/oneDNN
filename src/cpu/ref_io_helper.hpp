@@ -31,7 +31,20 @@ namespace impl {
 namespace cpu {
 namespace io {
 
-inline int load_int_value(data_type_t dt, const void *ptr, dim_t idx) {
+namespace {
+template <data_type_t dt>
+ALWAYS_INLINE void store_subbyte(float val, void *ptr, dim_t idx) {
+    using _nibble_type = typename prec_traits_t<dt>::nibble_type;
+    auto *_ptr = reinterpret_cast<_nibble_type *>(ptr);
+    _nibble_type _nibble = _ptr[idx / _nibble_type::nelems()];
+    using _type = typename prec_traits_t<dt>::type;
+    _type _val(cpu::q10n::saturate_and_round<_type>(val));
+    _nibble.set(_val.raw_bits_, idx % _nibble_type::nelems());
+    _ptr[idx / _nibble_type::nelems()] = _nibble;
+}
+} // namespace
+
+ALWAYS_INLINE int load_int_value(data_type_t dt, const void *ptr, dim_t idx) {
     assert(ptr);
 #define CASE(dt) \
     case dt: \
@@ -69,7 +82,8 @@ inline int load_int_value(data_type_t dt, const void *ptr, dim_t idx) {
     return INT_MAX;
 }
 
-inline int64_t load_int64_value(data_type_t dt, const void *ptr, dim_t idx) {
+ALWAYS_INLINE int64_t load_int64_value(
+        data_type_t dt, const void *ptr, dim_t idx) {
     assert(ptr);
     if (dt == data_type::s64)
         return reinterpret_cast<const int64_t *>(ptr)[idx];
@@ -127,7 +141,8 @@ ALWAYS_INLINE float load_float_value(
     return NAN;
 }
 
-inline void store_float_value(data_type_t dt, float val, void *ptr, dim_t idx) {
+ALWAYS_INLINE void store_float_value(
+        data_type_t dt, float val, void *ptr, dim_t idx) {
     assert(ptr);
 #define CASE(dt) \
     case dt: { \
@@ -147,14 +162,10 @@ inline void store_float_value(data_type_t dt, float val, void *ptr, dim_t idx) {
         CASE(s8);
         CASE(u8);
         CASE(e8m0);
-        case f4_e2m1: {
-            auto dst_ = reinterpret_cast<nibble2_t *>(ptr);
-            nibble2_t nibble_pair = dst_[idx / 2];
-            float4_e2m1_t f4_val(val);
-            nibble_pair.set(f4_val.raw_bits_, idx % 2);
-            dst_[idx / 2] = nibble_pair;
-            break;
-        }
+        case f4_e2m1: store_subbyte<f4_e2m1>(val, ptr, idx); break;
+        case s4: store_subbyte<s4>(val, ptr, idx); break;
+        case u4: store_subbyte<u4>(val, ptr, idx); break;
+        case u2: store_subbyte<u2>(val, ptr, idx); break;
         default: assert(!"bad data_type");
     }
 
