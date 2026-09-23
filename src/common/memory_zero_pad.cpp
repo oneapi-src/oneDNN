@@ -76,18 +76,18 @@ void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
             d[b] = 0;
     };
     auto zeroize_tail_inner = [=](data_t *d, const int tail_s) {
-        for (int b1 = 0; b1 < blksize; ++b1)
-            for (int b2 = tail_s; b2 < blksize; ++b2)
-                d[(b1 / inner_blk) * blksize * inner_blk + inner_blk * b2
-                        + b1 % inner_blk]
-                        = 0;
+        for_(int b1 = 0; b1 < blksize; ++b1)
+        for (int b2 = tail_s; b2 < blksize; ++b2)
+            d[(b1 / inner_blk) * blksize * inner_blk + inner_blk * b2
+                    + b1 % inner_blk]
+                    = 0;
     };
     auto zeroize_tail_outer = [=](data_t *d, const int tail_s) {
-        for (int b1 = tail_s; b1 < blksize; ++b1)
-            for (int b2 = 0; b2 < blksize; ++b2)
-                d[(b1 / inner_blk) * blksize * inner_blk + inner_blk * b2
-                        + b1 % inner_blk]
-                        = 0;
+        for_(int b1 = tail_s; b1 < blksize; ++b1)
+        for (int b2 = 0; b2 < blksize; ++b2)
+            d[(b1 / inner_blk) * blksize * inner_blk + inner_blk * b2
+                    + b1 % inner_blk]
+                    = 0;
     };
 
     if (c_tail_s) {
