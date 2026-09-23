@@ -166,6 +166,7 @@ status_t memory_desc_strides_check(
     int max_stride_d = 0;
 
     dim_t min_stride = block_size;
+
     for (int idx = 0; idx < md.ndims; ++idx) {
         const int d = perm[idx];
 
@@ -183,15 +184,15 @@ status_t memory_desc_strides_check(
                     status::invalid_arguments, VERBOSE_INTEGRAL_OVERFLOW_DIM,
                     "strides", d);
 
-        using namespace data_type;
-        if (utils::one_of(md.data_type, s4, u4, f4_e2m1)) {
+        // Check for data type explicitly to avoid hitting potential assert.
+        if (md.data_type != data_type::undef
+                && types::data_type_bits(md.data_type) < 8) {
+            const int dt_bits = types::data_type_bits(md.data_type);
+            constexpr int bits_in_byte = 8;
+            int elems_in_bytes = math::lcm(dt_bits, bits_in_byte) / dt_bits;
             VCONDCHECK(common, create, check, memory,
-                    IMPLICATION(strides[d] > 1, strides[d] % 2 == 0),
-                    status::invalid_arguments, VERBOSE_BAD_DIM, "strides", d);
-        }
-        if (md.data_type == u2) {
-            VCONDCHECK(common, create, check, memory,
-                    IMPLICATION(strides[d] > 1, strides[d] % 4 == 0),
+                    IMPLICATION(
+                            strides[d] > 1, strides[d] % elems_in_bytes == 0),
                     status::invalid_arguments, VERBOSE_BAD_DIM, "strides", d);
         }
 
