@@ -25,13 +25,11 @@ namespace cpu {
 const impl_list_map_t &regular_u2_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         {{f32, u2, 0}, {
-            REG_SR(f32, any, u2, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
             nullptr,
         }},
         {{u2, data_type::undef, 0}, {
-            REG_SR(u2, any, f32, any, fmt_order::any, spec::reference)
-            REG_SR(u2, any, bf16, any, fmt_order::any, spec::reference)
-            REG_SR(u2, any, f16, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
             nullptr,
         }},
     });

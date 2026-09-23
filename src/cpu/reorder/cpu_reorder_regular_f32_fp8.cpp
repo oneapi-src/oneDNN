@@ -26,7 +26,7 @@ const impl_list_map_t &regular_f32_fp8_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         // f32 -> e8m0
         {{f32, e8m0, 0}, {
-            REG_SR(f32, any, e8m0, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
             nullptr,
         }},
         // f32 -> f8_e5m2
@@ -35,7 +35,7 @@ const impl_list_map_t &regular_f32_fp8_impl_list_map() {
             CPU_INSTANCE_X64(x64::jit_blk_reorder_t)
             CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
 
-            REG_SR(f32, any, f8_e5m2, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},
@@ -45,7 +45,7 @@ const impl_list_map_t &regular_f32_fp8_impl_list_map() {
             CPU_INSTANCE_X64(x64::jit_blk_reorder_t)
             CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
 
-            REG_SR(f32, any, f8_e4m3, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},

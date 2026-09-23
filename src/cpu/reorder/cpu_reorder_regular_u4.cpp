@@ -26,15 +26,13 @@ const impl_list_map_t &regular_u4_impl_list_map() {
     static const impl_list_map_t the_map = REG_REORDER_P({
         {{f32, u4, 0}, {
             CPU_INSTANCE_X64_ZEN(x64::zen::reorder::zen_reorder_t)
-            REG_SR(f32, any, u4, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
             nullptr,
         }},
         {{u4, data_type::undef, 0}, {
             CPU_INSTANCE_X64_ZEN(x64::zen::reorder::zen_reorder_t)
             CPU_INSTANCE_X64(x64::brgemm_matmul_copy_reorder_t)
-            REG_SR(u4, any, f32, any, fmt_order::any, spec::reference)
-            REG_SR(u4, any, bf16, any, fmt_order::any, spec::reference)
-            REG_SR(u4, any, f16, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
             nullptr,
         }},
     });

@@ -49,7 +49,7 @@ const impl_list_map_t &regular_f32_bf16_impl_list_map() {
             DNNL_NON_X64_ONLY(REG_SR(f32, oihw, bf16, OIhw16i16o, fmt_order::keep))
             DNNL_NON_X64_ONLY(REG_SR(f32, goihw, bf16, gOIhw16i16o, fmt_order::keep))
 
-            REG_SR(f32, any, bf16, any, fmt_order::any, spec::reference)
+            CPU_INSTANCE(ref_reorder_t)
 
             nullptr,
         }},

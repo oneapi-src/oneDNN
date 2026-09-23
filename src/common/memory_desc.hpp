@@ -127,6 +127,8 @@ struct blocking_desc_t {
     dims_t inner_blks;
     // The logical indices of the blocks, e.g. `{1, 0, 1}` in case of
     // `4i16o4i`, because `i` is the 1st dim and `o` is the 0st dim
+    // TODO: since indices represent values of ndims range, these should become
+    // `int` instead.
     dims_t inner_idxs;
 };
 
