@@ -161,7 +161,7 @@ jobs:
       - name: React to dispatched command
         if: ${{ success() && steps.cmd.outputs.run == 'true' }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
         run: |
           gh api -X POST \
             "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
