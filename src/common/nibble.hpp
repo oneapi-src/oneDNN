@@ -23,20 +23,34 @@
 namespace dnnl {
 namespace impl {
 
+namespace {
+// This helper is mandatory to resolve -Wconversion hits due to a long-standing
+// behavior in GCC and Clang's -Wconversion analysis engine:
+// In C++, bitwise operations (like >>) on uint8_t are automatically promoted
+// to int. Because the compiler sees the assignment of 32-bit int down to
+// a 4-bit width variable inside a constructor initializer list, it flags it as
+// a narrowing conversion, completely ignoring `& 0xf` mask.
+constexpr uint8_t shift_bits(uint8_t v, uint8_t shift) {
+    return v >> shift;
+}
+} // namespace
+
 // An abstraction to manipulate with bits as bytes. `2` means there are two
 // elements in it.
 struct nibble2_t {
     // constructs a nibble pair from a pair of uint8_t values
-    nibble2_t(uint8_t low_, uint8_t high_) : low(low_), high(high_) {}
+    nibble2_t(uint8_t low_, uint8_t high_)
+        : low(low_ & 0xf), high(high_ & 0xf) {}
 
     // constructs a nibble pairs from an uin8_t, taking its low and high part
-    nibble2_t(uint8_t pack_) : low(pack_ & 0xf), high((pack_ >> 4) & 0xf) {}
+    nibble2_t(uint8_t pack_)
+        : low(shift_bits(pack_, 0) & 0xf), high(shift_bits(pack_, 4) & 0xf) {}
 
     // sets low (idx=0) or high (idx=1)  nibble.
     inline void set(uint8_t val, int idx) {
         switch (idx) {
-            case 0: low = val; return;
-            case 1: high = val; return;
+            case 0: low = val & 0xf; return;
+            case 1: high = val & 0xf; return;
             default: assert(!"Out of range index"); return;
         }
     }
@@ -71,22 +85,22 @@ static_assert(nibble2_t::size() == 1, "nibble2_t must be 1 byte");
 struct nibble4_t {
     // constructs a nibble quartet from a quartet of uint8_t values
     nibble4_t(uint8_t e0, uint8_t e1, uint8_t e2, uint8_t e3)
-        : e0_(e0), e1_(e1), e2_(e2), e3_(e3) {}
+        : e0_(e0 & 0x3), e1_(e1 & 0x3), e2_(e2 & 0x3), e3_(e3 & 0x3) {}
 
     // constructs a nibble quartet from an uin8_t
     nibble4_t(uint8_t pack)
-        : e0_((pack >> 0) & 0x3)
-        , e1_((pack >> 2) & 0x3)
-        , e2_((pack >> 4) & 0x3)
-        , e3_((pack >> 6) & 0x3) {}
+        : e0_(shift_bits(pack, 0) & 0x3)
+        , e1_(shift_bits(pack, 2) & 0x3)
+        , e2_(shift_bits(pack, 4) & 0x3)
+        , e3_(shift_bits(pack, 6) & 0x3) {}
 
     // sets an element @val in the nibble according to the @idx.
     inline void set(uint8_t val, int idx) {
         switch (idx) {
-            case 0: e0_ = val; return;
-            case 1: e1_ = val; return;
-            case 2: e2_ = val; return;
-            case 3: e3_ = val; return;
+            case 0: e0_ = val & 0x3; return;
+            case 1: e1_ = val & 0x3; return;
+            case 2: e2_ = val & 0x3; return;
+            case 3: e3_ = val & 0x3; return;
             default: assert(!"Out of range index"); return;
         }
     }
