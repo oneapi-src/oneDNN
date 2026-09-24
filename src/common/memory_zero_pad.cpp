@@ -32,16 +32,25 @@ using namespace dnnl::impl::status;
 
 enum blk_kind_t { a, b, c, ab, ba, bc, cb };
 
-template <data_type_t dt, blk_kind_t blk_kind, int blksize>
-void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
-    /* Note: for bf16 memory,
-     * use uint16_t for initialization of padding to zero,
-     * in order to avoid using assign operators defined in bfloat16_t.
-     * This allows user will be to create bf16 memory
-     * on non-avx512_core machines. */
-    using data_t = typename utils::conditional<dt == bf16, uint16_t,
-            typename prec_traits_t<dt>::type>::type;
-    auto data = reinterpret_cast<data_t *>(data_handle);
+namespace {
+// A padding element only ever needs to be set to zero, so its data type is
+// irrelevant beyond the number of bytes it occupies. Emitting a single
+// width-sized store avoids both a runtime `memset` call and a per-byte loop.
+ALWAYS_INLINE void zero_element(uint8_t *p, size_t element_size) {
+    switch (element_size) {
+        case 1: *reinterpret_cast<uint8_t *>(p) = 0; break;
+        case 2: *reinterpret_cast<uint16_t *>(p) = 0; break;
+        case 4: *reinterpret_cast<uint32_t *>(p) = 0; break;
+        case 8: *reinterpret_cast<uint64_t *>(p) = 0; break;
+        default: assert(!"unsupported element size"); break;
+    }
+}
+} // namespace
+
+template <blk_kind_t blk_kind>
+void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle,
+        size_t element_size, dim_t blksize) {
+    auto *data = reinterpret_cast<uint8_t *>(data_handle);
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.padded_dims();
     const auto &blk = m_d.blocking_desc();
@@ -57,9 +66,9 @@ void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
     assert((A_blocked || B_blocked || C_blocked) || (A_blocked && B_blocked)
             || (C_blocked && B_blocked));
 
-    const int a_tail_s = A_blocked ? dims[0] % blksize : 0;
-    const int b_tail_s = B_blocked ? dims[1] % blksize : 0;
-    const int c_tail_s = C_blocked ? dims[2] % blksize : 0;
+    const dim_t a_tail_s = A_blocked ? dims[0] % blksize : 0;
+    const dim_t b_tail_s = B_blocked ? dims[1] % blksize : 0;
+    const dim_t c_tail_s = C_blocked ? dims[2] % blksize : 0;
     assert(a_tail_s || b_tail_s || c_tail_s);
 
     const int ndims = m_d.ndims();
@@ -72,29 +81,31 @@ void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
     const dim_t F = ndims <= 5 ? 1 : dims[5];
     const dim_t inner_blk = blk.inner_nblks == 3 ? blk.inner_blks[2] : 1;
 
-    auto zeroize_tail = [=](data_t *d, const int tail_s) {
-        for (int b = tail_s; b < blksize; ++b)
-            d[b] = 0;
+    auto zeroize_tail = [=](uint8_t *d, const dim_t tail_s) {
+        for (dim_t bb = tail_s; bb < blksize; ++bb)
+            zero_element(d + (size_t)bb * element_size, element_size);
     };
-    auto zeroize_tail_inner = [=](data_t *d, const int tail_s) {
-        for_(int b1 = 0; b1 < blksize; ++b1)
-        for (int b2 = tail_s; b2 < blksize; ++b2)
-            d[(b1 / inner_blk) * blksize * inner_blk + inner_blk * b2
-                    + b1 % inner_blk]
-                    = 0;
+    auto zeroize_tail_inner = [=](uint8_t *d, const dim_t tail_s) {
+        for_(dim_t b1 = 0; b1 < blksize; ++b1)
+        for (dim_t b2 = tail_s; b2 < blksize; ++b2) {
+            const dim_t idx = (b1 / inner_blk) * blksize * inner_blk
+                    + inner_blk * b2 + b1 % inner_blk;
+            zero_element(d + (size_t)idx * element_size, element_size);
+        }
     };
-    auto zeroize_tail_outer = [=](data_t *d, const int tail_s) {
-        for_(int b1 = tail_s; b1 < blksize; ++b1)
-        for (int b2 = 0; b2 < blksize; ++b2)
-            d[(b1 / inner_blk) * blksize * inner_blk + inner_blk * b2
-                    + b1 % inner_blk]
-                    = 0;
+    auto zeroize_tail_outer = [=](uint8_t *d, const dim_t tail_s) {
+        for_(dim_t b1 = tail_s; b1 < blksize; ++b1)
+        for (dim_t b2 = 0; b2 < blksize; ++b2) {
+            const dim_t idx = (b1 / inner_blk) * blksize * inner_blk
+                    + inner_blk * b2 + b1 % inner_blk;
+            zero_element(d + (size_t)idx * element_size, element_size);
+        }
     };
 
     if (c_tail_s) {
         parallel_nd(A, B, D, E, F,
                 [=](dim_t a, dim_t b, dim_t d, dim_t e, dim_t f) {
-            auto x = &data[m_d.blk_off(a, b, C - 1, d, e, f)];
+            auto *x = &data[m_d.blk_off(a, b, C - 1, d, e, f) * element_size];
             if (blk_kind == c)
                 zeroize_tail(x, c_tail_s);
             else if (blk_kind == bc)
@@ -107,7 +118,7 @@ void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
     if (b_tail_s) {
         parallel_nd(A, C, D, E, F,
                 [=](dim_t a, dim_t c, dim_t d, dim_t e, dim_t f) {
-            auto x = &data[m_d.blk_off(a, B - 1, c, d, e, f)];
+            auto *x = &data[m_d.blk_off(a, B - 1, c, d, e, f) * element_size];
             if (blk_kind == b)
                 zeroize_tail(x, b_tail_s);
             else if (blk_kind == ab || blk_kind == cb)
@@ -120,7 +131,7 @@ void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
     if (a_tail_s) {
         parallel_nd(B, C, D, E, F,
                 [=](dim_t b, dim_t c, dim_t d, dim_t e, dim_t f) {
-            auto x = &data[m_d.blk_off(A - 1, b, c, d, e, f)];
+            auto *x = &data[m_d.blk_off(A - 1, b, c, d, e, f) * element_size];
             if (blk_kind == a)
                 zeroize_tail(x, a_tail_s);
             else if (blk_kind == ba)
@@ -134,17 +145,9 @@ void typed_zero_pad_blk(const memory_desc_wrapper &m_d, void *data_handle) {
 /*
  * all
  */
-template <data_type_t dt>
-void typed_zero_pad_generic_blocked(
-        const memory_desc_wrapper &m_d, void *data_handle) {
-    /* Note: for bf16 memory,
-     * use uint16_t for initialization of padding to zero,
-     * in order to avoid using assign operators defined in bfloat16_t.
-     * This allows user will be to create bf16 memory
-     * on non-avx512_core machines. */
-    using data_t = typename utils::conditional<dt == bf16, uint16_t,
-            typename prec_traits_t<dt>::type>::type;
-    auto data = reinterpret_cast<data_t *>(data_handle);
+void typed_zero_pad_generic_blocked(const memory_desc_wrapper &m_d,
+        void *data_handle, size_t element_size) {
+    auto *data = reinterpret_cast<uint8_t *>(data_handle);
     const int ndims = m_d.ndims();
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.padded_dims();
@@ -185,7 +188,9 @@ void typed_zero_pad_generic_blocked(
 
         if (need_zero) {
             for (ptrdiff_t e0 = 0; e0 < step; ++e0)
-                data[m_d.off_l(e1 * step + e0, true)] = 0;
+                zero_element(
+                        &data[m_d.off_l(e1 * step + e0, true) * element_size],
+                        element_size);
         }
     });
 }
@@ -199,15 +204,13 @@ void typed_zero_pad_generic_blocked(
 // threads, so every byte an element occupies is updated with an atomic
 // bit-clear that keeps the byte's other elements intact regardless of the
 // update order.
-template <data_type_t dt>
 void typed_zero_pad_sub_byte(
-        const memory_desc_wrapper &m_d, void *data_handle) {
+        const memory_desc_wrapper &m_d, void *data_handle, int bits_per_elem) {
     auto *data = reinterpret_cast<uint8_t *>(data_handle);
     const int ndims = m_d.ndims();
     const auto &dims = m_d.dims();
     const auto &pdims = m_d.padded_dims();
     const ptrdiff_t nelems = (ptrdiff_t)m_d.nelems(true);
-    const int bits_per_elem = types::data_type_bits(dt);
 
     ptrdiff_t step = 1;
     int step_dim = ndims - 1;
@@ -256,8 +259,8 @@ void typed_zero_pad_sub_byte(
     });
 }
 
-template <data_type_t dt>
-status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
+status_t typed_zero_pad(
+        const memory_t *memory, const exec_ctx_t &ctx, size_t element_size) {
     const memory_desc_wrapper mdw(memory->md());
     memory_storage_t *memory_storage = memory->memory_storage();
 
@@ -271,7 +274,7 @@ status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     void *mapped_ptr
             = ctx.map_memory_storage(memory_storage, ctx.stream(), map_size);
 
-    auto *data = static_cast<typename prec_traits_t<dt>::type *>(mapped_ptr);
+    auto *data = static_cast<uint8_t *>(mapped_ptr);
     auto blk = mdw.blocking_desc();
 
     auto get_blksize = [&](dim_t ind) {
@@ -283,10 +286,14 @@ status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     };
     const dim_t blksize = get_blksize(blk.inner_idxs[0]);
 
-#define CASE(blksize_, blk_kind) \
+    // Blocked tail handling is only valid for these block sizes; any other
+    // value falls through to the generic implementation below.
+    const bool supported_blksize = utils::one_of(blksize, 4, 8, 16);
+
+#define CASE(blk_kind) \
     do { \
-        if (blksize == (blksize_)) { \
-            typed_zero_pad_blk<dt, blk_kind, blksize_>(mdw, data); \
+        if (supported_blksize) { \
+            typed_zero_pad_blk<blk_kind>(mdw, data, element_size, blksize); \
             ctx.unmap_memory_storage( \
                     memory_storage, mapped_ptr, ctx.stream()); \
             return success; \
@@ -296,13 +303,9 @@ status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     switch (blk.inner_nblks) {
         case 1:
             if (blk.inner_idxs[0] == 0) {
-                CASE(4, a);
-                CASE(8, a);
-                CASE(16, a);
+                CASE(a);
             } else if (blk.inner_idxs[0] == 1) {
-                CASE(4, b);
-                CASE(8, b);
-                CASE(16, b);
+                CASE(b);
             }
             break;
         case 2:
@@ -312,22 +315,14 @@ status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
             if (blksize != get_blksize(blk.inner_idxs[1])) break;
 
             if (blk.inner_idxs[0] == 0 && blk.inner_idxs[1] == 1) {
-                CASE(4, ab);
-                CASE(8, ab);
-                CASE(16, ab);
+                CASE(ab);
             } else if (blk.inner_idxs[0] == 1 && blk.inner_idxs[1] == 0) {
-                CASE(4, ba);
-                CASE(8, ba);
-                CASE(16, ba);
+                CASE(ba);
             }
             if (blk.inner_idxs[0] == 1 && blk.inner_idxs[1] == 2) {
-                CASE(4, bc);
-                CASE(8, bc);
-                CASE(16, bc);
+                CASE(bc);
             } else if (blk.inner_idxs[0] == 2 && blk.inner_idxs[1] == 1) {
-                CASE(4, cb);
-                CASE(8, cb);
-                CASE(16, cb);
+                CASE(cb);
             }
             break;
         default: break;
@@ -336,15 +331,14 @@ status_t typed_zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
 #undef CASE
 
     // the last line of defence
-    typed_zero_pad_generic_blocked<dt>(mdw, data);
+    typed_zero_pad_generic_blocked(mdw, data, element_size);
 
     ctx.unmap_memory_storage(memory_storage, mapped_ptr, ctx.stream());
     return success;
 }
 
-template <data_type_t dt>
 status_t typed_zero_pad_sub_byte_entry(
-        const memory_t *memory, const exec_ctx_t &ctx) {
+        const memory_t *memory, const exec_ctx_t &ctx, int bits_per_elem) {
     const memory_desc_wrapper mdw(memory->md());
     memory_storage_t *memory_storage = memory->memory_storage();
 
@@ -358,7 +352,7 @@ status_t typed_zero_pad_sub_byte_entry(
     void *mapped_ptr
             = ctx.map_memory_storage(memory_storage, ctx.stream(), map_size);
 
-    typed_zero_pad_sub_byte<dt>(mdw, mapped_ptr);
+    typed_zero_pad_sub_byte(mdw, mapped_ptr, bits_per_elem);
 
     ctx.unmap_memory_storage(memory_storage, mapped_ptr, ctx.stream());
     return success;
@@ -366,22 +360,24 @@ status_t typed_zero_pad_sub_byte_entry(
 
 static status_t zero_pad(const memory_t *memory, const exec_ctx_t &ctx) {
     memory_desc_wrapper mdw(memory->md());
-    switch (mdw.data_type()) {
-        case f16: return typed_zero_pad<f16>(memory, ctx);
-        case bf16: return typed_zero_pad<bf16>(memory, ctx);
+    const auto dt = mdw.data_type();
+    switch (dt) {
         case f4_e2m1:
-            return typed_zero_pad_sub_byte_entry<f4_e2m1>(memory, ctx);
-        case e8m0: return typed_zero_pad<e8m0>(memory, ctx);
-        case f8_e5m2: return typed_zero_pad<f8_e5m2>(memory, ctx);
-        case f8_e4m3: return typed_zero_pad<f8_e4m3>(memory, ctx);
-        case f32: return typed_zero_pad<f32>(memory, ctx);
-        case s32: return typed_zero_pad<s32>(memory, ctx);
-        case s8: return typed_zero_pad<s8>(memory, ctx);
-        case u8: return typed_zero_pad<u8>(memory, ctx);
-        case s4: return typed_zero_pad_sub_byte_entry<s4>(memory, ctx);
-        case u4: return typed_zero_pad_sub_byte_entry<u4>(memory, ctx);
-        case u2: return typed_zero_pad_sub_byte_entry<u2>(memory, ctx);
-        case f64: return typed_zero_pad<f64>(memory, ctx);
+        case s4:
+        case u4:
+        case u2:
+            return typed_zero_pad_sub_byte_entry(
+                    memory, ctx, types::data_type_bits(dt));
+        case f16:
+        case bf16:
+        case e8m0:
+        case f8_e5m2:
+        case f8_e4m3:
+        case f32:
+        case s32:
+        case s8:
+        case u8:
+        case f64: return typed_zero_pad(memory, ctx, types::data_type_size(dt));
         default: assert(!"memory is undefined"); return unimplemented;
     }
     return unimplemented;
