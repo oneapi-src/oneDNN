@@ -132,7 +132,7 @@ jobs:
         id: dispatch
         if: steps.cmd.outputs.run == 'true'
         env:
-          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ secrets.PT_DISPATCH_TOKEN }}
           PATTERN: ${{ steps.cmd.outputs.pattern }}
           PYVER: ${{ steps.cmd.outputs.python }}
           PYTORCH: ${{ steps.cmd.outputs.pytorch }}
@@ -161,7 +161,7 @@ jobs:
       - name: React to dispatched command
         if: ${{ success() && steps.cmd.outputs.run == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           gh api -X POST \
             "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
@@ -172,7 +172,7 @@ jobs:
         if: ${{ success() && steps.cmd.outputs.run == 'true' }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.ONEDNN_DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ secrets.PT_DISPATCH_TOKEN }}
           SINCE: ${{ steps.dispatch.outputs.since }}
         run: |
           # Find the run we just dispatched, matched by our caller id.
