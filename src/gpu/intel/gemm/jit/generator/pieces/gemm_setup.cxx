@@ -973,11 +973,11 @@ void Generator<hw>::gemmScaleInputs(const GEMMProblem &problem, const GEMMStrate
     if (problem.needsAGroupSums())
         scale(problem.Tag, inputs.ldag, ldaq);
     if (problem.needsSeparateASums())
-        scale(problem.Tag, inputs.offsetAg, inputs.offsetAq);
+        scale(problem.needsAGroupSums() ? problem.Tag : problem.Tc, inputs.offsetAg, inputs.offsetAq);
     if (problem.needsBGroupSums())
         scale(problem.Tbg, inputs.ldbg, ldbq);
     if (problem.needsSeparateBSums())
-        scale(problem.Tbg, inputs.offsetBg, inputs.offsetBq);
+        scale(problem.needsBGroupSums() ? problem.Tbg : problem.Tc, inputs.offsetBg, inputs.offsetBq);
 
     state.ldao = inputs.ldao;
     state.ldbo = inputs.ldbo;

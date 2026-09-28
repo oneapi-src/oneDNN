@@ -680,6 +680,7 @@ void Generator<hw>::gemmApplyMXScale(const GEMMProblem &problem, const GEMMStrat
     bool maskM = state.remainders[LoopM].isValid()
             && (unrollM > problem.cqGroupM);
     if (maskM && !ngen::utils::is_zero_or_pow2(problem.cqGroupM)) stub();
+    if (problem.cqGroupN > 1) stub("MX C scale groups along N are not supported");
     assignMasks(state.C_scaleLayout, maskM ? LoopM : LoopNone, LoopN, masks, strategy, state);
     if (maskM) {
         Subregister remInd[3];

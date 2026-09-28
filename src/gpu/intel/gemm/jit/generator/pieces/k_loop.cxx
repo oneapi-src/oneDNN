@@ -919,13 +919,13 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto reqRepackBqLate = every(kbq_loadLate);
 
     bool remaskAq = (ao2D || as2D) && (minOPCount > 1) && (problem.aqGroupK == 1);
-    bool remaskBq = (ao2D || bs2D) && (minOPCount > 1) && (problem.bqGroupK == 1);
+    bool remaskBq = (bo2D || bs2D) && (minOPCount > 1) && (problem.bqGroupK == 1);
     int iremaskScale = 2;
 
     auto doRemaskAq = [&](Iteration h, bool slm) {
         if (!remaskAq) return;
         Subregister offK;
-        int ks = state.A_scaleLayout.cols();
+        int ks = as2D ? state.A_scaleLayout.cols() : state.A_offsetLayout.cols();
         if (slm && (state.effCoopA == CoopSplit::K || state.effCoopA == CoopSplit::FullK)) {
             offK = state.ra.allocSub<uint32_t>();
             mulConstant(1, offK, state.lidN, state.ka_slm);
@@ -946,10 +946,10 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto doRemaskBq = [&](Iteration h, bool slm) {
         if (!remaskBq) return;
         Subregister offK;
-        int ks = state.B_scaleLayout.rows();
+        int ks = bs2D ? state.B_scaleLayout.rows() : state.B_offsetLayout.rows();
         if (slm && (state.effCoopB == CoopSplit::K || state.effCoopB == CoopSplit::FullK)) {
             offK = state.ra.allocSub<uint32_t>();
-            mulConstant(1, offK, state.lidM, state.ka_slm);
+            mulConstant(1, offK, state.lidM, state.kb_slm);
         }
         if (bs2D) {
             remaskLayoutSingle(iremaskScale, false, ks, state.K,
