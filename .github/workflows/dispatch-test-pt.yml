@@ -100,16 +100,32 @@ jobs:
               return;
             }
             const { owner, repo } = context.repo;
-            const pr = (await github.rest.pulls.get({
+            let pr = (await github.rest.pulls.get({
               owner, repo, pull_number: context.payload.issue.number,
             })).data;
+            // mergeable is computed asynchronously and may be null on first read.
+            for (let i = 0; i < 10 && pr.mergeable === null; i++) {
+              await new Promise((r) => setTimeout(r, 3000));
+              pr = (await github.rest.pulls.get({
+                owner, repo, pull_number: context.payload.issue.number,
+              })).data;
+            }
+            // An unmergeable PR has no valid merge commit to test; stop before
+            // dispatching anything.
+            if (!pr.mergeable) {
+              core.setOutput('run', 'false');
+              core.setFailed(`PR #${pr.number} is not mergeable (state: ${pr.mergeable_state}); not dispatching.`);
+              return;
+            }
             core.setOutput('run', 'true');
             core.setOutput('pattern', pattern);
             core.setOutput('python', opts.python);
             core.setOutput('pytorch', opts.pytorch);
             core.setOutput('torch_xpu_ops', opts.torch_xpu_ops);
             core.setOutput('head_sha', pr.head.sha);
-            core.setOutput('target_version', opts.target || pr.head.sha);
+            // Test the merge commit (PR merged into base); guaranteed present
+            // here since a non-mergeable PR already failed above.
+            core.setOutput('target_version', opts.target || pr.merge_commit_sha);
             core.setOutput('baseline_version', opts.baseline || pr.base.sha);
 
       - name: Set pending status
