@@ -229,6 +229,39 @@ TEST(c_api_host_scalar_mem, TestNullPtr) {
     DNNL_CHECK(dnnl_memory_desc_destroy(scalar_md));
 }
 
+// A negative buffer index reaching dnnl_memory_{get,set}_data_handle_v2 must be
+// rejected the same way an out-of-range positive index and the map/unmap paths
+// already are, rather than indexing the storage vector below its start.
+TEST(c_api_mem_handle_idx, TestOutOfRangeIndex) {
+    dnnl_engine_t engine = nullptr;
+    dnnl_engine_create(&engine, dnnl_cpu, 0);
+    SKIP_IF(!engine, "Engine is not found.");
+
+    dnnl_dims_t dims = {4};
+    dnnl_memory_desc_t md = nullptr;
+    DNNL_CHECK(
+            dnnl_memory_desc_create_with_tag(&md, 1, dims, dnnl_f32, dnnl_x));
+
+    dnnl_memory_t mem = nullptr;
+    DNNL_CHECK(dnnl_memory_create(&mem, md, engine, DNNL_MEMORY_ALLOCATE));
+
+    void *handle = nullptr;
+    EXPECT_EQ(dnnl_memory_get_data_handle_v2(mem, &handle, -1),
+            dnnl_invalid_arguments);
+    EXPECT_EQ(dnnl_memory_get_data_handle_v2(mem, &handle, 1),
+            dnnl_invalid_arguments);
+
+    float value = 1.0f;
+    EXPECT_EQ(dnnl_memory_set_data_handle_v2(mem, &value, -1),
+            dnnl_invalid_arguments);
+    EXPECT_EQ(dnnl_memory_set_data_handle_v2(mem, &value, 1),
+            dnnl_invalid_arguments);
+
+    DNNL_CHECK(dnnl_memory_destroy(mem));
+    DNNL_CHECK(dnnl_memory_desc_destroy(md));
+    DNNL_CHECK(dnnl_engine_destroy(engine));
+}
+
 /**
  * Test host scalar memory with supported functions.
  */
