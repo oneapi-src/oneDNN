@@ -64,7 +64,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto ka_loadMain = strategy.ka_load, ka_loadRem = state.ka_loadRem;
     auto kb_loadMain = strategy.kb_load, kb_loadRem = state.kb_loadRem;
     auto ka_repackMain = state.ka_repack, ka_repackRem = state.ka_repackRem;
-    auto kb_repackRem = state.kb_repackRem;
+    auto kb_repackMain = state.kb_repack, kb_repackRem = state.kb_repackRem;
     auto ka_pfStride = strategy.ka_pfStride;
     auto kb_pfStride = strategy.kb_pfStride;
     auto kInterleaveChunk = strategy.kInterleaveChunk;
@@ -324,7 +324,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto ka_load = [&](Iteration h) { return A_remActive(h) ? ka_loadRem : ka_loadMain; };
     auto kb_load = [&](Iteration h) { return B_remActive(h) ? kb_loadRem : kb_loadMain; };
     auto ka_repack = [&](Iteration h) { return !repackA(h) ? ka_load(h) : A_remActive(h) ? ka_repackRem : ka_repackMain; };
-    auto kb_repack = [&](Iteration h) { return !repackB(h) ? kb_load(h) : B_remActive(h) ? kb_repackRem : 0; };
+    auto kb_repack = [&](Iteration h) { return !repackB(h) ? kb_load(h) : B_remActive(h) ? kb_repackRem : kb_repackMain; };
     auto A_copy = [&](Iteration h) { return (h / ka_load(h)) % A_copies; };
     auto B_copy = [&](Iteration h) { return (h / kb_load(h)) % B_copies; };
     auto A_regs = [&](Iteration h) -> GRFMultirange& { return state.A_regs[A_copy(h)]; };
@@ -1035,22 +1035,38 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         {reqRepackARem, [&](Iteration h) { doRepackA(A_layout(h), A_regs(h), repackA(h), h, ka_load(h), ka_repack(h));  }}
     });
 
-    auto reqRepackB = every(kb_loadMain)
+    auto reqRepackB = every(kb_repackMain)
                     | variants(B_copies);
-    auto reqRepackBRem = every(kb_loadRem)
+    auto reqRepackBRem = every(std::min(kb_loadRem, kb_repackRem))
                        | variants(B_copies);
     bool convertB = (Tb != Tb_load) && (Tb.bits() == Tb_load.bits());
     bool scheduleRepackB = state.repackB || state.repackBRem || convertB || dequantizeB;
 
     auto doRepackB = [&](RegisterLayout &layout, GRFMultirange &regs, bool repackB, int h, int k_load, int k_repack) {
         k_repack = std::max(k_repack, 1);
+        int hb = h % k_load;
         int hbr = h % k_repack;
 
+        auto sublayout = layout;
+        auto Br_sublayout = state.Br_layout;
+        bool s4Shift = true;
+
+        if (repackB) {
+            auto layoutCopy = layout;
+            layoutCopy.unlinkFromMemory();
+            sublayout = layoutCopy.slice(false, hb, hb + k_repack, false);
+            for (auto &l: Br_sublayout)
+                l.offsetR += hb;
+            if (dequantizeB && canDequantizeSubByteInt(layout, state.Br_layout, {}, {})) {
+                if (hb == 0) dequantizeSubByteIntShift(Tb_load, regs, strategy);
+                s4Shift = false;
+            }
+        }
         if (dequantizeB)
-            gemmDequantizeAB(false, layout, state.Br_layout, regs, state.Br_regs, h, k_load, k_repack, kbq_load, problem, strategy, state);
+            gemmDequantizeAB(false, sublayout, Br_sublayout, regs, state.Br_regs, h, k_load, k_repack, kbq_load, problem, strategy, state, s4Shift);
         else
         if (repackB)
-            copyRegisters(layout, state.Br_layout, regs, state.Br_regs, hbr, 0, false, strategy, state);
+            copyRegisters(sublayout, Br_sublayout, regs, state.Br_regs, hbr, 0, false, strategy, state);
         else if (convertB)
             convert(regs, Tb_load, Tb, strategy, state);
     };
@@ -1065,7 +1081,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
 
     // A/B 2D quantization parameter loads.
     auto reqLoadAq = every(kaq_load) | lookahead(ka_repackMain);
-    auto reqLoadBq = every(kbq_load) | lookahead(kb_loadMain);
+    auto reqLoadBq = every(kbq_load) | lookahead(kb_repackMain);
     auto reqLoadAqLate = every(kaq_loadLate) | lookahead(kaq_loadLate);
     auto reqLoadBqLate = every(kbq_loadLate) | lookahead(kbq_loadLate);
 
@@ -1093,6 +1109,9 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
 
     int ka_sumMain = !state.A_layout.colMajor() ? ka_loadMain : opCountMain;
     int kb_sumMain =  state.B_layout.colMajor() ? kb_loadMain : opCountMain;
+
+    if (!state.Ar_regs.empty()) ka_sumMain = std::min(ka_sumMain, ka_repackMain);
+    if (!state.Br_regs.empty()) kb_sumMain = std::min(kb_sumMain, kb_repackMain);
 
     // Accumulates a row/column sum for iteration h; scaling (if any) is applied later by
     // outerProductRepackC, which folds Asr/Bsr into As/Bs.
@@ -1127,7 +1146,13 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         if (hNext % oc != 0)
             return;
 
-        int ka = ka_repack(h), kb = kb_load(h);
+        int ka = ka_repack(h), kb = kb_repack(h);
+        int ha = h % ka;
+        int hb = h % kb;
+        if (problem.backward()) {
+            ha = ka - 1 - ha;
+            hb = kb - 1 - hb;
+        }
 
         auto &layoutA = Ar_layout(h);
         auto &layoutB = Br_layout(h);
@@ -1138,10 +1163,6 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         // needs Asr/Bsr already updated with h's own contribution, not stale data.
         if (calcASums && !slmASums && !state.systolicSumA) {
             int ka_sum = (curPhase == LoopSequencer::PhaseMainLoop) ? ka_sumMain : oc;
-            int ha = h % ka;
-            if (problem.backward()) {
-                ha = ka - 1 - ha;
-            }
             int ha0 = ha - oc + minOPCount;
             if (ha0 % ka_sum == 0)
                 accumulateSumPeriodic(true, regsA, layoutA, h, ha0, ha0 + ka_sum);
@@ -1149,10 +1170,6 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
 
         if (calcBSums && !slmBSums && !state.systolicSumB) {
             int kb_sum = (curPhase == LoopSequencer::PhaseMainLoop) ? kb_sumMain : oc;
-            int hb = h % kb;
-            if (problem.backward()) {
-                hb = kb - 1 - hb;
-            }
             int hb0 = hb - oc + minOPCount;
             if (hb0 % kb_sum == 0)
                 accumulateSumPeriodic(false, regsB, layoutB, h, hb0, hb0 + kb_sum);

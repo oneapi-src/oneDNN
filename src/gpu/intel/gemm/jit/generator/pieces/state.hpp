@@ -419,7 +419,8 @@ struct GEMMState : public CommonState {
     bool useTempC = false;
     bool repackA = false, repackB = false;
     bool repackARem = false, repackBRem = false;
-    int ka_repack, ka_repackRem, kb_repackRem;
+    int ka_repack = 0, kb_repack = 0;
+    int ka_repackRem, kb_repackRem;
     int cRepackPeriod = 0;
     bool remActiveA, remActiveB, remActiveSLM;
     std::vector<MaskAssignment> kMasksA, kMasksB, kMasksAi, kMasksBi;

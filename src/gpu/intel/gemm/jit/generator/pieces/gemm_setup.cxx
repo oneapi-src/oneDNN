@@ -1669,26 +1669,12 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
 
     bool splitA = false, splitB = false;
 
-    state.ka_repack = strategy.ka_load;
-    if (state.repackA) {
-        // Repacked data can use significantly more registers than the loaded
-        // data. Lazy repacking can reduce register utilization and improve load
-        // pipelining at (in some cases) the expense of more work.
-        bool lazyRepack = state.Ta_load.isSubByte() && one_of(Ta, {Type::f16, Type::bf16, Type::f32});    // Other cases are unimplemented
-        if (lazyRepack)
-            state.ka_repack = std::min(state.ka_repack, strategy.kb_load);
-        int repackN = state.ka_repack;
-        if (problem.aqGroupK % state.ka_repack != 0 && state.ka_repack % problem.aqGroupK != 0){
-                state.ka_repack = gcd(problem.aqGroupK, state.ka_repack);
-                repackN = std::max(state.ka_repack, outerProductCount(problem, strategy));
-        }
-	    state.Ar_layout = RegisterLayout(hw, Ta, unrollM, repackN, state.A_layout.colMajor(), crosspackA, tileM_A, tileK_A, true, splitA);
-    }
-
-    if (state.repackB) {
-	    state.Br_layout = RegisterLayout(hw, Tb, strategy.kb_load, unrollN, state.B_layout.colMajor(), crosspackB, tileK_B, tileN_B, true, splitB);
-    }
-
+    state.ka_repack = strategy.repackPeriod(true, problem);
+    state.kb_repack = strategy.repackPeriod(false, problem);
+    if (state.repackA)
+        state.Ar_layout = RegisterLayout(hw, Ta, unrollM, state.ka_repack, state.A_layout.colMajor(), crosspackA, tileM_A, tileK_A, true, splitA);
+    if (state.repackB)
+        state.Br_layout = RegisterLayout(hw, Tb, state.kb_repack, unrollN, state.B_layout.colMajor(), crosspackB, tileK_B, tileN_B, true, splitB);
     int opCountAB = outerProductCount(problem, strategy);
     if ((state.repackA ? state.Ar_layout.cols() : state.A_layout.cols()) < opCountAB)
         stub("A k-granularity too small for outer product count");

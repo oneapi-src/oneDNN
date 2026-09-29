@@ -526,13 +526,17 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         } else if (mod.substr(0, 3) == "dot") {
             mod.erase(0,3);
             strategy.dotVL = mod.empty() ? 1 : std::stoi(mod);
-        } else if (mod.substr(0, 2) == "ra") {
-            strategy.raHW = parseRAHW(mod.substr(2));
         } else if (mod.length() >= 2) {
             if (mod.substr(0, 2) == "ms")
                 strategy.mSplitThresh = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "ns")
                 strategy.nSplitThresh = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ra" && !mod.empty() && std::isdigit(mod[2]))
+                strategy.ka_repack = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ra")
+                strategy.raHW = parseRAHW(mod.substr(2));
+            else if (mod.substr(0, 2) == "rb")
+                strategy.kb_repack = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "ki")
                 strategy.kInterleaveChunk = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "kc")

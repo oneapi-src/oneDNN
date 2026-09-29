@@ -210,6 +210,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     MatrixAddressingStrategy Ag, Bg;             // Strategies for accessing A/B groupwise reductions.
     int ka_load = 0, kb_load = 0;                // How much of A/B is loaded at once, in k dimension
     int ka_load_masked = 0, kb_load_masked = 0;  // Same as above, when masking m/n (0 = default = same as ka/kb_load)
+    int ka_repack = 0, kb_repack = 0;            // k chunk size for A/B repacking (0 = default)
     bool loadBFirst = false;                     // If true, load B before A (default A then B).
     bool doubleMasking = false;                  // Allow A/B to be masked in both dimensions.
     bool kDescRem = false;                       // Allow descriptor-based k remainder handling for A/B.
@@ -397,6 +398,7 @@ struct GEMMStrategy : public GEMMStrategyPOD
     bool legalAAlignment(const GEMMProblem &problem, int align) { return problem.isLegalAAlignment(align, unroll[LoopM]); }
     bool legalBAlignment(const GEMMProblem &problem, int align) { return problem.isLegalBAlignment(align, unroll[LoopN]); }
 
+    int repackPeriod(bool isA, const GEMMProblem &problem) const;
     int kAlign(const GEMMProblem &problem) const;
 
     int statusFlagStride() const { return 64 * (int(fuseBeta) + int(fusePostOps)); }

@@ -294,6 +294,12 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     checkAdd32 &= (A.base.isStateless() || B.base.isStateless() || problem.quantized2DA() || problem.quantized2DB());
     checkAdd32 &= !(A.address2D && B.address2D && (!prefetchA || A_prefetch.address2D) && (!prefetchB || B_prefetch.address2D));
 
+    // Dot product handling.
+    if (dotVL) {
+        dotVL = align_up(dotVL, elementsPerGRF(hw, Tc));
+        forceCopyC = doubleMasking = true;
+    }
+
     int opCount = outerProductCount(problem, *this);
     int minOPCount = minOuterProductCount(problem, *this);
     int ukAlign = opCount;
@@ -327,6 +333,11 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     ka_load_masked = align_up(ka_load_masked, maskedOPCount);
     kb_load_masked = align_up(kb_load_masked, maskedOPCount);
 
+    if (ka_repack && repackPeriod(true, problem) != ka_repack)
+        stub("Invalid A repack period");
+    if (kb_repack && repackPeriod(false, problem) != kb_repack)
+        stub("Invalid B repack period");
+
     if (ka_load == 0 || kb_load == 0)
         stub("Zero k-load granularity is invalid");
 
@@ -340,12 +351,6 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         if (unroll[globalCM ? LoopM : LoopN] > tileX && isBlocklike(C.accessType))
             forceCopyC = true;
         dotVL = 0;
-    }
-
-    // Dot product handling.
-    if (dotVL) {
-        dotVL = align_up(dotVL, elementsPerGRF(hw, Tc));
-        forceCopyC = doubleMasking = true;
     }
 
     // Repack C if using sub-DWord atomics.
@@ -587,6 +592,18 @@ bool GEMMStrategy::minimize(HW hw, const GEMMProblem &problem)
     }
 
     return better;
+}
+
+// Return the A/B repack period for the current k loads: ka/kb_repack if valid, else the default.
+int GEMMStrategy::repackPeriod(bool isA, const GEMMProblem &problem) const
+{
+    int opCount = outerProductCount(problem, *this);
+    int k_load = isA ? ka_load : kb_load;
+    int k_repack = isA ? ka_repack : kb_repack;
+    if (k_repack > 0 && k_repack % opCount == 0 && k_load % k_repack == 0)
+        return k_repack;
+    int repackMin = std::min(std::max(4 / (isA ? problem.Ta_ext : problem.Tb_ext), 1), k_load);
+    return gcd(k_load, align_up(std::max(std::min(ka_load, kb_load), repackMin), opCount));
 }
 
 // Return preferred k alignment for this kernel (avoiding remainder loads).

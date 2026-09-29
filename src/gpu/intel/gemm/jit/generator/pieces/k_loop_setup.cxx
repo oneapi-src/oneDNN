@@ -342,7 +342,7 @@ bool Generator<hw>::kLoopSetup(const GEMMProblem &problem, const GEMMStrategy &s
     repackARem = repackA;
     repackBRem = repackB;
     ka_repackRem = repackA ? std::min(ka_loadRem, state.ka_repack) : 0;
-    kb_repackRem = repackB ? kb_loadRem : 0;
+    kb_repackRem = repackB ? std::min(kb_loadRem, state.kb_repack) : 0;
     if (minOPCount > 1) {
         if (ka_loadRem < minOPCount) {
             ka_repackRem = minOPCount;
