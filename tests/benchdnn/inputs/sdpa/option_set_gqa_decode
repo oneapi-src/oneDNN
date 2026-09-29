@@ -1,0 +1,31 @@
+# GQA decode: one query, more q heads than kv heads. Each case pairs a shape
+# with its own data type, mask, tags and scale.
+# At S_q = 1, acbd and abcd share a primitive cache entry: keep acbd cases
+# ahead of abcd cases with the same shape and options.
+
+# Minimal: 4 q heads per kv head, odd V head size
+--reset --dt=f16 --dtag=acbd 1x8x1x32:1x2x32x6:1x2x6x3
+--reset --dt=f16 --mdt=f16 --mask=buffer --qtag=acbd --dtag=acbd 1x8x1x32:1x2x32x6:1x2x6x3
+--reset --dt=bf16 --mdt=bf16 --mask=buffer --dir=FWD_D 1x8x1x32:1x2x32x6:1x2x6x32
+--reset --dt=f16 --mask=causal_bottom_right --ktag=abdc 1x8x1x32:1x2x32x6:1x2x6x32
+
+# LLaMA-3.1-8B: 32 q heads, 8 kv heads
+--reset --dt=f16 --mdt=f16 --mask=buffer_1d --ktag=abdc --dtag=acbd 1x32x1x128:1x8x128x68:1x8x68x128
+--reset --dt=bf16 --qtag=acbd --dtag=acbd --scale=mul 1x32x1x128:1x8x128x68:1x8x68x128
+--reset --dt=f16 --mdt=f16 --mask=buffer --dtag=acbd 1x32x1x128:1x8x128x68:1x8x68x128
+
+# Qwen2-7B: 28 q heads, 4 kv heads, batch > 1
+--reset --dt=f16 --mask=causal_top_left --dtag=acbd 3x28x1x128:3x4x128x300:3x4x300x128
+--reset --dt=f16 --dir=FWD_D --dtag=acbd 3x28x1x128:3x4x128x300:3x4x300x128
+--reset --dt=bf16 --mask=buffer --ktag=abdc 3x28x1x128:3x4x128x300:3x4x300x128
+
+# 8 q heads per kv head, head size 64, batch > 1
+--reset --dt=f16 --qtag=acbd --scale=div 2x32x1x64:2x4x64x256:2x4x256x64
+--reset --dt=f16 --mask=buffer --dtag=acbd 2x32x1x64:2x4x64x256:2x4x256x64
+--reset --dt=bf16 --mask=causal_bottom_right --qtag=acbd --dtag=acbd 2x32x1x64:2x4x64x256:2x4x256x64
+
+# MQA (single kv head)
+--reset --dt=f16 --mdt=f16 --mask=buffer --dtag=acbd 1x16x1x64:1x1x64x78:1x1x78x64
+--reset --dt=bf16 --mask=buffer_1d --ktag=abdc 1x16x1x64:1x1x64x78:1x1x78x64
+--reset --dt=bf16 --qtag=acbd 1x8x1x128:1x1x128x64:1x1x64x128
+--reset --dt=f16 --mask=causal_top_left --ktag=abdc --dtag=acbd 1x8x1x128:1x1x128x64:1x1x64x128

@@ -460,7 +460,8 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     uint wg_j0 = get_group_id(0) * ugemm_kq_wg_tile_n;
 
     uint q_group_size;
-    if (q == 1 && KV_GROUP_SIZE > 1) {
+    const bool gqa_q1 = (q == 1 && KV_GROUP_SIZE > 1);
+    if (gqa_q1) {
         // For second token Grouped Query Attention(GQA) cases, we batch the
         // kernel across the KV heads instead of the q heads. This allows us to
         // batch multiple queries into a single work group.
@@ -490,8 +491,13 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
     // For single-token cases we allow the query and dst to be transposed.
     // This workaround is needed because the gemm_desc::get_trans treats both
     // cases equally. For Q>1 checks prevent transposed query and dst
-    uint ldq = (QRY_S2 == 1) ? QRY_S1 : QRY_S2;
-    uint lda = (DST_S2 == 1) ? DST_S1 : DST_S2;
+    // GQA q == 1: columns are q heads
+    uint ldq = (gqa_q1 || QRY_S2 == 1) ? QRY_S1 : QRY_S2;
+    uint lda = (gqa_q1 || DST_S2 == 1) ? DST_S1 : DST_S2;
+#if WITH_ATTN_MASK
+    uint ldmsk = gqa_q1 ? MSK_S1 : MSK_S2;
+    uint msk_q = gqa_q1 ? q_group_size : q;
+#endif
 
 #if KEY_SCALES || KEY_ZERO_POINTS
     uint ldkq = KEY_D3;
@@ -714,8 +720,8 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
             tile_load(&mask_tile, msk, k, 1, MSK_S2, k0 + sg_i0_kq, 0);
         }
 #else
-        tile_load_t(
-                &mask_tile, msk, q, k, MSK_S2, sg_j0_kq + wg_j0, k0 + sg_i0_kq);
+        tile_load_t(&mask_tile, msk, msk_q, k, ldmsk, sg_j0_kq + wg_j0,
+                k0 + sg_i0_kq);
 #endif
 #endif
 
@@ -1014,12 +1020,12 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
                     /* cache */ LSC_LDCC_L1C_L3C);
 #else
             cooperative_prefetch_2d_maybe_rem(
-                    /* ptr */ msk + k0 + ugemm_kq_sg_tile_m + (wg_j0)*MSK_S2,
+                    /* ptr */ msk + k0 + ugemm_kq_sg_tile_m + (wg_j0)*ldmsk,
                     /* r */ k0end - k0 - ugemm_kq_wg_tile_m,
-                    /* c */ q - wg_j0,
+                    /* c */ msk_q - wg_j0,
                     /* rmax */ ugemm_kq_wg_tile_m,
                     /* cmax */ (ugemm_kq_wg_tile_n * PREFETCH_D_MAX) / D_MAX_KQ,
-                    /* ld */ MSK_S2,
+                    /* ld */ ldmsk,
                     /* sg_id */ sg_ij,
                     /* n_sg */ sg_per_wg,
                     /* sg_size */ SUBGROUP_SIZE,

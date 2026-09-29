@@ -37,6 +37,10 @@
 --dt=f16,bf16
 --batch=shapes_transformer_gpu
 
+# GQA decode
+--reset
+--batch=option_set_gqa_decode
+
 # Forward training (needed for backward; verifies DST with training prop)
 --reset
 --dir=FWD_D
