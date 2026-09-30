@@ -510,9 +510,9 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
     // Non-systolic integer dot products require byte operands. Keep the
     // external int4 format and let the generator unpack it for computation.
     if (!systolic) {
-        if (problem.Ta.isInt4())
+        if (problem.Ta.isSubByteInt())
             problem.Ta = problem.Ta.isSigned() ? Type::s8 : Type::u8;
-        if (problem.Tb.isInt4())
+        if (problem.Tb.isSubByteInt())
             problem.Tb = problem.Tb.isSigned() ? Type::s8 : Type::u8;
     }
     bool block2DA = (hw >= HW::XeHPC) && systolic && (problem.A.alignment % min2DAlignmentA) == 0;

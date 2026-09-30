@@ -245,10 +245,10 @@ template <typename S0>
 void Generator<hw>::eaddScaled(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, Type src2,
                                const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
-    if (src2.is4()) {
+    if (src2.isSubByte()) {
         auto tmpRange = state.ra.alloc_range(2);
         auto tmp = tmpRange[0].retype(src1.getType());
-        eshr(mod, tmp, src1, 1, strategy, state, loc);
+        eshr(mod, tmp, src1, src2.logPerByte(), strategy, state, loc);
         eadd(mod, dst, tmp, src0, strategy, state, loc);
         state.ra.safeRelease(tmpRange);
     } else
@@ -260,8 +260,8 @@ template <typename DT>
 void Generator<hw>::emulConstant(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, Type src1,
                                  const CommonStrategy &strategy, const CommonState &state, ngen::SourceLocation loc)
 {
-    if (src1.is4())
-        eshr<DT>(mod, dst, src0, 1, strategy, state, loc);
+    if (src1.isSubByte())
+        eshr<DT>(mod, dst, src0, src1.logPerByte(), strategy, state, loc);
     else
         emulConstant<DT>(mod, dst, src0, src1.size(), strategy, state, loc);
 }
