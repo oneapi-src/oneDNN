@@ -410,6 +410,8 @@ RegisterBlock::RegisterBlock(HW hw_, Type T, int r, int c, const MatrixAddressin
                 int simdCap = maxSIMD;
                 if (atomic && !nativeAtomic)
                     simdCap = 16;
+                if (byte1PerSlot && a64 && !writable)
+                    simdCap = std::min(simdCap, 16);
                 maxElements = simdCap * maxNPack;
                 if (T.paddedSize() > stride)
                     maxElements = maxElements * stride / T;
