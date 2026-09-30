@@ -23,7 +23,7 @@
 
 GEMMSTONE_NAMESPACE_START
 
-// Check if the optimized int4 dequantization sequence (dequantizeSubByteInt) can be used.
+// Check if the optimized int4/int2 dequantization sequence (dequantizeSubByteInt) can be used.
 bool canDequantizeSubByteInt(const RegisterLayout &layoutSrc, const RegisterLayout &layoutDst,
     const RegisterLayout &layoutOffset, const RegisterLayout &layoutScale);
 

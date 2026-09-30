@@ -54,6 +54,8 @@ public:
         f16      = 0x10011101,
         f32      = 0x10111201,
         f64      = 0x10211301,
+        u2       = 0x11001100,
+        s2       = 0x11101102,
         u4       = 0x11201200,
         s4       = 0x11301202,
         u8       = 0x11411000,
@@ -151,7 +153,7 @@ public:
             DT::e2m1,    DT::e3m0 ,   ngen_nf4(),  none,
             ngen_e8m0(), none,        none,        none,
             DT::bf,      DT::tf32,    DT::bf8,     DT::hf8,
-            none,        none,        DT::u4,      DT::s4,
+            DT::u2,      DT::s2,      DT::u4,      DT::s4,
             DT::ub,      DT::b,       DT::uw,      DT::w,
             DT::ud,      DT::d,       DT::uq,      DT::q,
             none,        none,        none,        none,
@@ -200,6 +202,8 @@ inline char typeToChar(Type T)
         case Type::f16:     return 'H';
         case Type::f32:     return 'S';
         case Type::f64:     return 'D';
+        case Type::u2:      return 'p';
+        case Type::s2:      return 'P';
         case Type::u4:      return 'f';
         case Type::s4:      return 'F';
         case Type::u8:      return 'o';
@@ -227,6 +231,8 @@ inline Type charToType(char c)
         case 'H': return Type::f16;
         case 'S': return Type::f32;
         case 'D': return Type::f64;
+        case 'p': return Type::u2;
+        case 'P': return Type::s2;
         case 'f': return Type::u4;
         case 'F': return Type::s4;
         case 'o': return Type::u8;

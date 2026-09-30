@@ -139,6 +139,7 @@ inline gemmstone::dsl::type_t to_ir(const data_type_t &dt) {
         CASE(u8);
         CASE(s4);
         CASE(u4);
+        CASE(u2);
 #undef CASE
         default: gpu_error_not_expected();
     }
