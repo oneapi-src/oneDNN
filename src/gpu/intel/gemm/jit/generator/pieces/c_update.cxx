@@ -164,8 +164,10 @@ bool Generator<hw>::gemmAccessC(COperation op, const GEMMProblem &problem, const
     bool remainderN = (strategy.remHandling[LoopN] != RemainderHandling::Ignore);
     bool remM_C, remN_C;
     getCRemainders(hw, problem, strategy, remM_C, remN_C);
-    bool block2DCRemainder = strategy.block2DCRemainder && !strategy.C.padded && (remainderM || remainderN);
-    bool block2DCFull = strategy.block2DCFull && !isPacked(problem.C.layout);
+    bool block2DOverride = (problem.Ta_ext.bits() == 2) || (problem.Tb_ext.bits() == 2);
+    bool block2DCRemainder = strategy.block2DCRemainder && !strategy.C.padded && (remainderM || remainderN)
+        && !block2DOverride;
+    bool block2DCFull = strategy.block2DCFull && !isPacked(problem.C.layout) && !block2DOverride;
     block2DCRemainder |= block2DCFull;
     block2DCRemainder &= !strategy.C.atomic;
     block2DCFull &= !strategy.C.atomic;

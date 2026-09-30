@@ -508,7 +508,7 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
                    (problem.Ta.paddedSize() <= 2 || problem.Ta == Type::tf32) &&
                    (problem.Tb.paddedSize() <= 2 || problem.Tb == Type::tf32);
     // Non-systolic integer dot products require byte operands. Keep the
-    // external int4 format and let the generator unpack it for computation.
+    // external int4/2 format and let the generator unpack it for computation.
     if (!systolic) {
         if (problem.Ta.isSubByteInt())
             problem.Ta = problem.Ta.isSigned() ? Type::s8 : Type::u8;

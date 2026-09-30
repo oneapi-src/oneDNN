@@ -267,15 +267,17 @@ protected:
     void distributePhases();
     void split2DRegions();
     void planTypeConversions();
-    void planEarlyInt4Upconversions();
+    void planEarlySubByteIntUpconversions();
     void planEmulatedHalveFloat(CopyInstruction &i);
     void planInt8ToHF(CopyInstruction &i);
     void planInt8ToBF(CopyInstruction &i);
-    void planInt4ToF16(CopyInstruction &i);
+    void planSubByteIntToF16(CopyInstruction &i);
     void planUnpack4To16(CopyInstruction &i);
     void planUnpack8To16High(CopyInstruction &i);
+    void planInt2Upconversion(CopyInstruction &i);
     void planInt4Upconversion(CopyInstruction &i);
-    void plan4BitShifts(CopyInstruction &i);
+    void planSubByteShifts(CopyInstruction &i);
+    void planInt2Downconversion(CopyInstruction &i);
     void planInt4Downconversion(CopyInstruction &i);
     void planEmulatedSIMD1(CopyInstruction &i);
     void planEmulatedHF8ToHF(CopyInstruction &i);
@@ -290,6 +292,7 @@ protected:
     void emulateBooleanFunction();
     bool planShflUpconvertXe3p(CopyInstruction &i);
     void legalizeShfl();
+    void legalizeDstStrides();
     void legalizeBfImmediate(CopyInstruction &i1);
     void legalizeSIMD(bool initial = false);
     void legalizeRegions();
