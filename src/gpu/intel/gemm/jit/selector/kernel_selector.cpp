@@ -332,11 +332,11 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, const ngen
 
     auto problem = problem_;
 
-    if(problem.Tao.is4() || problem.Ta_scale.is4()){
-        unrollReq[LoopM] = 2;
+    if(problem.Tao.isSubByte() || problem.Ta_scale.isSubByte()){
+        unrollReq[LoopM] = std::max(problem.Tao.perByte(), problem.Ta_scale.perByte());
     }
-    if(problem.Tbo.is4() || problem.Tb_scale.is4()){
-        unrollReq[LoopN] = 2;
+    if(problem.Tbo.isSubByte() || problem.Tb_scale.isSubByte()){
+        unrollReq[LoopN] = std::max(problem.Tbo.perByte(), problem.Tb_scale.perByte());
     }
 
     ReqBDPASDims = problem.preferBDPAS();

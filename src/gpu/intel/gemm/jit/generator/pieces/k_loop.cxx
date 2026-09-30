@@ -979,7 +979,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
 
         auto sublayout = layout;
         auto Ar_sublayout = state.Ar_layout;
-        bool s4Shift = true;
+        bool signedShift = true;
 
         if (repackA) {
             auto layoutCopy = layout;
@@ -994,19 +994,19 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
                      l.offsetC += ha;
             }
 
-            // Int4 data is commonly expanded from partial registers as a 64
+            // Int4/2 data is commonly expanded from partial registers as a 64
             // byte register expands to 128 elements. To avoid emitting extra
             // instructions, perform element-wise operations here.
-            if (canDequantizeInt4(layout, state.Ar_layout, {}, {})) {
-                if (ha == 0) dequantizeInt4Shift(Ta_load, regs, strategy);
-                s4Shift = false;
+            if (canDequantizeSubByteInt(layout, state.Ar_layout, {}, {})) {
+                if (ha == 0) dequantizeSubByteIntShift(Ta_load, regs, strategy);
+                signedShift = false;
             }
         }
         if (dequantizeA)
-            gemmDequantizeAB(true, sublayout, Ar_sublayout, regs, state.Ar_regs, h, k_load, k_repack, kaq_load, problem, strategy, state, s4Shift);
+            gemmDequantizeAB(true, sublayout, Ar_sublayout, regs, state.Ar_regs, h, k_load, k_repack, kaq_load, problem, strategy, state, signedShift);
         else
         if (repackA)
-            copyRegisters(sublayout, Ar_sublayout, regs, state.Ar_regs, 0, har, false, strategy, state, false, s4Shift);
+            copyRegisters(sublayout, Ar_sublayout, regs, state.Ar_regs, 0, har, false, strategy, state, false, signedShift);
         else if (convertA)
             convert(regs, Ta_load, Ta, strategy, state);
     };

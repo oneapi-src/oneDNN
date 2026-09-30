@@ -396,15 +396,16 @@ GRFRange Generator<hw>::loadVector(Type Tsrc, Type Tdst, Subregister ptr, int n,
     Subregister rems[3] = {rem};
     Subregister remTemp;
 
-    if (Tsrc.isInt4() && Tdst.isInt4()) {
-        // Temporary int4 path until copyRegisters supports int4->int4 copies.
+    if (Tsrc.isSubByteInt() && Tdst.isSubByteInt()) {
+        // Temporary int4 path until copyRegisters supports sub-byte int copies.
         if (rem.isValid()) {
             remTemp = state.ra.alloc_sub<int32_t>();
             avg(1, remTemp, rem, 0);
             rems[0] = remTemp;
         }
+        int bits = Tsrc.bits();
         Tsrc = Tdst = Type::u8;
-        n = (n + 1) >> 1;
+        n = (n * bits + 7) >> 3;
     }
 
     atype.layout = MatrixLayout::N;

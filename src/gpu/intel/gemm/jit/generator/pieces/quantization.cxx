@@ -91,14 +91,14 @@ bool Generator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &p
         Txs_int = problem.Tc;
     }
 
-    bool int4SpecialPath = Tx_ext.isInt4() && one_of(Tx, {Type::f16, Type::f32});
-    if (int4SpecialPath) {
+    bool subByteIntSpecialPath = Tx_ext.isSubByteInt() && one_of(Tx, {Type::f16, Type::f32});
+    if (subByteIntSpecialPath) {
         Txo_int = Type::f16;
         Txs_int = Tx;
         if (Tx == Type::bf16) Txs_int = Type::f16;
     }
 
-    if (lateOffset && (Txo.isInt4() || Txo.isInt8()))
+    if (lateOffset && (Txo.isSubByteInt() || Txo.isInt8()))
         Txo_int = Type::s32;
 
     if (Txs == Type::f8_e8m0 && state.useBDPAS)
@@ -344,23 +344,23 @@ void Generator<hw>::gemmRepack2DOffsetData(Type Text, const RegisterLayout &layo
 {
     auto Ts = layoutSrc.type(), Td = layoutDst.type();
 
-    bool s4 = (Text == Type::s4);
+    bool signedInput = Text.isSigned();
     bool s8 = (Ts == Type::s8);
     bool u8 = (Ts == Type::u8);
 
-    bool int4SpecialPath = Text.isInt4() && Td == Type::f16;
+    bool subByteIntSpecialPath = Text.isSubByteInt() && Td == Type::f16;
     auto tmpType = Td;
 
-    if (int4SpecialPath) {
+    if (subByteIntSpecialPath) {
         if (u8) tmpType = Type::u16;
         if (s8) tmpType = Type::s16;
     }
 
     gemmRepack2DQuantizationData(Ts, tmpType, layoutSrc, layoutDst, src, dst, problem, strategy, state);
 
-    if (int4SpecialPath) {
+    if (subByteIntSpecialPath) {
         if (s8 || u8) {
-            int off = s4 ? 8 : 0;
+            int off = signedInput ? 1 << (Text.bits() - 1) : 0;
 
             // Shift s8 -> u8 data.
             if (s8) {
@@ -383,8 +383,8 @@ void Generator<hw>::gemmRepack2DOffsetData(Type Text, const RegisterLayout &layo
             });
         } else {
             map(hw, Type::f16, dst, dst, strategy, [&](int esize, RegData r, RegData _) {
-                s4 ? mad(esize, r, Immediate::hf(0x1800), r, Immediate::hf(0x0C00))     // 0x1800 = 8 * 2^(-12)
-                   : mul(esize, r,                        r, Immediate::hf(0x0C00));    // 0x0C00 = 2^(-12)
+                signedInput ? mad(esize, r, Immediate::hf(0x1800), r, Immediate::hf(0x0C00))     // 0x1800 = 8 * 2^(-12)
+                            : mul(esize, r,                        r, Immediate::hf(0x0C00));    // 0x0C00 = 2^(-12)
             });
         }
     }
@@ -520,29 +520,29 @@ void Generator<hw>::gemmDequantizeOperation(bool doA, Type T, Type Tq, BinaryOp 
     safeReleaseRanges(qPairs, state);
 }
 
-// Shift s4 data by 8 to transfrom it into u4 data.
+// Shift s4/2 data by 8/2 to transfrom it into u4/2 data.
 template <HW hw>
-void Generator<hw>::dequantizeInt4Shift(Type Tsrc, GRFMultirange src, const CommonStrategy &strategy)
+void Generator<hw>::dequantizeSubByteIntShift(Type Tsrc, GRFMultirange src, const CommonStrategy &strategy)
 {
-    if (Tsrc != Type::s4) return;
+    if (!Tsrc.isSigned()) return;
     map(hw, Type::u16, src, src, strategy, [&](int esize, RegData r, RegData _) {
         xor_(esize, r, r, 0x8888);
     });
 }
 
-// Optimized int4 -> f16/bf16/f32 dequantization sequence.
+// Optimized int4/int2 -> f16/bf16/f32 dequantization sequence.
 template <HW hw>
-void Generator<hw>::dequantizeInt4(bool doA, const RegisterLayout &layoutSrc, const RegisterLayout &layoutDst,
-                                   const RegisterLayout &layoutOffset, const RegisterLayout &layoutScale,
-                                   const GRFMultirange &src, const GRFMultirange &dst, const GRFMultirange &offset, const GRFMultirange &scale,
-                                   int offR, int offC, int h, int kab_load, int kq_load,
-                                   const GEMMProblem *problem, const CommonStrategy &strategy, CommonState &state, bool s4Shift)
+void Generator<hw>::dequantizeSubByteInt(bool doA, const RegisterLayout &layoutSrc, const RegisterLayout &layoutDst,
+    const RegisterLayout &layoutOffset, const RegisterLayout &layoutScale,
+    const GRFMultirange &src, const GRFMultirange &dst, const GRFMultirange &offset, const GRFMultirange &scale,
+    int offR, int offC, int h, int kab_load, int kq_load,
+    const GEMMProblem *problem, const CommonStrategy &strategy, CommonState &state, bool signedShift)
 {
     auto Tsrc = layoutSrc.type(), Tdst = layoutDst.type();
-    if (!canDequantizeInt4(layoutSrc, layoutDst, layoutOffset, layoutScale))
-        stub("Cannot perform dequantizeInt4");
+    if (!canDequantizeSubByteInt(layoutSrc, layoutDst, layoutOffset, layoutScale))
+        stub("Cannot perform dequantizeSubByteInt");
 
-    bool s4 = Tsrc.isSigned();
+    bool signedInt = Tsrc.isSigned();
     bool f32 = (Tdst == Type::f32);
     bool bf16 = (Tdst == Type::bf16);
 
@@ -562,11 +562,11 @@ void Generator<hw>::dequantizeInt4(bool doA, const RegisterLayout &layoutSrc, co
     }
 
     // 1) Shift s4 data to u4 data by adding 8.
-    if (s4 && s4Shift)
-        dequantizeInt4Shift(Tsrc, src, strategy);
+    if (signedInt && signedShift)
+        dequantizeSubByteIntShift(Tsrc, src, strategy);
 
     // 2) Copy u4 -> u16 data.
-    copyRegisters(Type::u4, Type::u16, layoutSrc, *effLayoutDst, src, *effDst, offR, offC, false, strategy, state);
+    copyRegisters(Tsrc.asUnsigned(), Type::u16, layoutSrc, *effLayoutDst, src, *effDst, offR, offC, false, strategy, state);
 
     // 3) Reinterpret u16 data as denormal f16, scale into normal range and subtract (rescaled) offsets if available.
     //     The required rescaling factor (2^24) is necessarily outside f16 range,
@@ -576,8 +576,8 @@ void Generator<hw>::dequantizeInt4(bool doA, const RegisterLayout &layoutSrc, co
         gemmDequantizeOperation(doA, Type::f16, Type::f16, BinaryOp::ScaleSub, *effLayoutDst, layoutOffset, *effDst, offset, h, kab_load, kq_load, *problem, strategy, state);
     } else {
         map(hw, Type::f16, *effDst, *effLayoutDst, strategy, [&](int esize, RegData r) {
-            s4 ? mad(esize, r, Immediate::hf(0x9800), r, Immediate::hf(0x6C00)) /* 0x9800 = -8*2^(-12), 0x6C00 = 2^12 */
-               : mul(esize, r, r, Immediate::hf(0x6C00));
+            signedInt ? mad(esize, r, Immediate::hf(0x9800), r, Immediate::hf(0x6C00)) /* 0x9800 = -8*2^(-12), 0x6C00 = 2^12 */
+                      : mul(esize, r, r, Immediate::hf(0x6C00));
         });
     }
 
@@ -658,8 +658,8 @@ void Generator<hw>::gemmDequantizeAB(bool doA, const RegisterLayout &layoutSrc, 
         offR = offC = 0;
     }
 
-    if (canDequantizeInt4(layoutSrc, layoutDst, oLayout, sLayout)) {
-        dequantizeInt4(doA, layoutSrc, layoutDst, oLayout, sLayout,
+    if (canDequantizeSubByteInt(layoutSrc, layoutDst, oLayout, sLayout)) {
+        dequantizeSubByteInt(doA, layoutSrc, layoutDst, oLayout, sLayout,
                        src, dst, oRegs, sRegs, offR, offC, h, kab_load, kq_load, &problem,
                        strategy, state, s4Shift);
     } else {
@@ -671,16 +671,16 @@ void Generator<hw>::gemmDequantizeAB(bool doA, const RegisterLayout &layoutSrc, 
         if (xo2D) {
             if (!state.useBDPAS)
             {
-            gemmDequantizeOperation(doA, Tx_int, Txo_int, BinaryOp::Sub, layoutDst, oLayout, dst, oRegs, h, kab_load, kq_load, problem, strategy, state);
-            convert(dst, Tx_int, Tdst, strategy, state);
+                gemmDequantizeOperation(doA, Tx_int, Txo_int, BinaryOp::Sub, layoutDst, oLayout, dst, oRegs, h, kab_load, kq_load, problem, strategy, state);
+                convert(dst, Tx_int, Tdst, strategy, state);
             }
         }
 
         if (xs2D)
             if (!state.useBDPAS)
             {
-            gemmDequantizeOperation(doA, Tdst, Txs_int, BinaryOp::Mul, layoutDst, sLayout, dst, sRegs, h, kab_load, kq_load, problem, strategy, state);
-	    }
+                gemmDequantizeOperation(doA, Tdst, Txs_int, BinaryOp::Mul, layoutDst, sLayout, dst, sRegs, h, kab_load, kq_load, problem, strategy, state);
+	        }
     }
 
     if (ms < md || ns < nd) {

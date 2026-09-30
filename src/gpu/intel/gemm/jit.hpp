@@ -228,8 +228,11 @@ struct gen_t : public primitive_t {
                     = jit::convert_dnnl_to_kernel_type(desc_.c_desc.data_type);
             for (int i = 0; i < desc_.c_desc.ndims; i++) {
                 auto c_stride = desc_.c_desc.format_desc.blocking.strides[i];
-                VDISPATCH_GEMM(IMPLICATION(c_kernel_type.is4(),
-                                       c_stride == 1 || c_stride % 2 == 0),
+                VDISPATCH_GEMM(
+                        IMPLICATION(c_kernel_type.isSubByte(),
+                                c_stride == 1
+                                        || c_stride % c_kernel_type.perByte()
+                                                == 0),
                         VERBOSE_SHAPE_RESTRICTION);
             }
 
