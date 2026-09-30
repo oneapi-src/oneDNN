@@ -68,10 +68,10 @@ status_t gen_t::pd_t::init(const impl::engine_t *engine,
             src_engine == dst_engine && src_engine->kind() == engine_kind::gpu,
             VERBOSE_BAD_ENGINE_KIND);
     VDISPATCH_REORDER(utils::one_of(src_dt, f32, f16, bf16, f8_e5m2, f8_e4m3,
-                              f4_e2m1, s32, s8, u8, s4, u4, f64),
+                              f4_e2m1, s32, s8, u8, s4, u4, u2, f64),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_REORDER(utils::one_of(dst_dt, f32, f16, bf16, f8_e5m2, f8_e4m3,
-                              f4_e2m1, s32, s8, u8, s4, u4, f64),
+                              f4_e2m1, s32, s8, u8, s4, u4, u2, f64),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_REORDER(IMPLICATION(src_dt == f64 || dst_dt == f64,
                               device_info->has_native(f64)),

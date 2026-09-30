@@ -32,6 +32,7 @@ using kind_t = type_internal_accessor_t::kind_t;
 const std::unordered_map<kind_t, std::string> &kind_names() {
     static const std::unordered_map<kind_t, std::string> names {
             {kind_t::undef, "undef"},
+            {kind_t::u2, "u2"},
             {kind_t::u4, "u4"},
             {kind_t::s4, "s4"},
             {kind_t::u8, "u8"},
@@ -104,6 +105,7 @@ int type_t::size() const {
     if (is_ptr()) return sizeof(uint64_t);
 
     if (is_bool()) return div_up(elems(), 8);
+    if (is_x2()) return div_up(elems(), 4);
     if (is_x4() || is_fp4()) return div_up(elems(), 2);
 
     if (elems() != 1) return elems() * scalar().size();

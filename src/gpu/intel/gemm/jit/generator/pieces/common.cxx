@@ -397,7 +397,8 @@ GRFRange Generator<hw>::loadVector(Type Tsrc, Type Tdst, Subregister ptr, int n,
     Subregister remTemp;
 
     if (Tsrc.isSubByteInt() && Tdst.isSubByteInt()) {
-        // Temporary int4 path until copyRegisters supports sub-byte int copies.
+        // Temporary int4/2 path until copyRegisters supports sub-byte int copies.
+        if (Tsrc.bits() != Tdst.bits()) stub();
         if (rem.isValid()) {
             remTemp = state.ra.alloc_sub<int32_t>();
             avg(1, remTemp, rem, 0);

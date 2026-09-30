@@ -76,6 +76,7 @@ inline ngen::DataType to_ngen(const type_t &type) {
     CASE(u64, uq);
     CASE(u8, ub);
     CASE(u4, u4);
+    CASE(u2, u2);
 
     if (type == type_t::byte(1, type::attr_t::ptr)) return ngen::DataType::uq;
 
@@ -107,6 +108,7 @@ inline type_t to_ir(ngen::DataType type) {
     CASE(u64, uq);
     CASE(u8, ub);
     CASE(u4, u4);
+    CASE(u2, u2);
 
 #undef CASE
     stub();

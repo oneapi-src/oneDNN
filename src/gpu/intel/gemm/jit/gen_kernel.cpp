@@ -68,6 +68,7 @@ status_t gen_desc_t::create_generator(
 
 compute::scalar_type_t gen_desc_t::scalar_type() const {
     switch (problem_.Ts) {
+        case Type::u2: return compute::scalar_type_t::_uint2;
         case Type::s4: return compute::scalar_type_t::_int4;
         case Type::u4: return compute::scalar_type_t::_uint4;
         case Type::s8: return compute::scalar_type_t::_char;
@@ -525,6 +526,7 @@ gen_nocopy_desc_t::select_kernel(const compute::device_info_t &dev_info,
     });
 
     add_mode_matches(!(fpmath_f16 || fpmath_bf16), [](Type dt) -> const char * {
+        if (dt.bits() == 2) return "[PO]";
         if (dt.bits() == 4) return "[FO]";
         return nullptr;
     });
