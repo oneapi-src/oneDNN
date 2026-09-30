@@ -21,11 +21,11 @@ using std::vector;
 
 GEMMSTONE_NAMESPACE_START
 
-bool canDequantizeInt4(const RegisterLayout &layoutSrc, const RegisterLayout &layoutDst,
-                       const RegisterLayout &layoutOffset, const RegisterLayout &layoutScale)
+bool canDequantizeSubByteInt(const RegisterLayout &layoutSrc, const RegisterLayout &layoutDst,
+    const RegisterLayout &layoutOffset, const RegisterLayout &layoutScale)
 {
     auto Tsrc = layoutSrc.type(), Tdst = layoutDst.type();
-    if (!Tsrc.isInt4() || !one_of(Tdst, {Type::f16, Type::f32}))
+    if (!Tsrc.isSubByteInt() || !one_of(Tdst, {Type::f16, Type::f32}))
         return false;
 
     if (layoutOffset.empty() || layoutScale.empty())

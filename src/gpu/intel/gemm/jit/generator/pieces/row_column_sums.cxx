@@ -216,7 +216,7 @@ void Generator<hw>::setupTeardownAccumulateSumSystolic(bool setup, Type T, const
             sysSumAll1s.setType(T.ngen());
 
             int ne = elementsPerGRF(hw, T);
-            if (T.isInt4())
+            if (T.isSubByteInt())
                 mov(ne / 8, sysSumAll1s.ud(), uint32_t(0x11111111));
             else if (T.isInt8())
                 mov(ne / 4, sysSumAll1s.ud(), uint32_t(0x01010101));

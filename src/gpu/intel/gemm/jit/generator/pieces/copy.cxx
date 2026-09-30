@@ -96,9 +96,9 @@ void Generator<hw>::copyRegisters(Type Ts, Type Td, const RegisterLayout &layout
         RegisterLayout emptyLayout;
         GRFMultirange emptyRegs;
         if (Ts != layoutSrc.type() || Td != layoutDst.type()) stub("No type punning allowed on this path");
-        if (canDequantizeInt4(layoutSrc, layoutDst, emptyLayout, emptyLayout)) {
-            dequantizeInt4(true, layoutSrc, layoutDst, emptyLayout, emptyLayout,
-                           src, dst, emptyRegs, emptyRegs, dOffR, dOffC, 0, 1, 1, nullptr, strategy, state, s4Shift);
+        if (canDequantizeSubByteInt(layoutSrc, layoutDst, emptyLayout, emptyLayout)) {
+            dequantizeSubByteInt(true, layoutSrc, layoutDst, emptyLayout, emptyLayout,
+                                 src, dst, emptyRegs, emptyRegs, dOffR, dOffC, 0, 1, 1, nullptr, strategy, state, s4Shift);
             return;
         }
     }

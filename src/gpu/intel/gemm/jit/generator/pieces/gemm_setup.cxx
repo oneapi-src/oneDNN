@@ -477,8 +477,8 @@ void Generator<hw>::gemmOffsetABC(bool initial, Subregister i0, Subregister j0, 
                 case MatrixLayout::Pc:  xstride = strategy.unroll[LoopM] * Tc_ext;   /* fall through */
                 case MatrixLayout::T:   x = j0; y = i0;             break;
             }
-            if (Tc_ext.is4()) {
-                eshr(1, tempQ0, x, 1, strategy, state);
+            if (Tc_ext.isSubByte()) {
+                eshr(1, tempQ0, x, Tc_ext.logPerByte(), strategy, state);
                 eadd(1, offsetC, offsetC, tempQ0, strategy, state);
             } else
                 emad(1, offsetC, offsetC, x, xstride, strategy, state);
@@ -1675,7 +1675,7 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
         // Repacked data can use significantly more registers than the loaded
         // data. Lazy repacking can reduce register utilization and improve load
         // pipelining at (in some cases) the expense of more work.
-        bool lazyRepack = state.Ta_load.is4() && one_of(Ta, {Type::f16, Type::bf16, Type::f32});    // Other cases are unimplemented
+        bool lazyRepack = state.Ta_load.isSubByte() && one_of(Ta, {Type::f16, Type::bf16, Type::f32});    // Other cases are unimplemented
         if (lazyRepack)
             state.ka_repack = std::min(state.ka_repack, strategy.kb_load);
         int repackN = state.ka_repack;

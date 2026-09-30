@@ -26,6 +26,7 @@ GEMMSTONE_NAMESPACE_START
 
 // DataType queries and helpers.
 static inline bool isInt4(ngen::DataType dt) { return one_of(dt, {ngen::DataType::u4, ngen::DataType::s4});}
+static inline bool isSubByteInt(ngen::DataType dt) { return isInt4(dt); }
 static inline bool isB(ngen::DataType dt) { return one_of(dt, {ngen::DataType::ub, ngen::DataType::b}); }
 static inline bool isW(ngen::DataType dt) { return one_of(dt, {ngen::DataType::uw, ngen::DataType::w}); }
 static inline bool isD(ngen::DataType dt) { return one_of(dt, {ngen::DataType::ud, ngen::DataType::d}); }

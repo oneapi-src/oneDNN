@@ -75,7 +75,7 @@ static inline bool hasNativeAtomicAdd(ngen::HW hw, Type T, const MatrixAddressin
         floatAtomics |= (astrategy.base.getModel() != ModelSLM);
     if (hw >= HW::Xe3p) floatAtomics = true;
 
-    if (T.isInt4())
+    if (T.isSubByteInt())
         return false;
     if (T.isInteger() && T.size() >= (astrategy.newDP ? 2 : 4))
         return true;

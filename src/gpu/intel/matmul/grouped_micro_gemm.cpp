@@ -222,12 +222,14 @@ status_t grouped_micro_gemm_t::pd_t::init_microkernels(
     // - Xe3p: Not supported, require s4->s8 upconversion
     // - pre-Xe3p: supported, but only when s4 matrix doesn't have zero points
     bool has_s8s4_dpas = dev_info->gpu_arch() != compute::gpu_arch_t::xe3p;
-    if (problem.Ta_ext.isInt4() && problem.Tb_ext.isInt8()) {
-        bool s8s4_dpas_ok = has_s8s4_dpas && !opts.offsetA;
+    if (problem.Ta_ext.isSubByteInt() && problem.Tb_ext.isInt8()) {
+        bool s8s4_dpas_ok = (problem.Ta_ext.bits() == 4) && has_s8s4_dpas
+                && !opts.offsetA;
         if (!s8s4_dpas_ok) problem.Ta = Type::s8;
     }
-    if (problem.Tb_ext.isInt4() && problem.Ta_ext.isInt8()) {
-        bool s8s4_dpas_ok = has_s8s4_dpas && !opts.offsetB;
+    if (problem.Tb_ext.isSubByteInt() && problem.Ta_ext.isInt8()) {
+        bool s8s4_dpas_ok = (problem.Tb_ext.bits() == 4) && has_s8s4_dpas
+                && !opts.offsetB;
         if (!s8s4_dpas_ok) problem.Tb = Type::s8;
     }
 
