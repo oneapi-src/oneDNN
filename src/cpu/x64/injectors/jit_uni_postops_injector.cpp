@@ -193,6 +193,26 @@ void jit_uni_postops_injector_t<Vmm>::compute_vector(int idx) {
     compute_vector_range({idx});
 }
 
+template <typename Vmm>
+binary_injector::preloaded_rhs_t
+jit_uni_postops_injector_t<Vmm>::preload_scalar_vector_range(
+        const injector_utils::vmm_index_set_t &vmm_idxs) const {
+    binary_injector::preloaded_rhs_t preloaded_rhs;
+    if (!binary_injector_) return preloaded_rhs;
+
+    auto vmm_it = vmm_idxs.cbegin();
+    int rhs_arg_idx = 0;
+    for (int i = 0; i < post_ops_.len() && vmm_it != vmm_idxs.cend(); i++) {
+        const auto &post_op = post_ops_.entry_[i];
+        if (!post_op.is_like_binary()) continue;
+        if (binary_injector_->preload_scalar_rhs(*vmm_it, rhs_arg_idx, post_op))
+            preloaded_rhs.emplace(rhs_arg_idx, *vmm_it++);
+        // Counts arguments the same way as compute_vector_range().
+        rhs_arg_idx += post_op.is_binary_with_ternary_op() ? 2 : 1;
+    }
+    return preloaded_rhs;
+}
+
 post_ops_ok_args_t::post_ops_ok_args_t(const cpu_isa_t isa,
         const std::vector<post_op_type> &accepted_post_op_types,
         const post_ops_t &post_ops, const memory_desc_wrapper *dst_d,

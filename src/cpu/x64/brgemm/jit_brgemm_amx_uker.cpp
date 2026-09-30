@@ -370,6 +370,8 @@ private:
         bool skip_accumulation {false};
         bool first_bsi {false};
         bool last_bsi {false};
+        // Registers holding scalar binary RHS values loaded before the loop.
+        binary_injector::preloaded_rhs_t preloaded_po_rhs;
         brgemm_iteration_t() = default;
     };
 
@@ -494,6 +496,17 @@ private:
             // zmm15 - zmm19
             return Xbyak::Zmm(15 + ldb);
         }
+    }
+
+    // Scalar binary post-op RHS values, loaded once per kernel call.
+    // Non-ACE: zmm20 - zmm28, between zmm_scales and accm. ACE uses all zmms
+    // for A and B, so the RHS is read from memory there.
+    int n_zmm_po_rhs() const {
+        return brg.is_ace() ? 0 : accm(store_bd_step() - 1).getIdx() - 20;
+    }
+    Xbyak::Zmm zmm_po_rhs(int i) const {
+        assert(0 <= i && i < n_zmm_po_rhs());
+        return Xbyak::Zmm(20 + i);
     }
 
     // ACE rd steps = ZMM count used per A/B block in the micro-kernel.
@@ -1182,6 +1195,7 @@ void jit_brgemm_amx_uker_t::apply_alpha_beta_to_vector(
 void jit_brgemm_amx_uker_t::apply_post_ops_to_range(
         brgemm_iteration_t &bi, int bd_start, int bd_finish, int bdb, int ldb) {
     binary_injector::rhs_arg_dynamic_params_t rhs_arg_params;
+    rhs_arg_params.preloaded_rhs = bi.preloaded_po_rhs;
     const auto ldb_pos = bi.ldi->pos(ldb);
     const auto is_ld_tail = bi.ldi->is_tail(ldb);
 
@@ -3583,6 +3597,16 @@ void jit_brgemm_amx_uker_t::generate() {
         cmp(reg_do_post_ops, 0);
         jz(label_store_without_post_ops, T_NEAR);
         bi.apply_postops = true;
+        if (brg.with_binary) {
+            // Scalar RHS values don't change within a call. Load them once
+            // for both post-ops loops below instead of per stored group.
+            injector_utils::vmm_index_set_t po_rhs_vmm_idxs;
+            for (int i = 0; i < n_zmm_po_rhs(); i++)
+                po_rhs_vmm_idxs.insert(zmm_po_rhs(i).getIdx());
+            bi.preloaded_po_rhs
+                    = postops_injector_->preload_scalar_vector_range(
+                            po_rhs_vmm_idxs);
+        }
         if (brg.brgattr.generate_skip_accumulation) {
             brgemm_iteration_t bi1;
             mov(reg_do_skip_accum, ptr[param1 + GET_OFF(skip_accm)]);
@@ -3592,6 +3616,7 @@ void jit_brgemm_amx_uker_t::generate() {
 
             bi1.skip_accumulation = true;
             bi1.apply_postops = true;
+            bi1.preloaded_po_rhs = bi.preloaded_po_rhs;
             top_loop(bi1);
             jmp(label_to_ret, T_NEAR);
 

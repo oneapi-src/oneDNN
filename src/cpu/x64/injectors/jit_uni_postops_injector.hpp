@@ -99,6 +99,14 @@ public:
             const binary_injector::rhs_arg_dynamic_params_t &rhs_arg_params);
     void compute_vector(int idx);
 
+    // Loads the scalar RHS of eligible binary post-ops once, as f32 in all
+    // lanes, into registers taken in order from `vmm_idxs`. Passing the result
+    // in rhs_arg_dynamic_params_t::preloaded_rhs makes compute_vector_range()
+    // use these registers instead of memory. The registers in `vmm_idxs` must
+    // be free.
+    binary_injector::preloaded_rhs_t preload_scalar_vector_range(
+            const injector_utils::vmm_index_set_t &vmm_idxs) const;
+
     // Thin wrapper for eltwise injector specific function
     void prepare_table(bool gen_table);
 

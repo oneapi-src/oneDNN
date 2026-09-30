@@ -212,6 +212,12 @@ struct static_params_t {
 enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
 
 /*
+ * Maps rhs_arg_idx of a binary post-op to the index of the vmm that holds its
+ * scalar RHS as f32 in all lanes.
+ */
+using preloaded_rhs_t = std::map<int, int>;
+
+/*
  * Represents params passed to compute_vector_range method of
  * jit_uni_binary_injector_t that can be different for each call.
  * Contains configurable std::maps where key is vmm index and value is
@@ -233,6 +239,9 @@ enum class tail_lode_mode_t { STATIC, DYNAMIC, DEFAULT };
  * @param is_dynamic_tail_load - determines whether to load with tail in
  * runtime (based on the value from reg_tail_size or opmask) or based on given
  * integer.
+ * @param preloaded_rhs - scalar RHS values already held in vmms, as returned by
+ * jit_uni_postops_injector_t::preload_scalar_vector_range. The injector uses
+ * these registers instead of reading the RHS from memory.
  */
 
 struct rhs_arg_dynamic_params_t {
@@ -242,6 +251,7 @@ struct rhs_arg_dynamic_params_t {
 
     std::unordered_set<int> vmm_tail_idx_;
     tail_lode_mode_t tail_load_mode = tail_lode_mode_t::DEFAULT;
+    preloaded_rhs_t preloaded_rhs;
 };
 
 /*
@@ -311,6 +321,15 @@ public:
             const rhs_arg_dynamic_params_t &rhs_arg_params) const;
 
     /*
+     * Loads the scalar RHS of `post_op` into Vmm(vmm_idx) as f32 in all lanes.
+     * Returns false and emits nothing if the post-op is not eligible. On
+     * success, the host may add {rhs_arg_idx, vmm_idx} to
+     * rhs_arg_dynamic_params_t::preloaded_rhs if Vmm(vmm_idx) is free.
+     */
+    bool preload_scalar_rhs(int vmm_idx, int rhs_arg_idx,
+            const dnnl_post_ops::entry_t &post_op) const;
+
+    /*
      * Reads a value from `base + byte_off` into vmm `dst` as f32, reusing the
      * RHS load path (`load_rhs` and its helpers). The sum post-op uses it to
      * read the accumulator's previous value, so the RHS infrastructure
@@ -323,6 +342,11 @@ public:
             tail_lode_mode_t tail_load_mode = tail_lode_mode_t::DEFAULT) const;
 
 private:
+    /*
+     * Checks if the RHS of `post_op` is a single value that one vmm can hold
+     * for all vectors, see preload_scalar_rhs.
+     */
+    bool is_scalar_rhs_preloadable(const dnnl_post_ops::entry_t &post_op) const;
     /*
      * Determines if hint passed by user is valid (is inside range
      * <start_idx, end_idx>). If not it returns new vmm idx value that will be
