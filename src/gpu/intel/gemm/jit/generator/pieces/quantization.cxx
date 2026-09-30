@@ -345,6 +345,7 @@ void Generator<hw>::gemmRepack2DOffsetData(Type Text, const RegisterLayout &layo
     auto Ts = layoutSrc.type(), Td = layoutDst.type();
 
     bool signedInput = Text.isSigned();
+    bool i4 = (Text.bits() == 4);
     bool s8 = (Ts == Type::s8);
     bool u8 = (Ts == Type::u8);
 
@@ -383,8 +384,8 @@ void Generator<hw>::gemmRepack2DOffsetData(Type Text, const RegisterLayout &layo
             });
         } else {
             map(hw, Type::f16, dst, dst, strategy, [&](int esize, RegData r, RegData _) {
-                signedInput ? mad(esize, r, Immediate::hf(0x1800), r, Immediate::hf(0x0C00))     // 0x1800 = 8 * 2^(-12)
-                            : mul(esize, r,                        r, Immediate::hf(0x0C00));    // 0x0C00 = 2^(-12)
+                signedInput ? mad(esize, r, Immediate::hf(i4 ? 0x1800 : 0x1000), r, Immediate::hf(0x0C00))     // 0x1800 = 8 * 2^(-12)
+                            : mul(esize, r,                                      r, Immediate::hf(0x0C00));    // 0x0C00 = 2^(-12)
             });
         }
     }
@@ -525,24 +526,26 @@ template <HW hw>
 void Generator<hw>::dequantizeSubByteIntShift(Type Tsrc, GRFMultirange src, const CommonStrategy &strategy)
 {
     if (!Tsrc.isSigned()) return;
+    int shiftVal = (Tsrc.bits() == 4) ? 0x8888 : 0xAAAA;
     map(hw, Type::u16, src, src, strategy, [&](int esize, RegData r, RegData _) {
-        xor_(esize, r, r, 0x8888);
+        xor_(esize, r, r, shiftVal);
     });
 }
 
 // Optimized int4/int2 -> f16/bf16/f32 dequantization sequence.
 template <HW hw>
-void Generator<hw>::dequantizeSubByteInt(bool doA, const RegisterLayout &layoutSrc, const RegisterLayout &layoutDst,
-    const RegisterLayout &layoutOffset, const RegisterLayout &layoutScale,
-    const GRFMultirange &src, const GRFMultirange &dst, const GRFMultirange &offset, const GRFMultirange &scale,
+void Generator<hw>::dequantizeSubByteInt(bool doA, const RegisterLayout& layoutSrc, const RegisterLayout& layoutDst,
+    const RegisterLayout& layoutOffset, const RegisterLayout& layoutScale,
+    const GRFMultirange& src, const GRFMultirange& dst, const GRFMultirange& offset, const GRFMultirange& scale,
     int offR, int offC, int h, int kab_load, int kq_load,
-    const GEMMProblem *problem, const CommonStrategy &strategy, CommonState &state, bool signedShift)
+    const GEMMProblem* problem, const CommonStrategy& strategy, CommonState& state, bool signedShift)
 {
     auto Tsrc = layoutSrc.type(), Tdst = layoutDst.type();
     if (!canDequantizeSubByteInt(layoutSrc, layoutDst, layoutOffset, layoutScale))
         stub("Cannot perform dequantizeSubByteInt");
 
     bool signedInt = Tsrc.isSigned();
+    bool i4 = (Tsrc.bits() == 4);
     bool f32 = (Tdst == Type::f32);
     bool bf16 = (Tdst == Type::bf16);
 
@@ -561,11 +564,11 @@ void Generator<hw>::dequantizeSubByteInt(bool doA, const RegisterLayout &layoutS
         effDst = &dstF16;
     }
 
-    // 1) Shift s4 data to u4 data by adding 8.
+    // 1) Shift s4/2 data to u4/2 data by adding 8/2.
     if (signedInt && signedShift)
         dequantizeSubByteIntShift(Tsrc, src, strategy);
 
-    // 2) Copy u4 -> u16 data.
+    // 2) Copy u4/2 -> u16 data.
     copyRegisters(Tsrc.asUnsigned(), Type::u16, layoutSrc, *effLayoutDst, src, *effDst, offR, offC, false, strategy, state);
 
     // 3) Reinterpret u16 data as denormal f16, scale into normal range and subtract (rescaled) offsets if available.
@@ -576,7 +579,7 @@ void Generator<hw>::dequantizeSubByteInt(bool doA, const RegisterLayout &layoutS
         gemmDequantizeOperation(doA, Type::f16, Type::f16, BinaryOp::ScaleSub, *effLayoutDst, layoutOffset, *effDst, offset, h, kab_load, kq_load, *problem, strategy, state);
     } else {
         map(hw, Type::f16, *effDst, *effLayoutDst, strategy, [&](int esize, RegData r) {
-            signedInt ? mad(esize, r, Immediate::hf(0x9800), r, Immediate::hf(0x6C00)) /* 0x9800 = -8*2^(-12), 0x6C00 = 2^12 */
+            signedInt ? mad(esize, r, Immediate::hf(i4 ? 0x9800 : 0x9000), r, Immediate::hf(0x6C00)) /* 0x9800 = -8*2^(-12), 0x6C00 = 2^12 */
                       : mul(esize, r, r, Immediate::hf(0x6C00));
         });
     }

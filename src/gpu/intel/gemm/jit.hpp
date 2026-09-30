@@ -160,7 +160,7 @@ struct gen_t : public primitive_t {
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, bf16, f32, u8, s8)
-                    && utils::one_of(d->a_type(), u8, s8, u4, s4)) {
+                    && utils::one_of(d->a_type(), u8, s8, u4, s4, u2)) {
                 VDISPATCH_GEMM(
                         (utils::one_of(d->b_type(), u8, s8) || wei_decomp_),
                         VERBOSE_UNSUPPORTED_DT);
@@ -440,8 +440,10 @@ struct gen_t : public primitive_t {
             auto m = d->m();
             auto n = d->n();
             auto k = d->k();
-            auto a_t = (utils::one_of(d->a_type(), s4, u4)) ? s8 : d->a_type();
-            auto b_t = (utils::one_of(d->b_type(), s4, u4)) ? s8 : d->b_type();
+            auto a_t = (utils::one_of(d->a_type(), s4, u4, u2)) ? s8
+                                                                : d->a_type();
+            auto b_t = (utils::one_of(d->b_type(), s4, u4, u2)) ? s8
+                                                                : d->b_type();
             auto c_t = d->c_type();
 
             bool is_f16 = utils::everyone_is(f16, a_t, b_t, c_t);
