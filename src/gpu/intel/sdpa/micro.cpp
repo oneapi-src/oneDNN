@@ -343,7 +343,17 @@ status_t micro_fwd_t::pd_t::init_conf_microkernels(
     const memory_desc_wrapper key_mdw(desc()->key_md());
     auto ldk = static_cast<int>(
             gemm_desc_t::get_ld(*desc()->key_md()) * key_mdw.data_type_size());
-    problem_kq.A.setAlignment(alignment_for_md(key_mdw, ldk));
+    const int k_align = alignment_for_md(key_mdw, ldk);
+    VDISPATCH_SDPA(!(utils::one_of(arch(), compute::gpu_arch_t::xe2,
+                             compute::gpu_arch_t::xe3)
+                           && utils::one_of(key_mdw.data_type(), data_type::f16,
+                                   data_type::bf16)
+                           && k_align < 4 && desc()->queries() == 1
+                           && desc()->keys() > 64),
+            "decode over keys with %d-byte aligned rows is not supported on "
+            "xe2/xe3",
+            k_align);
+    problem_kq.A.setAlignment(k_align);
     problem_kq.B.setAlignment(64); // Q is packed in VNNI format in SLM
     if (use_systolic_ukernel()) {
         problem_kq.B.crosspack = 2;
