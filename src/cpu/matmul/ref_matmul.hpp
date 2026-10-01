@@ -126,7 +126,7 @@ struct ref_matmul_t : public primitive_t {
             VDISPATCH_MATMUL(
                     attr_.set_default_formats(dst_md(0)) == status::success,
                     VERBOSE_UNSUPPORTED_POSTOP);
-            CHECK(dropout_ok());
+            CHECK(dropout_ok(engine));
 
             init_scratchpad();
 
@@ -139,7 +139,7 @@ struct ref_matmul_t : public primitive_t {
     private:
         void init_scratchpad();
 
-        status_t dropout_ok() const {
+        status_t dropout_ok(const engine_t *engine) const {
             if (attr_.dropout_.has_default_values()) return status::success;
 
             assert(memory_desc_wrapper(dst_md(0)).format_kind()
@@ -147,8 +147,8 @@ struct ref_matmul_t : public primitive_t {
 
             using namespace format_tag;
             // See `ref_dropout(...)` comment which explains the requirement.
-            VDISPATCH_MATMUL_IC(memory_desc_matches_one_of_tag(
-                                        *dst_md(0), ncdhw, nchw, ncw, nc)
+            VDISPATCH_MATMUL(memory_desc_matches_one_of_tag(
+                                     *dst_md(0), ncdhw, nchw, ncw, nc)
                             && IMPLICATION(attr_.dropout_.has_output_mask(),
                                     memory_desc_wrapper(dst_md(0)).similar_to(
                                             attr_.dropout_.dropout_desc_, true,
