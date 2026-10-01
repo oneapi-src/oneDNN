@@ -337,26 +337,33 @@ void ref_post_ops_t::execute(float &res, const args_t &args) const {
                 const auto dst_d = ctx.memory_mdw(DNNL_ARG_DST, args.dst_md);
                 const auto &src1_desc = e.binary.src1_desc;
 
-                const auto off = get_binary_src_off(
-                        src1_desc, args.l_offset, dst_d.dims(), dst_d.ndims());
-
-                const auto src1_binary_po = CTX_IN_MEM(const void *,
-                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_1));
-                const auto src2_binary_po = CTX_IN_MEM(const void *,
-                        (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_SRC_2));
+                // An in-place binary post-op aliases the destination memory,
+                // so its right-hand side value is the current destination value
+                // at the same logical offset, already loaded into `dst_val`.
+                float val_po = args.dst_val;
+                if (!e.is_inplace_binary()) {
+                    const auto off = get_binary_src_off(src1_desc,
+                            args.l_offset, dst_d.dims(), dst_d.ndims());
+                    const auto src1_binary_po = CTX_IN_MEM(const void *,
+                            (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | DNNL_ARG_SRC_1));
+                    val_po = io::load_float_value(
+                            src1_desc.data_type, src1_binary_po, off);
+                }
 
                 bool src2_val = false;
                 if (e.is_binary_with_ternary_op()
                         && e.binary.alg
                                 == dnnl::impl::alg_kind::binary_select) {
+                    const auto src2_binary_po = CTX_IN_MEM(const void *,
+                            (DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx)
+                                    | DNNL_ARG_SRC_2));
                     const auto &src2_desc = e.binary.src2_desc;
                     const auto src2_off = get_binary_src_off(src2_desc,
                             args.l_offset, dst_d.dims(), dst_d.ndims());
                     src2_val = static_cast<bool>(io::load_int_value(
                             src2_desc.data_type, src2_binary_po, src2_off));
                 }
-                const float val_po = io::load_float_value(
-                        src1_desc.data_type, src1_binary_po, off);
 
                 res = it_binary_po->compute_scalar(res, val_po, src2_val);
                 ++it_binary_po;
