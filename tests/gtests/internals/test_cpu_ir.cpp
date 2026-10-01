@@ -18,15 +18,21 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <regex>
 #include <set>
+#include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
 
 #include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_debug.h"
 
 #include "common/c_types_map.hpp"
 
+#include "cpu/x64/ir/dump.hpp"
 #include "cpu/x64/ir/emitter/emitter.hpp"
 #include "cpu/x64/ir/ir.hpp"
 #include "cpu/x64/ir/postops_injector.hpp"
@@ -1429,6 +1435,20 @@ TEST(IntegrationTests, InjectPostopsWorksWithAnyRegisterLayout) {
     }
     EXPECT_FALSE(full.spilled());
     EXPECT_TRUE(spilling.spilled());
+}
+
+// Debug output tests
+//
+// The output is off unless the `x64ir` token asks for it. `all` and
+// `debuginfo=` must not enable it.
+TEST(DumpTests, OutputIsOffUnlessRequested) {
+    EXPECT_FALSE(has_x64ir_token(""));
+    EXPECT_FALSE(has_x64ir_token("all"));
+    EXPECT_FALSE(has_x64ir_token("debuginfo=255"));
+    EXPECT_FALSE(has_x64ir_token("dispatch,profile"));
+
+    EXPECT_TRUE(has_x64ir_token("x64ir"));
+    EXPECT_TRUE(has_x64ir_token("dispatch,x64ir,debuginfo=1"));
 }
 
 } // namespace dnnl

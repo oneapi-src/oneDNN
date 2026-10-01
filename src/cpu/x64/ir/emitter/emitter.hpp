@@ -43,9 +43,14 @@ namespace ir {
 // the emitter goes through the IR and is only bound later by
 // `emit_data_section`, so the addresses must stay valid as more constants are
 // appended.
+//
+// `begin_offset` is the code size right after the postamble, where the static
+// data starts. `emit_data_section()` sets it. The debug output counts
+// everything the kernel writes from that point on as static data.
 struct data_section_t {
     std::deque<std::pair<std::vector<unsigned char>, Xbyak::Label>> constants;
     static constexpr int alignment = 32;
+    size_t begin_offset = 0;
 };
 
 // Lowering/code emission pass. Walks the IR once and turns each abstract

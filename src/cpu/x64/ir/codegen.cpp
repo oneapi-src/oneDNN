@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "cpu/x64/ir/codegen.hpp"
+#include "cpu/x64/ir/dump.hpp"
 #include "cpu/x64/ir/emitter/emitter.hpp"
 #include "cpu/x64/ir/postops_injector.hpp"
 #include "cpu/x64/ir/reg_alloc.hpp"
@@ -82,6 +83,9 @@ void generate_kernel(
     // Emit the injector's constant table (a no-op unless the chain has eltwise
     // or sum).
     if (injector) injector->maybe_prepare_table();
+
+    // Debug output (see `ir/dump.hpp`). Prints nothing unless enabled.
+    print_kernel_dump(gen, ir, data);
 }
 
 } // namespace ir

@@ -364,6 +364,7 @@ void emit(jit_generator_t &gen, const ir_t &ir, const reg_alloc_result_t &alloc,
 }
 
 void emit_data_section(jit_generator_t &gen, data_section_t &data) {
+    data.begin_offset = gen.getSize();
     for (auto &c : data.constants) {
         gen.align(data_section_t::alignment);
         gen.L(c.second);
