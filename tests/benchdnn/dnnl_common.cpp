@@ -956,10 +956,16 @@ void skip_unimplemented_binary_po(const attr_t &attr, res_t *res) {
     std::vector<dnnl_data_type_t> dts;
     for (int i = 0; i < po.len(); i++) {
         const auto &e = po.entry[i];
-        if (!e.is_binary_kind()) continue;
-
-        dts.push_back(e.binary.src1_dt);
-        if (e.is_binary_kind_with_ternary_op()) dts.push_back(e.binary.src2_dt);
+        if (e.is_binary_kind()) {
+            dts.push_back(e.binary.src1_dt);
+            if (e.is_binary_kind_with_ternary_op())
+                dts.push_back(e.binary.src2_dt);
+        } else if (e.is_sum_kind()) {
+            // Though sum is not binary, this code will be removed in a favor of
+            // new status coming from the library. Just put sum here to avoid
+            // major changes across all drivers.
+            if (e.sum.dt != dnnl_data_type_undef) { dts.push_back(e.sum.dt); }
+        }
     }
     skip_unimplemented_data_type(dts, FLAG_INF, res);
 }
