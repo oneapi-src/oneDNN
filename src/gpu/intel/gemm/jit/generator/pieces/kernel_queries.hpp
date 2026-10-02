@@ -19,6 +19,7 @@
 #define GEMMSTONE_GENERATOR_PIECES_KERNEL_QUERIES_HPP
 
 #include "internal/ngen_includes.hpp"
+#include "internal/utils.hpp"
 #include "gemmstone/problem.hpp"
 #include "gemmstone/strategy.hpp"
 #include "state.hpp"
@@ -40,6 +41,16 @@ bool keepIJ0(const GEMMProblem &problem, const GEMMStrategy &strategy);
 
 // Check if h0 needs to be saved across the k loop.
 bool keepH0(const GEMMProblem &problem, const GEMMStrategy &strategy);
+
+// Local k-index of outer product iteration h within a period, direction-aware.
+static inline int local_k_index(int h, int opCount, int period, const GEMMProblem &problem) {
+    int out = align_down(h, opCount) % period;
+    if (problem.backward()) {
+        if (period % opCount) stub();
+        return period - opCount - out;
+    }
+    return out;
+}
 
 GEMMSTONE_NAMESPACE_END
 
