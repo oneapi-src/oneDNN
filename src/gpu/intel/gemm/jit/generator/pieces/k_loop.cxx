@@ -1077,6 +1077,33 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     int ka_sumMain = !state.A_layout.colMajor() ? ka_loadMain : opCountMain;
     int kb_sumMain =  state.B_layout.colMajor() ? kb_loadMain : opCountMain;
 
+    // Accumulates a row/column sum for iteration h; scaling (if any) is applied later by
+    // outerProductRepackC, which folds Asr/Bsr into As/Bs.
+    auto accumulateSumPeriodic = [&](bool isA, const GRFMultirange &srcRegs, const RegisterLayout &srcLayout,
+                                      Iteration h, int q0 = -1, int q1 = -1) {
+        bool quantized2D = isA ? problem.quantized2DA() : problem.quantized2DB();
+        auto &rLayout = isA ? state.Asr_layout : state.Bsr_layout;
+
+        // Route through the repack buffer only if it exists and will be scaled/folded
+        // into As/Bs later; otherwise accumulate directly into As/Bs.
+        bool useRepack = quantized2D && !rLayout.empty();
+
+        auto &dstRegs   = useRepack ? (isA ? state.Asr_regs   : state.Bsr_regs)
+                                     : (isA ? state.As_regs    : state.Bs_regs);
+        auto &dstLayout = useRepack ? (isA ? state.Asr_layout : state.Bsr_layout)
+                                     : (isA ? state.As_layout  : state.Bs_layout);
+
+        if (useRepack) {
+            // Zero at each repack period boundary so accumulateSum()'s add
+            // semantics don't carry stale data into the next scale group.
+            bool periodStart = opRemActive(h) || (local_k_index(int(h), opCount(h), state.cRepackPeriod, problem) == 0);
+            if (periodStart)
+                zeroMatrix(dstRegs, strategy);
+        }
+
+        accumulateSum(!isA, srcRegs, srcLayout, dstRegs, dstLayout, strategy, state, q0, q1);
+    };
+
     ls.schedule(reqOP, [&](Iteration h) {
         auto oc = opCount(h);
         auto hNext = h + minOPCount;
@@ -1090,8 +1117,8 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         auto &regsA = Ar_regs(h);
         auto &regsB = Br_regs(h);
 
-            outerProduct(h, ka, kb, oc, opRemActive(h), layoutA, layoutB, regsA, regsB, problem, strategy, state);
-
+        // Must run before outerProduct(): its internal repack fold for this h
+        // needs Asr/Bsr already updated with h's own contribution, not stale data.
         if (calcASums && !slmASums && !state.systolicSumA) {
             int ka_sum = (curPhase == LoopSequencer::PhaseMainLoop) ? ka_sumMain : oc;
             int ha = h % ka;
@@ -1100,7 +1127,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
             }
             int ha0 = ha - oc + minOPCount;
             if (ha0 % ka_sum == 0)
-                accumulateSum(false, regsA, layoutA, state.As_regs, state.As_layout, strategy, state, ha0, ha0 + ka_sum);
+                accumulateSumPeriodic(true, regsA, layoutA, h, ha0, ha0 + ka_sum);
         }
 
         if (calcBSums && !slmBSums && !state.systolicSumB) {
@@ -1111,8 +1138,10 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
             }
             int hb0 = hb - oc + minOPCount;
             if (hb0 % kb_sum == 0)
-                accumulateSum(true, regsB, layoutB, state.Bs_regs, state.Bs_layout, strategy, state, hb0, hb0 + kb_sum);
+                accumulateSumPeriodic(false, regsB, layoutB, h, hb0, hb0 + kb_sum);
         }
+
+        outerProduct(h, ka, kb, oc, opRemActive(h), layoutA, layoutB, regsA, regsB, problem, strategy, state);
     });
 
     // Late A/B grouped offsets.
