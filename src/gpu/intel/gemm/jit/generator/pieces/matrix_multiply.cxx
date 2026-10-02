@@ -18,6 +18,7 @@
 #include "compute_utils.hpp"
 #include "gemmstone/generator.hpp"
 #include "hw_utils.hpp"
+#include "kernel_queries.hpp"
 #include "layout_utils.hpp"
 #include "map.hpp"
 #include "ngen_object_helpers.hpp"
@@ -27,17 +28,6 @@ GEMMSTONE_NAMESPACE_START
 using namespace ngen;
 using namespace ngen::utils;
 using std::vector;
-
-inline namespace {
-int local_k_index(int h, int opCount, int period, const GEMMProblem &problem) {
-    int out = align_down(h, opCount) % period;
-    if (problem.backward()) {
-        if (period % opCount) stub();
-        return period - opCount - out;
-    }
-    return out;
-}
-} // anonymous namespace
 
 // Do one or more outer products (k = 1 slices) of A*B, updating C.
 //  ha and hb are the k indices within the A and B chunks, respectively.
@@ -634,6 +624,8 @@ void Generator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h, bool rem
     bool globalCM = C_layout.colMajor();
     bool scaleA = state.lateScale2DA, scaleB = state.lateScale2DB;
 
+    // Folds raw sums (from systolic or non-systolic accumulateSum) in Asr/Bsr into
+    // As/Bs, using the same k-group scale/indexing as the A*B product above.
     bool sumA = problem.needsASums();
     bool sumB = problem.needsBSums();
     if (globalCM ? sumB : sumA) stub();
