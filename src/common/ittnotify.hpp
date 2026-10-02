@@ -55,7 +55,8 @@ __itt_id make_itt_id(const char *tname, double stamp);
 // Strictly follow this style when adding new entry points.
 
 // Returns `true` if requested @p level is less or equal to default or specified
-// one by env variable.
+// one by env variable. Even when `true`, ITT calls on the returned domain are
+// no-ops unless a collector is attached at runtime.
 #if defined(DNNL_ENABLE_ITT_TASKS)
 bool get_itt(__itt_task_level level);
 #else
