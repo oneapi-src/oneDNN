@@ -415,6 +415,8 @@ status_t post_ops_t::entry_t::validate_binary(
         const memory_desc_wrapper src1_d(binary.user_src1_desc);
         VCHECK_ATTR(dst_d.data_type() == src1_d.data_type(),
                 VERBOSE_INCONSISTENT_DT, "dst", "bin_po src1");
+        VCHECK_ATTR(!dst_d.has_runtime_dims_or_strides(),
+                VERBOSE_RUNTIMEDIM_UNSUPPORTED);
         VCHECK_ATTR(
                 utils::array_cmp(dst_d.dims(), src1_d.dims(), src1_d.ndims()),
                 VERBOSE_INCONSISTENT_DIM, "dst", -1, "bin_po src1", -1);
