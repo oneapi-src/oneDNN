@@ -329,6 +329,8 @@ The subclass carries the following limitations:
 * The \f$Source\_1\f$ memory descriptor must either describe the same format as
   the destination memory descriptor or be created with
   #dnnl::memory::format_tag::any.
+* The destination memory descriptor must not use runtime dimensions or strides
+  (see #DNNL_RUNTIME_DIM_VAL).
 
 @anchor dev_guide_attributes_post_ops_prelu
 ### Prelu Post-op
