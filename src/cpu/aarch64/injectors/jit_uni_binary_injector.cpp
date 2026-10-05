@@ -68,8 +68,10 @@ bool is_supported(cpu_isa_t isa, alg_kind_t alg,
 
     VCHECK_BIN_INJ_BOOL(is_alg_supported(alg), VERBOSE_BAD_ALGORITHM);
 
-    VCHECK_BIN_INJ_BOOL(memory_desc_wrapper(src1_desc).is_dense(true),
-            VERBOSE_NONTRIVIAL_STRIDE);
+    const memory_desc_wrapper src1_mdw(src1_desc);
+    VCHECK_BIN_INJ_BOOL(!src1_mdw.format_any(),
+            "set the rhs format before checking for support");
+    VCHECK_BIN_INJ_BOOL(src1_mdw.is_dense(true), VERBOSE_NONTRIVIAL_STRIDE);
 
     VCHECK_BIN_INJ_BOOL(
             is_bcast_supported(src1_desc, dst_d, supported_strategy_set),

@@ -928,7 +928,6 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     const int binary_ind = p.find(primitive_kind::binary);
     const int prelu_ind = p.find(primitive_kind::prelu);
     bgmmc.with_binary = !everyone_is(-1, binary_ind, prelu_ind);
-    VCONDCHECK_BG(post_ops_ok(bgmmc, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
 
     bgmmc.src_zp_type = get_zp_type(attr, DNNL_ARG_SRC);
     bgmmc.wei_zp_type = get_zp_type(attr, DNNL_ARG_WEIGHTS);
@@ -986,6 +985,10 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
     bgmmc.req_wei_vnni_downconvert = bm_conf_utils.wei_down_convert_to_vnni();
 
     VCHECK_BG(attr.set_default_formats(&dst_md), VERBOSE_UNSUPPORTED_TAG);
+
+    // Check post_ops_ok after set_default_formats to make sure the rhs format
+    // is valid
+    VCONDCHECK_BG(post_ops_ok(bgmmc, attr, dst_d), VERBOSE_UNSUPPORTED_POSTOP);
 
     bgmmc.wei_n_blk = get_default_n_block(bgmmc.wei_tag, bgmmc);
 
