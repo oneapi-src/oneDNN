@@ -49,6 +49,49 @@ TEST(test_interface_shape_infer, OneWayBroadcast) {
             graph::status::success);
 }
 
+TEST(test_interface_shape_infer, StaticReshapeExceedsMaxNdims) {
+    // The output rank of StaticReshape comes straight from the user-provided
+    // shape attribute. A rank above DNNL_MAX_NDIMS must be rejected before it
+    // is written into the fixed-size dims of the output logical tensor.
+    graph::op_t reshape_op {
+            0, graph::op_kind::StaticReshape, std::string("reshape")};
+    reshape_op.set_attr<bool>(graph::op_attr::special_zero, false);
+    // all ones so the total volume still matches the input and the size check
+    // does not reject it first; the rank alone is out of range.
+    dims target(DNNL_MAX_NDIMS + 20, 1);
+    reshape_op.set_attr<dims>(graph::op_attr::shape, target);
+
+    graph::logical_tensor_t src
+            = utils::logical_tensor_init(0, {1}, graph::data_type::f32);
+    graph::logical_tensor_t dst = utils::logical_tensor_init(
+            1, graph::data_type::f32, graph::layout_type::strided);
+
+    std::vector<graph::logical_tensor_t *> inputs {&src};
+    std::vector<graph::logical_tensor_t *> outputs {&dst};
+    ASSERT_EQ(graph::infer_static_reshape_output_shape(
+                      &reshape_op, inputs, outputs),
+            graph::status::invalid_shape);
+}
+
+TEST(test_interface_shape_infer, StaticReshapeValid) {
+    graph::op_t reshape_op {
+            0, graph::op_kind::StaticReshape, std::string("reshape")};
+    reshape_op.set_attr<bool>(graph::op_attr::special_zero, false);
+    reshape_op.set_attr<dims>(graph::op_attr::shape, dims {6});
+
+    graph::logical_tensor_t src
+            = utils::logical_tensor_init(0, {2, 3}, graph::data_type::f32);
+    graph::logical_tensor_t dst = utils::logical_tensor_init(
+            1, graph::data_type::f32, graph::layout_type::strided);
+
+    std::vector<graph::logical_tensor_t *> inputs {&src};
+    std::vector<graph::logical_tensor_t *> outputs {&dst};
+    ASSERT_EQ(graph::infer_static_reshape_output_shape(
+                      &reshape_op, inputs, outputs),
+            graph::status::success);
+    ASSERT_EQ(graph::logical_tensor_wrapper_t(dst).vdims(), (dims {6}));
+}
+
 TEST(test_interface_shape_infer, InvalidShapeForMatmul) {
     graph::op_t matmul {0, graph::op_kind::MatMul, std::string("matmul")};
     graph::logical_tensor_t src0

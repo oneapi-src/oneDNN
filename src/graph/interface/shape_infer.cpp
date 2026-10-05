@@ -1546,6 +1546,15 @@ status_t infer_static_reshape_output_shape(op_t *n,
     auto in0 = logical_tensor_wrapper_t(inputs[0]);
     const dims &in_dims = in0.vdims();
     dims out_dims = n->get_attr<dims>(op_attr::shape);
+    // The inferred rank is taken directly from the user-provided shape
+    // attribute, so bound it before it is written into the fixed-size dims of
+    // the output logical tensor in set_shape_and_strides.
+    VCHECK_INVALID_SHAPE(
+            (out_dims.size() <= static_cast<size_t>(DNNL_MAX_NDIMS)),
+            "%s, the number of output dims (%zu) should not exceed the maximum "
+            "supported ndims (%d)",
+            op_t::kind2str(n->get_kind()).c_str(), out_dims.size(),
+            DNNL_MAX_NDIMS);
     const bool special_zero = n->get_attr<bool>(op_attr::special_zero);
 
     bool find_uncertain_dim = false; // shape contains -1
