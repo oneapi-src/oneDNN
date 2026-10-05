@@ -198,7 +198,9 @@ status_t jit_uni_pool_kernel_t<isa>::init_conf(jit_pool_conf_t &jpp,
 
     if (!dst_d.matches_tag(fmt_tag)) return status::unimplemented;
 
-    if (!post_ops_ok(jpp, attr, dst_d)) return status::unimplemented;
+    jpp.with_eltwise = attr.post_ops_.find(primitive_kind::eltwise) != -1;
+    jpp.with_binary = attr.post_ops_.find(primitive_kind::binary) != -1;
+    jpp.with_postops = jpp.with_eltwise || jpp.with_binary;
 
     if (fmt_tag == ncsp_fmt_tag) {
         // transform input to blocked f32, call f32 jit, transform result to
@@ -229,6 +231,10 @@ status_t jit_uni_pool_kernel_t<isa>::init_conf(jit_pool_conf_t &jpp,
                 jpp.tag_kind == jit_memory_tag_kind_t::ncsp ? &jpp.tmp_md
                                                             : dst_d.md_));
     }
+
+    // Check post_ops_ok after set_binary_postops_formats to make sure the rhs
+    // format is valid
+    if (!post_ops_ok(jpp, attr, dst_d)) return status::unimplemented;
 
     jpp.isa = isa;
 
@@ -531,9 +537,6 @@ template <cpu_isa_t isa>
 bool jit_uni_pool_kernel_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
     const auto &post_ops = attr.post_ops_;
-    jpp.with_eltwise = post_ops.find(primitive_kind::eltwise) != -1;
-    jpp.with_binary = post_ops.find(primitive_kind::binary) != -1;
-    jpp.with_postops = jpp.with_eltwise || jpp.with_binary;
 
     std::vector<injector::post_op_type> accepted_post_op_types {
             injector::eltwise, injector::binary};

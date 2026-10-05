@@ -16,9 +16,6 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "dnnl_types.h"
-
-#include "common/bfloat16.hpp"
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
@@ -31,7 +28,6 @@
 #include "cpu/aarch64/cpu_isa_traits.hpp"
 #include "cpu/aarch64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/aarch64/jit_brgemm_conv_utils.hpp"
-#include "cpu/aarch64/jit_generator.hpp"
 #include "cpu/platform.hpp"
 
 namespace dnnl {
@@ -1751,8 +1747,6 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
             = jcp.src_dt == data_type::bf16 && jcp.wei_dt == data_type::bf16;
     if (!IMPLICATION(is_bf16, mayiuse_bf16())) return status::unimplemented;
 
-    if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
-
     const auto &p = attr.post_ops_;
     jcp.with_sum = p.find(primitive_kind::sum) != -1;
     const int eltwise_ind = p.find(primitive_kind::eltwise);
@@ -1794,9 +1788,11 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (!jcp.wei_plain && jcp.prop_kind != prop_kind::backward_weights) {
         // fast check data layout before spending time for blocking selection
-        format_tag_t src_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
+        format_tag_t dat_tag = pick(jcp.ndims - 3, nwc, nhwc, ndhwc);
         CHECK(init_tag(
-                jcp.src_tag, src_md, src_d, src_tag, is_any_eligible(jcp)));
+                jcp.src_tag, src_md, src_d, dat_tag, is_any_eligible(jcp)));
+        CHECK(init_tag(
+                jcp.dst_tag, dst_md, dst_d, dat_tag, is_any_eligible(jcp)));
     }
     if (jcp.with_bias) {
         if (bias_d.format_kind() == format_kind::any)
@@ -1806,6 +1802,8 @@ status_t init_jcp(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
     jcp.idp = jcp.id + jcp.f_pad + jcp.back_pad;
     jcp.ihp = jcp.ih + jcp.t_pad + jcp.b_pad;
     jcp.iwp = jcp.iw + jcp.l_pad + jcp.r_pad;
+
+    CHECK(attr.set_default_formats(&dst_md));
 
     return status::success;
 }
@@ -1949,7 +1947,8 @@ status_t init_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
 
     if (!jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
-    CHECK(attr.set_default_formats(&dst_md));
+
+    if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
 
     jcp.buffer_size = jcp.LDC * jcp.M;
 
@@ -2165,7 +2164,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         jcp.hint_prefetching = brgemm_kernel_prefetching_t::brgemm_prf1;
     if (!jcp.wei_plain)
         CHECK(pick_tags(jcp, src_md, weights_md, dst_md, bias_md));
-    CHECK(attr.set_default_formats(&dst_md));
+
+    if (!post_ops_ok(jcp, attr, dst_d)) return status::unimplemented;
 
     const bool with_groups = weights_d.ndims() == src_d.ndims() + 1;
 
