@@ -18,11 +18,14 @@
 *******************************************************************************/
 
 #include <cstdint>
+#include <vector>
 
 #include "common/c_types_map.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/pooling_pd.hpp"
 
+#include "cpu/aarch64/injectors/jit_uni_binary_injector.hpp"
+#include "cpu/aarch64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/aarch64/jit_uni_pool_kernel.hpp"
 #include "cpu/aarch64/utils/jit_io_helper.hpp"
 
@@ -471,32 +474,19 @@ template <cpu_isa_t isa>
 bool jit_uni_pool_kernel_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
     const auto &post_ops = attr.post_ops_;
-    const auto &entries = post_ops.entry_;
-    jpp.with_postops = false;
-    jpp.with_eltwise = false;
-    jpp.with_binary = false;
+    jpp.with_eltwise = post_ops.find(primitive_kind::eltwise) != -1;
+    jpp.with_binary = post_ops.find(primitive_kind::binary) != -1;
+    jpp.with_postops = jpp.with_eltwise || jpp.with_binary;
 
-    if (!jpp.is_backward) {
-        for (const auto &entry : entries) {
-            if (entry.is_eltwise()) {
-                const auto alg = entry.eltwise.alg;
-                jpp.with_eltwise
-                        = eltwise_injector::is_supported(to_vla_sve(isa), alg);
-            } else if (entry.is_binary()) {
-                if (entry.binary.src1_desc.data_type == data_type::bf16
-                        || entry.binary.src1_desc.data_type == data_type::f16)
-                    return false;
+    std::vector<injector::post_op_type> accepted_post_op_types {
+            injector::eltwise, injector::binary};
 
-                jpp.with_binary = true;
-            } else
-                return false;
-        }
+    injector::post_ops_ok_args_t ok_args(isa, accepted_post_op_types, post_ops,
+            &dst_d,
+            /*sum_at_pos_0_only=*/true, /*sum_requires_scale_one=*/true, true,
+            true, get_supported_bcast_strategies());
 
-        jpp.with_postops = jpp.with_eltwise || jpp.with_binary;
-    }
-
-    return binary_injector::binary_args_broadcast_supported(
-            post_ops, dst_d, get_supported_bcast_strategies());
+    return injector::post_ops_ok(ok_args);
 }
 
 template <cpu_isa_t isa>
