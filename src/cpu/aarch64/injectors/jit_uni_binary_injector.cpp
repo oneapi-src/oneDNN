@@ -115,21 +115,6 @@ bool is_bcast_supported(const dnnl::impl::memory_desc_t &src1_desc,
     return bcast_type != broadcasting_strategy_t::unsupported;
 }
 
-bool binary_args_broadcast_supported(const post_ops_t &post_ops,
-        const memory_desc_wrapper &dst_d,
-        const bcast_set_t &supported_strategy_set) {
-
-    return std::none_of(post_ops.entry_.cbegin(), post_ops.entry_.cend(),
-            [&](const post_ops_t::entry_t &entry) -> bool {
-        if (entry.is_binary()) {
-            const auto bcast_type = get_rhs_arg_broadcasting_strategy(
-                    entry.binary.src1_desc, dst_d, supported_strategy_set);
-            return bcast_type == broadcasting_strategy_t::unsupported;
-        }
-        return false;
-    });
-}
-
 bool any_binary_postop_rhs_non_scalar_broadcast(
         const post_ops_t &post_ops, const memory_desc_wrapper &dst_d) {
     return std::any_of(post_ops.entry_.cbegin(), post_ops.entry_.cend(),
