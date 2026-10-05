@@ -49,7 +49,16 @@ bool is_data_supported(data_type_t data_type) {
     return utils::one_of(data_type, f32, s32, s8, u8);
 }
 
-bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
+bool is_alg_supported(alg_kind_t alg) {
+    return utils::one_of(alg, alg_kind::binary_add, alg_kind::binary_mul,
+            alg_kind::binary_max, alg_kind::binary_min, alg_kind::binary_div,
+            alg_kind::binary_sub, alg_kind::binary_ge, alg_kind::binary_gt,
+            alg_kind::binary_le, alg_kind::binary_lt, alg_kind::binary_eq,
+            alg_kind::binary_ne);
+}
+
+bool is_supported(cpu_isa_t isa, alg_kind_t alg,
+        const dnnl::impl::memory_desc_t &src1_desc,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set) {
     VCHECK_BIN_INJ_BOOL(utils::one_of(isa, sve, asimd), VERBOSE_UNSUPPORTED_ISA)
@@ -57,10 +66,16 @@ bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
     VCHECK_BIN_INJ_BOOL(
             is_data_supported(src1_desc.data_type), VERBOSE_ISA_DT_MISMATCH);
 
+    VCHECK_BIN_INJ_BOOL(is_alg_supported(alg), VERBOSE_BAD_ALGORITHM);
+
     VCHECK_BIN_INJ_BOOL(memory_desc_wrapper(src1_desc).is_dense(true),
             VERBOSE_NONTRIVIAL_STRIDE);
 
-    return is_bcast_supported(src1_desc, dst_d, supported_strategy_set);
+    VCHECK_BIN_INJ_BOOL(
+            is_bcast_supported(src1_desc, dst_d, supported_strategy_set),
+            "unsupported broadcast");
+
+    return true;
 }
 
 static bool src1_desc_layout_same_as_dst_d(
@@ -489,6 +504,9 @@ void jit_uni_binary_injector_t<isa>::compute_vector_range(
         const rhs_arg_dynamic_params_t &rhs_arg_params) const {
 
     if (vmm_idxs.empty()) return;
+
+    assert(post_op.is_binary() && is_alg_supported(post_op.binary.alg));
+
     const auto start_idx = *(vmm_idxs.begin());
     const auto end_idx = *(vmm_idxs.rbegin());
 

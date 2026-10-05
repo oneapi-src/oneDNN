@@ -371,7 +371,8 @@ bool is_bcast_supported(const dnnl::impl::memory_desc_t &src1_desc,
 /*
  * Checks if binary injection for given args is supported.
  */
-bool is_supported(cpu_isa_t isa, const dnnl::impl::memory_desc_t &src1_desc,
+bool is_supported(cpu_isa_t isa, alg_kind_t alg,
+        const dnnl::impl::memory_desc_t &src1_desc,
         const memory_desc_wrapper &dst_d,
         const bcast_set_t &supported_strategy_set);
 
