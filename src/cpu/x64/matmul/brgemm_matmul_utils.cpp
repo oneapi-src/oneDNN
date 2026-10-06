@@ -28,6 +28,7 @@
 #include "cpu/x64/matmul/brgemm_matmul_utils.hpp"
 #include "cpu/x64/matmul/jit_brgemm_matmul_per_mn_comp.hpp"
 #include "cpu/x64/matmul/postops_estimator.hpp"
+#include "cpu/x64/platform.hpp"
 #include "oneapi/dnnl/dnnl_debug.h"
 
 // TODO add a method to print brgemm conf info
@@ -1190,7 +1191,7 @@ bool is_gemv_k_split_needed(const brgemm_matmul_conf_t &bgmmc,
 
     const dim_t src_dt_sz = bgmmc.gemv_swap_a_b ? bgmmc.b_dt_sz : bgmmc.a_dt_sz;
     const size_t src_sz = matmul.M * matmul.K * src_dt_sz;
-    const size_t l2_size = platform::get_per_core_cache_size(2);
+    const size_t l2_size = cpu::platform::get_per_core_cache_size(2);
     const dim_t max_m_blocks = div_up(matmul.M, min_m_blk);
 
     // (a) A's column stride is a power of two.
@@ -1350,12 +1351,16 @@ float compute_blocking_heuristic_avx512(brgemm_matmul_conf_t &bgmmc,
     if (use_large_m_blk) min_m_blk = max_m_blk;
 
     // Amortize f4 decompression over M without evicting the reused panels.
+    // On AVX10.2 hybrid CPUs, large M chunks hurt cache/TLB locality more
+    // than they save in decompression. Keep the regular blocking there.
     const bool tune_f4_m_chunk = bgmmc.is_f32_with_f4_wei && bgmmc.use_buffer_b
-            && !bgmmc.is_runtime_M;
+            && !bgmmc.is_runtime_M
+            && !(mayiuse(avx10_2) && x64::platform::is_hybrid());
     if (tune_f4_m_chunk) {
         matmul_avx512_blocking_params_t cur_params(matmul, nthr);
         // Leave heuristic headroom for other data sharing the L2 cache.
-        const dim_t l2_budget = 3 * platform::get_per_core_cache_size(2) / 4;
+        const dim_t l2_budget
+                = 3 * cpu::platform::get_per_core_cache_size(2) / 4;
         const dim_t k_chunk = (dim_t)k_blk * brgemm_bs;
         const dim_t b_bytes = (dim_t)rnd_up(k_blk, bgmmc.wei_k_blk)
                 * bgmmc.wei_n_blk * bgmmc.tr_b_dt_sz * brgemm_bs;
@@ -2641,7 +2646,7 @@ status_t init_brgemm_matmul_conf(cpu_isa_t isa, brgemm_matmul_conf_t &bgmmc,
             // Copy kernels require the B buffer to be aligned.
             // ZMM registers are used without masking;
             // Two YMMs are used in the AVX2 case with the same granularity.
-            size_t n_elements_in_wei_zmm = platform::get_cache_line_size()
+            size_t n_elements_in_wei_zmm = cpu::platform::get_cache_line_size()
                     / (data_type_vnni_granularity(bgmmc.wei_dt)
                             * bgmmc.tr_b_dt_sz);
             bgmmc.wei_n_blk = static_cast<int>(
