@@ -75,6 +75,12 @@ ALWAYS_INLINE int load_int_value(data_type_t dt, const void *ptr, dim_t idx) {
             uint2_t val(nibble_quartet.get(idx % 4));
             return static_cast<int>(val);
         }
+        case u3: {
+            const nibble8_t nibble_octet
+                    = reinterpret_cast<const nibble8_t *>(ptr)[idx / 8];
+            uint3_t val(nibble_octet.get(idx % 8));
+            return static_cast<int>(val);
+        }
         default: assert(!"bad data_type");
     }
 
@@ -122,6 +128,12 @@ ALWAYS_INLINE float load_float_value(
             uint4_t val(nibble_pair.get(idx % 2));
             return static_cast<float>(val);
         }
+        case u3: {
+            const nibble8_t nibble_octet
+                    = reinterpret_cast<const nibble8_t *>(ptr)[idx / 8];
+            uint3_t val(nibble_octet.get(idx % 8));
+            return static_cast<float>(val);
+        }
         case f4_e2m1: {
             const nibble2_t nibble_pair
                     = reinterpret_cast<const nibble2_t *>(ptr)[idx / 2];
@@ -165,6 +177,7 @@ ALWAYS_INLINE void store_float_value(
         case f4_e2m1: store_subbyte<f4_e2m1>(val, ptr, idx); break;
         case s4: store_subbyte<s4>(val, ptr, idx); break;
         case u4: store_subbyte<u4>(val, ptr, idx); break;
+        case u3: store_subbyte<u3>(val, ptr, idx); break;
         case u2: store_subbyte<u2>(val, ptr, idx); break;
         default: assert(!"bad data_type");
     }
