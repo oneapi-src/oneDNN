@@ -102,15 +102,20 @@ types for source, destination, weights, and bias tensors:
 | Source              | Weights                                | Destination                         | Bias                        |
 |:--------------------|:---------------------------------------|:------------------------------------|:----------------------------|
 | f64                 | f64                                    | f64                                 | f32, f16, bf16              |
-| f32                 | f32, u8, s8, u4, s4                    | f32                                 | f32, bf16, f16              |
-| f16                 | f16, u8, s8, u4, s4                    | f16, u8, s8                         | f32                         |
-| f16                 | f16, u8, s8, u4, s4, u2                | f32, f16                            | f32, f16                    |
-| bf16                | bf16, u8, s8, u4, s4                   | f32, bf16                           | f32, bf16                   |
-| f32, bf16, f16      | u8, s8, u4, s4                         | f32, bf16, f16                      | f32, bf16, f16              |
+| f32                 | f32, u8, s8, u4, s4, u2, u3            | f32                                 | f32, bf16, f16              |
+| f16                 | f16, u8, s8, u4, s4, u2, u3            | f16, u8, s8                         | f32                         |
+| f16                 | f16, u8, s8, u4, s4, u2, u3            | f32, f16                            | f32, f16                    |
+| bf16                | bf16, u8, s8, u4, s4, u2, u3           | f32, bf16                           | f32, bf16                   |
+| f32, bf16, f16      | u8, s8, u4, s4, u2, u3                 | f32, bf16, f16                      | f32, bf16, f16              |
 | bf16, f16           | f8_e5m2, f8_e4m3, f4_e2m1              | f32, f16, bf16                      | f32, bf16, f16              |
 | f8_e5m2, f8_e4m3    | f8_e5m2, f8_e4m3                       | f32, f16, bf16, f8_e5m2, f8_e4m3    | f32, bf16, f16              |
 | f4_e2m1             | f4_e2m1                                | f32, f16, bf16, f4_e2m1             | f32, bf16, f16              |
-| u8, s8              | u8, s8, u4, s4                         | u8, s8, s32, f32, f16, bf16         | u8, s8, s32, f32, f16, bf16 |
+| u8, s8              | u8, s8, u4, s4, u3                     | u8, s8, s32, f32, f16, bf16         | u8, s8, s32, f32, f16, bf16 |
+
+@note Sub-byte weights types pack several elements into each byte, so every stride
+greater than 1 in such memory descriptor must be a multiple of the number of
+packed elements: 2 for the 4-bit types (`s4`, `u4`, `f4_e2m1`),
+4 for `u2` (2-bit), and 8 for `u3` (3-bit, packs 8 elements into 3 bytes).
 
 ### Data Representation
 
