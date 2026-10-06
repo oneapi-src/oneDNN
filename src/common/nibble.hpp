@@ -136,6 +136,45 @@ private:
 static_assert(sizeof(nibble4_t) == 1, "nibble2_t must be 1 byte");
 static_assert(nibble4_t::size() == 1, "nibble2_t must be 1 byte");
 
+// An abstraction to manipulate with bits as bytes. `8` means there are eight
+// 3-bit elements in it, packed into three bytes starting from the lowest bit.
+struct nibble8_t {
+    // Set an element @val in the nibble according to the @idx
+    inline void set(uint8_t val, int idx) {
+        assert(0 <= idx && idx < nelems());
+        const int shift = 3 * idx;
+        const uint32_t w = (word() & ~(0x7u << shift))
+                | (static_cast<uint32_t>(val & 0x7) << shift);
+        bytes_[0] = static_cast<uint8_t>(w);
+        bytes_[1] = static_cast<uint8_t>(w >> 8);
+        bytes_[2] = static_cast<uint8_t>(w >> 16);
+    }
+
+    // Return an element from the nibble according to the @idx
+    inline uint8_t get(int idx) const {
+        assert(0 <= idx && idx < nelems());
+        return static_cast<uint8_t>((word() >> (3 * idx)) & 0x7);
+    }
+
+    // Return a size of a nibble object in bytes
+    static constexpr size_t size() { return 3; }
+
+    // Return the number of elements in this type of nibble
+    static constexpr int nelems() { return 8; }
+
+private:
+    // Read 3 stored bytes and return single 24-bit integer
+    uint32_t word() const {
+        return static_cast<uint32_t>(bytes_[0])
+                | static_cast<uint32_t>(bytes_[1]) << 8
+                | static_cast<uint32_t>(bytes_[2]) << 16;
+    }
+
+    uint8_t bytes_[3];
+};
+static_assert(sizeof(nibble8_t) == 3, "nibble8_t must be 3 bytes");
+static_assert(nibble8_t::size() == 3, "nibble8_t must be 3 bytes");
+
 } // namespace impl
 } // namespace dnnl
 

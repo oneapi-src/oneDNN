@@ -30,6 +30,7 @@
 #include "float4.hpp"
 #include "float8.hpp"
 #include "int2.hpp"
+#include "int3.hpp"
 #include "int4.hpp"
 #include "internal_defs.hpp"
 #include "z_magic.hpp"
@@ -251,6 +252,17 @@ struct numeric_limits<uint2_t> {
     static constexpr uint2_t epsilon() { return uint2_t(0); }
 };
 
+template <>
+struct numeric_limits<uint3_t> {
+    static constexpr uint3_t lowest() { return uint3_t(0); }
+    static constexpr uint3_t min() { return lowest(); }
+    static constexpr uint3_t max() { return uint3_t(7); }
+
+    static constexpr int digits = 3;
+
+    static constexpr uint3_t epsilon() { return uint3_t(0); }
+};
+
 template <typename T>
 struct is_integral { // NOLINT(readability-identifier-naming)
     static constexpr bool value = false;
@@ -281,6 +293,10 @@ struct is_integral<uint4_t> {
 };
 template <>
 struct is_integral<uint2_t> {
+    static constexpr bool value = true;
+};
+template <>
+struct is_integral<uint3_t> {
     static constexpr bool value = true;
 };
 
