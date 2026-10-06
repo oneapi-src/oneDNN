@@ -103,6 +103,28 @@ inline bool strategyMatch(const CommonDriverInfo &info, const StrategyRequiremen
     }
 }
 
+#ifdef KERNEL_CATALOG_MUTABLE
+inline bool layoutMatch(const std::string &lref, const std::string &lpattern)
+{
+    return layoutMatch(lref.c_str(), lpattern.c_str());
+}
+
+inline bool precisionMatch(const std::string &pref, const std::string &ppattern, bool ignoreCase)
+{
+    return precisionMatch(pref.c_str(), ppattern.c_str(), ignoreCase);
+}
+
+inline bool precisionMinimumMatch(const std::string &pref, char pmin)
+{
+    return precisionMinimumMatch(pref.c_str(), pmin);
+}
+
+inline bool tagMatch(const std::string &tref, const std::string &tpattern)
+{
+    return tagMatch(tref.c_str(), tpattern.c_str());
+}
+#endif
+
 bool matches(const kcatalog::Entry &e, const MatchParams &p)
 {
     bool ok = true;
@@ -246,8 +268,13 @@ const std::vector<const kcatalog::Entry *> select(const kcatalog::Catalog &catal
             /* Try capital types */
             auto hasLowercase = [](kcatalog::string &str) {
                 bool lc = false;
+#ifdef KERNEL_CATALOG_MUTABLE
+                for (auto c: str)
+                    lc |= (c >= 'a' && c <= 'z');
+#else
                 for (auto c = str; *c; c++)
                     lc |= (*c >= 'a' && *c <= 'z');
+#endif
                 return lc;
             };
 
@@ -262,7 +289,11 @@ const std::vector<const kcatalog::Entry *> select(const kcatalog::Catalog &catal
 
             /* Specific pattern modifications */
             auto iequal = [](kcatalog::string &str, char c) {
+#ifdef KERNEL_CATALOG_MUTABLE
+                return (str.size() == 1) && ((str[0] & ~0x20) == (c & ~0x20));
+#else
                 return str[0] && ((str[0] & ~0x20) == (c & ~0x20)) && (str[1] == '\0');
+#endif
             };
 
             for (auto &p: modPatterns) {
@@ -302,7 +333,11 @@ template <bool upper>
 const kcatalog::Entry *upper_lower_bound(const kcatalog::Catalog &catalog, const kcatalog::Selector &selector)
 {
     int n = catalog.entryCount;
+#ifdef KERNEL_CATALOG_MUTABLE
+    const kcatalog::Entry *cur = &catalog.entries[0];
+#else
     const kcatalog::Entry *cur = catalog.entries;
+#endif
 
     while (n > 0) {
         auto half = n >> 1;

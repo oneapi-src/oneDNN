@@ -176,6 +176,12 @@ struct CommonState {
         ngen::Subregister callStorageSub, callStorage;
         bool use = false;
     } invertSub;
+#ifdef STANDALONE
+    struct {
+        uint8_t surface;                            // BTS index for tracking data buffer
+        ngen::Subregister stride;                   // uw, per-thread storage space for tracking information, in bytes
+    } tracking;
+#endif
 
     CommonState(ngen::HW hw) : ra(hw), raVFlag(hw), tokenAllocator(hw) {}
 
@@ -440,6 +446,17 @@ struct GEMMState : public CommonState {
 
     std::vector<ngen::Subregister> effBinary;
 
+#ifdef STANDALONE
+    struct {
+        bool active = false;
+        uint8_t surfacePlan;
+        ngen::Subregister plan;
+        ngen::Subregister slotA, slotB;
+        ngen::Subregister localIDFlat;
+        ngen::FlagRegister needLateGEMMDone;
+    } fusedGEMM;
+#endif
+
     struct {
         ngen::InstructionModifier depAddr[4];
     } sysgemm;
@@ -455,7 +472,25 @@ struct GEMMState : public CommonState {
     ngen::GRF r0InfoGRF() const;
     void setTacc(Type T);
 
+#ifdef ASM_OUTPUT
+    void dump(std::ostream &s);
+#endif
 };
+
+#ifdef STANDALONE
+// GEMM superkernel generator state.
+struct GEMMSuperkernelState : public GEMMState {
+    struct {
+        uint8_t surfacePlan;
+        ngen::Subregister planCount;
+        ngen::GRF localID;
+        ngen::Subregister localSize;
+    } inputsSK;
+    ngen::Subregister last_i0, last_j0, last_h0;
+
+    GEMMSuperkernelState(ngen::HW hw, const GEMMSuperkernelStrategy &strategy) : GEMMState(hw, strategy.substrategies[0]) {}
+};
+#endif
 
 GEMMSTONE_NAMESPACE_END
 

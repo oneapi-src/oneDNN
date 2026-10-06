@@ -19,6 +19,9 @@
 
 #include <string>
 #include <tuple>
+#ifdef KERNEL_CATALOG_MUTABLE
+#include <vector>
+#endif
 #include <array>
 #include <utility>
 
@@ -33,9 +36,15 @@ namespace kcatalog {
 //   - a mutable version, used inside of ktool for easier modification
 //   - an immutable vesion, which is an aggregate type and used when the catalog
 //       is loaded.
+#ifdef KERNEL_CATALOG_MUTABLE
+using string = std::string;
+#define DEFAULT(val) = val
+#define DEFAULT3(v1,v2,v3) = {v1,v2,v3}
+#else
 using string = const char *;
 #define DEFAULT(val)
 #define DEFAULT3(v1,v2,v3)
+#endif
 
 struct Restrictions {
     int steppingMin        DEFAULT(-1);             // If >= 0, minimum supported stepping (inclusive)
@@ -47,6 +56,24 @@ struct Restrictions {
     int alignment[3]       DEFAULT3(1, 1, 1);       // A/B/C alignment requirements.
     string tags;                                    // see RestrictionTags for entries.
 
+#ifdef KERNEL_CATALOG_MUTABLE
+    friend bool operator==(const Restrictions &r1, const Restrictions &r2)
+    {
+        bool equal = (r1.steppingMin == r2.steppingMin)
+                  && (r1.steppingMax == r2.steppingMax)
+                  && (r1.tags        == r2.tags);
+
+        for (int i = 0; i < 3; i++) {
+            equal &= (r1.acceptSizesMin[i]  == r2.acceptSizesMin[i])
+                  && (r1.acceptSizesMax[i]  == r2.acceptSizesMax[i])
+                  && (r1.allowedSizesMin[i] == r2.allowedSizesMin[i])
+                  && (r1.allowedSizesMax[i] == r2.allowedSizesMax[i])
+                  && (r1.alignment[i]       == r2.alignment[i]);
+        }
+
+        return equal;
+    }
+#endif
 };
 
 enum RestrictionTags : char {
@@ -219,7 +246,13 @@ struct Catalog {
     Catalog(const std::array<Entry, N> &a): entryCount(N), entries(a.data()) {}
     int entryCount          DEFAULT(0);
 
+#ifdef KERNEL_CATALOG_MUTABLE
+    Catalog(): entryCount(0) {}
+    std::vector<Entry> entries;
+    string header;
+#else
     const Entry *entries;
+#endif
 };
 
 #if __cplusplus >= 202002L && __cpp_lib_to_array >= 201907L

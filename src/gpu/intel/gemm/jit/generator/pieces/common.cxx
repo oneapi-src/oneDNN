@@ -63,6 +63,11 @@ void Generator<hw>::epilogue(const CommonStrategy &strategy, CommonState &state)
 {
     auto r0_info = state.r0_info;
 
+#ifdef STANDALONE
+    if (strategy.tracking.startEnd)
+        addTimepoint(TimepointThreadEnd, state);
+#endif
+
     if (!getEfficient64Bit() && r0_info.getBase() < 112) {
         mov<uint32_t>(r0DWords(hw), r127, r0_info);
         r0_info = r127;
@@ -668,7 +673,16 @@ void Generator<hw>::initState(const CommonProblem &problem, const CommonStrategy
     state.ra.setRegisterCount(strategy.GRFs);
     state.tokenAllocator = TokenAllocator(hw, strategy.GRFs);
 
+#ifdef STANDALONE
+    auto eff64BitEnv = getenv("EFFICIENT_64B");
+    if (eff64BitEnv) {
+        auto eff = atoi(eff64BitEnv);
+        this->setEfficient64Bit(eff);
+        interface.setEfficient64Bit(eff);
+    }
+#else
     setEfficient64Bit(interface.getEfficient64Bit());
+#endif
 
     if (problem.gtpinSupport)
         interface.requireScratch(128);

@@ -388,6 +388,11 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
                 }
             }
 
+#ifdef STANDALONE
+            auto N_mask = N_bundles.regMask(0) & ((uint64_t(1) << Bundle(0,0).stride(hw)) - 1);
+            status << "N bundle mask: " << std::hex << N_mask << std::dec << status_stream::endl;
+#endif
+
             if (repackV)
                 Vr_regs = chunkAlloc(Vr_regCount, V_chunk, hintV0, VC_bundles, state);
             else for (int copy = 0; copy < V_copies; copy++)
@@ -492,7 +497,6 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
         }
     }
 
-#ifdef MICROKERNEL_INTERFACE
     // Track clobbers which cannot be determined from decoded assembly.
     auto addClobbers = [&](const std::vector<GRFMultirange> &regs) {
         for (const auto &reg : regs) {
@@ -504,7 +508,6 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
 
     if (strategy.A.base.getModel() != ngen::ModelInvalid) { addClobbers(state.A_regs); }
     if (strategy.B.base.getModel() != ngen::ModelInvalid) { addClobbers(state.B_regs); }
-#endif
 
     if (repackC) {
         state.Cr_regs = C_regs;
@@ -538,16 +541,12 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
     if (strategy.slmA) {
         for (int q = 0; q < strategy.slmCopies; q++)
             state.Ai_regs[q] = state.ra.alloc_range(state.Ai_regCount);
-#ifdef MICROKERNEL_INTERFACE
         addClobbers(state.Ai_regs);
-#endif
     }
     if (strategy.slmB) {
         for (int q = 0; q < strategy.slmCopies; q++)
             state.Bi_regs[q] = state.ra.alloc_range(state.Bi_regCount);
-#ifdef MICROKERNEL_INTERFACE
         addClobbers(state.Bi_regs);
-#endif
     }
 
     // Allocate registers for A/B sums.
@@ -582,6 +581,10 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
     state.Agr_regs = state.ra.alloc_range(state.Agr_layout.regs());
     state.Bgr_regs = state.ra.alloc_range(state.Bgr_layout.regs());
 
+#ifdef STANDALONE
+    if (problem.readCheck)
+        state.readFailures = state.C_regs[0][0].ud(0);
+#endif
 }
 
 template <HW hw>

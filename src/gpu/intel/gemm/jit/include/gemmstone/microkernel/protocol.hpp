@@ -18,8 +18,9 @@
 #define GEMMSTONE_INCLUDE_GEMMSTONE_MICROKERNEL_PROTOCOL_HPP
 
 #include "gemmstone/config.hpp"
+#include "gemmstone/kernel_selector.hpp"
+#include "gemmstone/kernel_evaluator.hpp"
 
-#ifdef MICROKERNEL_INTERFACE
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
 
@@ -94,5 +95,4 @@ private:
 }
 GEMMSTONE_NAMESPACE_END
 
-#endif
 #endif /* header guard */

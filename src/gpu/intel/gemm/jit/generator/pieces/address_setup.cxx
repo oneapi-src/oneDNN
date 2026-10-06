@@ -180,6 +180,7 @@ void Generator<hw>::setupAddr(Type T, const RegisterRange &addr, const BO &ptr, 
                 for (int r = 0; r < addr.getLen(); r += 2) {
                     int nr = std::min(2, addr.getLen() - r);
                     int simd = nr * ne;
+                    simd = std::min(32, simd);
                     auto ld0 = findLDMultiple(ldMultiples, a64, r * ne / consecutive, strategy, state);
                     auto ldStride = (ldMultiples.a64 && !a64) ? 2 : 1;
                     auto ldR = ld0(ldStride, consecutive, 0);
@@ -383,6 +384,11 @@ void Generator<hw>::setupAddr(Type T, const RegisterRange &addr, const BO &ptr, 
                 add(1, addr[0].ud(4), bld, -1);
 
             mov(1, addr[0].ud(7), (bw - 1) | ((bh - 1) << 8) | ((bcount - 1) << 16));
+
+#ifdef STANDALONE
+            if (getenv("HACK_WIDTH"))   /* force width to be same as pitch */
+                mov(1, addr[0].ud(2), addr[0].ud(4));
+#endif
 
             state.ra.safeRelease(baStorage);
             break;

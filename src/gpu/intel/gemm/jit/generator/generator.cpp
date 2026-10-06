@@ -52,6 +52,12 @@
 
 #include "pieces/quantization.cxx"
 
+#ifdef STANDALONE
+#include "pieces/debug_tools.cxx"
+#include "pieces/gemm_superkernel.cxx"
+#include "pieces/notes.cxx"
+#endif
+
 GEMMSTONE_NAMESPACE_START
 
 template <HW hw>

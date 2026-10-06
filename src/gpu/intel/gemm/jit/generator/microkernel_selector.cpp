@@ -16,8 +16,6 @@
 
 #include "gemmstone/config.hpp"
 
-#ifdef MICROKERNEL_INTERFACE
-
 #define BINARY_OUTPUT
 
 #include "gemmstone/microkernel_selector.hpp"
@@ -28,6 +26,15 @@
 #include "npack/neo_packager.hpp"
 #include "pieces/compute_utils.hpp"
 #include "pieces/hw_utils.hpp"
+
+#ifdef STANDALONE
+// oneDNN ISA registration macros, enabling all ISAs.
+#define REG_XEHPG_ISA(...) __VA_ARGS__
+#define REG_XEHPC_ISA(...) __VA_ARGS__
+#define REG_XE2_ISA(...) __VA_ARGS__
+#define REG_XE3_ISA(...) __VA_ARGS__
+#define REG_XE3P_ISA(...) __VA_ARGS__
+#endif
 
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
@@ -520,6 +527,10 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
     bool block2DA = (hw >= HW::XeHPC) && systolic && (problem.A.alignment % min2DAlignmentA) == 0;
     bool block2DB = (hw >= HW::XeHPC) && systolic && (problem.B.alignment % min2DAlignmentB) == 0;
     bool useNewDP = (hw >= HW::XeHP);
+#ifdef STANDALONE
+    if (getenv("NO_BLOCK_2D_A")) block2DA = false;
+    if (getenv("NO_BLOCK_2D_B")) block2DB = false;
+#endif
 
     s.ka_load = s.kb_load = 16;
     if (!systolic) {
@@ -539,6 +550,12 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
         if (systolic)
             s.ka_load = (problem.A.layout == MatrixLayout::T) ? 64 / problem.Ta_ext / m_iter : 16;
         s.slmA = (hw >= HW::XeHP);
+#ifdef STANDALONE
+        if (::getenv("NO_SLM")) {
+            s.slmA = false;
+            s.A.accessType = isColMajor(problem.A.layout) ? AccessType::Block : AccessType::Scattered;
+        }
+#endif
     } else if (problem.A.layout == MatrixLayout::T) {
         s.A.accessType = AccessType::Block2DTranspose;
         s.ka_load = 64 / problem.Ta_ext / m_iter;
@@ -559,6 +576,12 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
             s.kb_load = (problem.B.layout == MatrixLayout::N) ? 32 : 16;
         }
         s.slmB = (hw >= HW::XeHP);
+#ifdef STANDALONE
+        if (::getenv("NO_SLM")) {
+            s.slmB = false;
+            s.B.accessType = !isColMajor(problem.B.layout) ? AccessType::Block : AccessType::Scattered;
+        }
+#endif
     } else if (problem.B.layout == MatrixLayout::T)
         s.B.accessType = AccessType::Block2DTranspose;
     else if (problem.B.layout == MatrixLayout::N) {
@@ -665,6 +688,25 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
         s.raHW = ngen::HW::XeHPC;
     }
 
+#ifdef STANDALONE
+    static int which = 0;
+
+    if (!getenv("WHICH") || which == atoi(getenv("WHICH"))) {
+        if (getenv("NO_PF")) {
+            s.prefetchA = s.prefetchAMasked = 0;
+            s.prefetchB = s.prefetchBMasked = 0;
+        }
+
+        if (getenv("SLM_BUFFERS"))
+            s.slmBuffersA = s.slmBuffersB = atoi(getenv("SLM_BUFFERS"));
+
+        if (getenv("DW"))
+            s.dpasw = true;
+    }
+
+    which++;
+#endif
+
     adjustStrategy(hw, problem, strategy);
 
     return true;
@@ -673,4 +715,3 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
 }
 GEMMSTONE_NAMESPACE_END
 
-#endif

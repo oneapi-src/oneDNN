@@ -18,8 +18,6 @@
 #include "ngen_decoder.hpp"
 #include "npack/neo_packager.hpp"
 
-#ifdef MICROKERNEL_INTERFACE
-
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
 
@@ -142,4 +140,3 @@ Package::Status Package::finalize(const ClobberSet &knownClobbers) {
 }
 GEMMSTONE_NAMESPACE_END
 
-#endif

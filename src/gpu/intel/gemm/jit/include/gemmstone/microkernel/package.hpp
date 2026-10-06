@@ -24,7 +24,6 @@
 
 #include "gemmstone/microkernel/protocol.hpp"
 
-#ifdef MICROKERNEL_INTERFACE
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
 
@@ -195,5 +194,4 @@ struct Argument {
 }
 GEMMSTONE_NAMESPACE_END
 
-#endif
 #endif /* header guard */

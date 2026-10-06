@@ -155,6 +155,9 @@ bool Generator<hw>::sysgemmAccumulateC(GEMMProblem &problem, const GEMMStrategy 
     auto remFusedStorage = saveData[1].ud(0);
     auto diagC  = saveData[1].ud(1);
     auto effCO  = saveData[1].uq(1);
+#ifdef STANDALONE
+    auto slotAB = saveData[1].ud(6);
+#endif
     auto ldco   = saveData[1].ud(5);
     auto effAs  = saveData[1].uq(2).reinterpret(0, state.effA.getType());
     auto effBs  = saveData[1].uq(3).reinterpret(0, state.effB.getType());
@@ -208,6 +211,12 @@ bool Generator<hw>::sysgemmAccumulateC(GEMMProblem &problem, const GEMMStrategy 
         state.effBs = effBs;
         gemmCalcABOffsetAddrs(problem, strategy, state);
     }
+#ifdef STANDALONE
+    if (state.fusedGEMM.slotA.isValid()) {
+        if (abOffset) stub(); // Not enough room in acc2.
+        mov(1, slotAB, state.fusedGEMM.slotA.ud());
+    }
+#endif
 
     releaseSavedMNLocalIDs(state);
     state.ra.safeRelease(state.effA);
@@ -229,6 +238,10 @@ bool Generator<hw>::sysgemmAccumulateC(GEMMProblem &problem, const GEMMStrategy 
     state.ra.release(state.diagC);
     state.ra.release(state.effCO);
     state.ra.release(state.inputs.ldco);
+#ifdef STANDALONE
+    state.ra.release(state.fusedGEMM.slotA);
+    state.ra.release(state.fusedGEMM.slotB);
+#endif
 
     if (state.r0_info.isARF()) stub();
     GRF r0_info{state.r0_info.getBase()};
@@ -287,6 +300,12 @@ bool Generator<hw>::sysgemmAccumulateC(GEMMProblem &problem, const GEMMStrategy 
         state.effCO = effCO;
     if (state.inputs.ldco.isValid())
         state.inputs.ldco = ldco;
+#ifdef STANDALONE
+    if (state.fusedGEMM.slotA.isValid()) {
+        state.fusedGEMM.slotA = slotAB.uw(0);
+        state.fusedGEMM.slotB = slotAB.uw(1);
+    }
+#endif
     if (problem.hasBinaryPostOp()) {
         state.i0 = saveI0;
         state.j0 = saveJ0;
@@ -1295,6 +1314,12 @@ void Generator<hw>::sysgemmMultiplyChunk(const GEMMProblem &problem, const GEMMS
         auto A = aReg.retype(problem.Ta.ngen());
         auto B = bReg.retype(problem.Tb.ngen());
         auto C = cReg.retype(problem.Tc.ngen());
+#ifdef STANDALONE
+        if (problem.mock.multiply) {
+            mod.setExecSize(0);
+            sync.nop(mod);
+        } else
+#endif
         first ? dpasw(mod, sdepth, rcount, C, null.retype(problem.Tc.ngen()), A, B)
               : dpasw(mod, sdepth, rcount, C, C, A, B);
     };
@@ -1522,6 +1547,9 @@ bool Generator<hw>::sysgemm2AccumulateC(GEMMProblem &problem, const GEMMStrategy
     auto diagC  = saveData[1].ud(1);
     auto effCO  = saveData[1].uq(1);
     auto C_ptr  = saveData[1].uq(2);
+#ifdef STANDALONE
+    auto slotAB = saveData[1].ud(6);
+#endif
     auto ldco   = saveData[1].ud(7);
     auto effAs  = a0.ud(4);     // dwords 4-5
     auto effBs  = a0.ud(6);     // dwords 6-7
@@ -1579,6 +1607,10 @@ bool Generator<hw>::sysgemm2AccumulateC(GEMMProblem &problem, const GEMMStrategy
         mov<uint32_t>(4, effAs(1), temp);
         state.ra.safeRelease(temp);
     }
+#ifdef STANDALONE
+    if (state.fusedGEMM.slotA.isValid())
+        mov(1, slotAB, state.fusedGEMM.slotA.ud());
+#endif
 
     if (state.isNested) {
         // To do: replace with sel
@@ -1606,6 +1638,10 @@ bool Generator<hw>::sysgemm2AccumulateC(GEMMProblem &problem, const GEMMStrategy
     state.ra.release(state.diagC);
     state.ra.release(state.effCO);
     state.ra.release(state.inputs.ldco);
+#ifdef STANDALONE
+    state.ra.release(state.fusedGEMM.slotA);
+    state.ra.release(state.fusedGEMM.slotB);
+#endif
 
     if (state.r0_info.isARF()) stub();
     GRF r0_info{state.r0_info.getBase()};
@@ -1662,6 +1698,12 @@ bool Generator<hw>::sysgemm2AccumulateC(GEMMProblem &problem, const GEMMStrategy
         state.effCO = effCO;
     if (state.inputs.ldco.isValid())
         state.inputs.ldco = ldco;
+#ifdef STANDALONE
+    if (state.fusedGEMM.slotA.isValid()) {
+        state.fusedGEMM.slotA = slotAB.uw(0);
+        state.fusedGEMM.slotB = slotAB.uw(1);
+    }
+#endif
     if (abOffset) {
         auto tas = state.effAs.getType();
         auto tbs = state.effBs.getType();
@@ -2536,6 +2578,12 @@ void Generator<hw>::sysgemm2MultiplyChunkX48(const GEMMProblem &problem, const G
 
     auto dpaswTyped = [&](InstructionModifier mod, uint8_t sdepth, uint8_t rcount,
                           const GRF &cReg, const GRF &aReg, const GRF &bReg) {
+#ifdef STANDALONE
+        if (problem.mock.multiply) {
+            mod.setExecSize(0);
+            sync.nop(mod);
+        } else
+#endif
         dpasw(mod, sdepth, rcount, cReg.retype(problem.Tc.ngen()), cReg.retype(problem.Tc.ngen()),
                                    aReg.retype(problem.Ta.ngen()), bReg.retype(problem.Tb.ngen()));
     };
@@ -2582,6 +2630,12 @@ void Generator<hw>::sysgemm2MultiplyChunkX32(const GEMMProblem &problem, const G
 
     auto dpaswTyped = [&](InstructionModifier mod, uint8_t sdepth, uint8_t rcount,
                           const GRF &cReg, const GRF &aReg, const GRF &bReg) {
+#ifdef STANDALONE
+        if (problem.mock.multiply) {
+            mod.setExecSize(0);
+            sync.nop(mod);
+        } else
+#endif
         dpasw(mod, sdepth, rcount, cReg.retype(problem.Tc.ngen()), cReg.retype(problem.Tc.ngen()),
                                    aReg.retype(problem.Ta.ngen()), bReg.retype(problem.Tb.ngen()));
     };

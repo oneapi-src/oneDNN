@@ -51,7 +51,11 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto Ta_ext = problem.Ta_ext, Tb_ext = problem.Tb_ext;
     auto Ta_load = state.Ta_load, Tb_load = state.Tb_load;
 
+#ifdef STANDALONE
+    bool cLoadAhead = strategy.cLoadAhead && !problem.readCheck;
+#else
     bool cLoadAhead = strategy.cLoadAhead;
+#endif
     auto opCountMain = outerProductCount(problem, strategy);
     auto minOPCount = minOuterProductCount(problem, strategy);
     auto opCountRem = minOPCount;
@@ -191,6 +195,9 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     if (slmA && slmB && nbM != nbN) stub();
 
     auto kLoopBarrier = [&](bool withSLMFence, KBarrierType type) {
+#ifdef STANDALONE
+        if (problem.mock.barriers) return;
+#endif
         if (withSLMFence && type == KBarrierType::Wait) {
             auto temp = getFenceTemp();
             slmfence(modBarrierFence[0], temp, r0_info);
@@ -259,10 +266,18 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         if (calcBSums) zeroMatrix(state.Bs_regs, strategy);
 
         // Zero out C, if not loading ahead of time.
+#ifdef STANDALONE
+        if (!problem.mock.cInit)
+#endif
         if (!cLoadAhead && !(strategy.registerOutput() && problem.beta1())) {
             for (int i = 0; i < state.C_accCount; i += 2)
                 mov<uint32_t>(2 * elementsPerGRF<uint32_t>(hw), AccumulatorRegister(i), uint16_t(0));
 
+#ifdef STANDALONE
+            if (problem.readCheck) for (int buf = 0; buf < state.C_buffers; buf++)
+                readCheckInitMatrix(state.C_regs[buf], strategy);
+            else
+#endif
             for (int buf = 0; buf < state.C_buffers; buf++)
                 zeroMatrix(state.C_regs[buf], strategy);
         }
@@ -1343,6 +1358,12 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
             default: stub();
         }
 
+#ifdef STANDALONE
+        if (problem.mock.slmW) {
+            if (slmA) wrdepRanges(effAo_regs(h));
+            if (slmB) wrdepRanges(effBo_regs(h));
+        } else
+#endif
         {
             if (slmA) storeMatrix(effAo_regs(h), state.Ao_layout, state.Ao_addrs, strategy, state);
             if (slmB) storeMatrix(effBo_regs(h), state.Bo_layout, state.Bo_addrs, strategy, state);
@@ -1742,6 +1763,13 @@ template <typename I>
 void Generator<hw>::gemmAIncrement(const RegisterLayout &layout, const std::vector<RegisterRange> &addrs, I ka_inc,
                                    const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, int ha, int h)
 {
+#ifdef STANDALONE
+    if (problem.mock.abInc)
+        /* no-op */;
+    else if (problem.mock.abZeroInc)
+        incDecAddr(addrs, 0, 0, 0, layout, strategy, state, problem.backward());
+    else
+#endif
         gemmAIncrementInternal(layout, addrs, ka_inc, problem, strategy, state, ha);
 }
 
@@ -1750,7 +1778,17 @@ template <HW hw>
 void Generator<hw>::gemmALoad(const GRFMultirange &regs, const RegisterLayout &layout, const std::vector<RegisterRange> &addrs,
                               const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
+#ifdef STANDALONE
+    if (problem.readCheck)
+        readCheckInitMatrix(regs, layout, strategy);
+    if (problem.mock.abLoad)
+        return;
+    loadMatrix(regs, layout, addrs, strategy, state, problem.readCheck && problem.readCheckA);
+    if (problem.readCheck && problem.readCheckA)
+        readCheck(regs, strategy, state, &layout);
+#else
     loadMatrix(regs, layout, addrs, strategy, state);
+#endif
 }
 
 template <HW hw>
@@ -1823,6 +1861,13 @@ template <typename I>
 void Generator<hw>::gemmBIncrement(const RegisterLayout &layout, const std::vector<RegisterRange> &addrs, I kb_inc,
                                    const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, int hb, int h)
 {
+#ifdef STANDALONE
+    if (problem.mock.abInc)
+        /* no-op */;
+    else if (problem.mock.abZeroInc)
+        incDecAddr(addrs, 0, 0, 0, layout, strategy, state, problem.backward());
+    else
+#endif
         gemmBIncrementInternal(layout, addrs, kb_inc, problem, strategy, state, hb);
 }
 
@@ -1831,7 +1876,17 @@ template <HW hw>
 void Generator<hw>::gemmBLoad(const GRFMultirange &regs, const RegisterLayout &layout, const std::vector<RegisterRange> &addrs,
                               const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
+#ifdef STANDALONE
+    if (problem.readCheck)
+        readCheckInitMatrix(regs, layout, strategy);
+    if (problem.mock.abLoad)
+        return;
+    loadMatrix(regs, layout, addrs, strategy, state, problem.readCheck && problem.readCheckB);
+    if (problem.readCheck && problem.readCheckB)
+        readCheck(regs, strategy, state, &layout);
+#else
     loadMatrix(regs, layout, addrs, strategy, state);
+#endif
 }
 
 template <HW hw>

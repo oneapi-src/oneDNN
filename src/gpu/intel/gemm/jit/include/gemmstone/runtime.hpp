@@ -29,6 +29,7 @@
 
 #ifdef GEMMSTONE_WITH_L0_RUNTIME
 #include <level_zero/ze_api.h>
+#define GEMMSTONE_ZE_HAS_CLUSTER_SUPPORT 0
 #endif
 
 #ifdef GEMMSTONE_WITH_OPENCL_RUNTIME

@@ -40,16 +40,32 @@
 #include "gemmstone/microkernel/package.hpp"
 #include "gemmstone/microkernel/protocol.hpp"
 
+#if defined(BINARY_OUTPUT) || defined(ZEBIN_OUTPUT) || defined(OPENCL_OUTPUT)
 #include "internal/ngen_elf_hw_list.hpp"
+#endif
 
 GEMMSTONE_NAMESPACE_START
 
 // Macro configuration
 #ifndef GENERATOR_BASE
 
+#if defined(OPENCL_OUTPUT)
 #define GENERATOR_SUPER(hw) ngen::OpenCLCodeGenerator<hw>
 #define FORWARD(hw) NGEN_FORWARD_OPENCL(hw)
 #define GENERATOR_DEBUGINFO {__FILE__, __LINE__}
+#elif defined(BINARY_OUTPUT)
+#define GENERATOR_SUPER(hw) ngen::BinaryCodeGenerator<hw>
+#define FORWARD(hw) NGEN_FORWARD(hw)
+#define GENERATOR_DEBUGINFO {}
+#elif defined(ZEBIN_OUTPUT)
+#define GENERATOR_SUPER(hw) ngen::ELFCodeGenerator<hw>
+#define FORWARD(hw) NGEN_FORWARD_ELF(hw)
+#define GENERATOR_DEBUGINFO {__FILE__, __LINE__}
+#else
+#define GENERATOR_SUPER(hw) ngen::AsmCodeGenerator
+#define FORWARD(hw)
+#define GENERATOR_DEBUGINFO {__FILE__, __LINE__}
+#endif
 
 #define GENERATOR_BASE(hw) GENERATOR_SUPER(hw)
 #endif
@@ -58,28 +74,47 @@ template <ngen::HW hw> class Generator : public GENERATOR_BASE(hw) {
 public:
     using super = GENERATOR_SUPER(hw);
 
+#ifdef ASM_OUTPUT
+    Generator(ngen::Product product) : super(hw) {}
+#else
     Generator(ngen::Product product) : GENERATOR_BASE(hw)(product, GENERATOR_DEBUGINFO) {}
+#endif
 
     FORWARD(hw)
 
     // Kernel generation entrypoints.
     void gemm(GEMMProblem problem, GEMMStrategy strategy, const ngen::InterfaceHandler &interface_);
+#ifdef STANDALONE
+    void gemmSuperkernel(GEMMSuperkernelProblem problem, GEMMSuperkernelStrategy strategy, const ngen::InterfaceHandler &interface_);
+#endif
     void gemmMicrokernel(GEMMProblem problem, GEMMStrategy strategy, const ngen::InterfaceHandler &interface_);
+#if defined(BINARY_OUTPUT) || !defined(STANDALONE)
     microkernel::Package gemmMicrokernelPackage(const GEMMProblem &problem, const GEMMStrategy &strategy, const ngen::InterfaceHandler &interface_, const microkernel::Protocol &protocol, uint32_t gmdid, bool transposeC = false);
+#endif
 
     // Driver information retrieval.
     static CommonDriverInfo driverInfo(GEMMProblem problem, const GEMMStrategy &strategy);
 
+#ifdef STANDALONE
+    static CommonDriverInfo driverInfo(const GEMMSuperkernelProblem &problem, const GEMMStrategy &strategy);
+#endif
+
 protected:
+#if defined(OPENCL_OUTPUT) || defined(ZEBIN_OUTPUT)
     ngen::InterfaceHandler &interface = super::interface_;
+#else
+    ngen::InterfaceHandler interface{hw};
+#endif
 
     std::exception_ptr lastException;
     GRFMultirange outputCRange;
     RegisterLayout outputCLayout;
     microkernel::ClobberSet knownClobbers;
 
+#ifndef STANDALONE
     using Injector = PostOpsProblem::Injector<hw>;
     std::unique_ptr<Injector> postOpInjector;
+#endif
 
     class status_stream {
     protected:
@@ -98,10 +133,22 @@ protected:
 
         template <typename T>
         status_stream &operator<<(const T &obj) {
+#ifdef ASM_OUTPUT
+            if (lineStart)
+                line << "\x1B[1;3" << cc << 'm';
+            line << obj;
+            lineStart = false;
+#endif
             return *this;
         }
 
         status_stream &operator<<(const Endl &e) {
+#ifdef ASM_OUTPUT
+            line << "\x1B[0m";
+            lineStart = true;
+            parent.comment(line.str());
+            line.str(std::string());
+#endif
             return *this;
         }
     } status{*this};
@@ -270,6 +317,21 @@ protected:
     void copyExecute(CopyPlan &&plan, CommonState &state);
     void overlappedCopy(const GRFMultirange &src, const GRFMultirange &dst, CommonState &state);
 
+#ifdef STANDALONE
+    // debug_tools.cxx
+    void readCheckInitMatrix(const GRFMultirange &r, const CommonStrategy &strategy);
+    void readCheckInitMatrix(const GRFMultirange &r, const RegisterLayout &layout, const CommonStrategy &strategy);
+    void readCheck(const GRFMultirange &r, const CommonStrategy &strategy, CommonState &state, const RegisterLayout *layout = nullptr);
+    void gemmFinalizeReadCheck(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+    void gemmStoreReadCheck(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+
+    void mockInitMatrix(Type T, const GRFMultirange &r, const CommonStrategy &strategy, bool random);
+    void mockInitSLM(Type T, size_t bytes, CommonState &state);
+
+    void gemmInitTracking(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+    template <typename TT> void addTimepoint(TT type, CommonState &state);
+#endif
+
     // emulation.cxx
     friend struct ngen::EmulationImplementation;
     template <typename DT = void> void emov(const ngen::InstructionModifier &mod, ngen::RegData dst, ngen::RegData src0,   const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc = {});
@@ -365,6 +427,11 @@ protected:
     void gemmApplyWorkshareOffset(bool isA, ngen::Subregister &base, ngen::Subregister alias, Address2DParams &params2D, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, int r, int c, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmCalcWorkshareAOffset(ngen::Subregister &off, ngen::Subregister &offR, ngen::Subregister &offC, const MatrixAddressing &A, const MatrixAddressingStrategy &A_strategy, int ma, int ka, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmCalcWorkshareBOffset(ngen::Subregister &off, ngen::Subregister &offR, ngen::Subregister &offC, const MatrixAddressing &B, const MatrixAddressingStrategy &B_strategy, int kb, int nb, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+
+#ifdef STANDALONE
+    // gemm_superkernel.cxx
+    void gemmSuperkernelInitState(GEMMSuperkernelProblem &problem, GEMMSuperkernelStrategy &strategy, GEMMSuperkernelState &state);
+#endif
 
     // k_loop.cxx
     void gemmAIncrementInternal(const RegisterLayout &layout, const std::vector<ngen::RegisterRange> &addrs, int ka_inc, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, int ha = 0);
@@ -494,6 +561,19 @@ protected:
     void sysgemm2MultiplyChunkX32(const GEMMProblem &problem, const GEMMStrategy &strategy, int chunkA, bool odd);
     void sysgemm2MultiplyChunkX48(const GEMMProblem &problem, const GEMMStrategy &strategy, int chunkA);
 
+#ifdef STANDALONE
+    // notes.cxx
+public:
+    std::string getNotes();
+
+protected:
+    void gemmKernelAnalysis(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
+    void gemmKernelNotes(GEMMProblem &problem, GEMMStrategy &strategy);
+    void gemmSuperkernelNotes(GEMMSuperkernelProblem &problem, GEMMSuperkernelStrategy &strategy);
+    void driverInfoNotes(const CommonDriverInfo &info);
+    std::stringstream noteStream;
+#endif
+
     // post_ops.cxx
     void gemmAlphaScale(GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, bool cxCombine = true);
     void gemmBetaScale(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
@@ -508,9 +588,11 @@ protected:
     bool gemmBinaryOpC(BinaryOp op, bool row, bool column, Type Tco, MatrixAddressing CO, MatrixAddressingStrategy CO_strategy, ngen::Subregister base, ngen::Subregister ld, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     bool gemmApplyCOffsetDispatch(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
 
+#ifndef STANDALONE
     void gemmApplyPostOps(size_t poMin, size_t poMax, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmApplyMXScale(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void gemmLoadBinaryOpArgs(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+#endif
 
     // quantization.cxx
     bool gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state);
@@ -565,7 +647,11 @@ protected:
     void gemmReorderLocalIDs(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
 };
 
+#ifdef STANDALONE
+#define MOCK_BARRIERS if (!problem.mock.barriers)
+#else
 #define MOCK_BARRIERS
+#endif
 
 template <ngen::HW hw> using gemm_kernel_generator_t = Generator<hw>;
 

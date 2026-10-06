@@ -40,9 +40,11 @@ void GEMMProblem::transpose()
     std::swap(aqGroupM, bqGroupN);
     std::swap(aqGroupK, bqGroupK);
     std::swap(sumA, sumB);
+#ifndef STANDALONE
     postOps.transpose();
     for (auto &bsrc: binary)
         bsrc.transpose();
+#endif
     A.transpose();
     B.transpose();
     C.transpose();
@@ -64,6 +66,10 @@ std::string GEMMProblem::toString() const
 {
     std::ostringstream ss;
     ss.imbue(std::locale::classic());
+
+#ifdef STANDALONE
+    if (readCheck) ss << "rc ";
+#endif
 
     switch (batch) {
         default:                                      break;
@@ -134,6 +140,23 @@ std::string GEMMProblem::scalarsToString() const
     append(ss, beta);
     return ss.str();
 }
+
+#ifdef STANDALONE
+std::string GEMMSuperkernelProblem::toString() const
+{
+    std::ostringstream ss;
+
+    if (readCheck) ss << "rc ";
+    ss << "super ";
+
+    GEMMProblem problem = *this;
+    problem.readCheck = false;
+    ss << problem.toString();
+
+    return ss.str();
+}
+
+#endif /* STANDALONE */
 
 
 static inline void append(std::ostringstream &ss, const Scalar &x)

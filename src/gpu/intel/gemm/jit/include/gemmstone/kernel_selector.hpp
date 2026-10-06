@@ -74,6 +74,7 @@ struct MatchParams : public MatchParamsBase
     MatchParams &operator=(const MatchParams &other) {
         static_cast<MatchParamsBase &>(*this) = other;
 
+#ifndef KERNEL_CATALOG_MUTABLE
         auto transfer = [&](const char *&value) {
             auto offset = size_t(value - other.temp.data());
             if (offset < sizeof(temp))
@@ -88,6 +89,7 @@ struct MatchParams : public MatchParamsBase
         transfer(selector.layouts[2]);
         transfer(tags);
         transfer(lateTags);
+#endif
 
         return *this;
     }
