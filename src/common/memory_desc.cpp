@@ -43,7 +43,7 @@ inline status_t memory_desc_sanity_check(int ndims, const dims_t dims,
     VCHECK_MEMORY(0 < ndims && ndims <= DNNL_MAX_NDIMS,
             status::invalid_arguments, VERBOSE_BAD_NDIMS, "tensor", ndims);
     VCHECK_MEMORY(utils::one_of(data_type, f4_e2m1, e8m0, f8_e5m2, f8_e4m3, f16,
-                          bf16, f32, f64, s64, s32, s8, u8, s4, u4, u2),
+                          bf16, f32, f64, s64, s32, s8, u8, s4, u4, u2, u3),
             status::invalid_arguments, VERBOSE_UNSUPPORTED_DT);
 
     // A bounds check on the dimensions ensures that the tensor size
