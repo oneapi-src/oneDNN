@@ -127,6 +127,18 @@ u2 as_u2(uchar data) {
 /*****************************/
 
 typedef struct {
+    uchar data;
+} u3;
+
+u3 as_u3(uchar data) {
+    u3 res;
+    res.data = data;
+    return res;
+}
+
+/*****************************/
+
+typedef struct {
     char invalid_data;
 } undef_data;
 

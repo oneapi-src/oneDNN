@@ -106,7 +106,7 @@ struct ref_grouped_t : public primitive_t {
             const bool is_fp_wei = utils::one_of(
                     wei_type, f32, bf16, f16, f8_e5m2, f8_e4m3, f4_e2m1);
             const bool is_int_src = utils::one_of(src_type, u8, s8);
-            const bool is_int_wei = utils::one_of(wei_type, u8, s8, s4, u4);
+            const bool is_int_wei = utils::one_of(wei_type, u8, s8, s4, u4, u3);
 
             // Supported: fp src + int wei (WOQ), int src + int wei, fp src + fp wei
             VDISPATCH_MATMUL(is_fp_src || is_int_src, VERBOSE_UNSUPPORTED_DT);
