@@ -108,9 +108,9 @@ bool prefer_ymm_requested() {
 }
 
 bool has_data_type_support(data_type_t data_type) {
-    // Notice: see notes in header
     switch (data_type) {
         case data_type::f64: return false;
+        case data_type::s64: return false;
         case data_type::bf16:
 #if DNNL_X64
             return x64::mayiuse(x64::avx512_core)
