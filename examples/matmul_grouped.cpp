@@ -160,10 +160,22 @@ void grouped_matmul_example(engine::kind engine_kind) {
     write_to_dnnl_memory(wei_scales.data(), wei_scales_mem);
     matmul_attr.set_scales_mask(DNNL_ARG_WEIGHTS, (1 << 0) | (1 << 2));
 
-    // Create matmul primitive descriptor and the primitive
-    auto matmul_pd = matmul::primitive_desc(
-            eng, src_md, weights_md, dst_md, matmul_attr);
-    auto matmul_prim = matmul(matmul_pd);
+    matmul matmul_prim;
+    // Create matmul primitive descriptor and the primitive if it's supported
+    // on this platform.
+    try {
+        auto matmul_pd = matmul::primitive_desc(
+                eng, src_md, weights_md, dst_md, matmul_attr);
+        matmul_prim = matmul(matmul_pd);
+    } catch (error &e) {
+        if (e.status == dnnl_unimplemented)
+            throw example_allows_unimplemented {
+                    "No f8 implementation is available for this platform.\n"
+                    "Please refer to the developer guide for details."};
+
+        // on any other error just re-throw
+        throw;
+    }
 
     // Execute the primitive
     matmul_prim.execute(engine_stream,
