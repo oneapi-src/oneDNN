@@ -158,7 +158,7 @@ status_t ref_grouped_t::execute(const exec_ctx_t &ctx) const {
     const bool use_woq = utils::one_of(src_dt, data_type::f32, data_type::bf16,
                                  data_type::f16)
             && utils::one_of(wei_dt, data_type::s8, data_type::u8,
-                    data_type::s4, data_type::u4)
+                    data_type::s4, data_type::u4, data_type::u3)
             && pd()->attr()->fpmath_.apply_to_int_;
 
     const auto &po = pd()->attr()->post_ops_;
