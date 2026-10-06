@@ -90,6 +90,13 @@ struct ref_matmul_t : public primitive_t {
                     VERBOSE_UNSUPPORTED_BIAS_CFG);
             VDISPATCH_MATMUL(platform::has_data_type_support(src_type),
                     VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(wei_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(dst_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(IMPLICATION(with_bias(),
+                                     platform::has_data_type_support(bia_type)),
+                    VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(
                     attr()->has_default_values(smask_t::scales_data_type
                                     | smask_t::scales_groups

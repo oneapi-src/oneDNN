@@ -108,6 +108,12 @@ struct ref_grouped_t : public primitive_t {
             VDISPATCH_MATMUL(IMPLICATION(is_fp_src && is_int_wei,
                                      attr()->fpmath_.apply_to_int_),
                     VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_MATMUL(platform::has_data_type_support(src_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(wei_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(dst_type),
+                    VERBOSE_UNSUPPORTED_DT);
 
             // Check for supported quantization schemes
             const auto &attr_scales = attr()->scales_;
@@ -271,6 +277,12 @@ struct ref_grouped_t : public primitive_t {
             VDISPATCH_MATMUL(src_type == wei_type && src_type == dst_type
                             && utils::one_of(src_type, f32, bf16, f16),
                     VERBOSE_UNSUPPORTED_DT_CFG);
+            VDISPATCH_MATMUL(platform::has_data_type_support(src_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(wei_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(dst_type),
+                    VERBOSE_UNSUPPORTED_DT);
 
             VDISPATCH_MATMUL(
                     attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
