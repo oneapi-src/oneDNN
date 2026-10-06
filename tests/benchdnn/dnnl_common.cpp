@@ -823,8 +823,11 @@ std::vector<float> prepare_po_vals(const dnn_mem_t &dst_m, const args_t &args,
 
 bool check_md_consistency_with_tag(
         const_dnnl_memory_desc_t md, const std::string &tag) {
-    auto md_new_tag = dnn_mem_t::init_md(
-            query_md_ndims(md), query_md_dims(md), query_md_data_type(md), tag);
+    // `tag` is either `tag::abx` or the problem tag already used in `init_pd`
+    // for a tensor of the same rank, so a failure is not expected.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> md_new_tag;
+    DNN_SAFE_V(dnn_mem_t::init_md(md_new_tag, query_md_ndims(md),
+            query_md_dims(md), query_md_data_type(md), tag));
     return dnnl_memory_desc_equal(md_new_tag, md);
 }
 
@@ -1489,9 +1492,11 @@ void add_md_size(const_dnnl_memory_desc_t md,
     const bool is_corr = has_bench_mode_bit(mode_bit_t::corr);
     const bool is_bitwise = has_bench_mode_bit(mode_bit_t::bitwise);
     // Reference memories are always tag::abx fp32, hence need re-creating
-    // memory descriptor and take its size.
-    auto ref_md = dnn_mem_t::init_md(
-            query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx);
+    // memory descriptor and take its size. The dims come from an existing
+    // descriptor, so a failure is not expected.
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> ref_md;
+    DNN_SAFE_V(dnn_mem_t::init_md(
+            ref_md, query_md_ndims(md), query_md_dims(md), dnnl_f32, tag::abx));
     const auto ref_md_size = dnnl_memory_desc_get_size(ref_md);
 
     const size_t ref_mem_idx = check_mem_size_args.want_input ? 0 : 1;
@@ -2705,15 +2710,20 @@ void init_memory_args(dnn_mem_map_t &mem_map, const base_prb_t *base_prb,
             }
         } else {
             int64_t count = 1;
-            auto prob_md = dnn_mem_t::init_md(1, &count, dnnl_f32, tag::abx);
+            benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> prob_md;
+            DNN_SAFE_V(
+                    dnn_mem_t::init_md(prob_md, 1, &count, dnnl_f32, tag::abx));
             mem_map.emplace(DNNL_ARG_ATTR_DROPOUT_PROBABILITY,
                     dnn_mem_t(prob_md, test_engine, /* prefill = */ true));
-            auto seed_md = dnn_mem_t::init_md(1, &count, dnnl_s64, tag::abx);
+            benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> seed_md;
+            DNN_SAFE_V(
+                    dnn_mem_t::init_md(seed_md, 1, &count, dnnl_s64, tag::abx));
             mem_map.emplace(DNNL_ARG_ATTR_DROPOUT_SEED,
                     dnn_mem_t(seed_md, test_engine, /* prefill = */ true));
             if (base_prb->attr.dropout.offset != 0) {
-                auto offset_md
-                        = dnn_mem_t::init_md(1, &count, dnnl_s64, tag::abx);
+                benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> offset_md;
+                DNN_SAFE_V(dnn_mem_t::init_md(
+                        offset_md, 1, &count, dnnl_s64, tag::abx));
                 mem_map.emplace(DNNL_ARG_ATTR_DROPOUT_OFFSET,
                         dnn_mem_t(
                                 offset_md, test_engine, /* prefill = */ true));
@@ -2763,8 +2773,9 @@ void init_memory_args(dnn_mem_map_t &mem_map, const base_prb_t *base_prb,
                 return;
             }
 
-            auto scales_md
-                    = dnn_mem_t::init_md(ndims, dims.data(), dt, tag::abx);
+            benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> scales_md;
+            DNN_SAFE_V(dnn_mem_t::init_md(
+                    scales_md, ndims, dims.data(), dt, tag::abx));
             mem_map.emplace(exec_sc_arg,
                     dnn_mem_t(scales_md, test_engine, /* prefill = */ true));
         };
@@ -2818,7 +2829,9 @@ void init_memory_args(dnn_mem_map_t &mem_map, const base_prb_t *base_prb,
                 return;
             }
 
-            auto zp_md = dnn_mem_t::init_md(ndims, dims.data(), e.dt, tag::abx);
+            benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> zp_md;
+            DNN_SAFE_V(dnn_mem_t::init_md(
+                    zp_md, ndims, dims.data(), e.dt, tag::abx));
             mem_map.emplace(exec_zp_arg,
                     dnn_mem_t(zp_md, test_engine, /* prefill = */ true));
         };
@@ -2866,7 +2879,9 @@ void init_memory_args(dnn_mem_map_t &mem_map, const base_prb_t *base_prb,
                 dims = {1};
                 ndims = 1;
             }
-            auto pr_md = dnn_mem_t::init_md(ndims, dims.data(), e.dt, tag::abx);
+            benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> pr_md;
+            DNN_SAFE_V(dnn_mem_t::init_md(
+                    pr_md, ndims, dims.data(), e.dt, tag::abx));
             mem_map.emplace(exec_pr_arg,
                     dnn_mem_t(pr_md, test_engine, /* prefill = */ true));
         };
@@ -2890,7 +2905,8 @@ void init_memory_args(dnn_mem_map_t &mem_map, const base_prb_t *base_prb,
     // rounding mode
     if (!base_prb->attr.rounding_mode.is_def()) {
         int64_t count = 1;
-        auto seed_md = dnn_mem_t::init_md(1, &count, dnnl_s32, tag::abx);
+        benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> seed_md;
+        DNN_SAFE_V(dnn_mem_t::init_md(seed_md, 1, &count, dnnl_s32, tag::abx));
         mem_map.emplace(DNNL_ARG_ATTR_ROUNDING_SEED,
                 dnn_mem_t(seed_md, test_engine, /* prefill = */ true));
     }
