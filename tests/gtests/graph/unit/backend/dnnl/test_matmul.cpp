@@ -3060,6 +3060,12 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasU8s8bf16_CPU) {
     // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
     SKIP_IF(engine->kind() == graph::engine_kind::gpu, "skip on gpu");
 
+    graph::engine_t *eng = get_engine();
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -3181,6 +3187,12 @@ TEST(test_matmul_execute_subgraph_int8, MatmulU8U8bf16) {
     graph::engine_t *engine = get_engine();
     graph::stream_t *strm = get_stream();
 
+    graph::engine_t *eng = get_engine();
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
@@ -3293,6 +3305,12 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasAddBF16U8s8bf16_CPU) {
 
     // gpu doesn't support mixed int8-bf16 matmul with runtime zero points
     SKIP_IF(engine->kind() == graph::engine_kind::gpu, "skip on gpu");
+
+    graph::engine_t *eng = get_engine();
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
 
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
@@ -3435,6 +3453,13 @@ TEST(test_matmul_execute_subgraph_int8, MatmulBiasaddAddBF16U8s8bf16_CPU) {
     // gpu doesn't support mixed int8-bf16 matmul
     SKIP_IF(engine->kind() == graph::engine_kind::gpu,
             "skip on gpu for unsupported mixed int8-bf16 matmul with runtime ");
+
+    graph::engine_t *eng = get_engine();
+    static auto isa = dnnl_get_effective_cpu_isa();
+    SKIP_IF((isa < dnnl_cpu_isa_avx512_core)
+                    && eng->kind() == graph::engine_kind::cpu,
+            "Skip bf16 tests for systems that do not support avx512_core.");
+
     std::string qtype = "per_channel";
     std::vector<int64_t> src_shape = {1, 8, 16};
     std::vector<int64_t> weight_shape = {8, 16};
