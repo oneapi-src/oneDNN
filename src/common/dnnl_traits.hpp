@@ -23,6 +23,7 @@
 #include "float4.hpp"
 #include "float8.hpp"
 #include "int2.hpp"
+#include "int3.hpp"
 #include "int4.hpp"
 #include "nibble.hpp"
 
@@ -105,6 +106,11 @@ struct prec_traits_t<data_type::u2> {
     using nibble_type = nibble4_t;
 };
 template <>
+struct prec_traits_t<data_type::u3> {
+    using type = uint3_t;
+    using nibble_type = nibble8_t;
+};
+template <>
 struct prec_traits_t<data_type::boolean> {
     using type = bool;
 };
@@ -164,6 +170,10 @@ struct data_traits_t<uint4_t> {
 template <>
 struct data_traits_t<uint2_t> {
     static constexpr data_type_t data_type = data_type::u2;
+};
+template <>
+struct data_traits_t<uint3_t> {
+    static constexpr data_type_t data_type = data_type::u3;
 };
 template <>
 struct data_traits_t<bool> {

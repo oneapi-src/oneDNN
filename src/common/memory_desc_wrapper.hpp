@@ -228,8 +228,10 @@ struct memory_desc_wrapper {
     size_t data_type_size() const { return types::data_type_size(data_type()); }
 
     /** For sub-byte data types returns number of elements per byte.
-     * For the rest data types returns 1. */
+     * For the rest data types returns 1. Not applicable to u3, which packs
+     * 8 elements into 3 bytes. */
     size_t sub_byte_data_type_multiplier() const {
+        assert(data_type() != data_type::u3);
         if (utils::one_of(data_type(), data_type::s4, data_type::u4,
                     data_type::f4_e2m1))
             return 2;
@@ -439,8 +441,7 @@ struct memory_desc_wrapper {
                 switch (index) {
                     case 0:
                         // Return size for values.
-                        return utils::div_up(nnz() * data_type_size(),
-                                sub_byte_data_type_multiplier());
+                        return types::elements_to_bytes(data_type(), nnz());
                     case 1: {
                         // Return size for offsets (group_count offsets).
                         const auto offsets_dt = metadata_type(0);
