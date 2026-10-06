@@ -1,0 +1,9 @@
+This distribution of oneDNN supports systems based on
+@DNNL_ARCH_NAME@ architecture.
+
+The library is optimized for the following CPUs:
+* Arm Neoverse(TM) N-Series and V-Series
+
+oneDNN detects the instruction set architecture (ISA) at runtime and uses
+just-in-time (JIT) code generation to deploy the code optimized
+for the latest supported ISA.
