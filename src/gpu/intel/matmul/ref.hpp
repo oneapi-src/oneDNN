@@ -92,18 +92,18 @@ struct ref_t : public primitive_t {
             const bool is_f64
                     = utils::everyone_is(f64, src_dt_, wei_dt_, dst_dt_);
             const bool is_f32 = src_dt_ == f32
-                    && utils::one_of(wei_dt_, f32, s8, u8, s4, u4, u2);
+                    && utils::one_of(wei_dt_, f32, s8, u8, s4, u4, u2, u3);
             const bool is_f16 = src_dt_ == f16
-                    && utils::one_of(wei_dt_, f16, s8, u8, s4, u4, u2);
+                    && utils::one_of(wei_dt_, f16, s8, u8, s4, u4, u2, u3);
             const bool is_bf16 = src_dt_ == bf16
-                    && utils::one_of(wei_dt_, bf16, s8, u8, s4, u4, u2);
+                    && utils::one_of(wei_dt_, bf16, s8, u8, s4, u4, u2, u3);
 
             const bool is_f8 = utils::one_of(src_dt_, f8_e5m2, f8_e4m3)
                     || utils::one_of(wei_dt_, f8_e5m2, f8_e4m3);
             const bool is_f4 = utils::one_of(src_dt_, f4_e2m1, f32, bf16, f16)
                     || utils::one_of(wei_dt_, f4_e2m1);
             const bool is_int8 = utils::one_of(src_dt_, u8, s8)
-                    && utils::one_of(wei_dt_, u8, s8, u4, s4, u2);
+                    && utils::one_of(wei_dt_, u8, s8, u4, s4, u2, u3);
             // Note: fp4 bias will require sub-byte reads in the kernel.
             VDISPATCH_MATMUL(
                     (is_int8
