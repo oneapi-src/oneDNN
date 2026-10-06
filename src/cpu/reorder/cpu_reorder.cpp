@@ -46,8 +46,10 @@ regular_impl_list_map() {
             {{u8, data_type::undef, 0}, &regular_u8_impl_list_map()},
             {{f32, s4, 0}, &regular_s4_impl_list_map()},
             {{f32, u4, 0}, &regular_u4_impl_list_map()},
+            {{f32, u3, 0}, &regular_u3_impl_list_map()},
             {{s4, data_type::undef, 0}, &regular_s4_impl_list_map()},
             {{u4, data_type::undef, 0}, &regular_u4_impl_list_map()},
+            {{u3, data_type::undef, 0}, &regular_u3_impl_list_map()},
             {{f32, u2, 0}, &regular_u2_impl_list_map()},
             {{u2, data_type::undef, 0}, &regular_u2_impl_list_map()},
     };
