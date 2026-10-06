@@ -62,6 +62,15 @@ struct ref_matmul_int8_t : public primitive_t {
             VDISPATCH_MATMUL(
                     utils::one_of(dst_type, f32, bf16, f16, s32, s8, u8),
                     VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(src_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(wei_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(platform::has_data_type_support(dst_type),
+                    VERBOSE_UNSUPPORTED_DT);
+            VDISPATCH_MATMUL(IMPLICATION(with_bias(),
+                                     platform::has_data_type_support(bia_type)),
+                    VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(
                     attr()->has_default_values(smask_t::scales_data_type
                                     | smask_t::scales_groups
