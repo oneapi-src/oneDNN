@@ -107,6 +107,7 @@ include("cmake/ACL.cmake")
 include("cmake/blas.cmake")
 include("cmake/doc.cmake")
 include("cmake/version.cmake")
+include("cmake/readme.cmake")
 include("cmake/coverage.cmake")
 include("cmake/build_types.cmake")
 include("cmake/testing.cmake")
@@ -148,11 +149,6 @@ configure_file(
     "${PROJECT_BINARY_DIR}/include/oneapi/dnnl/dnnl_config.h"
 )
 include_directories_with_host_compiler_before(${PROJECT_BINARY_DIR}/include)
-
-configure_file(
-    "${PROJECT_SOURCE_DIR}/README.binary.in"
-    "${PROJECT_BINARY_DIR}/README"
-)
 
 if(DNNL_INSTALL_MODE STREQUAL "BUNDLE" AND NOT DEFINED CMAKE_INSTALL_LIBDIR)
     # define CMAKE_INSTALL_LIBDIR as "lib" in the case of bundle

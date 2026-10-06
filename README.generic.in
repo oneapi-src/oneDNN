@@ -1,0 +1,4 @@
+This distribution of oneDNN supports systems based on
+@DNNL_ARCH_NAME@ architecture.
+
+Support for this architecture is experimental.

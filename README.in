@@ -1,0 +1,96 @@
+oneAPI Deep Neural Network Library (oneDNN)
+===========================================
+
+oneDNN is an open-source, cross-platform library of optimized deep learning
+operations for CPUs and GPUs. It provides highly optimized
+implementations of matrix multiplication, convolution, attention,
+normalization, and other operations, and is the acceleration layer behind
+PyTorch, TensorFlow, OpenVINO, and many other AI frameworks.
+
+This package contains oneDNN v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@)
+built for @DNNL_ARCH_NAME@ architecture.
+
+You can find information about the latest version and release notes
+at the oneDNN Github (https://github.com/uxlfoundation/oneDNN).
+
+Documentation
+-------------
+
+* Developer guide (https://uxlfoundation.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
+  explains the programming model, supported functionality, and implementation
+  details, and includes annotated examples.
+* API reference (https://uxlfoundation.github.io/oneDNN/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@/group_dnnl_api.html)
+  provides a comprehensive reference of the library API.
+* Release Notes (https://github.com/uxlfoundation/oneDNN/releases/tag/v@DNNL_VERSION_MAJOR@.@DNNL_VERSION_MINOR@)
+  explain the new features, performance optimizations, and improvements
+  implemented in each version of oneDNN.
+
+System Requirements
+-------------------
+
+@DNNL_README_SYSTEM_REQUIREMENTS@
+
+Support
+-------
+
+Submit questions, feature requests, and bug reports on the
+GitHub issues page (https://github.com/uxlfoundation/oneDNN/issues).
+
+License
+-------
+
+oneDNN is licensed under Apache License Version 2.0. Refer to the "LICENSE"
+file for the full license text and copyright notice.
+
+This distribution includes third party software governed by separate license
+terms.
+
+3-clause BSD license:
+* Xbyak (https://github.com/herumi/xbyak)
+* Instrumentation and Tracing Technology API (ITT API)
+  (https://github.com/intel/ittapi)
+* CMake (https://github.com/Kitware/CMake)
+
+Boost Software License, Version 1.0:
+* Boost C++ Libraries (https://www.boost.org/)
+
+MIT License:
+* Intel Graphics Compute Runtime for oneAPI Level Zero and OpenCL Driver
+  (https://github.com/intel/compute-runtime)
+* Intel Graphics Compiler (https://github.com/intel/intel-graphics-compiler)
+* oneAPI Level Zero (https://github.com/oneapi-src/level-zero)
+* Intel Metrics Discovery Application Programming Interface
+  (https://github.com/intel/metrics-discovery)
+* spdlog (https://github.com/gabime/spdlog)
+
+This third-party software, even if included with the distribution of
+other software, may be governed by separate license terms,
+including without limitation, third party license terms, other
+software license terms, and open source software license terms. These
+separate license terms govern your use of the third party programs as
+set forth in the "THIRD-PARTY-PROGRAMS" file.
+
+Security
+--------
+
+Security Policy (https://github.com/uxlfoundation/oneDNN/blob/main/SECURITY.md)
+outlines our guidelines and procedures for ensuring the highest level
+of Security and trust for our users who consume oneDNN.
+
+Trademark Information
+---------------------
+
+Intel, the Intel logo, Arc, Intel Atom, Intel Core, Iris,
+OpenVINO, the OpenVINO logo, Pentium, VTune, and Xeon are trademarks
+of Intel Corporation or its subsidiaries.
+
+Arm and Neoverse are trademarks, or registered trademarks of Arm Ltd.
+
+\* Other names and brands may be claimed as the property of others.
+
+Microsoft, Windows, and the Windows logo are trademarks, or registered
+trademarks of Microsoft Corporation in the United States and/or other
+countries.
+
+OpenCL and the OpenCL logo are trademarks of Apple Inc. used by permission
+by Khronos.
