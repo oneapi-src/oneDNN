@@ -114,10 +114,14 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
 
     const auto src_tag = (dir & FLAG_FWD) ? prb->tag : tag::any;
 
-    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
-            force_f32_dt ? dnnl_f32 : prb->src_dt(), src_tag);
-    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
-            force_f32_dt ? dnnl_f32 : prb->dst_dt(), tag::any);
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> src_d;
+    DNN_SAFE_STATUS(
+            dnn_mem_t::init_md(src_d, prb->ndims, prb->src_dims().data(),
+                    force_f32_dt ? dnnl_f32 : prb->src_dt(), src_tag));
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dst_d;
+    DNN_SAFE_STATUS(
+            dnn_mem_t::init_md(dst_d, prb->ndims, prb->dst_dims().data(),
+                    force_f32_dt ? dnnl_f32 : prb->dst_dt(), tag::any));
 
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(
