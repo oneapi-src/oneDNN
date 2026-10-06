@@ -259,7 +259,7 @@ struct matmul_pd_t : public primitive_desc_t {
                             = utils::one_of(weights_md(0)->data_type,
                                       data_type::s8, data_type::u8,
                                       data_type::s4, data_type::u4,
-                                      data_type::u2)
+                                      data_type::u2, data_type::u3)
                             && IMPLICATION(
                                     !types::is_integral_dt(src_md()->data_type),
                                     attr()->fpmath_.apply_to_int_);
