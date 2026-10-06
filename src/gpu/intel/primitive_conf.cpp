@@ -279,6 +279,7 @@ const char *get_type_name(data_type_t dt) {
         case data_type::s4: return "s4";
         case data_type::u4: return "u4";
         case data_type::u2: return "u2";
+        case data_type::u3: return "u3";
         case data_type::s32: return "int";
         case data_type::s64: return "long";
         default:
@@ -348,6 +349,10 @@ void def_data_type(
         case data_type::u2:
             kernel_ctx.add_option(
                     utils::format("-D%s_DATA_T=%s -D%s_DT_U2", str, name, str));
+            break;
+        case data_type::u3:
+            kernel_ctx.add_option(
+                    utils::format("-D%s_DATA_T=%s -D%s_DT_U3", str, name, str));
             break;
         case data_type::s32:
             kernel_ctx.add_option(
