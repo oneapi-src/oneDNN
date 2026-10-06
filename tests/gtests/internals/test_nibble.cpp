@@ -18,9 +18,11 @@
 #include "gtest/gtest.h"
 
 #include "src/common/float4.hpp"
+#include "src/common/int3.hpp"
 #include "src/common/int4.hpp"
 #include "src/common/nibble.hpp"
 #include "src/common/nstl.hpp"
+#include "src/common/type_helpers.hpp"
 
 namespace dnnl {
 
@@ -39,6 +41,10 @@ TEST(test_limits, int4) {
 
 TEST(test_limits, uint4) {
     test_limits<impl::uint4_t>(15.f, 0.f, 0.f);
+}
+
+TEST(test_limits, uint3) {
+    test_limits<impl::uint3_t>(7.f, 0.f, 0.f);
 }
 
 TEST(test_limits, f4_e2m1) {
@@ -85,6 +91,39 @@ TEST(test_int4_conversion, uint4) {
 
 TEST(test_e2m1_conversion, f4_e2m1) {
     test_conversions<impl::float4_e2m1_t>();
+}
+
+TEST(test_int3_conversion, uint3) {
+    for (int v = 0; v <= 7; ++v)
+        ASSERT_EQ(static_cast<float>(impl::uint3_t(v)), static_cast<float>(v));
+
+    ASSERT_EQ(static_cast<float>(impl::uint3_t(8.f)), 0.f);
+    ASSERT_EQ(static_cast<float>(impl::uint3_t(9.f)), 1.f);
+}
+
+TEST(test_sizing, uint3) {
+    using namespace impl;
+    const auto u3 = data_type::u3;
+    // whole 3-byte groups of 8 values
+    EXPECT_EQ(types::elements_to_bytes(u3, 1), size_t(3));
+    EXPECT_EQ(types::elements_to_bytes(u3, 8), size_t(3));
+    EXPECT_EQ(types::elements_to_bytes(u3, 9), size_t(6));
+    EXPECT_EQ(types::elements_to_bytes(u3, 16), size_t(6));
+    EXPECT_EQ(types::bytes_to_elements(u3, 3), size_t(8));
+    EXPECT_EQ(types::bytes_to_elements(u3, 6), size_t(16));
+    EXPECT_EQ(types::data_type_bits(u3), 3);
+}
+
+TEST(test_nibble_layout, nibble8) {
+    impl::nibble8_t octet {};
+    // build 111 110 101 100 011 010 001 000
+    for (int i = 0; i < impl::nibble8_t::nelems(); i++)
+        octet.set(static_cast<uint8_t>(i), i);
+
+    const auto *bytes = reinterpret_cast<const uint8_t *>(&octet);
+    EXPECT_EQ(bytes[0], 0x88); // bits 0-7, expected 10 001 000
+    EXPECT_EQ(bytes[1], 0xC6); // bits 8-15, expected 1 100 011 0
+    EXPECT_EQ(bytes[2], 0xFA); // bits 16-23, expected 111 110 10
 }
 
 } // namespace dnnl
