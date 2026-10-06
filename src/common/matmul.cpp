@@ -279,7 +279,10 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     const bool src_is_fp4 = utils::one_of(src_dt, data_type::f4_e2m1);
     if (src_is_int8 || src_is_fp8 || src_is_fp4)
         attr_mask |= smask_t::zero_points;
-    if (src_is_int8) attr_mask |= smask_t::precomputed_reductions;
+    // Sub-byte weights apply zero points during upconversion, so precomputed
+    // reductions are only supported for int8 WEI
+    if (src_is_int8 && utils::one_of(wei_dt, data_type::s8, data_type::u8))
+        attr_mask |= smask_t::precomputed_reductions;
 
     // Matmul supports zero points for floating point data types as part of
     // weights decompression.
