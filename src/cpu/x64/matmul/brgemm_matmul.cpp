@@ -2112,20 +2112,6 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
     }
 
     dim_t get_data_B_kn_off(dim_t k, dim_t n) const {
-        if (bgmmc_.is_f32_with_f4_wei && bgmmc_.blocked_B) {
-            // Source bytes pair adjacent K values at the same N;
-            // the FP32 buffer stores the decoded K rows separately.
-            constexpr dim_t src_k_blk = 32;
-            constexpr dim_t src_elems_per_byte = 2;
-            const dim_t outer_offset_bytes
-                    = (B_strides_[1] * (k / src_k_blk)
-                              + B_strides_[0] * (n / bgmmc_.wei_n_blk))
-                    / src_elems_per_byte;
-            const dim_t inner_offset_bytes
-                    = (k % src_k_blk / src_elems_per_byte) * bgmmc_.wei_n_blk
-                    + n % bgmmc_.wei_n_blk;
-            return outer_offset_bytes + inner_offset_bytes;
-        }
         const dim_t wei_k_blk = get_data_B_k_blk();
         const dim_t k_idx = bgmmc_.blocked_B ? k / wei_k_blk : k;
         const dim_t n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;

@@ -382,7 +382,7 @@ struct brgemm_matmul_conf_utils_t {
             constexpr dim_t fused_M_threshold = 4;
             const bool fused_eligible = bgmmc.wei_scales_dt == data_type::e8m0
                     && bgmmc.wei_scales_k_gsize == 32 && bgmmc.N % 2 == 0
-                    && bgmmc.M <= fused_M_threshold
+                    && bgmmc.M <= fused_M_threshold && !get_blocked_B()
                     && !check_is_transposed(bgmmc.wei_tag)
                     && bgmmc.wei_tag != format_tag::adbc;
             if (fused_eligible) return false;
