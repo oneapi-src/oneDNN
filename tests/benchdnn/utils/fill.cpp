@@ -124,6 +124,7 @@ const fill_cfg_t &get_perf_fill_cfg(dnnl_data_type_t dt) {
         CASE(dnnl_s4, -8, 7);
         CASE(dnnl_u4, 0, 15);
         CASE(dnnl_u2, 0, 3);
+        CASE(dnnl_u3, 0, 7);
         default: {
             assert(!"bad data_type");
             SAFE_V(FAIL);
@@ -314,6 +315,8 @@ int fill_random_real_dense(dnn_mem_t &mem, dnn_mem_t &mem_ref, res_t *res,
                 return -8.f;
             } else if (round_dt == dnnl_u2) {
                 return 3.f;
+            } else if (round_dt == dnnl_u3) {
+                return 7.f;
             } else {
                 assert(!"unexpected data type");
             }

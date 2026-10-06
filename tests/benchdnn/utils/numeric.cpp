@@ -90,6 +90,10 @@ template <>
 struct prec_traits<dnnl_u2> {
     using type = dnnl::impl::uint2_t;
 };
+template <>
+struct prec_traits<dnnl_u3> {
+    using type = dnnl::impl::uint3_t;
+};
 #define CASE_ALL(dt) \
     switch (dt) { \
         CASE(dnnl_f4_e2m1); \
@@ -106,6 +110,7 @@ struct prec_traits<dnnl_u2> {
         CASE(dnnl_s4); \
         CASE(dnnl_u4); \
         CASE(dnnl_u2); \
+        CASE(dnnl_u3); \
         default: assert(!"bad data_type"); SAFE_V(FAIL); \
     }
 
@@ -173,7 +178,7 @@ float saturate_and_round(float value) {
 
 bool is_integral_dt(dnnl_data_type_t dt) {
     return dt == dnnl_s32 || dt == dnnl_s8 || dt == dnnl_u8 || dt == dnnl_s4
-            || dt == dnnl_u4 || dt == dnnl_u2;
+            || dt == dnnl_u4 || dt == dnnl_u2 || dt == dnnl_u3;
 }
 
 template <dnnl_data_type_t dt>
@@ -213,7 +218,8 @@ float round_to_nearest_representable_templ(float value) {
         case dnnl_u8:
         case dnnl_s4:
         case dnnl_u4:
-        case dnnl_u2: value = maybe_saturate_templ<dt>(value); break;
+        case dnnl_u2:
+        case dnnl_u3: value = maybe_saturate_templ<dt>(value); break;
         default: SAFE_V(FAIL);
     }
 
@@ -252,6 +258,7 @@ size_t bits_dt(dnnl_data_type_t dt) {
         case dnnl_s4:
         case dnnl_u4: return 4;
         case dnnl_u2: return 2;
+        case dnnl_u3: return 3;
         case dnnl_boolean: return 1;
         default: assert(!"unsupported data type"); SAFE_V(FAIL);
     }
@@ -298,6 +305,12 @@ float get_element(dnnl_data_type_t dt, int64_t idx, void *ptr) {
             elem = dnnl::impl::float4_e2m1_t(nibble_pair.get(idx % 2));
             break;
         }
+        case dnnl_u3: {
+            const auto nibble_octet
+                    = reinterpret_cast<dnnl::impl::nibble8_t *>(ptr)[idx / 8];
+            elem = dnnl::impl::uint3_t(nibble_octet.get(idx % 8));
+            break;
+        }
         default: assert(!"bad data type");
     }
 #undef CASE
@@ -337,6 +350,12 @@ void set_element(dnnl_data_type_t dt, int64_t idx, void *ptr, float value) {
             auto dst_val = ((dnnl::impl::nibble2_t *)ptr)[idx / 2];
             dst_val.set(dnnl::impl::float4_e2m1_t(value).raw_bits_, idx % 2);
             ((dnnl::impl::nibble2_t *)ptr)[idx / 2] = dst_val;
+            break;
+        }
+        case dnnl_u3: {
+            auto dst_val = ((dnnl::impl::nibble8_t *)ptr)[idx / 8];
+            dst_val.set(dnnl::impl::uint3_t(value).raw_bits_, idx % 8);
+            ((dnnl::impl::nibble8_t *)ptr)[idx / 8] = dst_val;
             break;
         }
         default: assert(!"bad data type");
