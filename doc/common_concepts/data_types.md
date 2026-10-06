@@ -23,6 +23,7 @@ in comparison to `f32`.
 | e8m0      | [MX standard 8-bit scaling type](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf)                                                                 |
 | f4\_e2m1  | [MX standard 4-bit floating-point](https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf) with 2 exponent and 1 mantissa bits                           |
 | u2        | unsigned 2-bit integer                                                                                                                                                           |
+| u3        | unsigned 3-bit integer. Flat LSB-first bit-packing is used with value i at bits [3i:3i+2], 8 values per 3 bytes                                     |
 
 ## Inference and Training
 
@@ -40,12 +41,13 @@ oneDNN supports training and inference with the following data types:
 | f4\_e2m1  | `+`       |          |
 | s4        | `+`(2)    |          |
 | u4        | `+`(2)    |          |
+| u3        | `+`(2)    |          |
 | u2        | `+`(2)    |          |
 
 Footnotes:
 1. `f64` support is limited to matmul, convolution, reorder, layer normalization, and
    pooling primitives on Intel GPUs.
-2. `s4`/`u4`/`u2` data types are only supported as a storage data type for weights argument
+2. `s4`/`u4`/`u2`/`u3` data types are only supported as a storage data type for weights argument
    in case of weight-only quantization. For more details, refer to
    [Matmul Tutorial: weight-only quantization](@ref matmul_with_weight_only_quantization_cpp).
 3. `fp8` data type includes `f8_e5m2` and `f8_e4m3`.
@@ -171,7 +173,7 @@ oneDNN performance optimizations for Intel Architecture Processors are
 specialized based on Instruction Set Architecture (ISA). The following
 table indicates data types support for every supported ISA:
 
-| ISA                                                  | f64     | f32     | bf16    | f16     | s8/u8   | fp8     | f4_e2m1 | s4/u4/u2 |
+| ISA                                                  | f64     | f32     | bf16    | f16     | s8/u8   | fp8     | f4_e2m1 | s4/u4    |
 | ---------------------------------------------------- | ------- | ------- | ------- | ------- | ------- | ------- | ------- | -------- |
 | Intel AVX2                                           |         | `+`     |         |         | `+`(1)  |         |         |          |
 | Intel AVX2 with Intel DL Boost (int8)                |         | `+`     |         |         | `+`     |         |         |          |
