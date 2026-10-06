@@ -128,6 +128,64 @@ TEST(memory_desc_properties_test, TestMemoryDescSizeSubByte) {
 #endif
 }
 
+TEST(memory_desc_properties_test, TestMemoryDescSizeU3) {
+    using dt = memory::data_type;
+
+    const std::vector<memory::dims> shapes = {
+            {10, 256}, // nelems multiple of 8
+            {1, 8}, // exactly one group
+            {1, 9}, // partial trailing group
+            {1, 1}, // single element
+    };
+
+    for (const auto &dims : shapes) {
+        const size_t nelems = static_cast<size_t>(dims[0]) * dims[1];
+        const size_t ref_size = (nelems + 7) / 8 * 3;
+        auto md = memory::desc(dims, dt::u3, fmt::ab);
+        ASSERT_EQ(md.get_size(), ref_size)
+                << "u3 dense size mismatch for nelems=" << nelems;
+    }
+
+#if DNNL_EXPERIMENTAL_GROUPED_MEMORY
+    // K should be multiple of 8
+    const std::vector<std::tuple<memory::dim, memory::dim, int>> grouped_cases
+            = {
+                    {10, 256, 3},
+                    {8, 64, 4},
+                    {3, 8, 3},
+            };
+
+    for (const auto &c : grouped_cases) {
+        const memory::dim M = std::get<0>(c);
+        const memory::dim K = std::get<1>(c);
+        const int ngroups = std::get<2>(c);
+        const size_t nelems = static_cast<size_t>(M) * K;
+        const size_t ref_size = (nelems + 7) / 8 * 3;
+        auto md = memory::desc::grouped({M, K}, dt::u3, 0, ngroups);
+        ASSERT_EQ(md.get_size(0), ref_size)
+                << "u3 grouped size(0) mismatch for nelems=" << nelems;
+    }
+#endif
+}
+
+TEST(memory_desc_properties_test, TestMemoryDescDimsU3) {
+    using dt = memory::data_type;
+
+    // u3 packs 8 values per 3 bytes,
+    // so the packed axis must be a multiple of 8
+    EXPECT_NO_THROW(memory::desc({10, 256}, dt::u3, fmt::ab));
+    EXPECT_NO_THROW(memory::desc({256, 10}, dt::u3, fmt::ba));
+    EXPECT_NO_THROW(memory::desc({7, 32, 64}, dt::u3, fmt::abc));
+
+    catch_expected_failures([&]() { memory::desc({10, 20}, dt::u3, fmt::ab); },
+            true, dnnl_invalid_arguments);
+    catch_expected_failures([&]() { memory::desc({20, 32}, dt::u3, fmt::ba); },
+            true, dnnl_invalid_arguments);
+    catch_expected_failures([&]() {
+        memory::desc({1, 32, 66}, dt::u3, fmt::abc);
+    }, true, dnnl_invalid_arguments);
+}
+
 TEST(memory_desc_properties_test, TestOOBTensorDimensions) {
     using dt = memory::data_type;
 
