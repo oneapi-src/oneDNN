@@ -533,7 +533,7 @@ void dnn_mem_t::memset(int value, size_t size, int buffer_index) const {
 
     if (is_opencl) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-        stream_t stream(engine_);
+        const auto &stream = get_test_stream();
         switch (memory_kind) {
             case memory_kind_ext_t::buffer: {
                 auto buf = static_cast<cl_mem>(mem_handle);
@@ -543,7 +543,6 @@ void dnn_mem_t::memset(int value, size_t size, int buffer_index) const {
                 cl_int err = clEnqueueFillBuffer(queue, buf, &value,
                         sizeof(uint8_t), 0, size, 0, nullptr, nullptr);
                 if (err != CL_SUCCESS) SAFE_V(FAIL);
-                DNN_SAFE_V(dnnl_stream_wait(stream));
                 return;
             }
             case memory_kind_ext_t::usm:
@@ -551,14 +550,13 @@ void dnn_mem_t::memset(int value, size_t size, int buffer_index) const {
             case memory_kind_ext_t::usm_shared: {
                 DNN_SAFE_V(dnnl::impl::xpu::ocl::usm::memset(
                         stream, mem_handle, value, size));
-                DNN_SAFE_V(dnnl_stream_wait(stream));
                 return;
             }
         }
 #endif
     } else if (is_sycl) {
 #ifdef DNNL_WITH_SYCL
-        stream_t stream(engine_);
+        const auto &stream = get_test_stream();
         void *queue_ptr;
         DNN_SAFE_V(dnnl_sycl_interop_stream_get_queue(stream, &queue_ptr));
         auto &queue = *static_cast<::sycl::queue *>(queue_ptr);
@@ -573,7 +571,6 @@ void dnn_mem_t::memset(int value, size_t size, int buffer_index) const {
                             acc(buf, cgh);
                     cgh.fill(acc, static_cast<uint8_t>(value));
                 });
-                DNN_SAFE_V(dnnl_stream_wait(stream));
                 return;
             }
             case memory_kind_ext_t::usm:
@@ -582,21 +579,19 @@ void dnn_mem_t::memset(int value, size_t size, int buffer_index) const {
                 queue.submit([&](::sycl::handler &cgh) {
                     cgh.memset(mem_handle, value, size);
                 });
-                DNN_SAFE_V(dnnl_stream_wait(stream));
                 return;
             }
         }
 #endif
     } else if (is_ze) {
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_ZE
-        stream_t stream(engine_);
+        const auto &stream = get_test_stream();
         switch (memory_kind) {
             case memory_kind_ext_t::usm:
             case memory_kind_ext_t::usm_device:
             case memory_kind_ext_t::usm_shared: {
                 DNN_SAFE_V(dnnl::impl::xpu::ze::memset(
                         stream, mem_handle, value, size));
-                DNN_SAFE_V(dnnl_stream_wait(stream));
                 return;
             }
             case memory_kind_ext_t::buffer:
@@ -627,10 +622,9 @@ int dnn_mem_t::gpu_fill_random(size_t size, int buffer_index) const {
     }
     static constexpr uint32_t seed = 123456789;
     auto mem = m_padded_ ? m_padded_ : m_;
-    stream_t stream(engine_);
+    const auto &stream = get_test_stream();
     DNN_SAFE(dnnl_impl_gpu_fill_random(stream, size, mem, buffer_index, seed),
             WARN);
-    DNN_SAFE(dnnl_stream_wait(stream), WARN);
     return OK;
 }
 #endif
