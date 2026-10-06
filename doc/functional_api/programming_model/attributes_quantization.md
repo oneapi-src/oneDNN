@@ -568,6 +568,7 @@ Key parameters of the precomputed reductions API method are summarized below:
 The following limitations apply when using precomputed reductions:
 - Requires weight zero-points: Cannot be used without weights zero-points specified.
 - Full matrix mask required: Must have full A matrix mask, meaning broadcast is not supported.
+- 8-bit integer weights required: Sub-byte weights (e.g., `s4` or `u4`) are not supported.
 
 (*) Support for quantization options varies based on individual primitive and
 target hardware. Refer to primitives documentation for the details.
