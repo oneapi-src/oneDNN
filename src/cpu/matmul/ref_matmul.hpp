@@ -55,7 +55,7 @@ struct ref_matmul_t : public primitive_t {
                                      f8_e4m3, f4_e2m1),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(utils::one_of(wei_type, f32, bf16, f16, f8_e5m2,
-                                     f8_e4m3, f4_e2m1, u8, s8, u4, s4, u2),
+                                     f8_e4m3, f4_e2m1, u8, s8, u4, s4, u2, u3),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(utils::one_of(dst_type, f32, bf16, f16, f8_e5m2,
                                      f8_e4m3, f4_e2m1, u8, s8),
@@ -63,11 +63,11 @@ struct ref_matmul_t : public primitive_t {
             VDISPATCH_MATMUL(
                     (src_type == wei_type
                             || utils::one_of(wei_type, bf16, f16, f8_e5m2,
-                                    f8_e4m3, u8, s8, u4, s4, u2)),
+                                    f8_e4m3, u8, s8, u4, s4, u2, u3)),
                     VERBOSE_UNSUPPORTED_DT);
             /* int weights decompression support */
             VDISPATCH_MATMUL(
-                    IMPLICATION(utils::one_of(wei_type, u8, s8, u4, s4, u2),
+                    IMPLICATION(utils::one_of(wei_type, u8, s8, u4, s4, u2, u3),
                             attr_.mayiconvert(wei_type, src_type)),
                     VERBOSE_UNSUPPORTED_DT);
             VDISPATCH_MATMUL(IMPLICATION(src_type == f16,
