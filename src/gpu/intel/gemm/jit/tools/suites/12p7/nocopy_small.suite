@@ -1,0 +1,11 @@
+gemm SSS NNN 32 16 - -
+gemm SSS NNN 32 8  - -
+gemm SSS NNN 16 8  - -
+gemm SSS NNN 8  8  - -
+gemm SSS NNN 8  4  - -
+gemm SSS NTN 16 16 - -
+gemm SSS NTN 16 8  - -
+gemm SSS NTN 8  8  - -
+gemm SSS TNN 8  16 - -
+gemm SSS TNN 8  8  - -
+gemm SSS TNN 8  4  - -

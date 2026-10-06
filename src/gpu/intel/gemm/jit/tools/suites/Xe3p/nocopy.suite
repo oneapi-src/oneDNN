@@ -1,0 +1,28 @@
+gemm SSS NNN 64 64 1 0 aB8+C8@24  aS8+S16@24 aB wg 4x4 kc8 sr grf512 sn
+gemm SSS NTN 64 64 1 0 aB8+C8@24  aB8+C8@24  aB wg 4x4 kc8 sr grf512
+gemm SSS TNN 64 64 1 0 aS8+S16@24 aS8+S16@24 aB wg 4x4 kc8 sr grf512 sm sn
+gemm SSS TTN 64 64 1 0 aS8+S16@24 aB8+C8@24  aB wg 4x4 kc8 sr grf512 sm
+gemm HHS N@4N@4N 64 64 1 0 av32+m16@128 am32+m32@128 aB wg 4x4 sys kc2 sr grf512 sn
+gemm HHS N@4T@4N 64 64 1 0 av32+m16@128 at32+m16@128 aB wg 4x4 sys kc2 sr grf512
+gemm HHS T@4N@4N 64 64 1 0 at32+m32@128 am32+m32@128 aB wg 4x4 sys kc2 sr grf512 sm sn
+gemm HHS T@4T@4N 64 64 1 0 am32+m32@128 av32+m16@128 aS wg 4x4 sys kc2 sr grf512 sm
+gemm HHS NNN 32 32 1 0 aB32+B16@128 aB32+B32@128 aB wg 4x4 sys kc2 sr dm sn grf512 l4
+gemm HHS NTN 32 32 1 0 aB8+B16@64 aB8+B16@64 aB wg 4x8 kc8 sr grf256 l4
+gemm HHS TNN 32 32 1 0 aS32+B32@128 aB32+B32@128 aB wg 4x4 sys kc2 sr dm sm sn grf512 l4
+gemm HHS TTN 32 32 1 0 aB32+B32@128 aB32+B16@128 aS wg 4x4 sys kc2 sr dm sm grf512 l4
+gemm BBS N@4N@4N 64 64 1 0 av32+m16@128 am32+m32@128 aB wg 4x4 sys kc2 sr grf512 sn
+gemm BBS N@4T@4N 64 64 1 0 av32+m16@128 at32+m16@128 aB wg 4x4 sys kc2 sr grf512
+gemm BBS T@4N@4N 64 64 1 0 at32+m32@128 am32+m32@128 aB wg 4x4 sys kc2 sr grf512 sm sn
+gemm BBS T@4T@4N 64 64 1 0 am32+m32@128 av32+m16@128 aS wg 4x4 sys kc2 sr grf512 sm
+gemm BBS NNN 32 32 1 0 aB32+B16@128 aB32+B32@128 aB wg 4x4 sys kc2 sr dm sn grf512 l4
+gemm BBS NTN 32 32 1 0 aB8+B16@64 aB8+B16@64 aB wg 4x8 kc8 sr grf256 l4
+gemm BBS TNN 32 32 1 0 aS32+B32@128 aB32+B32@128 aB wg 4x4 sys kc2 sr dm sm sn grf512 l4
+gemm BBS TTN 32 32 1 0 aB32+B32@128 aB32+B16@128 aS wg 4x4 sys kc2 sr dm sm grf512 l4
+gemm OOI N@4N@4N 64 64 1 0 av64+m32@256 am64+m64@256 aB wg 4x4 sys kc2 sr grf512 sn
+gemm OOI N@4T@4N 64 64 1 0 av64+m32@256 at64+m32@256 aB wg 4x4 sys kc2 sr grf512
+gemm OOI T@4N@4N 64 64 1 0 at64+m64@256 am64+m64@256 aB wg 4x4 sys kc2 sr grf512 sm sn
+gemm OOI T@4T@4N 64 64 1 0 am64+m64@256 av64+m32@256 aS wg 4x4 sys kc2 sr grf512 sm
+gemm OOI NNN 32 32 1 0 aB64+B32@256 aB64+B64@256 aB wg 4x4 sys kc2 sr dm sn grf512 l4
+gemm OOI NTN 32 32 1 0 aB8+B16@64 aB8+B16@64 aB wg 4x8 sr grf256 l4
+gemm OOI TNN 32 32 1 0 aS64+B64@256 aB64+B64@256 aB wg 4x4 sys kc2 sr dm sm sn grf512 l4
+gemm OOI TTN 32 32 1 0 aB64+B64@256 aB64+B32@256 aS wg 4x4 sys kc2 sr dm sm grf512 l4

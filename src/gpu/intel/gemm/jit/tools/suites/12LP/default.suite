@@ -1,0 +1,5 @@
+gemm SSS ABN 16 32
+gemm CCC ABN 8  16
+gemm HHH ABN 32 32
+gemm SSS ABN 24 32
+gemm CCC ABN 12 16

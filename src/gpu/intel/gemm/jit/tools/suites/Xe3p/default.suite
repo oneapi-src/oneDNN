@@ -1,0 +1,4 @@
+gemm SSS ABN 32 32 aB8+B8@16 aB8+B8@16 aB kc8
+gemm DDD A#8,8B8N 32 32 aB8+B8@16 aB8+B8@16 aB sys grf256
+gemm CCC ABN 16 16 aB8+B8@16 aB8+B8@16 aB kc8
+gemm ZZZ AB8N 16 16 aB8+B8@16 aB8+B8@16 aB sys xc grf256

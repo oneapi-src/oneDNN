@@ -1,0 +1,8 @@
+batchs trsm3ll SSS NNN 32 16 - 0
+batchn trsm3lu SSS TNN 16 16 - 0
+batchs trsm3rl SSS NNN 16 16 - 0
+batchn trsm3ru SSS NTN 16 32 - 0
+batchn trsm3lu CCC NNN 16 8  - 0
+batchs trsm3ll CCC TNN 8  8  - 0
+batchn trsm3ru CCC NNN 8  8  - 0
+batchs trsm3rl CCC NTN 8  16 - 0

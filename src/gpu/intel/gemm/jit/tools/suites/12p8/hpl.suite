@@ -1,0 +1,2 @@
+hpl gemm SSS ABN 32 32 -1 1
+hpl gemm DDD ABN 32 32 -1 1

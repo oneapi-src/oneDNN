@@ -1,0 +1,16 @@
+trsm3ll SSS NNN 32 16 - 0
+trsm3lu SSS NNN 32 16 - 0
+trsm3ll SSS TNN 16 16 - 0
+trsm3lu SSS TNN 16 16 - 0
+trsm3ru SSS NNN 16 16 - 0
+trsm3rl SSS NNN 16 16 - 0
+trsm3ru SSS NTN 16 32 - 0
+trsm3rl SSS NTN 16 32 - 0
+trsm3ll CCC NNN 16 8  - 0
+trsm3lu CCC NNN 16 8  - 0
+trsm3ll CCC TNN 8  8  - 0
+trsm3lu CCC TNN 8  8  - 0
+trsm3ru CCC NNN 8  8  - 0
+trsm3rl CCC NNN 8  8  - 0
+trsm3ru CCC NTN 8  16 - 0
+trsm3rl CCC NTN 8  16 - 0

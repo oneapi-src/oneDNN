@@ -1,0 +1,8 @@
+bias gemm SSS NNN 32 12 - -
+bias gemm SSS NTN 32 16 - -
+bias gemm SSS TNN 16 16 - -
+bias gemm SSS TTN 12 32 - -
+bias gemm HHH NNN 32 16 - -
+bias gemm HHH NTN 32 32 - -
+bias gemm HHH TNN 32 16 - -
+bias gemm HHH TTN 32 32 - -

@@ -1,0 +1,8 @@
+gemmu SSS ABN 16 32
+gemml SSS ABN 16 32
+gemmu CCC ABN 8 16
+gemml CCC ABN 8 16
+gemmuh CCC ABN 8 16
+gemmlh CCC ABN 8 16
+gemmu HHH ABN 32 32
+gemml HHH ABN 32 32

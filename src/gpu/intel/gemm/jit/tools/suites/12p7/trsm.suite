@@ -1,0 +1,16 @@
+trsmll SSS ABN 32 16 1 0
+trsmlu SSS ABN 32 16 1 0
+trsmrl SSS ABN 16 32 1 0
+trsmru SSS ABN 16 32 1 0
+trsmll CCC ABN 16 8  1 0
+trsmlu CCC ABN 16 8  1 0
+trsmrl CCC ABN 8  16 1 0
+trsmru CCC ABN 8  16 1 0
+# Associated alternate GEMMs
+gemm SSS ABN 16 32
+gemm CCC ABN 8  16
+# Read checks for C loads used in TRSMs
+rc gemm SSS NTN 32 16 1 1 ab1 ab1 ab el np
+rc gemm SSS NTN 16 32 1 1 ab1 ab1 as el np
+rc gemm CCC NTN 16 8  1 1 ab1 ab1 ab el np
+rc gemm CCC NTN 8  16 1 1 ab1 ab1 as el np

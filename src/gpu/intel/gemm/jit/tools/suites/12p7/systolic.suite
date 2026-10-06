@@ -1,0 +1,72 @@
+# 32x32 split-copy
+gemm HH[SH] A2#8,16B16N 32 32 1 1 A
+gemm HHS    A2#8,16B16N 32 32 1 1 A
+gemm BB[SB] A2#8,16B16N 32 32 1 1 A
+gemm BBS    A2#8,16B16N 32 32 1 1 A
+gemm OOI    A4#8,32B32N 32 32 1 1 A
+gemm ooI    A4#8,32B32N 32 32 1 1 A
+offsetabc gemm OOI A4#8,32B32N 32 32 1 1 A
+gemm HH[SH] A2#8,16B16N 32 32 - - A
+gemm HHS    A2#8,16B16N 32 32 - - A
+gemm BB[SB] A2#8,16B16N 32 32 - - A
+gemm BBS    A2#8,16B16N 32 32 - - A
+gemm OOIS   A4#8,32B32N 32 32 - - A
+# 32x48, 4x4 workgroup
+gemm HH[SH] A2#8,16B16N 32 48 1 1 A
+gemm HHS    A2#8,16B16N 32 48 1 1 A
+gemm BB[SB] A2#8,16B16N 32 48 1 1 A
+gemm BBS    A2#8,16B16N 32 48 1 1 A
+gemm OOI    A4#8,32B32N 32 48 1 1 A
+gemm ooI    A4#8,32B32N 32 48 1 1 A
+offsetabc gemm OOI A4#8,32B32N 32 48 1 1 A
+gemm HH[SH] A2#8,16B16N 32 48 - - A
+gemm HHS    A2#8,16B16N 32 48 - - A
+gemm BB[SB] A2#8,16B16N 32 48 - - A
+gemm BBS    A2#8,16B16N 32 48 - - A
+gemm OOIS   A4#8,32B32N 32 48 - - A
+# 32x48, 8x4 workgroup
+gemm HH[SH] A2#8,16B16N 32 48 1 1 B
+gemm HHS    A2#8,16B16N 32 48 1 1 B
+gemm BB[SB] A2#8,16B16N 32 48 1 1 B
+gemm BBS    A2#8,16B16N 32 48 1 1 B
+gemm OOI    A4#8,32B32N 32 48 1 1 B
+gemm ooI    A4#8,32B32N 32 48 1 1 B
+offsetabc gemm OOI A4#8,32B32N 32 48 1 1 B
+gemm HH[SH] A2#8,16B16N 32 48 - - B
+gemm HHS    A2#8,16B16N 32 48 - - B
+gemm BB[SB] A2#8,16B16N 32 48 - - B
+gemm BBS    A2#8,16B16N 32 48 - - B
+gemm OOIS   A4#8,32B32N 32 48 - - B
+# Monolithic kernels
+gemm HHHS A2#8,16B16N 32 48 - 1
+gemm HHS  A2#8,16B16N 32 48 - 1
+gemm BBBS A2#8,16B16N 32 48 - 1
+gemm BBS  A2#8,16B16N 32 48 - 1
+gemm OOIS A4#8,32B32N 32 48 - 1
+gemm ooIS A4#8,32B32N 32 48 - 1
+gemm HHS  A2#8,16B16N 32 48 - 0
+## Packed C
+# 32x32 split-copy
+gemm HH[SH] A2#8,16B16B16 32 32 - - A
+gemm HHS    A2#8,16B16B16 32 32 - - A
+gemm BB[SB] A2#8,16B16B16 32 32 1 1 A
+gemm BBS    A2#8,16B16B16 32 32 1 1 A
+gemm OOI    A4#8,32B32B32 32 32 1 1 A
+gemm ooI    A4#8,32B32B32 32 32 1 1 A
+gemm OOIS   A4#8,32B32B32 32 32 - - A
+# 32x48, 4x4 workgroup
+gemm HH[SH] A2#8,16B16B16 32 48 1 1 A
+gemm HHS    A2#8,16B16B16 32 48 1 1 A
+gemm BB[SB] A2#8,16B16B16 32 48 - - A
+gemm BBS    A2#8,16B16B16 32 48 - - A
+gemm OOI    A4#8,32B32B32 32 48 1 1 A
+gemm ooI    A4#8,32B32B32 32 48 1 1 A
+gemm OOIS   A4#8,32B32B32 32 48 - - A
+# Monolithic kernels
+gemm HHHS A2#8,16B16B16 32 48 1 1
+gemm HHS  A2#8,16B16B16 32 48 1 1
+gemm BBBS A2#8,16B16B16 32 48 1 1
+gemm BBS  A2#8,16B16B16 32 48 1 1
+gemm OOIS A4#8,32B32B32 32 48 1 1
+gemm ooIS A4#8,32B32B32 32 48 1 1
+gemm HHS  A2#8,16B16B16 32 48 1 0

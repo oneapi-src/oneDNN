@@ -1,0 +1,9 @@
+gemm SSS NTN 8 8 1 1 ab1 ab1 ab ar kb np
+gemm SSS NTN 8 8 1 1 ab1 ab1 ab sr kb np
+gemm CCC NTN 8 8 1 1 ab1 ab1 ab ar kb np
+gemm CCC NTN 8 8 1 1 ab1 ab1 ab sr kb np
+gemm OOI NTN 8 8 1 1 ab4 ab4 ab ar kb np
+gemm OOI NTN 8 8 1 1 ab4 ab4 ab sr kb np
+gemm SSS NNN 8 4 - 1 kb
+gemm SSS NTN 8 8 - 1 kb
+gemm SSS TNN 8 4 - 1 kb
