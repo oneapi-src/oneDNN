@@ -101,6 +101,7 @@ extern const impl_list_map_t &regular_u8_impl_list_map();
 extern const impl_list_map_t &regular_s4_impl_list_map();
 extern const impl_list_map_t &regular_u4_impl_list_map();
 extern const impl_list_map_t &regular_u2_impl_list_map();
+extern const impl_list_map_t &regular_u3_impl_list_map();
 
 /* conv reorders w/ compensation */
 extern const impl_list_map_t &comp_f32_s8_impl_list_map();
