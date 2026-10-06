@@ -595,6 +595,15 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
             CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                     gen_attr_with_pr(arg, (1 << 1) + (1 << 0), data_type::s32,
                             {1, 32})));
+
+            // Only int8 weights are supported with precomputed reductions.
+            for (auto unsup_b_dt : {data_type::s4, data_type::u4, data_type::u2,
+                         data_type::f8_e4m3, data_type::f16, data_type::bf16}) {
+                memory::desc unsup_b_md {{64, 20}, unsup_b_dt, tag::ba};
+                CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, unsup_b_md, c_md,
+                        gen_attr_with_pr(arg, (1 << 1) + (1 << 0),
+                                data_type::s32, {1, 32})));
+            }
         }
     }
 }
