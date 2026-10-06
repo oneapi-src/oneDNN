@@ -1,0 +1,11 @@
+# u3 wei decompression, grouped GEMM (2Dx3D): variable M, weights 3D [G, K, N]
+--reset
+--allow-enum-tags-only=0
+--dt=f16:u3:f16
+--wtag=acb
+--attr-scales=wei:7:f16:64x1
+--attr-zero-points=wei:7:u8:64x1
+--attr-fpmath=f16:true
+--grouped=0:256:balanced,0:256:hot
+8192x2048:256x2048x512
+8192x512:256x512x2048

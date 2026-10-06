@@ -1,2 +1,3 @@
 --reset
 --batch=harness_matmul_grouped
+--batch=harness_matmul_grouped_decompression_u3

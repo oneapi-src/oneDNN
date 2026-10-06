@@ -39,3 +39,6 @@
 --reset --dt=f16 --stag=abx --wtag=ba   --dtag=abx --attr-post-ops=mul_inplace:f16 1956x333:333x608
 
 --batch=harness_matmul_int2
+
+# u3 weights decompression
+--batch=harness_matmul_decompression_u3
