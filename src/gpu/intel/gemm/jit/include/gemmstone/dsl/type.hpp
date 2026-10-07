@@ -366,6 +366,16 @@ public:
         return bits_per_byte * size() / bitsize();
     }
 
+    int bytes_to_elems(int bytes) const {
+        auto s = scalar();
+        return bytes * s.packing() / s.size();
+    }
+
+    int elems_to_bytes(int elems) const {
+        auto s = scalar();
+        return div_up(elems * s.size(), s.packing());
+    }
+
     std::string str() const;
     void parse(std::istream &in);
 
