@@ -916,8 +916,10 @@ void Generator<hw>::updateCLayout(const RegisterLayout &layoutExt, const Registe
         //   sublayoutCopy:  copied C data
         //   sublayoutAcc:   C data in accumulators
         bool allocOK = true;
-        auto tryAlloc = [&](int regs, Bundle hint = Bundle()) {
-            auto range = state.ra.try_alloc_range(regs, hint);
+        auto tryAlloc = [&](int regs, RegFile rf, Bundle hint = Bundle()) {
+            if (rf != RegFileGRF)
+                stub("Must be GRF");
+            RegisterRange range = state.ra.try_alloc_range(regs, hint);
             allocOK &= range.isValid();
             return range;
         };
@@ -960,15 +962,23 @@ void Generator<hw>::updateCLayout(const RegisterLayout &layoutExt, const Registe
                     layout[lend].subAddrOffset(initOA, is2D);
             }
             auto naddr = blockExt.addrGRFs(problem.C, strategy.C);
+            // TODO: This code should be reviewed.
+            RegFile allocaterf = RegFileGRF;
             FOR_EACH_C C_addrs[q].push_back(origin ? C_addr0[q] :
-                        (blockExt.offsetAddr == 0) ? tryAlloc(naddr)
-                                                   : C_addrs[q][lanchor - lstart]);
-            if (needLoad || copyC)
-                C_extRegs.push_back(tryAlloc(blockExt.nregs(), getHint(HintType::CLoad, strategy)));
-            if (copyCLoad) for (int li = li0; li < li1; li++)
-                C_copyRegs.push_back(tryAlloc(sublistCopy[li - li0 + sublistCopySize].nregs() * expand, getHint(HintType::CLoad, strategy)));
-            if (lateCConvert) for (int li = li0; li < li1; li++)
-                C_convertRegs.push_back(tryAlloc(layout[li].nregs() * expand));
+                                            (blockExt.offsetAddr == 0) ? tryAlloc(naddr, allocaterf)
+                                                                        : C_addrs[q][lanchor - lstart]);
+            if (needLoad || copyC) {
+                auto new_reg = tryAlloc(blockExt.nregs(), RegFileGRF, getHint(HintType::CLoad, strategy));
+                C_extRegs.push_back(new_reg);
+            }
+            if (copyCLoad) for (int li = li0; li < li1; li++) {
+                auto new_reg = tryAlloc(sublistCopy[li - li0 + sublistCopySize].nregs() * expand, RegFileGRF, getHint(HintType::CLoad, strategy));
+                C_copyRegs.push_back(new_reg);
+            }
+            if (lateCConvert) for (int li = li0; li < li1; li++) {
+                auto new_reg = tryAlloc(layout[li].nregs() * expand, RegFileGRF);
+                C_convertRegs.push_back(new_reg);
+            }
             if (!allocOK)
                 break;
 
@@ -1151,11 +1161,13 @@ void Generator<hw>::updateCLayout(const RegisterLayout &layoutExt, const Registe
 
             // Store updated data.
             if (op == COperation::UpdateStore) {
+                bool needsFullK = false;
+
                 if (copyC)
                     copyRegisters(sublayoutAcc, sublayoutExt, C_accRange, C_extRange, strategy, state);
 
-                auto &sublayoutSrc = copyC ? sublayoutExt : sublayoutAcc;
-                auto &C_srcRange = copyC ? C_extRange : C_accRange;
+                auto &sublayoutSrc = copyC || needsFullK ? sublayoutExt : sublayoutAcc;
+                auto &C_srcRange = copyC || needsFullK ? C_extRange : C_accRange;
 
 #ifdef STANDALONE
                 if (!problem.mock.cStore) {
@@ -1659,10 +1671,11 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
     bool nativeAtomic = atomicUpdate && hasNativeAtomicAdd(hw, Tc_ext.real(), problem.C, strategy.C);
     bool qword = false;
     int rshift = qword ? 3 : 2;     // log2(data stride in regs)
-    int rsimd = 64 >> rshift;
+    int rsimd;
+    rsimd = 64 >> rshift;
 
 #ifdef STANDALONE
-        status << "Generic C remainder handling (m/n)" << status_stream::endl;
+    status << "Generic C remainder handling (m/n)" << status_stream::endl;
 #endif
 
     auto &block0 = state.C_layout[0];
@@ -1844,7 +1857,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
     header4 &= (GRF::bytes(hw) < 64);
     if (hw >= HW::XeHP && !surface) {
         if (header4)
-            FOR_EACH_C mov<uint32_t>(2*neq, header[q][2][0](2), header[q][1]);
+            FOR_EACH_C mov<uint32_t>(2 * neq, header[q][2][0](2), header[q][1]);
         FOR_EACH_C mov<uint32_t>(neq, header[q][1][0](2), header[q][0][neq](1));
         FOR_EACH_C mov<uint32_t>(neq, header[q][0][0](2), header[q][0][0](1));
         hs = 2;
@@ -1901,6 +1914,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
 
     wrdepRanges(state.C_regs[0]);
 
+    InstructionModifier mod;
     mark(yLoop);
     mov<uint16_t>(16, ix, ix_init);
     if (!lateYLoopCheck)
@@ -1912,7 +1926,6 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
 
     // Update. The anyv is a trick to use the generated m mask (f1.0) on the last
     //  iteration of the loop, and no mask (0xFFFF) on the other iterations.
-    InstructionModifier mod;
     mod = mod | f0[0] | anyv;
 
     // Alas, no anyv on PVC.
@@ -1922,7 +1935,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
     }
 
     if (!uniform) {
-        subdep(Operand::src0, bases);
+        subdep(Operand::src0, GRFRange(bases.getBase(), bases.getLen()));
         nonuniformSubs ? mov(xByteInc >> 1, a0[2](1), indirect[a0[1]].uw())
                        : shl(xByteInc,      a0[2](1), indirect[a0[1]].ub(), GRF::log2Bytes(hw));
     }
@@ -1933,7 +1946,8 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
         if (uniform) switch (state.Tacc.size()) {
             case 1:  IGNORE_SWSB mov<uint32_t>(16, Cacc, indirect[a0[1]].ub()); break;
             case 2:  IGNORE_SWSB mov<uint32_t>(16, Cacc, indirect[a0[1]].uw()); break;
-            default: IGNORE_SWSB mov<uint32_t>(16, Cacc, indirect[a0[1]]);      break;
+            default:
+                IGNORE_SWSB mov<uint32_t>(16, Cacc, indirect[a0[1]]); break;
         } else if (xByteInc == 1) switch (state.Tacc.size()) {
             case 2:  IGNORE_SWSB mov<uint32_t>(16, Cacc, indirect[a0[2]].uw()); break;
             default: IGNORE_SWSB mov<uint32_t>(16, Cacc, indirect[a0[2]]);      break;
@@ -1951,7 +1965,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
         if (C_count > 1) stub();
         if (op != COperation::UpdateStore) stub();
 
-        convert(Cacc, state.Tacc, Tc_ext, strategy, state);
+        convert(GRFRange(Cacc.getBase(), Cacc.getLen()), state.Tacc, Tc_ext, strategy, state);
 
         RegisterLayout layout(hw, Tc_ext, 1, 1, problem.C, strategy.C);
 
@@ -1979,7 +1993,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
 #ifdef STANDALONE
         if (!(problem.mock.cLoad && problem.mock.cStore))
 #endif
-        atomicAddMatrixBlock(Tc_ext, Cacc, block, problem.C, strategy.C, header[0], problem, strategy, state);
+        atomicAddMatrixBlock(Tc_ext, GRFRange(Cacc.getBase(), Cacc.getLen()), block, problem.C, strategy.C, header[0], problem, strategy, state);
 
         if (branchAtomic) {
             setDefaultNoMask(true);
@@ -1995,7 +2009,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
         // Late C conversion, if needed.
         auto originalTacc = state.Tacc;
         if (problem.needsTsConvert() && state.Tacc != problem.Ts) {
-            convert(Cacc, state.Tacc, problem.Ts, strategy, state);
+            convert(GRFRange(Cacc.getBase(), Cacc.getLen()), state.Tacc, problem.Ts, strategy, state);
             state.setTacc(problem.Ts);
         }
 
@@ -2032,7 +2046,7 @@ void Generator<hw>::doAlternateCRemainder(COperation op, const GEMMProblem &prob
 #define IGNORE_SWSB ignoredep(Operand::dst);
 
         if (op != COperation::UpdateStore) {
-            auto src = (op == COperation::Load) ? Cload : Cacc;
+            auto src = (op == COperation::Load) ? GRFRange(Cload.getBase(), Cload.getLen()) : GRFRange(Cacc.getBase(), Cacc.getLen());
             if (uniform) switch (Tc.size()) {
                 case 1:  IGNORE_SWSB mov<uint32_t>(16 | mod, indirect[a0[1]].ub(), src); break;
                 case 2:  IGNORE_SWSB mov<uint32_t>(16 | mod, indirect[a0[1]].uw(), src); break;
@@ -2504,7 +2518,7 @@ void Generator<hw>::gemmKReduce(const GEMMProblem &problem, const GEMMStrategy &
         jmpi(1 | ~state.flagAP, lSkipReduce);
 
         auto doLoad = [&](int b) {
-            loadMatrix(C_load[b], C_slmLayout, C_slmAddrs, strategy, state);
+            loadMatrix(GRFRange(C_load[b].getBase(), C_load[b].getLen()), C_slmLayout, C_slmAddrs, strategy, state);
         };
 
         auto doInc = [&] {

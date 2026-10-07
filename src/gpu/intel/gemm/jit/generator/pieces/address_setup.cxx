@@ -428,7 +428,7 @@ void Generator<hw>::setupAddr(Type T, const RegisterRange &addr, const BO &ptr, 
                     mov<uint32_t>(n1 - n0, addr[1][0](2), addr[0][n0 % xCacheLines](0, xCacheLines, 1));
                 mov<uint32_t>(n0, addr[0][0](2), addr[0][0](0, xCacheLines, 1));
                 for (int y = 1; y < ny; y++) {
-                    auto r = addr.sub(hw, xCacheLines * y, DataType::uq);
+                    auto r = GRFRange(addr.getBase(), addr.getLen()).sub(hw, xCacheLines * y, DataType::uq);
                     auto ld = (y == 1) ? bld : findLDMultiple(ldMultiples, a64, y, strategy, state);
                     eadd(xCacheLines, r(1), r.ud(0)(2), ld, strategy, state);
                 }
@@ -467,7 +467,8 @@ void Generator<hw>::offsetAddr(const RegisterRange &addrDst, const RegisterRange
             incAddr(addrDst, addrSrc, offsetFixed, blockDst, blockSrc, atype, astrategy, strategy, state);
     } else {
         // Reuse ld * offsetLD calculation if available.
-        auto ldInc = findLDMultiple(ldMultiples, a64, offsetLD, strategy, state);
+        Subregister ldInc;
+        ldInc = findLDMultiple(ldMultiples, a64, offsetLD, strategy, state);
 
         if (ldInc.isValid() && offsetFixed == 0)
             incAddr(addrDst, addrSrc, (offsetLD == 1) ? ld : ldInc, blockDst, blockSrc, atype, astrategy, strategy, state);
@@ -529,8 +530,10 @@ void Generator<hw>::setupAddrRel(const RegisterRange &addrDst, const RegisterRan
         offsetAddr(addrDst, addrSrc, blockDst, blockSrc, offsetFixed, offsetLD, ld, atype, astrategy, strategy, state, ldMultiples);
     }
 
-    if (isBlock2D(astrategy.accessType))
-        updateBlock2DSizes(addrDst, blockDst, blockSrc, atype, astrategy.prefetch);
+    if (isBlock2D(astrategy.accessType)) {
+        GRF addr = GRF(addrDst.getBase());
+        updateBlock2DSizes(addr, blockDst, blockSrc, atype, astrategy.prefetch);
+    }
 }
 
 static inline int findBaseBlock(const RegisterBlock &block, const RegisterLayout &layout, int start, int end,

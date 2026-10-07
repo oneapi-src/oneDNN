@@ -389,7 +389,8 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                                          const GRFMultirange &A_regs, const GRFMultirange &B_regs,
                                          const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    auto Ta = problem.Ta, Tb = problem.Tb, Tc = problem.Tc_compute();
+    auto Ta = problem.Ta, Tb = problem.Tb;
+    auto Tc = problem.Tc_compute();
     bool globalCM = state.C_layout.colMajor();
     auto params = systolicParams(problem);
     auto ksys = params.ksys;
@@ -469,7 +470,8 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                 && (problem.Tc != Type::f16);
             if (hhbase + ksys < opCount && canFwd) mod |= Fwd;
 
-            if (startRepackC && hhbase == 0)
+            bool nullC = startRepackC && hhbase == 0;
+            if (nullC)
                 srcC0 = null.retype(C0.getType());
 
             if (state.useBDPAS) {

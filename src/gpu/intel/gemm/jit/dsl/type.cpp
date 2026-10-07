@@ -95,6 +95,7 @@ kind_t get_kind(ngen::DataType t) {
 
 kind_t get_kind(Type t) {
     switch (t) {
+        case Type::_Type::invalid: return kind_t::undef;
         case Type::_Type::u64: return kind_t::u64;
         case Type::_Type::s64: return kind_t::s64;
         case Type::_Type::u32: return kind_t::u32;
