@@ -524,8 +524,8 @@ static int fill_grouped_offsets(
     return OK;
 }
 
-// Fill grouped data (values + offsets) for SRC (2Dx3D and 2Dx2D variants) or
-// WEI (2Dx2D variant only)
+// Fill grouped values for SRC (2Dx3D and 2Dx2D variants) or WEI (2Dx2D variant
+// only)
 // The values buffer is filled as a contiguous 2D
 // tensor (offsets describe per-group slicing, not value placement)
 static int fill_grouped_data(data_kind_t kind, const prb_t *prb,
@@ -544,11 +544,6 @@ static int fill_grouped_data(data_kind_t kind, const prb_t *prb,
                 nhandles);
         return FAIL;
     }
-
-    // Fill offsets buffer
-    SAFE(fill_grouped_offsets(mem_dt, prb->sparse_options), WARN);
-
-    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)) return OK;
 
     cfg_t cfg(prb, {SRC, WEI, BIA, DST});
 
@@ -796,10 +791,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
     const auto wei_encoding
             = prb->sparse_options.get_encoding(DNNL_ARG_WEIGHTS);
 
-    const bool is_grouped_2dby3d = prb->sparse_options.is_grouped(DNNL_ARG_SRC)
-            && prb->sparse_options.is_grouped(DNNL_ARG_DST);
-    const bool is_grouped_2dby2d = prb->sparse_options.is_2dby2d();
-
     for (auto &entry : mem_map) {
         const int exec_arg = entry.first;
         // The function targets regular exec_args that are positive.
@@ -823,34 +814,18 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
         const bool is_sparse_wei_packed
                 = is_sparse_wei && wei_encoding == dnnl_packed;
 
-        // Grouped binary post-op offsets are needed even under no_ref_memory,
-        // so exclude them from the skip below
-        bool is_grouped_bin_po = false;
-        if (is_grouped_2dby3d) {
-            const auto &po = prb->attr.post_ops;
-            const int po_idx
-                    = exec_arg / DNNL_ARG_ATTR_MULTIPLE_POST_OP_BASE - 1;
-            is_grouped_bin_po = po_idx >= 0 && po_idx < po.len()
-                    && po.entry[po_idx].is_binary_kind()
-                    && po.entry[po_idx].binary.grouped;
+        // Offsets are read by the library, fill them in any mode
+        if (has_grouped_encoding(mem.md_)) {
+            SAFE(fill_grouped_offsets(mem, prb->sparse_options), WARN);
+            if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory))
+                continue;
         }
 
         // See the comment at the beginning of the function.
         if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory)
-                // Grouped args are excluded from `is_sparse` to keep the
-                // sparse and grouped paths separate; exclude them here so
-                // `no_ref_memory` still fills direct runtime inputs.
-                && !((is_grouped_2dby3d
-                             && (exec_arg == DNNL_ARG_SRC
-                                     || exec_arg == DNNL_ARG_DST))
-                        || (is_grouped_2dby2d
-                                && (exec_arg == DNNL_ARG_SRC
-                                        || exec_arg == DNNL_ARG_WEIGHTS))
 #if DNNL_EXPERIMENTAL_GROUPED_MEMORY
-                        || ((is_grouped_2dby3d || is_grouped_2dby2d)
-                                && exec_arg == DNNL_ARG_HINT_MAX_GROUP_SIZE)
+                && exec_arg != DNNL_ARG_HINT_MAX_GROUP_SIZE
 #endif
-                        || is_grouped_bin_po)
                 && !is_sparse)
             continue;
 
@@ -922,11 +897,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                         WARN);
                 break;
             case DNNL_ARG_DST: {
-                if (is_grouped_2dby3d) {
-                    // Only offsets need to be filled
-                    // as values are computed by the library
-                    SAFE(fill_grouped_offsets(mem, prb->sparse_options), WARN);
-                }
                 const auto &po = prb->attr.post_ops;
                 const int sum_idx = po.find(attr_t::post_ops_t::SUM);
                 if ((sum_idx >= 0) || po.has_inplace_binary()) {
@@ -955,12 +925,6 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
                 // post filling manipulations.
                 break;
             default: {
-                // For grouped binary post-op fill offsets only
-                if (is_grouped_bin_po) {
-                    SAFE(fill_grouped_offsets(mem, prb->sparse_options), WARN);
-                    if (has_bench_mode_modifier(mode_modifier_t::no_ref_memory))
-                        break;
-                }
                 SAFE(init_ref_memory_args_default_case(
                              exec_arg, mem, ref_mem, prb->attr, res),
                         WARN);
