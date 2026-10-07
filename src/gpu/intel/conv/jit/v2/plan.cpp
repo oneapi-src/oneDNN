@@ -310,13 +310,13 @@ private:
         }
         const uint8_t sdepth = 8;
         const uint8_t rcount = 8;
-        int type_size = a_type_.size();
         int dword_size = 4;
+        int k_blk = a_type_.bytes_to_elems(sdepth * dword_size);
         gpu_check(m_dim.size() % rcount == 0)
                 << "init_dpas: M dimension size is invalid: " << m_dim.size();
         gpu_check(n_dim.size() % simd_ == 0)
                 << "init_dpas: N dimension size is invalid: " << n_dim.size();
-        gpu_check((k_dim.size() * type_size) % (sdepth * dword_size) == 0)
+        gpu_check(k_dim.size() % k_blk == 0)
                 << "init_dpas: K dimension size is invalid: " << k_dim.size();
 
         auto _dpas = dpas_t::make(

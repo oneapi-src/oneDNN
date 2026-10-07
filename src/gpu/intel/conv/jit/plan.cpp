@@ -1070,7 +1070,8 @@ std::vector<func_t> fma_plan_t::create_fma_funcs(const dsl::hw_t &hw,
             const int max_rcount = 8;
             int block_rcount = m_blk;
             int simd = n_blk;
-            int sdepth = ir_utils::safe_divide(k_blk * a.type().size(), 4);
+            int sdepth
+                    = ir_utils::safe_divide(a.type().elems_to_bytes(k_blk), 4);
             for (int r = 0; r < block_rcount;) {
                 int rcount = std::min(max_rcount, block_rcount - r);
                 auto dpas = dpas_t::make(/*is_dpasw=*/false, simd,
@@ -1368,7 +1369,7 @@ struct fma_context_t {
         bool cvt_f16 = ((hw < ngen::HW::Xe3p && layout.type().is_fp8())
                 || (hw.family() < ngen::ProductFamily::CRI
                         && layout.type().is_fp4()));
-        int type_size = (cvt_f16 ? 2 : type.size());
+        auto eff_type = cvt_f16 ? dsl::type_t::f16() : type;
         if (is_dpas) {
             int sdepth = 8;
             int dword_size = 4;
@@ -1376,11 +1377,11 @@ struct fma_context_t {
             auto bmnks = get_bmnk_kinds(abc);
             if (is_a) {
                 // A -> src2
-                int k_blk = sdepth * dword_size / type_size;
+                int k_blk = eff_type.bytes_to_elems(sdepth * dword_size);
                 blocks.emplace_back(1, k_blk);
             } else {
                 // B -> src1
-                int k_blk0 = dword_size / type_size;
+                int k_blk0 = eff_type.bytes_to_elems(dword_size);
                 int n_blk = simd;
                 int k_blk1 = sdepth;
                 blocks.emplace_back(0, k_blk0);
@@ -2558,10 +2559,9 @@ private:
                 gpu_assert(is_dpas_src2_compatible(
                         simd, /*transpose=*/true, a_layout));
                 gpu_assert(a_layout.type().size() == b_layout.type().size());
-                int ab_type_size = a_layout.type().size();
                 m_blk = get_dpas_block_rcount(a_layout, 1);
                 n_blk = simd;
-                k_blk = sdepth * dword_size / ab_type_size;
+                k_blk = a_layout.type().bytes_to_elems(sdepth * dword_size);
                 c_blk_layout = c_blk_layout.with_block({2, n_blk});
                 c_blk_layout = c_blk_layout.with_block({1, m_blk});
                 break;
