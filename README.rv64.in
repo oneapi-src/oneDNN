@@ -1,0 +1,17 @@
+This distribution of oneDNN supports systems based on
+@DNNL_ARCH_NAME@ architecture.
+
+The library is optimized for RISC-V 64-bit (RV64) architecture based processors
+with the following ISA extensions:
+* RISC-V Vector (RVV) extension, version 1.0
+* Zvfh (FP16 vector) and Zvfbfwma (BF16 vector)
+
+oneDNN detects the instruction set architecture (ISA) at runtime and uses
+just-in-time (JIT) code generation to deploy the code optimized
+for the latest supported ISA.
+
+Validated on:
+* SG2044 (VLEN=128) and Spacemit K3 (RVA23) with RISC-V GNU Toolchain 14.x
+
+Note: RV64 support is currently experimental. It is covered by dedicated
+continuous integration (QEMU, VLEN=128/256) and validated on silicon.

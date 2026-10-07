@@ -163,8 +163,11 @@ The library is optimized for the following CPUs:
     (code name Diamond Rapids)
 * AArch64 architecture
   * Arm Neoverse(TM) N-Series and V-Series
+* RISC-V architecture based processors with the following ISA extensions:
+  * RISC-V Vector (RVV) extension, version 1.0
+  * Zvfh (FP16 vector) and Zvfbfwma (BF16 vector)
 
-On a CPU based on Intel 64 or on AMD64 architecture, oneDNN detects
+On a CPU based on Intel 64/AMD64, AArch64, or RISC-V architecture, oneDNN detects
 the instruction set architecture (ISA) at runtime and uses just-in-time (JIT)
 code generation to deploy the code optimized for the latest supported ISA.
 Future ISAs may have initial support in the library disabled by default and
