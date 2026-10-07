@@ -398,17 +398,22 @@ static void compute_ref_matmul_chunk(const chunk_params_t &p, int64_t M,
 //     src is col-major [M, total_K], wei is row-major [total_K, N],
 //     dst is dense [G, M, N]. No bias.
 //
-// Per-group ranges are read from the grouped memory descriptor offsets.
+// Grouped args are grouped f32 reference memories:
+//   buffer 0: f32 data
+//   buffer 1: s32 cumulative offsets [group_count]
+// Per-group ranges are read from the src offsets, var_M dst rows are placed
+// by the dst offsets, as the library does.
 void compute_ref_grouped_matmul(const prb_t *prb, const args_t &args) {
     const bool var_M = prb->sparse_options.is_grouped(DNNL_ARG_DST);
 
     const int64_t group_count = prb->sparse_options.get_group_count();
-    const auto &group_sizes = prb->sparse_options.get_group_sizes(DNNL_ARG_SRC);
-
-    std::vector<int64_t> group_offsets(group_count + 1);
-    group_offsets[0] = 0;
-    for (int64_t g = 0; g < group_count; g++)
-        group_offsets[g + 1] = group_offsets[g] + group_sizes[g];
+    const int offsets_idx
+            = sparse_options_t::grouped_data_t::grouped_offsets_idx;
+    const int32_t *src_offs
+            = args.find(DNNL_ARG_SRC).get_mapped_pointer<int32_t>(offsets_idx);
+    const int32_t *dst_offs = var_M
+            ? args.find(DNNL_ARG_DST).get_mapped_pointer<int32_t>(offsets_idx)
+            : nullptr;
 
     // Precompute common parameters for the different chunks computations
     const chunk_params_t params = make_chunk_params(prb, args);
@@ -421,7 +426,8 @@ void compute_ref_grouped_matmul(const prb_t *prb, const args_t &args) {
     std::vector<int64_t> chunk_offsets(group_count + 1);
     chunk_offsets[0] = 0;
     for (int64_t g = 0; g < group_count; g++) {
-        const int64_t M = var_M ? group_sizes[g] : prb->m;
+        const int64_t M
+                = var_M ? src_offs[g] - (g == 0 ? 0 : src_offs[g - 1]) : prb->m;
         chunk_offsets[g + 1] = chunk_offsets[g] + div_up(M, params.dst_M_group);
     }
     const int64_t M_chunks = chunk_offsets[group_count];
@@ -431,8 +437,9 @@ void compute_ref_grouped_matmul(const prb_t *prb, const args_t &args) {
                                   chunk_offsets.end(), fmc)
                 - chunk_offsets.begin() - 1;
         const int64_t mc = fmc - chunk_offsets[g];
-        const int64_t off = group_offsets[g];
-        const int64_t M = var_M ? group_sizes[g] : prb->m;
+        const int64_t off = g == 0 ? 0 : src_offs[g - 1];
+        const int64_t group_size = src_offs[g] - off;
+        const int64_t M = var_M ? group_size : prb->m;
 
         // Per-group base offsets:
         //   src(m, k) = src_base + m * src_m_stride + k * src_k_stride
@@ -446,10 +453,11 @@ void compute_ref_grouped_matmul(const prb_t *prb, const args_t &args) {
                 = var_M ? off * params.src_m_stride : off * params.src_k_stride;
         const int64_t wei_base
                 = var_M ? g * prb->k * prb->n : off * params.wei_k_stride;
-        const int64_t dst_row_base = var_M ? off : g * prb->m;
+        const int64_t dst_row_base
+                = var_M ? (g == 0 ? 0 : dst_offs[g - 1]) : g * prb->m;
 
         // var_K reduces over the group K_g only, not total_K
-        const int64_t Kg = var_M ? prb->k : group_sizes[g];
+        const int64_t Kg = var_M ? prb->k : group_size;
 
         int64_t bia_base = 0, bia_m_stride = 0, bia_n_stride = 0;
         if (var_M && params.bia_dt != dnnl_data_type_undef) {

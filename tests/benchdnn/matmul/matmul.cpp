@@ -507,6 +507,10 @@ static int fill_grouped_offsets(
         dnn_mem_t &mem, const sparse_options_t &sparse_options) {
     const int64_t group_count = sparse_options.get_group_count();
     const auto &group_sizes = sparse_options.get_group_sizes(DNNL_ARG_SRC);
+    // Note, that we usually rely on `set_elem` for setting buffer elements, but
+    // it operates with floats, while offsets are int32
+    int32_t *offsets = mem.get_mapped_pointer<int32_t>(
+            sparse_options_t::grouped_data_t::grouped_offsets_idx);
 
     int64_t cumulative = 0;
     for (int64_t g = 0; g < group_count; g++) {
@@ -518,8 +522,7 @@ static int fill_grouped_offsets(
             return FAIL;
         }
         cumulative += group_sizes[g];
-        mem.set_elem(g, static_cast<int32_t>(cumulative),
-                sparse_options_t::grouped_data_t::grouped_offsets_idx);
+        offsets[g] = static_cast<int32_t>(cumulative);
     }
     return OK;
 }
