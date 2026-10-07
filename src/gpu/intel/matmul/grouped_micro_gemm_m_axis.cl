@@ -118,20 +118,21 @@ DECLARE_2D_TILE_HREDUCE(c_tile_type_float, SUBGROUP_SIZE,
 #endif
 
 #if WITH_SPARSE_GROUPS
+#define sparse_sg_per_wg \
+    (ugemm_grouped_sg_per_wg_m * ugemm_grouped_sg_per_wg_n \
+            * ugemm_grouped_sg_per_wg_k)
 #define offsets_tile_br SUBGROUP_SIZE
 #define offsets_tile_bc 1
 #define offsets_tile_nbr \
-    MAX(1, \
-            NUM_GROUPS / (ugemm_grouped_sg_per_wg_m * SUBGROUP_SIZE) \
-                    / ugemm_grouped_sg_per_wg_n)
+    ((NUM_GROUPS + sparse_sg_per_wg * SUBGROUP_SIZE - 1) \
+            / (sparse_sg_per_wg * SUBGROUP_SIZE))
 #define offsets_tile_nbc 1
 DECLARE_2D_TILE(offsets_tile_type, int, SUBGROUP_SIZE, offsets_tile_br,
         offsets_tile_bc, offsets_tile_nbr, offsets_tile_nbc)
 
 #define slm_src_offsets_size sizeof(off_t) * 2
 #define slm_batch_size sizeof(off_t)
-#define slm_sg_last_size \
-    sizeof(int) * ugemm_grouped_sg_per_wg_m *ugemm_grouped_sg_per_wg_n
+#define slm_sg_last_size sizeof(int) * sparse_sg_per_wg
 #define slm_sparse_total_size \
     slm_src_offsets_size + slm_batch_size + slm_sg_last_size
 
