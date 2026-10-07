@@ -324,7 +324,7 @@ int get_default_block(fma_kind_t fma, const dsl::type_t &type, dim_t elems) {
             return std::max(
                     utils::rnd_up_pow2(into<int>(elems)), packed_dword_elems);
         }
-        return 32 / type.size();
+        return type.bytes_to_elems(32);
     }
     if (is_small(type, elems)) return 1;
     return get_default_mad_block(type);
