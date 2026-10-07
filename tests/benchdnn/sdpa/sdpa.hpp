@@ -283,6 +283,7 @@ int init_ref_memory_args(dnn_mem_map_t &ref_mem_map, dnn_mem_map_t &mem_map,
 
 void compute_ref(const base_prb_t *base_prb, dir_t dir, const args_t &args,
         dnnl_primitive_t prim_ref = nullptr);
+size_t get_ref_extra_size(const prb_t *prb, dir_t dir);
 
 int createit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const base_prb_t *base_prb, res_t *res);

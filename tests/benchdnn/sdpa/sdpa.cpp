@@ -454,8 +454,24 @@ int checkit(std::vector<benchdnn_dnnl_wrapper_t<dnnl_primitive_t>> &v_prim,
         const base_prb_t *base_prb, res_t *res) {
     const prb_t *prb = prb_t::from(base_prb);
     if (has_bench_mode_bit(mode_bit_t::exec)) {
+        // Set memory used for reference.
+        auto &mem_args = res->mem_size_args;
+        if (has_bench_mode_bit(mode_bit_t::corr)) {
+            mem_args.extra_size_driver = get_ref_extra_size(prb, FLAG_FWD);
+        }
+
         SAFE(check_total_size(res), WARN);
-        if (v_prim[1]) SAFE(check_total_size(res), WARN);
+
+        if (v_prim[1]) {
+            // Forward reference runs as a service step, its buffers are freed
+            // before the backward one allocates.
+            if (has_bench_mode_bit(mode_bit_t::corr)) {
+                mem_args.extra_size_driver = MAX2(mem_args.extra_size_driver,
+                        get_ref_extra_size(prb, FLAG_BWD));
+            }
+
+            SAFE(check_total_size(res), WARN);
+        }
     }
     if (has_bench_mode_bit(mode_bit_t::corr)) {
         SAFE(check_caches(v_prim[0], prb->ctx_init, res), WARN);
