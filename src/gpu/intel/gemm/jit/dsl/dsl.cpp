@@ -649,7 +649,7 @@ void mma(const tensor_t &C, const tensor_t &A, const tensor_t &B,
         auto sdepth_idx = A.layout[0].idx == C.layout[0].idx ? A.layout[1].idx
                                                              : A.layout[0].idx;
         auto rcount_idx = C.layout[1].idx;
-        auto sdepth_pack = 4 / A.layout.type().size();
+        auto sdepth_pack = A.layout.type().bytes_to_elems(4);
 
         tile_t inst_tile {{simd_idx, simd}, {sdepth_idx, sdepth * sdepth_pack},
                 {rcount_idx, max_rcount}};
