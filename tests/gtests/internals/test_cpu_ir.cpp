@@ -230,8 +230,9 @@ float ref_dot(const float *a, const float *b, int n) {
 // IR-based kernel.
 class ir_kernel_t : public impl::cpu::x64::jit_generator_t {
 public:
-    ir_kernel_t(ir_t ir, int vec_regs_limit = -1, int gpr_regs_limit = -1)
-        : jit_generator_t("ir_run_kernel", test_isa())
+    ir_kernel_t(ir_t ir, int vec_regs_limit = -1, int gpr_regs_limit = -1,
+            cpu_isa_t isa = test_isa())
+        : jit_generator_t("ir_run_kernel", isa)
         , ir_(std::move(ir))
         , vec_regs_limit_(vec_regs_limit)
         , gpr_regs_limit_(gpr_regs_limit) {}
@@ -1449,6 +1450,78 @@ TEST(DumpTests, OutputIsOffUnlessRequested) {
 
     EXPECT_TRUE(has_x64ir_token("x64ir"));
     EXPECT_TRUE(has_x64ir_token("dispatch,x64ir,debuginfo=1"));
+}
+
+// Checks the whole output for a small IR with a loop and gpr, vec, and mask
+// vregs, on AVX2 and AVX-512. The gpr pool has 2 registers, so 2 of the 3
+// gprs spill, and the operations that access them show their temps.
+TEST(DumpTests, KernelDumpShowsAllocation) {
+    using namespace data_type;
+    ir_t ir;
+    const vreg_t ptr = ir.new_gpr();
+    const vreg_t step = ir.new_gpr();
+    const vreg_t cnt = ir.new_gpr();
+    const vreg_t x = ir.new_vec(f32);
+    const vreg_t mask = ir.new_mask();
+    ir.load_param(ptr, 0);
+    ir.load_param(step, 8);
+    ir.set_mask_imm(mask, 3);
+    const int begin = ir.loop_begin_imm(cnt, 2);
+    ir.vload_masked(x, ptr, 0, mask, f32);
+    ir.add_reg(ptr, step);
+    ir.loop_end(cnt, begin);
+
+    const std::pair<cpu_isa_t, const char *> cases[] = {
+            {avx2, R"(begin x64ir ir_kernel isa=avx2
+code: 0 bytes (instructions 0 bytes, static data 0 bytes)
+alloc gpr: pool 2, peak 3 at op 3, spilled 2
+alloc vec: pool 16, peak 2 at op 4, spilled 0
+spill g1@[rsp+0]: ops 1, 5
+spill g2@[rsp+8]: ops 3, 6
+
+index | gpr vec | operation
+    0 |   1   0 | load g0@rax, [param+0]
+    1 |   2   0 | load g1@[rsp+0](temp rcx), [param+8]
+    2 |   2   1 | set_mask_imm m4@ymm0, 3
+    3 |   3   1 | loop g2@[rsp+8](temp rcx) = 2 {
+    4 |   3   2 |   vload_masked f32:v3@ymm1, f32:[g0@rax+0], m4@ymm0
+    5 |   3   1 |   add_reg g0@rax, g1@[rsp+0](temp rcx)
+    6 |   3   1 | } // g2@[rsp+8](temp rcx) -= 1, repeat while > 0
+end x64ir
+)"},
+            {avx512_core, R"(begin x64ir ir_kernel isa=avx512_core
+code: 0 bytes (instructions 0 bytes, static data 0 bytes)
+alloc gpr: pool 2, peak 3 at op 3, spilled 2
+alloc vec: pool 32, peak 1 at op 4, spilled 0
+alloc mask: pool 7, peak 1 at op 2, spilled 0
+spill g1@[rsp+0]: ops 1, 5
+spill g2@[rsp+8]: ops 3, 6
+
+index | gpr vec mask | operation
+    0 |   1   0    0 | load g0@rax, [param+0]
+    1 |   2   0    0 | load g1@[rsp+0](temp rcx), [param+8]
+    2 |   2   0    1 | set_mask_imm m4@k1, 3
+    3 |   3   0    1 | loop g2@[rsp+8](temp rcx) = 2 {
+    4 |   3   1    1 |   vload_masked f32:v3@zmm0, f32:[g0@rax+0], m4@k1
+    5 |   3   0    1 |   add_reg g0@rax, g1@[rsp+0](temp rcx)
+    6 |   3   0    1 | } // g2@[rsp+8](temp rcx) -= 1, repeat while > 0
+end x64ir
+)"},
+    };
+
+    for (const auto &c : cases) {
+        const ir_kernel_t gen(
+                ir, /*vec_regs_limit=*/-1, /*gpr_regs_limit=*/-1, c.first);
+
+        reg_config_t reg_cfg = make_reg_config(
+                c.first, abi_param1.getIdx(), Xbyak::Operand::RSP, {});
+        reg_cfg.pools.files[0].regs
+                = {Xbyak::Operand::RAX, Xbyak::Operand::RCX};
+        const reg_alloc_result_t alloc = allocate_registers(ir, reg_cfg.pools);
+
+        EXPECT_EQ(kernel_dump_str(gen, ir, data_section_t(), reg_cfg, alloc),
+                c.second);
+    }
 }
 
 } // namespace dnnl

@@ -232,6 +232,13 @@ The output is useful in these cases:
   iteration counts, the pointer increments (`add_imm`), the memory offsets, and
   the data types that the builder produced. A developer can compare them with
   what the builder code is supposed to produce.
+* **Finding spills.** The summary shows the virtual registers that the
+  allocator keeps in stack slots, and the operations that access the slots.
+  The IR dump shows the physical register or the stack slot of each virtual
+  register in each operation.
+* **Checking register capacity.** The summary shows the number of registers
+  available in each register file and the maximum number the kernel needs at
+  once. The difference shows how many more values can be added without spilling.
 * **Comparing two versions.** The output does not change from run to run. A
   `diff` of the output before and after a change shows how the change affected
   the kernel.
@@ -255,36 +262,41 @@ marked `...` are left out.
 ```
 begin x64ir jit_brgemm_ir_kernel_t isa=avx512_core
 code: 1339 bytes (instructions 1339 bytes, static data 0 bytes)
+alloc gpr: pool 14, peak 15 at op 39, spilled 1
+alloc vec: pool 32, peak 19 at op 42, spilled 0
+alloc mask: pool 7, peak 0, spilled 0
+spill g1@[rsp+0]: ops 1, 29
 
-    0 | load g0, [param+24]
-    1 | load g1, [param+16]
-    2 | load g2, [param+96]
+index | gpr vec mask | operation
+    0 |   1   0    0 | load g0@rax, [param+24]
+    1 |   2   0    0 | load g1@[rsp+0](temp rcx), [param+16]
+    2 |   3   0    0 | load g2@rdx, [param+96]
 ...
-    9 | jz g8, L0
-   10 | load g0, [param+40]
-   11 | L0:
-   12 | loop g9 = 2 {
-   13 |   vzero f32:v10
+    9 |   9   0    0 | jz g8@r10, L0
+   10 |   9   0    0 | load g0@rax, [param+40]
+   11 |   9   0    0 | L0:
+   12 |  10   0    0 | loop g9@r11 = 2 {
+   13 |  10   1    0 |   vzero f32:v10@zmm0
 ...
-   29 |   mov_reg g28, g1
-   30 |   jz g2, L1
-   31 |   loop g30 = g2 {
-   32 |     load g31, [g28+0]
+   29 |  11  16    0 |   mov_reg g28@r12, g1@[rsp+0](temp rcx)
+   30 |  11  16    0 |   jz g2@rdx, L1
+   31 |  12  16    0 |   loop g30@r13 = g2@rdx {
+   32 |  13  16    0 |     load g31@r14, [g28@r12+0]
 ...
-   39 |     loop g33 = 16 {
-   40 |       vload f32:v26, f32:[g32+0]
-   41 |       vload f32:v27, f32:[g32+64]
-   42 |       vload_bcast f32:v29, f32:[g31+0]
-   43 |       prefetch [g32+512]
-   44 |       vdot f32:v10, f32:v26, f32:v29
+   39 |  15  16    0 |     loop g33@rcx = 16 {
+   40 |  15  17    0 |       vload f32:v26@zmm16, f32:[g32@r15+0]
+   41 |  15  18    0 |       vload f32:v27@zmm17, f32:[g32@r15+64]
+   42 |  15  19    0 |       vload_bcast f32:v29@zmm18, f32:[g31@r14+0]
+   43 |  15  19    0 |       prefetch [g32@r15+512]
+   44 |  15  19    0 |       vdot f32:v10@zmm0, f32:v26@zmm16, f32:v29@zmm18
 ...
-  154 |     } // g33 -= 1, repeat while > 0
-  155 |   } // g30 -= 1, repeat while > 0
-  156 |   L1:
+  154 |  15  16    0 |     } // g33@rcx -= 1, repeat while > 0
+  155 |  12  16    0 |   } // g30@r13 -= 1, repeat while > 0
+  156 |  10  16    0 |   L1:
 ...
-  177 |   vstore f32:[g0+0], f32:v10
+  177 |  10  16    0 |   vstore f32:[g0@rax+0], f32:v10@zmm0
 ...
-  195 | } // g9 -= 1, repeat while > 0
+  195 |  10   0    0 | } // g9@r11 -= 1, repeat while > 0
 end x64ir
 ```
 
@@ -295,8 +307,18 @@ The lines mean the following:
 * `code:` is the size of the kernel in bytes, the same size that
   `ONEDNN_JIT_DUMP` writes. It is split into the instructions and the static
   data.
-* Each line of the IR dump has the operation index and the operation. An
-  operation inside a loop is indented by two spaces for each loop around it.
+* `alloc <file>:` is one line per register file. On AVX2, masks are vector
+  registers, so they are in the `vec` file. `pool` is the number of registers
+  that the allocator can assign. `peak` is the largest register pressure of
+  the file and the first operation with it. A peak above the pool means that
+  the file must spill. `spilled` is the number of virtual registers in stack
+  slots.
+* `spill g1@[rsp+0]: ops 1, 29` is a spilled virtual register, its stack slot,
+  and the operations that load or store the slot.
+* Each line of the IR dump has the operation index, the register pressure of
+  each register file, and the operation. The register pressure is the number of
+  virtual registers of the file that are live on entry to the operation or
+  written by it.
 
 An operation prints as its `op_kind_t` name, then its operands. The
 destination comes first. Operands print as follows:
@@ -304,6 +326,12 @@ destination comes first. Operands print as follows:
 * `g<id>` and `m<id>` are gpr and mask virtual registers. `<id>` is the
   `vreg_t` value.
 * `<dt>:v<id>` is a vec virtual register that holds the data type `<dt>`.
+* `@<reg>` shows the physical register assigned to a virtual register, for
+  example, `g0@rax` or `f32:v10@zmm0`.
+* `@[rsp+<off>](temp <reg>)` shows the stack slot and the register used for the
+  operation. `(no temp)` means that the allocator could not find a free temp
+  register and therefore the emitter cannot lower the operation. This indicates
+  a bug in the kernel.
 * `[g<id>+<disp>]` is the memory at `g<id>` plus a decimal byte offset.
   `[param+<disp>]` is a field of the kernel argument struct.
 * `<dt>:[...]` specifies the in-memory data type of a vector load or store. A

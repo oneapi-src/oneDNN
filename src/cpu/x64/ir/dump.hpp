@@ -22,6 +22,8 @@
 #include "cpu/x64/cpu_isa_traits.hpp"
 #include "cpu/x64/ir/emitter/emitter.hpp"
 #include "cpu/x64/ir/ir.hpp"
+#include "cpu/x64/ir/reg_alloc.hpp"
+#include "cpu/x64/ir/reg_config.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
@@ -35,21 +37,18 @@ namespace ir {
 // Export for testing.
 bool DNNL_API has_x64ir_token(const std::string &verbose_value);
 
-// Converts IR to std::string.
-//
-// Export for testing.
-std::string DNNL_API to_string(const ir_t &ir);
-
 // Returns a complete output for one kernel.
 //
 // Export for testing.
-std::string DNNL_API kernel_dump_str(
-        const jit_generator_t &gen, const ir_t &ir, const data_section_t &data);
+std::string DNNL_API kernel_dump_str(const jit_generator_t &gen, const ir_t &ir,
+        const data_section_t &data, const reg_config_t &reg_cfg,
+        const reg_alloc_result_t &alloc);
 
 // Prints a complete output for one kernel in dev mode when `ONEDNN_VERBOSE`
 // has `x64ir` token.
-void print_kernel_dump(
-        const jit_generator_t &gen, const ir_t &ir, const data_section_t &data);
+void print_kernel_dump(const jit_generator_t &gen, const ir_t &ir,
+        const data_section_t &data, const reg_config_t &reg_cfg,
+        const reg_alloc_result_t &alloc);
 
 } // namespace ir
 } // namespace x64

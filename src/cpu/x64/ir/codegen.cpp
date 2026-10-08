@@ -85,7 +85,7 @@ void generate_kernel(
     if (injector) injector->maybe_prepare_table();
 
     // Debug output (see `ir/dump.hpp`). Prints nothing unless enabled.
-    print_kernel_dump(gen, ir, data);
+    print_kernel_dump(gen, ir, data, reg_cfg, alloc);
 }
 
 } // namespace ir
