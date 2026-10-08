@@ -58,11 +58,120 @@ struct TextSplice {
     }
 };
 
+// Debug sections refer to text through symbols named after the text section.
+bool isTextAlias(const std::vector<uint8_t> &binary, int symtab,
+        const Symbol &symbol, int text) {
+    if (symbol.section >= fileHeader(binary).sectionCount) return false;
+    auto link = sectionHeader(binary, symtab).link;
+    return std::strncmp(
+                   sectionName(binary, symbol.section), ".debug", 6)
+            == 0
+            && std::strcmp(elfString(binary, link, symbol.name),
+                       sectionName(binary, text))
+            == 0;
+}
+
+template <typename Map>
+void fixupAddend(std::vector<uint8_t> &, int, RelocationWithAddend &rel,
+        const TextSplice &, Map map) {
+    rel.addend = int64_t(map(uint64_t(rel.addend)));
+}
+
+// REL addends are stored in the relocated field.
+template <typename Map>
+void fixupAddend(std::vector<uint8_t> &binary, int target,
+        const Relocation &rel, const TextSplice &splice, Map map) {
+    if (target == splice.section) return;
+    enum { SymAddr = 1, SymAddr32 = 2 };
+    uint64_t bytes = 0;
+    switch (uint32_t(rel.info)) {
+        case SymAddr: bytes = 8; break;
+        case SymAddr32: bytes = 4; break;
+        default:
+            if (std::strncmp(
+                        sectionName(binary, target), ".debug", 6)
+                    == 0)
+                throw std::runtime_error(
+                        "Unsupported debug relocation of microkernel text");
+            throw std::runtime_error(
+                    "Unsupported relocation of microkernel host code");
+    }
+    auto t = sectionHeader(binary, target);
+    if (!sectionInBounds(binary, t) || rel.offset > t.size
+            || bytes > t.size - rel.offset)
+        throw std::runtime_error("Invalid zebin relocation");
+    auto *field = binary.data() + t.offset + rel.offset;
+    uint64_t addend = 0;
+    std::memcpy(&addend, field, bytes);
+    addend = map(addend);
+    if (bytes < 8 && (addend >> 32) != 0)
+        throw std::runtime_error("Relocation addend out of range");
+    std::memcpy(field, &addend, bytes);
+}
+
+template <typename R>
+void fixupRelocations(
+        std::vector<uint8_t> &binary, int s, const TextSplice &splice) {
+    auto rels = sectionEntries<R>(binary, s);
+    if (rels.empty()) return;
+    auto table = sectionHeader(binary, s);
+    if (sectionHeader(binary, table.link).type
+            != SectionHeader::SymbolTable)
+        throw std::runtime_error("Invalid zebin relocation table");
+    auto symbols = sectionEntries<Symbol>(binary, table.link);
+    auto target = int(table.info);
+    auto textAddr = sectionHeader(binary, splice.section).addr;
+    auto spliceEnd = splice.start + splice.removed;
+
+    for (auto &rel : rels) {
+        if (target == splice.section) {
+            if (rel.offset >= spliceEnd)
+                rel.offset = rel.offset - splice.removed + splice.inserted;
+            else if (rel.offset >= splice.start)
+                throw std::runtime_error(
+                        "Relocation inside replaced microkernel shim");
+        }
+
+        auto symbolIndex = rel.info >> 32;
+        if (symbolIndex >= symbols.size())
+            throw std::runtime_error("Invalid zebin relocation");
+        const auto &symbol = symbols[symbolIndex];
+
+        // Text offsets of the symbol before and after the splice. Text aliases
+        // are not moved, so their addends absorb the splice.
+        uint64_t oldSymbol = 0, newSymbol = 0;
+        if (symbol.section == splice.section) {
+            if (symbol.value < textAddr)
+                throw std::runtime_error("Invalid zebin text symbol");
+            oldSymbol = symbol.value - textAddr;
+            newSymbol = oldSymbol >= spliceEnd
+                    ? oldSymbol - splice.removed + splice.inserted
+                    : oldSymbol;
+        } else if (isTextAlias(binary, int(table.link), symbol, splice.section))
+            oldSymbol = newSymbol = symbol.value;
+        else
+            continue;
+
+        fixupAddend(binary, target, rel, splice, [&](uint64_t addend) {
+            return splice.map(oldSymbol + addend) - newSymbol;
+        });
+    }
+    storeSectionEntries(binary, s, rels);
+}
+
 void fixupElf(std::vector<uint8_t> &binary, const TextSplice &splice) {
     auto sheaders = sectionHeaders(binary);
     auto textAddr = sectionHeader(binary, splice.section).addr;
     auto spliceEnd = splice.start + splice.removed;
 
+    for (int s = 0; s < int(sheaders.size()); s++) {
+        if (sheaders[s].type == SectionHeader::Relocation)
+            fixupRelocations<Relocation>(binary, s, splice);
+        if (sheaders[s].type == SectionHeader::RelocationWithAddend)
+            fixupRelocations<RelocationWithAddend>(binary, s, splice);
+    }
+
+    // Relocations above use the original symbol values.
     for (int s = 0; s < int(sheaders.size()); s++) {
         if (sheaders[s].type != SectionHeader::SymbolTable) continue;
         auto symbols = sectionEntries<Symbol>(binary, s);
@@ -175,18 +284,6 @@ static void fuse(std::vector<uint8_t> &binary,
             checkPayload(*check,
                     sectionName(binary, textSectionID) + 6);
 
-        int relSectionID = -1;
-        std::string rname = ".rel";
-        rname += sectionName(binary, textSectionID);
-        for (int s = 0; s < fheader.sectionCount; s++) {
-            if (sheaders[s].type != SectionHeader::Type::Relocation) continue;
-            if (rname != sectionName(binary, s)) continue;
-            if (relSectionID >= 0)
-                throw std::runtime_error(
-                        "Multiple relocation sections for kernel");
-            relSectionID = s;
-        }
-
         auto removeBytes = spliceEnd - spliceStart + 16;
 
         size_t before = spliceStart - base;
@@ -230,14 +327,6 @@ static void fuse(std::vector<uint8_t> &binary,
         TextSplice splice {
                 textSectionID, kbefore, uint64_t(removeBytes), blob.size()};
         fixupElf(newBinary, splice);
-
-        if (relSectionID >= 0) {
-            auto relocations
-                    = sectionEntries<Relocation>(newBinary, relSectionID);
-            for (auto &relocation : relocations)
-                if (relocation.offset >= kbefore) relocation.offset += sizeAdjust;
-            storeSectionEntries(newBinary, relSectionID, relocations);
-        }
 
 #ifdef SPLICE_DEBUG
         std::ofstream dump0("original." + std::to_string(id) + ".bin");
