@@ -29,10 +29,6 @@ permissions:
   statuses: write
   issues: write
 
-concurrency:
-  group: onednn-test-pt-${{ github.event.issue.number }}
-  cancel-in-progress: true
-
 env:
   XPU_OPS_REPO: intel/torch-xpu-ops
   XPU_OPS_WORKFLOW: acceptance_ondemand.yml
@@ -50,6 +46,11 @@ jobs:
        github.event.comment.author_association == 'COLLABORATOR') &&
       startsWith(github.event.comment.body, 'make test_pt')
     runs-on: ubuntu-latest
+    # Job-level so comments that fail the `if` above cannot cancel an
+    # authorized dispatch already running for the same PR.
+    concurrency:
+      group: onednn-test-pt-${{ github.event.issue.number }}
+      cancel-in-progress: true
     env:
       PR_NUMBER: ${{ github.event.issue.number }}
     steps:
@@ -57,7 +58,7 @@ jobs:
         id: cmd
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
             const body = (process.env.COMMENT_BODY || '').trim();
@@ -130,7 +131,7 @@ jobs:
 
       - name: Set pending status
         if: steps.cmd.outputs.run == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
           HEAD_SHA: ${{ steps.cmd.outputs.head_sha }}
           PATTERN: ${{ steps.cmd.outputs.pattern }}
@@ -191,13 +192,14 @@ jobs:
           GH_TOKEN: ${{ secrets.PT_DISPATCH_TOKEN }}
           SINCE: ${{ steps.dispatch.outputs.since }}
         run: |
-          # Find the run we just dispatched, matched by our caller id.
+          # Find the run we just dispatched, matched by our caller id. The
+          # receiver's `run-name` is exposed by `gh run list` as displayTitle.
           url=""
           for _ in $(seq 1 10); do
             url=$(gh run list --repo "${XPU_OPS_REPO}" --workflow "${XPU_OPS_WORKFLOW}" \
               --event workflow_dispatch --created ">=${SINCE}" \
-              --limit 20 --json url,name \
-              --jq "[.[] | select((.name // \"\") | test(\"caller:onednn-pr-${PR_NUMBER}$\"))] | .[0].url // empty" 2>/dev/null || true)
+              --limit 20 --json url,displayTitle \
+              --jq "[.[] | select((.displayTitle // \"\") | test(\"caller:onednn-pr-${PR_NUMBER}$\"))] | .[0].url // empty" 2>/dev/null || true)
             [ -n "$url" ] && break
             sleep 3
           done
@@ -205,7 +207,7 @@ jobs:
 
       - name: Finalize statuses
         if: ${{ always() && steps.cmd.outputs.run == 'true' }}
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         env:
           HEAD_SHA: ${{ steps.cmd.outputs.head_sha }}
           PATTERN: ${{ steps.cmd.outputs.pattern }}
