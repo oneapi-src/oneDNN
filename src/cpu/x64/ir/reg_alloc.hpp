@@ -17,6 +17,7 @@
 #ifndef CPU_X64_IR_REG_ALLOC_HPP
 #define CPU_X64_IR_REG_ALLOC_HPP
 
+#include <cstdint>
 #include <vector>
 
 #include "common/utils.hpp"
@@ -113,6 +114,45 @@ struct reg_pools_t {
     std::vector<reg_file_t> files;
     std::vector<int> kind_to_file;
 };
+
+// Compute liveness for each operation `i`.
+//
+// A value is `live` at operation `i` if some future operation may still
+// read it before it is overwritten. In other words, the value must be kept
+// available because it might be needed later.
+//
+// Two values that are live at the same operation cannot share a register.
+//
+// Backward data-flow to a fixed point. For each operation `i`:
+//
+//   1. Computing `live_in` at operation `i`:
+//      A variable is live before `i` if `i` uses it, or if it is needed
+//      later and not overwritten by `i`.
+//      Formula: live_in[i] = use[i] U (live_out[i] - def[i])
+//
+//   2. Computing `live_out` at operation `i`:
+//      A variable is live after `i` if any successor may need it.
+//      Formula: live_out[i] = union of live_in over all successors of `i`
+//
+// Scan each `i` from last to first, and repeat the whole scan until nothing
+// changes (the fixed point). Successors are `i+1` for a plain operation, the
+// label for jmp/jz, and `i+1` plus the loop body start for loop_end
+// (the back-edge).
+//
+// Small example: `p` is read at the top of a loop body and rewritten at the
+// bottom:
+//
+//   0  loop_begin
+//   1    v = load [p]      (p read)
+//   2    p = p + stride    (p rewritten)
+//   3  loop_end            (back-edge to 0)
+//
+// `p` must be live across the whole body, because the value written at 2 is
+// read at 1 on the next turn. One backward pass finds most of it. The entry to
+// loop_end needs the back-edge, so it appears only on the second pass. A third
+// pass changes nothing, which is the fixed point.
+void compute_liveness(
+        const ir_t &ir, std::vector<std::vector<int8_t>> &live_in);
 
 // Export for testing.
 reg_alloc_result_t DNNL_API allocate_registers(
