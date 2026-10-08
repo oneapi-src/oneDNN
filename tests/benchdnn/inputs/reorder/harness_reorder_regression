@@ -1,28 +1,10 @@
 # Blocked format with tail processing in compensation
---reset
---sdt=s8 --ddt=s8 --oflag=zp_comp:3
---stag=aBxC16b4c --dtag=xcab
-2x2x32x1x3 1x15x32x1 2x17x32x5
-
-# test if jit kernel applies zero-point
---reset
---skip-impl=ref,simple # ! test jit version only
---sdt=u8 --ddt=f32
---stag=abdc --dtag=abcd
---attr-zero-points=src0:common:1
-1x32x128x33
-
+--reset --skip-impl=ref,simple --sdt=s8 --ddt=s8 --oflag=zp_comp:3 --stag=aBxC16b4c --dtag=xcab 2x2x32x1x3
+--reset --skip-impl=ref,simple --sdt=s8 --ddt=s8 --oflag=zp_comp:3 --stag=aBxC16b4c --dtag=xcab 1x15x32x1
+--reset --skip-impl=ref,simple --sdt=s8 --ddt=s8 --oflag=zp_comp:3 --stag=aBxC16b4c --dtag=xcab 2x17x32x5
+# Test if jit kernel applies zero-point
+--reset --skip-impl=ref,simple --sdt=u8 --ddt=f32 --stag=abdc --dtag=abcd --attr-zero-points=src0:common:1 1x32x128x33
 # Test bf16 with aBcde4b format
---reset
---skip-impl=simple #skip non-jit version
---sdt=bf16 --ddt=bf16
---stag=aBcde4b --dtag=aBcde4b
-2x24x19x19x19
-
+--reset --skip-impl=ref,simple --sdt=bf16 --ddt=bf16 --stag=aBcde4b --dtag=aBcde4b 2x24x19x19x19
 # Test compensation with tr8x8 problem shape
---reset
---skip-impl=ref,simple #skip non-jit version
---sdt=s8 --ddt=s8
---stag=ab --dtag=ba
---oflag=zp_comp:1
-8x8
+--reset --skip-impl=ref,simple --sdt=s8 --ddt=s8 --stag=ab --dtag=ba --oflag=zp_comp:1 8x8
