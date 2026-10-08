@@ -311,6 +311,8 @@ private:
         soft_relu_one_twenty_six, // 126.f
         soft_relu_mantissa_sign_mask, // mask for mantissa bits and sign
         soft_relu_pol, // see correspondent table for float values
+        // arg below which ln(1 + exp(x)) == exp(x) to f32 precision (-16.f)
+        soft_relu_tail_bound,
         gelu_tanh_fitting_const, // 0.044715f
         gelu_tanh_fitting_const_times_three, // 0.134145f
         gelu_tanh_sqrt_two_over_pi, // sqrtf(2.f/pi) = 0.797884f
