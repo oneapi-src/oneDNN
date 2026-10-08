@@ -241,6 +241,15 @@ status_t post_ops_t::validate_binary(alg_kind_t alg,
     VCHECK_ATTR(alg_ok, VERBOSE_BAD_ALGORITHM);
     CHECK(memory_desc_sanity_check(*user_src1_desc));
 
+    // A sub-byte src1 with `any` format gets its strides resolved from
+    // `dst_md` in `set_default_formats`, which inherits dst strides verbatim
+    // and cannot guarantee the storage-unit (byte) alignment sub-byte types
+    // require. If a concrete format is passed, it gets validated using memory
+    // descriptor creation public API which enforces proper strides.
+    VCHECK_ATTR(IMPLICATION(user_src1_desc->format_kind == format_kind::any,
+                        types::data_type_bits(user_src1_desc->data_type) >= 8),
+            VERBOSE_UNSUPPORTED_DT);
+
     // Additional check to restrict run-time dimension usage until supported.
     for (int d = 0; d < user_src1_desc->ndims; ++d) {
         VCHECK_ATTR(!is_runtime_value(user_src1_desc->dims[d]),
@@ -250,6 +259,10 @@ status_t post_ops_t::validate_binary(alg_kind_t alg,
     // Additional checks if the algorithm involves ternary inputs
     if (is_ternary_op) {
         CHECK(memory_desc_sanity_check(*user_src2_desc));
+        VCHECK_ATTR(
+                IMPLICATION(user_src2_desc->format_kind == format_kind::any,
+                        types::data_type_bits(user_src2_desc->data_type) >= 8),
+                VERBOSE_UNSUPPORTED_DT);
         for (int d = 0; d < user_src2_desc->ndims; ++d) {
             VCHECK_ATTR(!is_runtime_value(user_src2_desc->dims[d]),
                     VERBOSE_RUNTIMEDIM_UNSUPPORTED);
@@ -322,6 +335,10 @@ status_t post_ops_t::set_default_formats(const memory_desc_t *dst_md) {
         if (src1_mdw.format_any()) {
             assert(!dst_mdw.format_any());
 
+            // Note: sub-byte src1 is rejected by the binary post-op API. To
+            // support it here, strides must be computed from `dst_md` format
+            // with storage-unit (byte) alignment rather than inherited
+            // verbatim, which `memory_desc_init_by_blocking_desc` does not do.
             if (src1_mdw.count_non_unit_dims(1))
                 CHECK(memory_desc_init_by_strides(src1_md, nullptr));
             else
