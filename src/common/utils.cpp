@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018 Intel Corporation
+* Copyright 2026 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -283,6 +284,8 @@ std::string get_jit_profiling_jitdumpdir() {
     if (!jit_profiling_jitdumpdir.initialized()) {
         auto status = init_jit_profiling_jitdumpdir(nullptr, false);
         if (status != status::success) return std::string();
+
+        jitdumpdir = jit_profiling_jitdumpdir.get();
     } else {
         static std::mutex m;
         std::lock_guard<std::mutex> g(m);
