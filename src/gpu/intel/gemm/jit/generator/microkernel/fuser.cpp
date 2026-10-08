@@ -43,6 +43,52 @@ struct PayloadCheck {
 
 static void checkPayload(const PayloadCheck &check, const char *kernelName);
 
+namespace {
+
+struct TextSplice {
+    int section;
+    uint64_t start;
+    uint64_t removed;
+    uint64_t inserted;
+
+    uint64_t map(uint64_t address) const {
+        if (address <= start) return address;
+        if (address < start + removed) return start;
+        return address - removed + inserted;
+    }
+};
+
+void fixupElf(std::vector<uint8_t> &binary, const TextSplice &splice) {
+    auto sheaders = sectionHeaders(binary);
+    auto textAddr = sectionHeader(binary, splice.section).addr;
+    auto spliceEnd = splice.start + splice.removed;
+
+    for (int s = 0; s < int(sheaders.size()); s++) {
+        if (sheaders[s].type != SectionHeader::SymbolTable) continue;
+        auto symbols = sectionEntries<Symbol>(binary, s);
+        for (auto &symbol : symbols) {
+            if (symbol.section != splice.section) continue;
+            if (symbol.value < textAddr)
+                throw std::runtime_error("Invalid zebin text symbol");
+            auto start = symbol.value - textAddr;
+            if (start >= spliceEnd) {
+                symbol.value = symbol.value - splice.removed + splice.inserted;
+            } else if (start <= splice.start
+                    && symbol.size >= spliceEnd - start) {
+                symbol.size = symbol.size - splice.removed + splice.inserted;
+            } else if (symbol.size > 0
+                    && (start > splice.start
+                            || symbol.size > splice.start - start)) {
+                throw std::runtime_error(
+                        "Zebin symbol overlaps replaced microkernel shim");
+            }
+        }
+        storeSectionEntries(binary, s, symbols);
+    }
+}
+
+} // namespace
+
 /* Compacted no-op, used to keep microkernel instructions 16-byte aligned.
    Encodings are per-arch compaction table entries; verify additions with
    iga64 (sync.nop {Compacted} / mov (1|M0) null:ud r0.0:ud {Compacted}). */
@@ -180,6 +226,10 @@ static void fuse(std::vector<uint8_t> &binary,
         for (int s = 0; s < fheader.sectionCount; s++)
             if (sheaders[s].offset > before) sheaders[s].offset += sizeAdjust;
         storeSectionHeaders(newBinary, sheaders);
+
+        TextSplice splice {
+                textSectionID, kbefore, uint64_t(removeBytes), blob.size()};
+        fixupElf(newBinary, splice);
 
         if (relSectionID >= 0) {
             auto relocations
