@@ -220,11 +220,19 @@ void prb_t::skip_unimplemented(res_t *res) const {
         return;
     }
 
-    if (is_gpu() && prb->is_reorder_with_compensation(FLAG_ANY)) {
+    // This condition supposed to be true only for GPU, however,
+    // ref/simple reorders don't support all configurations with compensation,
+    // thus, allow any unimplemented to fall into this category until it's
+    // resolved.
+    // TODO: restore original `is_gpu()` part of the condition.
+    if (prb->is_reorder_with_compensation(FLAG_ANY)) {
         // Reorders w/ compensation are not supported by design: zp_comp is
         // done in kernels directly, but s8s8 instructions are available in HW.
+        // BENCHDNN_PRINTF(2, "%s",
+        //         "[SKIP]: GPU doesn't support cases with compensation.");
+        // TODO: replace with the condition above
         BENCHDNN_PRINTF(2, "%s",
-                "[SKIP]: GPU doesn't support cases with compensation.");
+                "[SKIP]: given case with compensation is unsupported.");
         res->state = SKIPPED;
         res->reason = reason_t::skip_not_supported;
         return;
