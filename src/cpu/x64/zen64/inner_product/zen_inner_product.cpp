@@ -77,13 +77,23 @@ status_t zen_inner_product_fwd_t::pd_t::init(const engine_t *engine) {
     VDISPATCH_INNER_PRODUCT(
             !has_runtime_dims_or_strides(), VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
-    VDISPATCH_INNER_PRODUCT(one_of(weights_md(0)->data_type, f32, bf16),
-            VERBOSE_UNSUPPORTED_DT);
-
-    // Only post-ops (+sum_dt) may deviate; the nested matmul checks the exact set.
+    const auto src_dt = src_md(0)->data_type;
+    const auto wei_dt = weights_md(0)->data_type;
+    const bool is_f16 = src_dt == f16 || wei_dt == f16;
     VDISPATCH_INNER_PRODUCT(
-            attr()->has_default_values(
-                    smask_t::post_ops | smask_t::sum_dt, dst_md(0)->data_type),
+            one_of(wei_dt, f32, bf16, f16), VERBOSE_UNSUPPORTED_DT);
+    // F16 requires AVX512-FP16 (Zen5+), matching nested zen_matmul.
+    VDISPATCH_INNER_PRODUCT(IMPLICATION(is_f16, mayiuse(avx512_core_fp16)),
+            VERBOSE_UNSUPPORTED_ISA);
+
+    // Post-ops (+sum_dt) may deviate; nested zen_matmul checks the exact set.
+    // Skip acc-mode only for f16 so --attr-acc-mode=f16 can reach zen_matmul.
+    // f32/bf16 keep the default check (strict|relaxed|any), which rejects
+    // acc-mode=f32 and does not widen those configs.
+    auto skip_mask = smask_t::post_ops | smask_t::sum_dt;
+    if (is_f16) skip_mask = skip_mask | smask_t::accumulation_mode;
+    VDISPATCH_INNER_PRODUCT(
+            attr()->has_default_values(skip_mask, dst_md(0)->data_type),
             VERBOSE_UNSUPPORTED_ATTR);
 
     VDISPATCH_INNER_PRODUCT_SC(

@@ -30,3 +30,14 @@
 --wtag=AB16b64a2b,AB16b32a2b,AB16b16a2b
 mb2ic368oc623
 mb2ic1462oc412
+
+# accumulation mode any (2D). Mirrors matmul/test_matmul_float16.
+# zen_inner_product: ndims==2, src/dst tag ab, acc-mode any|f16.
+--reset
+--skip-impl=ref
+--dir=FWD_I,FWD_B
+--attr-acc-mode=any
+--dt=f16:f16:f32,f16
+--stag=ab --wtag=ab,ba,any --dtag=ab
+--mb=2
+--batch=shapes_ncf --batch=shapes_wd --batch=shapes_regression

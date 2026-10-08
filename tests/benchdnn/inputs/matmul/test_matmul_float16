@@ -84,7 +84,7 @@
 --skip-impl=ref
 --attr-acc-mode=any
 --dt=f16:f16:f32,f16
---stag=ab,ba --wtag=ab,ba --dtag=ab
+--stag=ab,ba --wtag=ab,ba,any --dtag=ab
 --batch=shapes_2d
 
 --batch=harness_matmul_regression

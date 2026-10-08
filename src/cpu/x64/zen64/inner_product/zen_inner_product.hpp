@@ -48,7 +48,7 @@ struct zen_inner_product_fwd_t : public primitive_t {
         using ::dnnl::impl::cpu::cpu_inner_product_fwd_pd_t::
                 cpu_inner_product_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("zen:ip:f32|bf16:amd", zen_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T("zen:ip:f32|bf16|f16:amd", zen_inner_product_fwd_t);
 
         status_t init(const engine_t *engine);
 
