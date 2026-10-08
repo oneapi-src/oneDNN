@@ -766,6 +766,11 @@ void jit_uni_eltwise_injector_t<Wmm>::soft_relu_compute_vector_fwd(
     vec_shift(vmm_aux(1), vmm_aux(1), true /*shift_left*/, n_mantissa_bits_);
     // calculate ln(1 + y)
     h->uni_vmulps(vmm_aux(3), vmm_aux(3), table_val(two)); // 2*exp(r)
+    // Reuse the just-computed `2*exp(r)` and `2^-(n-1)` to reconstruct
+    // exp(x) = 2^n * exp(r) = (2*exp(r)) / 2^-(n-1) for the deep-negative tail
+    // blend below. Division by an exact power of two is exact, so this matches
+    // a dedicated exp() while avoiding a second exp evaluation.
+    h->uni_vdivps(vmm_aux(4), vmm_aux(3), vmm_aux(1)); // exp(x)
     h->uni_vaddps(vmm_aux(3), vmm_aux(3), vmm_aux(1)); // 2^-(n-1) + 2*exp(r)
     h->uni_vdivps(
             vmm_aux(3), vmm_aux(3), table_val(two)); // (2^-(n-1) + 2*exp(r))/2
@@ -802,6 +807,15 @@ void jit_uni_eltwise_injector_t<Wmm>::soft_relu_compute_vector_fwd(
     // y = (x < max log f) ? soft_relu(x) : x
     compute_cmp_mask(vmm_aux(2), table_val(exp_ln_flt_max_f), _cmp_gt_os);
     blend_with_mask(vmm_src, vmm_aux(2));
+
+    // For sufficiently negative arguments exp(x) underflows towards zero and
+    // the `n * ln2 + ln(2^-n + exp(r))` reconstruction above cancels
+    // catastrophically: the tiny `exp(r)` term is lost when added to the large
+    // `2^-n`, flooring the result at ~2^-17 instead of the true value which is
+    // on the order of exp(x). In this regime `ln(1 + exp(x)) == exp(x)` to f32
+    // precision, so blend in the exp(x) value reconstructed earlier.
+    compute_cmp_mask(vmm_aux(2), table_val(soft_relu_tail_bound), _cmp_lt_os);
+    blend_with_mask(vmm_src, vmm_aux(4));
     if (alpha_ == 1.f) { // standard soft_relu case
         // Skip an instruction.
     } else if (alpha_ == -1) { // logsigmoid case
@@ -1720,7 +1734,7 @@ int jit_uni_eltwise_injector_t<Wmm>::aux_vecs_count(
             case eltwise_sqrt_use_dst_for_bwd:
             case eltwise_sqrt: n_vmms = 0; break;
             case eltwise_linear: n_vmms = 1; break;
-            case eltwise_soft_relu: n_vmms = 4; break;
+            case eltwise_soft_relu: n_vmms = 5; break;
             case eltwise_mish: n_vmms = 3; break;
             case eltwise_logistic_use_dst_for_bwd:
             case eltwise_logistic: n_vmms = 3; break;
@@ -2316,6 +2330,7 @@ void jit_uni_eltwise_injector_t<Wmm>::register_table_entries() {
     static const table_t soft_relu_consts {
             {soft_relu_one_twenty_six, {0x42fc0000, true}},
             {soft_relu_mantissa_sign_mask, {0x807fffff, true}},
+            {soft_relu_tail_bound, {0xc1800000, true}}, // -16.f
     };
 
     // soft_relu ln(1 + x) polynomial approximation
