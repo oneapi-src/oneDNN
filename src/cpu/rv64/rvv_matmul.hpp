@@ -64,6 +64,17 @@ struct rvv_matmul_t : public primitive_t {
                             && !bias_mdw.has_runtime_dims_or_strides(),
                     VERBOSE_UNSUPPORTED_TAG);
 
+            // Sparse memory descriptors (format_kind::sparse with a CSR/COO
+            // encoding) carry no blocking descriptor; calling blocking_desc()
+            // on them triggers an assertion in memory_desc_wrapper. The RV64
+            // matmul kernel only handles dense memory, so let the dispatch
+            // fall through to the reference matmul (which does support
+            // sparse).
+            VDISPATCH_MATMUL(!src_mdw.is_sparse_desc()
+                            && !weights_mdw.is_sparse_desc()
+                            && !dst_mdw.is_sparse_desc(),
+                    VERBOSE_UNSUPPORTED_SPARSE_CFG);
+
             // Determine which dispatch path this pd serves. f32 stays on the
             // existing f32 GEMM kernel; (s8|u8) src + (s8|u8) weights + a dst
             // in the int8-supported set (s32|f32|s8|u8|f16|bf16) runs through

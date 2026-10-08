@@ -212,6 +212,15 @@ status_t rvv_brgemm_matmul_t::pd_t::init(const engine_t *engine) {
                     && !bias_mdw.has_runtime_dims_or_strides(),
             VERBOSE_UNSUPPORTED_TAG);
 
+    // Sparse memory descriptors (format_kind::sparse with a CSR/COO encoding)
+    // carry no blocking descriptor; calling blocking_desc() on them triggers an
+    // assertion in memory_desc_wrapper. The RV64 matmul kernel only handles
+    // dense memory, so let the dispatch fall through to the reference matmul
+    // (which does support sparse).
+    VDISPATCH_MATMUL(!src_mdw.is_sparse_desc() && !wei_mdw.is_sparse_desc()
+                    && !dst_mdw.is_sparse_desc(),
+            VERBOSE_UNSUPPORTED_SPARSE_CFG);
+
     // Accepted: f32/f32/f32, bf16/bf16/f32 (Zvfbfwma), f16/f16/f32 (Zvfh),
     //           s8/s8/s32. u8 / mixed-sign are rejected at brgemm_desc_init.
     const auto src_dt = src_mdw.data_type();
