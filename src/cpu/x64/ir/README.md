@@ -129,6 +129,12 @@ output with `ir::print_kernel_dump()` (see Debug Output).
 * **Separation of concerns is the invariant to protect.** The builder is
   target-neutral, ISA and data-type knowledge lives only in the emitter and the
   register configuration, and the allocator knows only kinds and control flow.
+
+* **The debug output computes its own statistics.** `dump.cpp` computes what
+  it prints from the IR and the register allocation. The IR infrastructure is
+  not extended for the debug output, so the debug code stays separate from it.
+  The one exception is `data_section_t::begin_offset`, because only the emitter
+  knows where the static data starts.
 * **`def_use()` must match the emitter.** Liveness is computed from the reads and
   writes reported by `def_use()`. If a lowering reads or writes a virtual register
   that `def_use()` does not report, allocation is wrong, so the two must stay in

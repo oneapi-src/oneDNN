@@ -47,6 +47,8 @@ namespace ir {
 // `begin_offset` is the code size right after the postamble, where the static
 // data starts. `emit_data_section()` sets it. The debug output counts
 // everything the kernel writes from that point on as static data.
+// It is the one field that exists only for the debug output (see Design
+// Principles in `ir/README.md`).
 struct data_section_t {
     std::deque<std::pair<std::vector<unsigned char>, Xbyak::Label>> constants;
     static constexpr int alignment = 32;
