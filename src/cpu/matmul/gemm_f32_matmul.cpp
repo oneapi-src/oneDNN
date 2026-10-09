@@ -266,7 +266,7 @@ status_t gemm_f32_matmul_t::execute_ref(const exec_ctx_t &ctx) const {
     const int scale_idx_mult = wei_scale_per_n;
     // A nonzero, non-per-N mask only varies across batch dims here,
     // so index by batch instead of output column.
-    const bool wei_scale_per_batch = wei_scale_mask != 0 && !wei_scale_per_n;
+    const bool wei_scale_per_batch = wei_scale_mask > 0 && !wei_scale_per_n;
 
     std::atomic<status_t> st(status::success);
     if (!use_single_gemm_call) {
