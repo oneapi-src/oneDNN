@@ -561,6 +561,17 @@ status_t DNNL_API dnnl_graph_compiled_partition_get_scratchpad_logical_tensor(
     return status::success;
 }
 
+status_t DNNL_API dnnl_graph_compiled_partition_query_impl_info(
+        const compiled_partition_t *compiled_partition,
+        const char **impl_info) {
+    if (utils::any_null(compiled_partition, impl_info))
+        return status::invalid_arguments;
+    if (!compiled_partition->is_initialized()) return status::invalid_arguments;
+
+    *impl_info = compiled_partition->impl_info();
+    return status::success;
+}
+
 status_t dnnl_graph_partition::infer_shape(
         std::vector<const logical_tensor_t *> &inputs,
         std::vector<logical_tensor_t *> &outputs) {
