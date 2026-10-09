@@ -886,6 +886,9 @@ void CopyPlan::planTypeConversions()
         else if (isB(st) && dt == DataType::bf) {
             planInt8ToBF(i);
             rerun = true;
+        } else if (isB(st) && dt == DataType::f && needsByteFloatWorkaround()) {
+            copyThrough(i, DataType::d);
+            rerun = true;
         } else if (st == DataType::f && dt == DataType::tf32) {
             if (hw < HW::XeHPC)
                 stub("No emulation for tf32 rounding");
