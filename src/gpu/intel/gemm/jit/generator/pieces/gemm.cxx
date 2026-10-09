@@ -235,7 +235,14 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
             auto xoLoad = loadScalars(T, srcs, strategy, state);
             if (T.isInteger() && T.paddedSize() > 2)
                 xoLoad = xoLoad.w();
-            mov(1, xo, -xoLoad);
+            if (T.isInteger() && T.paddedSize() == 1 && Tc.isFP()
+                    && one_of(getProductFamily(), {ngen::ProductFamily::MTL, ngen::ProductFamily::ARL})) {
+                auto xoLoadD = state.ra.alloc_sub<int32_t>();
+                mov(1, xoLoadD, xoLoad);
+                mov(1, xo, -xoLoadD);
+                state.ra.safeRelease(xoLoadD);
+            } else
+                mov(1, xo, -xoLoad);
             state.ra.safeRelease(xoPtr);
             state.ra.safeRelease(xoLoad);
         }

@@ -2120,7 +2120,7 @@ void Generator<hw>::convert(const GRFMultirange &range, Type Told, Type Tnew, co
     // Special path: f32->fp8.
     if (Told == Type::f32 && one_of(Tnew, {Type::bf8, Type::hf8})) {
         int ne = elementsPerGRF<uint32_t>(hw);
-        CopyPlan plan(hw, strategy.systolicAvailable);
+        CopyPlan plan(getProductFamily(), strategy.systolicAvailable);
         for (int i = 0; i < range.getLen(); i++) {
             CopyOperand sOp = range[i].f();
             CopyOperand dOp = range[i].retype(Tnew.ngen());
@@ -2148,7 +2148,7 @@ void Generator<hw>::convert(const GRFMultirange &range, Type Told, Type Tnew, co
     // Special path: s16->bf16.
     if (Told == Type::s16 && Tnew == Type::bf16) {
         int ne = elementsPerGRF<uint16_t>(hw);
-        CopyPlan plan(hw, strategy.systolicAvailable);
+        CopyPlan plan(getProductFamily(), strategy.systolicAvailable);
         for(int i = 0; i < range.getLen(); i++) {
             CopyOperand sOp(range[i]), dOp(sOp);
             sOp.type = Told.ngen();
