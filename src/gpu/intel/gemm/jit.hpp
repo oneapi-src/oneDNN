@@ -304,21 +304,18 @@ struct gen_t : public primitive_t {
                 kernel_desc_.set_efficient_64b(dev_info_->is_efficient_64bit());
 
             bool kernel_success = false;
-            // --kernel override: bare int = Nth candidate after sort; 'g'+int
-            // = candidate with global catalog index N; else strategy string.
+            // Kernel override: bare int = Nth candidate after sort (rank);
+            // else strategy string.
             int index = -1;
-            bool global = false;
             if (is_dev_mode() && attr()->gpu_attr_) {
                 auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
                         attr()->gpu_attr_.get());
                 const auto &ovr = gpu_attr->kernel_override();
-                global = !ovr.empty() && ovr[0] == 'g';
-                auto digits = ovr.substr(global ? 1 : 0);
                 // <=9 digits always fit int, so std::stoi cannot overflow.
-                if (!digits.empty() && digits.size() <= 9
-                        && digits.find_first_not_of("0123456789")
+                if (!ovr.empty() && ovr.size() <= 9
+                        && ovr.find_first_not_of("0123456789")
                                 == std::string::npos)
-                    index = std::stoi(digits);
+                    index = std::stoi(ovr);
                 else
                     kernel_desc_.set_kernel_override(ovr);
             }
@@ -329,16 +326,21 @@ struct gen_t : public primitive_t {
                     alpha(), beta(), m, n, d->k(), lda, ldb, d->ldc(),
                     d->batch());
 
-            if (index >= 0 && !global)
+            if (index >= 0) {
                 VDISPATCH_GEMM(index < (int)entries.size(),
                         "kernel index out of range");
+                // GEMM_KERNEL would replace the pinned candidate's strategy.
+                VDISPATCH_GEMM(
+                        gpu_utils::dev_getenv("GEMM_KERNEL", std::string())
+                                .empty(),
+                        "kernel rank override conflicts with GEMM_KERNEL");
+            }
 
             for (size_t entry_idx = 0; entry_idx < entries.size();
                     entry_idx++) {
                 auto *entry = entries[entry_idx];
                 int g = (int)(entry - jit::catalog().entries);
-                if (index >= 0 && (global ? g : (int)entry_idx) != index)
-                    continue;
+                if (index >= 0 && (int)entry_idx != index) continue;
                 auto skip = [&](const char *why) {
                     gpu_debug() << "[" << lpad(g, 4) << "] skip " << entry_idx
                                 << "/" << entries.size() << " " << entry->str()
@@ -420,15 +422,12 @@ struct gen_t : public primitive_t {
                     if (status == status::success) {
                         kernel_success = true;
                         // Print the finalized, replayable kernel string
-                        // (pin it via --kernel), not the catalog form.
+                        // (pin it via --gpu-kernel), not the catalog form.
                         if (kernel_desc_.has_entry())
                             gpu_info() << "[" << lpad(g, 4) << "] use "
                                        << entry_idx << "/" << entries.size()
-                                       << (index >= 0
-                                                       ? (global ? " pin=g"
-                                                                 : " pin=k")
-                                                       : "")
-                                       << " " << kernel_str();
+                                       << (index >= 0 ? " pin" : "") << " "
+                                       << kernel_str();
                         else
                             gpu_info() << "[override] use " << kernel_str();
                         break;
