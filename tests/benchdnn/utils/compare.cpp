@@ -405,8 +405,12 @@ int compare_t::compare_p2p(const dnn_mem_t &exp_mem, const dnn_mem_t &got_mem,
             //   small due to single point computation or short acc chain.
             // * When diff is no longer small due to longer acc chain, but rdiff
             //   is still small but greater than 0.
-            const float experimental_eltwise_trh_diff
-                    = std::max(epsilon_dt(dt), 2e-5f);
+            // For integral dst, a small f32 difference before the final
+            // rounding may flip the result by one unit; allow that for
+            // eltwise post-ops.
+            const float experimental_eltwise_trh_diff = is_integral_dt(dt)
+                    ? 1.f
+                    : std::max(epsilon_dt(dt), 2e-5f);
             const float experimental_eltwise_trh_rel_diff
                     = std::max(epsilon_dt(dt), 8e-6f);
             ok = has_eltwise
