@@ -16,7 +16,6 @@
 *******************************************************************************/
 
 #include "cpu/ppc64/ppc64_gemm_reorder.hpp"
-#include "cpu/reorder/simple_reorder.hpp"
 
 #include <altivec.h>
 #include <cstdint>
@@ -29,6 +28,29 @@ namespace cpu {
 namespace ppc64 {
 
 using namespace dnnl::impl::cpu::q10n;
+
+namespace {
+inline status_t get_scales_mask(
+        const primitive_attr_t *attr, int *src_mask, int *dst_mask) {
+    const auto &s = attr->scales_;
+
+    if (src_mask == nullptr || dst_mask == nullptr)
+        return status::invalid_arguments;
+
+    *src_mask = 0;
+    if (!s.has_default_values(DNNL_ARG_SRC))
+        *src_mask = s.get_mask(DNNL_ARG_SRC);
+
+    *dst_mask = 0;
+    if (!s.has_default_values(DNNL_ARG_DST))
+        *dst_mask = s.get_mask(DNNL_ARG_DST);
+
+    // This is used in a check function.
+    if (*src_mask > 0 && *dst_mask > 0 && *dst_mask != *src_mask)
+        return status::invalid_arguments;
+    return status::success;
+}
+} // namespace
 
 typedef __vector signed long long vec_i64 __attribute__((aligned(8)));
 typedef __vector short vec_i16 __attribute__((aligned(2)));

@@ -33,21 +33,12 @@ const impl_list_map_t &regular_f32_bf16_impl_list_map() {
             CPU_INSTANCE_X64(x64::jit_blk_reorder_t)
             CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, bf16, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, bf16, nCdhw16c))
 
             CPU_INSTANCE_AARCH64_ACL(aarch64::acl_reorder_fwd_t)
             CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
             CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
 
-            DNNL_NON_X64_ONLY(REG_SR(f32, oihw, bf16, OIhw8i16o2i, fmt_order::keep))
-            DNNL_NON_X64_ONLY(REG_SR(f32, goihw, bf16, gOIhw8i16o2i, fmt_order::keep))
-            DNNL_NON_X64_ONLY(REG_SR(f32, oihw, bf16, OIhw8o16i2o, fmt_order::keep))
-            DNNL_NON_X64_ONLY(REG_SR(f32, goihw, bf16, gOIhw8o16i2o, fmt_order::keep))
-            DNNL_NON_X64_ONLY(REG_SR(f32, oihw, bf16, IOhw8o16i2o, fmt_order::keep))
-            DNNL_NON_X64_ONLY(REG_SR(f32, goihw, bf16, gIOhw8o16i2o, fmt_order::keep))
-            DNNL_NON_X64_ONLY(REG_SR(f32, oihw, bf16, OIhw16i16o, fmt_order::keep))
-            DNNL_NON_X64_ONLY(REG_SR(f32, goihw, bf16, gOIhw16i16o, fmt_order::keep))
+            CPU_INSTANCE(simple_reorder_t)
 
             CPU_INSTANCE(ref_reorder_t)
 

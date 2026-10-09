@@ -37,9 +37,8 @@ const impl_list_map_t &regular_f32_s32_impl_list_map() {
             CPU_INSTANCE_RV64(rv64::jit_blk_reorder_t)
             CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
 
-            REG_FAST_DIRECT_COPY(f32, s32)
+            CPU_INSTANCE(simple_reorder_t)
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(f32, any, s32, nChw16c))
 
             CPU_INSTANCE(ref_reorder_t)
 

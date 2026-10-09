@@ -43,25 +43,9 @@ const impl_list_map_t &regular_s8_impl_list_map() {
             CPU_INSTANCE_RV64(rv64::jit_blk_reorder_t)
             CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
 
-            REG_FAST_DIRECT_COPY(s8, f32)
-            REG_FAST_DIRECT_COPY(s8, s32)
-            REG_FAST_DIRECT_COPY(s8, bf16)
-            REG_FAST_DIRECT_COPY(s8, f16)
-            REG_FAST_DIRECT_COPY(s8, s8)
-            REG_FAST_DIRECT_COPY(s8, u8)
+            CPU_INSTANCE(simple_reorder_t)
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, f32, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, s32, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, bf16, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, s8, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, u8, nChw16c))
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, f32, OIhw4i16o4i))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, bf16, OIhw4i16o4i))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, s8, OIhw4i16o4i))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, f32, gOIhw4i16o4i))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, bf16, gOIhw4i16o4i))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(s8, any, s8, gOIhw4i16o4i))
 
             CPU_INSTANCE(ref_reorder_t)
 
