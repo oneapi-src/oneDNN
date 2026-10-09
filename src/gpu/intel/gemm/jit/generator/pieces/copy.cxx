@@ -117,7 +117,7 @@ void Generator<hw>::copyRegisters(Type Ts, Type Td, const RegisterLayout &layout
     auto RegisterBlock::*ny = sCM ? &RegisterBlock::nc : &RegisterBlock::nr;
 
     // Accumulate copy pseudo-instructions.
-    CopyPlan plan(hw, strategy.systolicAvailable);
+    CopyPlan plan(getProductFamily(), strategy.systolicAvailable);
 
     for (auto &sblock : layoutSrc) {
     for (int eoffY = 0; eoffY < sblock.*ny; eoffY++) {
