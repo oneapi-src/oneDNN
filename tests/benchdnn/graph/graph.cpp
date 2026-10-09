@@ -698,6 +698,25 @@ int doit(const prb_t *prb, res_t *res) {
                 outputs, c_partitions.back(), id_to_queried_logical_tensors);
     }
 
+    res->impl_name.clear();
+    for (size_t i = 0; i < c_partitions.size(); ++i) {
+        const char *impl_info = nullptr;
+        DNN_GRAPH_SAFE(impl_info = c_partitions[i].impl_info_str(), WARN, res);
+        if (!impl_info || impl_info[0] == '\0') {
+            BENCHDNN_PRINT(0,
+                    "Error: empty implementation info for compiled partition "
+                    "#%zu.\n",
+                    i);
+            return res->state = FAILED, FAIL;
+        }
+        // For case containing multiple compiled partitions, concatenate their
+        // implementation info with '+'.
+        if (!res->impl_name.empty()) res->impl_name += "+";
+        res->impl_name += impl_info;
+    }
+    BENCHDNN_PRINT(
+            5, "oneDNN graph implementation: %s\n", res->impl_name.c_str());
+
     scratchpad_ts_all.reserve(c_partitions.size());
     auto &graph_mem_mgr = graph_mem_manager_t::get_instance();
 
