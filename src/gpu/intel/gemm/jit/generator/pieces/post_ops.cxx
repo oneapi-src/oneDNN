@@ -160,7 +160,7 @@ void Generator<hw>::gemmScalarBinaryOpC(BinaryOp op, Type Tco, const Subregister
 
     if (Tco != Tacc) {
         offsetTc = state.ra.alloc_sub(Tacc.ngen());
-        CopyPlan plan(hw, strategy.systolicAvailable);
+        CopyPlan plan(getProductFamily(), strategy.systolicAvailable);
         plan.append(Opcode::mov, 1, offsetTc, scalar);
         copyExecute(std::move(plan), state);
     }
