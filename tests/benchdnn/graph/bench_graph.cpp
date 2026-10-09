@@ -84,6 +84,20 @@ int bench(int argc, char **argv) {
     static const settings_t def {};
 
     for (; argc > 0; --argc, ++argv) {
+        // TODO: support implementation filtering for the graph driver.
+        if (parse_impl(s.impl_filter, def.impl_filter, argv[0])
+                || parse_skip_impl(s.impl_filter, def.impl_filter, argv[0])) {
+            static bool warned = false;
+            if (!warned && !s.impl_filter.is_def()) {
+                BENCHDNN_PRINT(0, "%s\n",
+                        "Info: `--impl` and `--skip-impl` options are "
+                        "not supported by the graph driver and will be "
+                        "ignored.");
+                warned = true;
+            }
+            continue;
+        }
+
         const bool parsed_options = parse_bench_settings(argv[0])
                 || parse_batch(bench, argv[0])
                 || parse_dt(s.dt, s.dt_map, argv[0])
