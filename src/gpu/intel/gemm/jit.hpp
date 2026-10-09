@@ -325,6 +325,7 @@ struct gen_t : public primitive_t {
             auto entries = kernel_desc_.select_kernel(*dev_info_, mode, problem,
                     alpha(), beta(), m, n, d->k(), lda, ldb, d->ldc(),
                     d->batch());
+            kernel_count_ = (int)entries.size();
 
             if (index >= 0) {
                 VDISPATCH_GEMM(index < (int)entries.size(),
@@ -619,6 +620,9 @@ struct gen_t : public primitive_t {
             return kernel_str_;
         }
 
+        // Number of selection candidates; ranks `0..kernel_count() - 1`.
+        int kernel_count() const { return kernel_count_; }
+
         int max_k_sliced_groups() const {
             const auto *info = kernel_desc()->driver_info();
 
@@ -639,6 +643,7 @@ struct gen_t : public primitive_t {
 
         kernel_desc_t kernel_desc_;
         mutable std::string kernel_str_; // lazy dump for the verbose use line
+        int kernel_count_ = 0;
     };
 
     gen_t(const pd_t *apd) : primitive_t(apd) {}

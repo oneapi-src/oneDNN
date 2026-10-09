@@ -87,6 +87,9 @@ private:
 #ifdef DNNL_DEV_MODE
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_set_kernel_override(
         dnnl_primitive_attr_t attr, const char *kernel);
+
+extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel_count(
+        const_dnnl_primitive_desc_t pd, int *count);
 #endif
 
 #endif
