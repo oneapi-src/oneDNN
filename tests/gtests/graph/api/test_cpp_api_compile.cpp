@@ -945,3 +945,34 @@ TEST_P(test_bn_compile_t, Test_BatchNorm_Compile) {
 
 INSTANTIATE_TEST_SUITE_P(Test_BatchNorm_Compile, test_bn_compile_t,
         ::testing::Values(bn_params_t {{1, 3, 3, 10}, 0.001f, "NXC"}));
+
+TEST(APICompiledPartition, QueryImplInfo) {
+    using namespace dnnl::graph;
+    dnnl::engine::kind engine_kind
+            = static_cast<dnnl::engine::kind>(api_test_engine_kind);
+    dnnl::engine eng = cpp_api_test_dnnl_engine_create(engine_kind);
+
+    const std::vector<int64_t> dims {2, 3};
+    logical_tensor src {0, logical_tensor::data_type::f32, dims,
+            logical_tensor::layout_type::strided};
+    logical_tensor dst {1, logical_tensor::data_type::f32, dims,
+            logical_tensor::layout_type::strided};
+
+    op relu(0, op::kind::ReLU);
+    relu.add_input(src);
+    relu.add_output(dst);
+
+    graph g(engine_kind);
+    g.add_op(relu);
+    g.finalize();
+
+    auto partitions = g.get_partitions();
+    ASSERT_EQ(partitions.size(), 1U);
+
+    auto cp = partitions[0].compile({src}, {dst}, eng);
+    const char *impl_info = cp.impl_info_str();
+    ASSERT_NE(impl_info, nullptr);
+    ASSERT_STRNE(impl_info, "");
+    // Owned by the compiled partition, so the pointer is stable.
+    ASSERT_EQ(cp.impl_info_str(), impl_info);
+}

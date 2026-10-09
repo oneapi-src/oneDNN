@@ -605,6 +605,21 @@ dnnl_graph_compiled_partition_get_scratchpad_logical_tensor(
         const_dnnl_graph_compiled_partition_t compiled_partition,
         dnnl_graph_logical_tensor_t *lt);
 
+/// Queries the implementation name of a compiled partition. The name
+/// identifies the kernel dispatched by the backend for the compiled partition
+/// and matches the kernel field reported in verbose output.
+///
+/// @note The returned string is owned by the compiled partition and remains
+/// valid until the compiled partition is destroyed.
+///
+/// @param compiled_partition The handle of target compiled_partition.
+/// @param impl_info The output implementation name.
+/// @returns #dnnl_success on success or a status describing the error
+///     otherwise.
+dnnl_status_t DNNL_API dnnl_graph_compiled_partition_query_impl_info(
+        const_dnnl_graph_compiled_partition_t compiled_partition,
+        const char **impl_info);
+
 /// @} dnnl_graph_api_compiled_partition
 
 /// @addtogroup dnnl_graph_api_graph

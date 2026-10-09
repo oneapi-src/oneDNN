@@ -160,7 +160,10 @@ public:
 
     void init(const std::shared_ptr<graph::compiled_partition_impl_t> &pimpl) {
         pimpl_ = pimpl;
+        impl_info_ = pimpl_ ? pimpl_->str() : std::string();
     }
+
+    const char *impl_info() const { return impl_info_.c_str(); }
 
     bool is_initialized() const { return pimpl_ != nullptr; }
 
@@ -262,6 +265,8 @@ private:
 
     // Partition information
     mutable graph::utils::partition_info_t info_;
+
+    std::string impl_info_;
 };
 
 #endif

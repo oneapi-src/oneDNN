@@ -751,6 +751,20 @@ public:
         return logical_tensor {lt};
     }
 
+    /// Returns the implementation name of the compiled partition, which
+    /// identifies the kernel dispatched by the backend.
+    ///
+    /// @returns Implementation name. The string is owned by the compiled
+    ///     partition and remains valid during its lifetime.
+    const char *impl_info_str() const {
+        const char *res = nullptr;
+        error::wrap_c_api(
+                dnnl_graph_compiled_partition_query_impl_info(get(), &res),
+                "could not query implementation info from "
+                "compiled_partition");
+        return res;
+    }
+
     /// Execute a compiled partition.
     ///
     /// @note The user can provide a scratchpad tensor for execution. If not
