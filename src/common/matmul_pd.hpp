@@ -243,16 +243,6 @@ struct matmul_pd_t : public primitive_desc_t {
 
             const auto &mask = scales.get_mask(arg);
             if (arg == DNNL_ARG_WEIGHTS) {
-                const auto &g0 = scales.get_group(arg, 0);
-                const auto &g1 = scales.get_group(arg, 1);
-                const bool wei_k_group_ok = IMPLICATION(g0 > 1, K() % g0 == 0);
-                const bool wei_n_group_ok = IMPLICATION(g1 > 1, N() % g1 == 0);
-
-                VDISPATCH_MATMUL(
-                        wei_k_group_ok, VERBOSE_UNSUPPORTED_SCALES_CFG);
-                VDISPATCH_MATMUL(
-                        wei_n_group_ok, VERBOSE_UNSUPPORTED_SCALES_CFG);
-
                 // Mask over K dim is allowed for fp types or weights decompression only.
                 if (types::is_integral_dt(weights_md(0)->data_type)) {
                     const bool is_decompression
@@ -286,10 +276,6 @@ struct matmul_pd_t : public primitive_desc_t {
                                 scales.get_group(arg, 0) == 1),
                         VERBOSE_UNSUPPORTED_SCALES_CFG);
                 VDISPATCH_MATMUL(
-                        IMPLICATION(!scales.get(arg).has_default_groups(),
-                                K() % scales.get_group(arg, 1) == 0),
-                        VERBOSE_UNSUPPORTED_SCALES_CFG);
-                VDISPATCH_MATMUL(
                         IMPLICATION(!any_mask_ok && mask == src_qmask_M(),
                                 scales.get(arg).has_default_groups()),
                         VERBOSE_UNSUPPORTED_SCALES_CFG);
@@ -300,14 +286,6 @@ struct matmul_pd_t : public primitive_desc_t {
                                          dst_qmask_M() + dst_qmask_N(),
                                          full_tensor_mask())
                                 || extra_mask_ok(arg, mask),
-                        VERBOSE_UNSUPPORTED_SCALES_CFG);
-                VDISPATCH_MATMUL(
-                        IMPLICATION(!scales.get(arg).has_default_groups(),
-                                (M() % scales.get_group(arg, -2)) == 0),
-                        VERBOSE_UNSUPPORTED_SCALES_CFG);
-                VDISPATCH_MATMUL(
-                        IMPLICATION(!scales.get(arg).has_default_groups(),
-                                (N() % scales.get_group(arg, -1)) == 0),
                         VERBOSE_UNSUPPORTED_SCALES_CFG);
             } else {
                 assert(!"Unsupported arg");
@@ -358,12 +336,7 @@ struct matmul_pd_t : public primitive_desc_t {
             if (arg == DNNL_ARG_WEIGHTS) {
                 if (!zp.get(arg).has_default_groups()) {
                     const auto gK = zp.get_group(arg, -2);
-                    VDISPATCH_MATMUL(IMPLICATION(gK > 1, K() % gK == 0),
-                            VERBOSE_UNSUPPORTED_ZP_CFG);
-
                     const auto gN = zp.get_group(arg, -1);
-                    VDISPATCH_MATMUL(IMPLICATION(gN > 1, N() % gN == 0),
-                            VERBOSE_UNSUPPORTED_ZP_CFG);
 
                     // Only one non-unit group is supported.
                     VDISPATCH_MATMUL(utils::one_of(1, gK, gN),
@@ -382,10 +355,6 @@ struct matmul_pd_t : public primitive_desc_t {
                 if (!zp.get(DNNL_ARG_SRC).has_default_groups()) {
                     const auto gM = zp.get_group(DNNL_ARG_SRC, -2);
                     VDISPATCH_MATMUL(gM == 1, VERBOSE_UNSUPPORTED_ZP_CFG);
-
-                    const auto gK = zp.get_group(DNNL_ARG_SRC, -1);
-                    VDISPATCH_MATMUL(IMPLICATION(gK > 1, K() % gK == 0),
-                            VERBOSE_UNSUPPORTED_ZP_CFG);
                 }
             } else if (arg == DNNL_ARG_DST) {
                 const int bcast_mask = broadcast_mask(*dst_md());

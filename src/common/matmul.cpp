@@ -320,6 +320,7 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     const int n_idx = ndims_wei - 1;
     const dim_t K = desc.weights_desc.dims[k_idx_wei];
     const dim_t N = desc.weights_desc.dims[n_idx];
+    const dim_t M = desc.src_desc.dims[m_idx];
 
     assert(ndims_src >= 2);
     assert(ndims_wei >= 2);
@@ -369,6 +370,11 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                     src_scale_group_k = sc.get_group(DNNL_ARG_SRC, 1);
             }
 
+            // A group size must divide the corresponding dimension, otherwise
+            // the quantization is ill-defined.
+            VCHECK_MATMUL(
+                    K % src_scale_group_k == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+
             // Due to hardware specifics, groups, when more than 1, should be
             // multiple of 16.
             VCHECK_MATMUL_UNIMPL(
@@ -392,6 +398,13 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                     wei_scale_group_n = sc.get_group(DNNL_ARG_WEIGHTS, 1);
             }
 
+            // A group size must divide the corresponding dimension, otherwise
+            // the quantization is ill-defined.
+            VCHECK_MATMUL(
+                    K % wei_scale_group_k == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VCHECK_MATMUL(
+                    N % wei_scale_group_n == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+
             // Due to hardware specifics, groups, when more than 1, should be
             // multiple of 16.
             VCHECK_MATMUL_UNIMPL(
@@ -414,6 +427,22 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
                     utils::one_of(mask_dst, 0, dst_qmask_N, dst_qmask_M,
                             dst_qmask_N + dst_qmask_M, full_tensor_mask),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+            dim_t dst_scale_group_m = 1;
+            dim_t dst_scale_group_n = 1;
+            if (!sc.get(DNNL_ARG_DST).has_default_groups()) {
+                if (mask_dst & dst_qmask_M)
+                    dst_scale_group_m = sc.get_group(DNNL_ARG_DST, -2);
+                if (mask_dst & dst_qmask_N)
+                    dst_scale_group_n = sc.get_group(DNNL_ARG_DST, -1);
+            }
+
+            // A group size must divide the corresponding dimension, otherwise
+            // the quantization is ill-defined.
+            VCHECK_MATMUL(
+                    M % dst_scale_group_m == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
+            VCHECK_MATMUL(
+                    N % dst_scale_group_n == 0, VERBOSE_UNSUPPORTED_SCALES_CFG);
         }
 
         // Check dependency between scales.
@@ -493,8 +522,12 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
 
             if (!zp.get(DNNL_ARG_SRC).has_default_groups()) {
                 if (mask_src & src_qmask_K)
-                    src_zp_group_k = zp.get_group(DNNL_ARG_SRC, 1);
+                    src_zp_group_k = zp.get_group(DNNL_ARG_SRC, -1);
             }
+
+            // A group size must divide the corresponding dimension, otherwise
+            // the quantization is ill-defined.
+            VCHECK_MATMUL(K % src_zp_group_k == 0, VERBOSE_UNSUPPORTED_ZP_CFG);
 
             // Due to hardware specifics, groups, when more than 1, should be
             // multiple of 32.
@@ -519,10 +552,15 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
 
             if (!zp.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
                 if (mask_wei & wei_qmask_K)
-                    wei_zp_group_k = zp.get_group(DNNL_ARG_WEIGHTS, 0);
+                    wei_zp_group_k = zp.get_group(DNNL_ARG_WEIGHTS, -2);
                 if (mask_wei & wei_qmask_N)
-                    wei_zp_group_n = zp.get_group(DNNL_ARG_WEIGHTS, 1);
+                    wei_zp_group_n = zp.get_group(DNNL_ARG_WEIGHTS, -1);
             }
+
+            // A group size must divide the corresponding dimension, otherwise
+            // the quantization is ill-defined.
+            VCHECK_MATMUL(K % wei_zp_group_k == 0, VERBOSE_UNSUPPORTED_ZP_CFG);
+            VCHECK_MATMUL(N % wei_zp_group_n == 0, VERBOSE_UNSUPPORTED_ZP_CFG);
 
             // Groups per N are solely for weights decompression as it's
             // impossible to get performant kernel for a single `k` element in
