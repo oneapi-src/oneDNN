@@ -34,9 +34,12 @@
 #include "matmul/matmul.hpp"
 
 #if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE \
-        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL) && defined(DNNL_DEV_MODE)
+        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL) \
+        && defined(DNNL_DEV_MODE)
 extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_set_kernel_override(
         dnnl_primitive_attr_t attr, const char *kernel);
+extern "C" dnnl_status_t DNNL_API dnnl_impl_gpu_intel_get_kernel_count(
+        const_dnnl_primitive_desc_t pd, int *count);
 #endif
 
 namespace matmul {
@@ -248,12 +251,13 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
             create_dnnl_attr(prb->attr, attr_args, prb->ndims));
 
 #if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE \
-        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL) && defined(DNNL_DEV_MODE)
+        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL) \
+        && defined(DNNL_DEV_MODE)
     // GPU-only internal attribute; skipped for cpu (e.g. prim_ref) engines.
-    if (!prb->kernel.empty()
+    if (!prb->gpu_kernel.empty()
             && query_engine_kind(init_pd_args.engine) == dnnl_gpu) {
         DNN_SAFE_STATUS(dnnl_impl_gpu_intel_set_kernel_override(
-                dnnl_attr, prb->kernel.c_str()));
+                dnnl_attr, prb->gpu_kernel.c_str()));
     }
 #endif
 
@@ -263,6 +267,21 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
             dst_d, dnnl_attr)));
 
     return dnnl_success;
+}
+
+int query_gpu_kernel_count(const prb_t *prb) {
+    int count = -1;
+#if (DNNL_GPU_RUNTIME != DNNL_RUNTIME_NONE \
+        && DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL) \
+        && defined(DNNL_DEV_MODE)
+    init_pd_args_t init_pd_args(
+            nullptr, get_test_engine(), prb, FLAG_FWD, nullptr, nullptr);
+    if (init_pd(init_pd_args) != dnnl_success) return count;
+    auto pdw = make_benchdnn_dnnl_wrapper(init_pd_args.pd);
+    if (dnnl_impl_gpu_intel_get_kernel_count(pdw, &count) != dnnl_success)
+        return -1;
+#endif
+    return count;
 }
 
 int init_prim_ref(benchdnn_dnnl_wrapper_t<dnnl_primitive_t> &prim_ref,

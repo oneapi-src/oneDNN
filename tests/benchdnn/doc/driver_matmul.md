@@ -75,15 +75,16 @@ where *matmul-knobs* are:
             Note: a binary post-op with `mask = 0` (e.g.
             `--attr-post-ops=mul:f32:0`) is applied per group (`[G, 1]`,
             e.g. NVFP4 global scale), not a whole-tensor.
- - `--kernel=STR` -- GPU kernel override description passed to the
-            implementation via a primitive attribute. A bare integer `N`
-            selects the Nth candidate after sort (rank); `gN` selects the
-            candidate with global catalog index `N`; any other string is a
-            strategy override. A strategy string contains spaces, so it must be
-            double-quoted (e.g. `--kernel="gemm ..."`) on the command line and
-            in batch files. Empty by default (no override). Ignored on non-GPU
-            engines. Requires a dev-mode library (`ONEDNN_DEV_MODE=ON`). Read
-            back the deployed kernel with `ONEDNN_VERBOSE=xe=info`.
+ - `--gpu-kernel=STR` -- GPU kernel override passed to the implementation
+            via a primitive attribute. `N` selects the Nth candidate after
+            sort (rank); `A-B` runs ranks `A` through `B`; `all` runs ranks
+            from `0` through the last candidate; any other string is a
+            strategy override. A strategy string contains spaces, so it must
+            be double-quoted (e.g. `--gpu-kernel="gemm ..."`) on the command
+            line and in batch files. Empty by default (no override). Ignored on
+            non-GPU engines. Requires a dev-mode library
+            (`ONEDNN_DEV_MODE=ON`). Read back the deployed kernel with
+            `ONEDNN_VERBOSE=xe=info`.
  - `--match=REGEX` -- skip problems not matching the regular expression in
             `REGEX`. By default no pattern is applied (run everything).
             Note: Windows may interpret only string arguments surrounded by
