@@ -38,6 +38,9 @@ namespace dnnl {
 namespace impl {
 namespace cpu {
 
+template <impl::data_type_t type>
+using data_t = typename prec_traits_t<type>::type;
+
 // The following cases can be covered:
 //
 // Note: `sparse_tag` is a regular format tag describing

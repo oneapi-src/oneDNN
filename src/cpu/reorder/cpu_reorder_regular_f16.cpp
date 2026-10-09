@@ -27,7 +27,7 @@ const impl_list_map_t &regular_f16_impl_list_map() {
         // f16 ->
         {{f16, data_type::undef, 0}, {
             CPU_INSTANCE_X64_ZEN(x64::zen::reorder::zen_reorder_t)
-            DNNL_AARCH64_ONLY(REG_SR_DIRECT_COPY(f16, f16))
+            DNNL_AARCH64_ONLY(CPU_INSTANCE(simple_reorder_t))
 
             CPU_INSTANCE_X64(x64::brgemm_matmul_copy_reorder_t)
             CPU_INSTANCE_X64(x64::jit_uni_reorder_direct_copy_t)

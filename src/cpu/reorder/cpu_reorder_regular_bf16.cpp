@@ -33,26 +33,12 @@ const impl_list_map_t &regular_bf16_impl_list_map() {
             CPU_INSTANCE_X64(x64::jit_blk_reorder_t)
             CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, f32, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, f32, nCdhw16c))
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, s8, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, s8, nCdhw16c))
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, nCdhw16c))
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, bf16, nChw16c))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, bf16, nCdhw16c))
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, f32, OIdhw16o16i))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, f32, OIdhw16i16o))
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, s8, OIdhw16o16i))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, s8, OIdhw16i16o))
 
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, OIdhw16o16i))
-            DNNL_NON_X64_ONLY(REG_SR_BIDIR(bf16, any, u8, OIdhw16i16o))
 
             CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
             CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
