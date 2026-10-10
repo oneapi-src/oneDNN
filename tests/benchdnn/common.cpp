@@ -378,6 +378,22 @@ int batch(const char *fname, bench_f bench) {
             continue;
         }
 
+        // double-quoted option value (e.g. --opt="a b c"): join whitespace-split
+        // pieces up to the closing quote, then drop the quotes. Quotes elsewhere
+        // (e.g. problem names) are kept as is.
+        const auto eq = str.find("=\"");
+        if (str.rfind("--", 0) == 0 && eq != std::string::npos) {
+            bool closed = str.size() > eq + 2 && str.back() == '"';
+            std::string piece;
+            while (!closed && ifs >> piece) {
+                str += " " + piece;
+                closed = piece.back() == '"';
+            }
+            if (!closed) SAFE_V(FAIL); // unterminated quote
+            str.pop_back();
+            str.erase(eq + 1, 1);
+        }
+
         // shell style line break
         if (continued_line) {
             if (opts.empty()) SAFE_V(FAIL);
