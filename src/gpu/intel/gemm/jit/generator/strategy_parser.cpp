@@ -938,6 +938,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
 
     if (strategy.wgPadFactor > 1)           s << " wx" << strategy.wgPadFactor;
     if (strategy.forceWGUpdate == WGFixed)  s << " ff";
+    if (strategy.forceFixedWGK)             s << " ffk";
 
 
     if (strategy.kParallelLocal)    s << (strategy.shrinkWGK   ? " akr" :
