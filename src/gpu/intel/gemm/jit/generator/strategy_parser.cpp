@@ -535,6 +535,8 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
                 strategy.kInterleaveChunk = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "kc")
                 strategy.kChain = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ka")
+                strategy.extraKAlign = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "ks") {
                 char eat;
                 std::stringstream ms(mod);
@@ -606,7 +608,6 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
                     ms >> eat >> strategy.unroll[LoopK];
                     if (!ms.eof() && (ms.peek() == '/'))
                         ms >> eat >> strategy.unrollK_masked;
-                    strategy.extraKAlign = strategy.unroll[LoopK];
                     break;
                 } case 'l':
                     strategy.optAlignAB = stoi(mod.substr(1));
@@ -909,7 +910,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.kParallelLocal)    s << (strategy.shrinkWGK   ? " akr" :
                                           strategy.kInterleave ? " ikr" :
                                                                  " kr");
-    if (strategy.fillGoal)          s << " fg" << strategy.fillGoal * (1. / 16);
+    if (strategy.fillGoal)          s << " fg " << strategy.fillGoal * (1. / 16);
     if (strategy.kInterleave)       s << " ki" << strategy.kInterleaveChunk;
 
     if (strategy.fixedSystolic)
@@ -934,6 +935,8 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.fmaBoustrophedon)          s << " fx";
 
     s << " k" << strategy.unroll[LoopK];
+    if (strategy.unrollK_masked > 0) s << '/' << strategy.unrollK_masked;
+    if (strategy.extraKAlign > 1) s << " ka" << strategy.extraKAlign;
 
     if (strategy.GRFs != 128)
         s << " grf" << strategy.GRFs;
