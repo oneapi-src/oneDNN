@@ -417,6 +417,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
             if (problem.bqGroupK % wg[LoopK]) stub();
             kchunk0 = lcm(kchunk0, std::max(1, problem.bqGroupK / wg[LoopK]));
         }
+        if (kchunk0 <= 0) stub("k-interleave incompatible with SLM copy");
         kInterleaveChunk = align_up(kInterleaveChunk, kchunk0);
         kInterleaveChunk = std::max(kInterleaveChunk, kchunk0);
     }
@@ -441,6 +442,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     if (l3PrefetchA) ukAlign = lcm(ukAlign, ka_prefetchL3);
     if (l3PrefetchB) ukAlign = lcm(ukAlign, kb_prefetchL3);
 
+    if (ukAlign <= 0) stub("Zero k-unroll alignment");
     unroll[LoopK] = align_up(unroll[LoopK], ukAlign);
 
     if (unrollKSLM == 0)
@@ -516,9 +518,10 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
 
     if (wg[loopOrder[0]] <= 0) wg[loopOrder[0]] = defaultWGX;
     if (wg[loopOrder[1]] <= 0) wg[loopOrder[1]] = defaultWGY;
+    auto ssThreads = threadsPerEU(problem.product, *this) * eusPerSubslice(hw);
     if (wg[LoopK] <= 0) {
         if (kParallelLocal)
-            wg[LoopK] = (threadsPerEU(problem.product, *this) * eusPerSubslice(hw)) / (wg[LoopM] * wg[LoopN]);
+            wg[LoopK] = ssThreads / (wg[LoopM] * wg[LoopN]);
         else
             wg[LoopK] = 1;
     }
@@ -526,6 +529,10 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     kParallelLocal &= (wg[LoopK] > 1);
     if (!kParallelLocal)
         wg[LoopK] = 1;
+
+    if (wgPadFactor < 1) stub("Invalid workgroup padding factor");
+    if (ssThreads && wg[LoopM] * wg[LoopN] * wg[LoopK] * (splitCopy ? 2 : 1) * wgPadFactor > ssThreads)
+        stub("Workgroup exceeds subslice thread capacity");
 
     skewLocalIDs &= (wg[LoopM] * wg[LoopN] > eusPerSubslice(hw));
 
