@@ -904,13 +904,10 @@ float brg_blocking_t::est_eff() {
 
     const auto ur_eff = static_cast<float>(sp_block)
             / static_cast<float>(rnd_up(sp_block, ur));
-    const auto brgemm_eff = squeeze_val(static_cast<float>(ur)
-                    * (2.f
-                            - nstl::min(1.9f,
-                                    static_cast<float>(ur)
-                                            / static_cast<float>(sp_block)))
-                    / 64,
-            0.5f);
+    const auto ur_f = static_cast<float>(ur);
+    const auto ur_use = ur_f
+            * (2.f - nstl::min(1.9f, ur_f / static_cast<float>(sp_block)));
+    const auto brgemm_eff = is_amx(isa) ? 1.f : squeeze_val(ur_use / 64, 0.5f);
 
     const dim_t sp_amount = is_os_blocking
             ? static_cast<dim_t>(nb_od) * nb_oh
