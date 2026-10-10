@@ -54,7 +54,8 @@ reg_config_t make_reg_config(cpu_isa_t isa, int param_reg, int rsp_reg,
 
     // Vector file includes every vector register. On AVX2* a mask is a vector
     // register, so masks allocate from this same file (see `kind_to_file`
-    // below). Spill slot is the vector size 32 for ymm and 64 for zmm.
+    // below) and spill like vectors. Spill slot is the vector size 32 for ymm
+    // and 64 for zmm.
     reg_file_t vec_file;
     vec_file.slot_size = isa_max_vlen(isa);
     for (int i = 0; i < n_vec; i++)
@@ -70,11 +71,10 @@ reg_config_t make_reg_config(cpu_isa_t isa, int param_reg, int rsp_reg,
     //    on AVX-512, which has a dedicated k-register file.
     if (is_superset(isa, avx512_core)) {
         // Mask file holds `k1` to `k7` minus `reserved_masks`. `k0` is excluded
-        // because it cannot encode a write mask. A spill slot is 8 bytes, the
-        // width of an opmask, although masks are never spilled (see
-        // `max_temps_per_op`).
+        // because it cannot encode a write mask. A k-register is never spilled,
+        // so the file has no spill slot.
         reg_file_t mask_file;
-        mask_file.slot_size = 8;
+        mask_file.spillable = false;
         for (int i = 1; i < 8; i++) {
             if (!contains(reserved_masks, i)) mask_file.regs.push_back(i);
         }

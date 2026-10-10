@@ -156,6 +156,18 @@ struct avx512_backend_t {
 
     // Masked vector ops.
     //
+    // The allocator never spills a k-register (see `make_reg_config()`), so a
+    // spilled mask means the kernel needs more masks than the k-register file
+    // has. This could be enabled, but none of the existing kernels runs out of
+    // k-registers, so it remains disabled as a guardrail during the migration.
+    void load_mask_raw(int /*d*/, int /*base*/, dim_t /*disp*/) {
+        JIT_ASSERT(!"load_mask_raw: k-registers are not spillable");
+    }
+
+    void store_mask_raw(int /*base*/, dim_t /*disp*/, int /*s*/) {
+        JIT_ASSERT(!"store_mask_raw: k-registers are not spillable");
+    }
+
     // Create a mask with `n_elems` active elements. The mask is built inside
     // the k-register file: `kxnorq` sets all 64 bits and `kshiftrq` keeps the
     // low `n_elems` of them. The alternative, `kmov` from an immediate in a

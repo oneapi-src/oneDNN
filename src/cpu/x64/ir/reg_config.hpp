@@ -51,7 +51,8 @@ struct reg_config_t {
 // enabled, except on AVX2*.
 //
 // A mask allocates from the vector file on AVX2*, where a mask is a vector
-// register, and from a dedicated k-register file on AVX-512.
+// register and spills like one, and from a dedicated k-register file on
+// AVX-512, which is not spillable.
 //
 // Some registers are reserved and are not included in the allocatable pools:
 // - `rsp_reg` (stack pointer)

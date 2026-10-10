@@ -791,13 +791,12 @@ TEST(AllocatorTests, SpillsByWeightAndBreaksTiesByEnd) {
     }
 }
 
-// Checks that a mask is never spilled, since no operation gets a temp for one.
-// On AVX2* masks share the vector file, cut here to 3 registers. When the
-// vectors run out of registers, the mask and the vectors each have one def and
-// one use, so they weigh the same, and the mask ends last. By weight and end
-// alone, the mask is therefore the expected spill, and the test checks that a
-// vector is spilled instead.
-TEST(AllocatorTests, NeverSpillsMasks) {
+// Checks that a mask spills like a vector on AVX2*, where it is a vector
+// register. Masks share the vector file there, cut here to 3 registers. When
+// the vectors run out of registers, the mask and the vectors each have one def
+// and one use, so they weigh the same, and the mask ends last. The mask is
+// therefore the one spilled, and it gets a temp at its def and its use.
+TEST(AllocatorTests, SpillsMasksOnAvx2) {
     ir_t ir;
     const vreg_t ptr = ir.new_gpr();
     ir.load_param(ptr, 0);
@@ -823,8 +822,37 @@ TEST(AllocatorTests, NeverSpillsMasks) {
     pools.files[1].regs.resize(3);
     const reg_alloc_result_t res = allocate_registers(ir, pools);
 
-    EXPECT_TRUE(res.any_spill);
-    EXPECT_FALSE(res.assignments[(int)mask].spilled);
+    EXPECT_TRUE(res.assignments[(int)mask].spilled);
+    expect_valid_temps(ir, pools, res);
+}
+
+// Checks that a k-register is never spilled on AVX-512. The mask file is cut
+// to 1 register, and `m1` needs it while `m0` is still live. Spilling `m0`
+// is required, but the file is not spillable, so `m0` keeps its register and
+// `m1` is left without one.
+TEST(AllocatorTests, NeverSpillsAvx512Masks) {
+    ir_t ir;
+    const vreg_t ptr = ir.new_gpr();
+    ir.load_param(ptr, 0);
+
+    const vreg_t m0 = ir.new_mask();
+    ir.set_mask_imm(m0, 3);
+    const vreg_t m1 = ir.new_mask();
+    ir.set_mask_imm(m1, 5);
+
+    const vreg_t x = ir.new_vec(data_type::f32);
+    ir.vload_masked(x, ptr, 0, m1, data_type::f32);
+    ir.vload_masked(x, ptr, 0, m0, data_type::f32);
+    ir.vstore(ptr, 0, x, data_type::f32);
+
+    reg_pools_t pools = make_reg_config(avx512_core, /*param_reg=*/0,
+            /*rsp_reg=*/Xbyak::Operand::RSP, /*reserved_masks=*/ {})
+                                .pools;
+    pools.files[2].regs.resize(1);
+    const reg_alloc_result_t res = allocate_registers(ir, pools);
+
+    EXPECT_FALSE(res.assignments[(int)m0].spilled);
+    EXPECT_TRUE(res.assignments[(int)m1].spilled);
 }
 
 // Checks that allocation depends only on its inputs. The same IR and register

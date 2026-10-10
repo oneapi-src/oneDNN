@@ -49,10 +49,12 @@ struct assignment_t {
 };
 
 // Most temps one operation gets, per register kind, indexed by
-// `(int)reg_kind_t`. Operations other than `inject_postops` have at most 2 gpr
-// and 3 vec operands, so these caps cover every spilled operand. Masks are not
-// spilled by design and get no temps.
-constexpr int max_temps_per_op[] = {2, 3, 0};
+// `(int)reg_kind_t`. Operations other than `inject_postops` have at most 2 gpr,
+// 3 vec and 1 mask operands, so these caps cover every spilled operand. The
+// caps are upper bounds that come from the IR alone, the same on every target.
+// Whether a value can spill is up to its file (see `reg_file_t::spillable`), so
+// AVX-512 masks stay in k-registers despite the mask cap.
+constexpr int max_temps_per_op[] = {2, 3, 1};
 
 // A register that holds a spilled value while one operation executes.
 //
@@ -60,9 +62,9 @@ constexpr int max_temps_per_op[] = {2, 3, 0};
 // back after. A spilled value thus needs a register only at the operations
 // that reference it. The allocator picks one that holds no other value live
 // at that operation, spilling another value to free one if needed. The operand
-// gets no temp when every register holds an operand of that operation or a
-// mask, or when the operation already has `max_temps_per_op` temps of its kind.
-// The emitter then fails the kernel.
+// gets no temp when every register holds an operand of that operation, or when
+// the operation already has `max_temps_per_op` temps of its kind. The emitter
+// then fails the kernel.
 //
 //   vreg - the spilled virtual register
 //   phys - physical register that holds it during the operation
@@ -96,9 +98,15 @@ struct reg_alloc_result_t {
 //
 // `slot_size` is how many bytes a spilled value needs on the stack
 // (8 for a GPR, 32 for a YMM, 64 for a ZMM).
+//
+// `spillable` is false for a file whose values must stay in registers, such as
+// AVX-512 k-registers. The allocator never spills such a value to make room.
+// If one still finds no free register, it is marked `spilled` only to record
+// the failure, and the emitter fails the kernel.
 struct reg_file_t {
     std::vector<int> regs;
     size_t slot_size = 0;
+    bool spillable = true;
 };
 
 // The register files plus a map from each register kind to the file it

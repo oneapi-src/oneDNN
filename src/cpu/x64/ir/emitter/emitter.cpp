@@ -86,6 +86,15 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
         be.vstore_raw(rsp_idx, slot_off(vr), p);
     };
 
+    // Same for a spilled mask. The mask type depends on the ISA, so the backend
+    // picks the appropriate instruction.
+    auto mask_spill_reload = [&](vreg_t vr, int p) {
+        be.load_mask_raw(p, rsp_idx, slot_off(vr));
+    };
+    auto mask_spill_store = [&](vreg_t vr, int p) {
+        be.store_mask_raw(rsp_idx, slot_off(vr), p);
+    };
+
     // Resolve a virtual register that an instruction READS (use) to a
     // concrete physical register, hiding whether the allocator spilled it:
     //   - not spilled: the value is already in a physical register, so just
@@ -99,9 +108,9 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
     // slot).
     //
     // gpr reloads are ISA-neutral (a plain `mov`), so `gpr_use` emits them
-    // directly. A spilled vec source is reloaded through the backend, since the
-    // reload instruction is ISA-specific. The `vec_use` returns a physical
-    // index rather than a typed register.
+    // directly. A spilled vec or mask source is reloaded through the backend,
+    // since the reload instruction is ISA-specific. The `vec_use` and
+    // `mask_use` return a physical index rather than a typed register.
     auto gpr_use = [&](vreg_t vr) -> Xbyak::Reg64 {
         const Xbyak::Reg64 r(reg_of(vr));
         // reload the spilled gpr from its stack slot
@@ -116,9 +125,17 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
         return r;
     };
 
+    auto mask_use = [&](vreg_t vr) -> int {
+        const int r = reg_of(vr);
+        // reload the spilled mask from its stack slot
+        if (spilled(vr)) mask_spill_reload(vr, r);
+        return r;
+    };
+
     // Lower each IR instruction. Spilled operands are handled as follows:
     //
-    // - Inputs that an instruction reads are accessed through gpr_use/vec_use.
+    // - Inputs that an instruction reads are accessed through
+    //   gpr_use/vec_use/mask_use.
     //   These return the register directly, or reload the value from its spill
     //   slot into its temp if needed.
     //
@@ -274,30 +291,30 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
                 break;
             }
 
-            // Mask ops. Emitting the instruction is the backend's job. The
-            // allocator does not spill masks to make room (see
-            // `max_temps_per_op`). A mask ends up spilled only when no register
-            // is left for it, which the asserts reject.
-            case op_kind_t::set_mask_imm: {
-                JIT_ASSERT(!spilled(op.dst) && "set_mask_imm: mask spilled");
-                be.set_mask_imm(phys(op.dst), (int)op.imm, data);
+            // Mask ops. Emitting the instruction is the backend's job,
+            // including the reload and store of a spilled mask. Only AVX2*
+            // spills masks. The AVX-512 backend rejects a spilled k-register.
+            case op_kind_t::set_mask_imm: { // overwrites dst
+                int d = reg_of(op.dst);
+                be.set_mask_imm(d, (int)op.imm, data);
+                if (spilled(op.dst)) mask_spill_store(op.dst, d);
                 break;
             }
             case op_kind_t::vload_masked: { // overwrites dst
                 int base = gpr_use(op.mem.base).getIdx();
                 int d = reg_of(op.dst);
-                JIT_ASSERT(!spilled(op.s1) && "vload_masked: mask spilled");
-                be.vload_masked(d, base, op.mem.disp, phys(op.s1), op.mem_dt,
-                        dt_of(op.dst));
+                int m = mask_use(op.s1);
+                be.vload_masked(
+                        d, base, op.mem.disp, m, op.mem_dt, dt_of(op.dst));
                 if (spilled(op.dst)) spill_store(op.dst, d);
                 break;
             }
             case op_kind_t::vstore_masked: {
                 int base = gpr_use(op.mem.base).getIdx();
                 int s = vec_use(op.s0);
-                JIT_ASSERT(!spilled(op.s1) && "vstore_masked: mask spilled");
-                be.vstore_masked(base, op.mem.disp, s, phys(op.s1), op.mem_dt,
-                        dt_of(op.s0));
+                int m = mask_use(op.s1);
+                be.vstore_masked(
+                        base, op.mem.disp, s, m, op.mem_dt, dt_of(op.s0));
                 break;
             }
 

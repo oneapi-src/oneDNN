@@ -141,6 +141,15 @@ struct avx2_backend_t {
 
     // Masked vector ops. On AVX2 a mask is a vector.
     //
+    // A spilled mask moves like a spilled vector (see `vload_raw`).
+    void load_mask_raw(int d, int base, dim_t disp) {
+        vload_raw(d, base, disp);
+    }
+
+    void store_mask_raw(int base, dim_t disp, int s) {
+        vstore_raw(base, disp, s);
+    }
+
     // Create a mask for `n_elems` active elements. The mask bytes are written
     // to the data section and loaded once. A vector mask is a constant, so the
     // builder emits `set_mask_imm` a single time and the mask is reused across

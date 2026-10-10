@@ -337,7 +337,7 @@ std::vector<int64_t> compute_spill_weights(
 //   3. Spill if necessary:
 //      While fewer registers are free than the demand, spill the lightest
 //      active interval that is not an operand of `i`, with ties broken on the
-//      latest end. A mask is never chosen, since its kind gets no temps.
+//      latest end. A file that is not `spillable` skips this step.
 //
 //   4. Hand out registers:
 //      Intervals that start at `i` take theirs and become active. An interval
@@ -351,9 +351,9 @@ std::vector<int64_t> compute_spill_weights(
 // is free at each earlier reference and becomes its temp there. At each later
 // reference, step 2 counts it as a spilled operand and step 4 hands it a temp.
 //
-// When every register holds an operand of `i` or a mask, step 3 has nothing to
-// spill. An operand left without a register then gets no temp, which the
-// emitter reports by failing the kernel.
+// When every register holds an operand of `i`, or the file is not `spillable`,
+// step 3 has nothing to spill. An operand left without a register then gets no
+// temp, which the emitter reports by failing the kernel.
 //
 // Spilled values are assigned stack slots starting at `frame`, increasing by
 // `slot_size` per spill.
@@ -421,11 +421,6 @@ void alloc_file(const ir_t &ir, int file_idx, const reg_pools_t &pools,
         if (end[cand] != end[best]) return end[cand] > end[best];
         return cand < best;
     };
-
-    // A spilled value of a kind without temps could not be used by any
-    // operation, so such a value is never spilled.
-    auto spillable
-            = [&](int v) { return max_temps_per_op[(int)kind_of(v)] > 0; };
 
     // Moves `v` to a new stack slot for its whole live range and resets its
     // `phys`. The caller releases the register `v` held, if any, and must read
@@ -497,13 +492,14 @@ void alloc_file(const ir_t &ir, int file_idx, const reg_pools_t &pools,
         }
 
         // 3. Spill until enough registers are free.
-        while (free_regs.size() < pending.size() + wanted.size()) {
+        while (file.spillable
+                && free_regs.size() < pending.size() + wanted.size()) {
             int victim = -1;
             for (int a : active) {
                 // Spilling an operand of `i` frees nothing, since it needs a
-                // temp at `i`. Masks are never spilled.
+                // temp at `i`.
                 const bool is_operand = last_ref[a] == i;
-                if (is_operand || !spillable(a)) continue;
+                if (is_operand) continue;
                 if (victim < 0 || better_victim(a, victim)) victim = a;
             }
             if (victim < 0) break; // nothing that frees a register at `i`
