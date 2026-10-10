@@ -273,6 +273,15 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
             = tensor::make_scalar_tensor(p_quant_scales, &pt_scale);
     auto ts_p_deq_scales = tensor::make_scalar_tensor(p_deq_scales, &pt_scale);
 
+    // Query scratchpad logical tensor and allocate scratchpad buffer. Here we
+    // leverage the tensor API to allocate the scratchpad buffer for
+    // convenience.
+    auto scratchpad_lt = cp.get_scratchpad_logical_tensor();
+    tensor scratchpad_ts;
+    if (scratchpad_lt.get_mem_size() > 0) {
+        scratchpad_ts = tensor(scratchpad_lt, eng);
+    }
+
     // Allocate user data.
     std::vector<float> query_data(product(qkv_sz));
     std::vector<float> key_data(product(qkv_sz));
@@ -302,7 +311,7 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     cp.execute(strm,
             {ts_query, ts_q_scales, ts_key, ts_k_scales, ts_scale, ts_mask,
                     ts_p_quant_scales, ts_p_deq_scales, ts_value, ts_v_scales},
-            {ts_output});
+            {ts_output}, scratchpad_ts);
 
     // Wait for the computation to finish.
     strm.wait();
@@ -312,7 +321,7 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     cp.execute(strm,
             {ts_query, ts_q_scales, ts_key, ts_k_scales, ts_scale, ts_mask,
                     ts_p_quant_scales, ts_p_deq_scales, ts_value, ts_v_scales},
-            {ts_output});
+            {ts_output}, scratchpad_ts);
     strm.wait();
     auto end_first = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> dur_first
@@ -328,7 +337,7 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
                 {ts_query, ts_q_scales, ts_key, ts_k_scales, ts_scale, ts_mask,
                         ts_p_quant_scales, ts_p_deq_scales, ts_value,
                         ts_v_scales},
-                {ts_output});
+                {ts_output}, scratchpad_ts);
     strm.wait();
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> duration = end - start;
