@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <algorithm>
 #include <stdexcept>
 
 #include "gpu/intel/gemm/jit/gen_kernel.hpp"
@@ -66,7 +67,113 @@ SelectionObserver make_entry_observer(int eu_count, int freq_mhz) {
                     << entry->str();
     };
 }
+
+using decisions_t = gen_desc_t::decisions_t;
+using tokens_t = std::vector<std::string>;
+
+tokens_t tokens_of(const std::string &str) {
+    tokens_t t;
+    istringstream_t ss(str);
+    for (std::string w; ss >> w;)
+        t.push_back(w);
+    return t;
+}
+
+bool has(const tokens_t &t, const char *w) {
+    return std::find(t.begin(), t.end(), w) != t.end();
+}
+
+// A k-interleave chunk token, kiN.
+bool is_ki(const std::string &w) {
+    return w.size() > 2 && w.compare(0, 2, "ki") == 0 && isdigit(w[2]);
+}
+
+decisions_t decisions_of(const GEMMStrategy &s) {
+    decisions_t d;
+    d.kv = s.kParallelVariable;
+    d.kb = s.kParallel;
+    d.kr = s.kParallelLocal;
+    d.wgK = d.kr ? s.wg[LoopK] : 1;
+    return d;
+}
+
+// The selector's decisions on a parsed catalog row: the model's choices; the
+// k-thread count only where no fixed rule replays it.
+decisions_t selector_decisions(
+        const GEMMStrategy &row, const EvaluateAuxOutput &aux) {
+    auto d = decisions_of(row);
+    d.kv = aux.kParallelVariable;
+    d.kb = aux.kParallel;
+    bool kv_to_kb = aux.kParallel && !row.kParallel;
+    bool by_rule = row.fixedWGK() || row.shrinkWGK || aux.kParallelVariable
+            || (aux.kParallel && !kv_to_kb);
+    if (d.kr && !by_rule && aux.wgK < d.wgK) {
+        d.kr = aux.wgK > 1;
+        d.wgK = d.kr ? aux.wgK : 1;
+    }
+    return d;
+}
+
+// `strategy`, parsed as `had`, with its decision tokens set to `d`. kb keeps
+// the fused beta and post-ops kv implied.
+std::string with_decisions(const std::string &strategy, const decisions_t &had,
+        const decisions_t &d) {
+    auto t = tokens_of(strategy);
+    auto drop = [&](const char *w) {
+        t.erase(std::remove(t.begin(), t.end(), w), t.end());
+    };
+    if (!d.kv)
+        drop("kv");
+    else if (!has(t, "kv"))
+        t.emplace_back("kv");
+    if (!d.kb)
+        drop("kb");
+    else if (!has(t, "kb")) {
+        t.emplace_back("kb");
+        if (!has(t, "fb") && !has(t, "afb")) t.emplace_back("fb");
+        if (!has(t, "fp")) t.emplace_back("fp");
+    }
+    if (d.kr && !had.kr) t.emplace_back("kr");
+    if (!d.kr) {
+        if (has(t, "ikr"))
+            t.erase(std::remove_if(t.begin(), t.end(), is_ki), t.end());
+        drop("kr");
+        drop("akr");
+        drop("ikr");
+    }
+    // wg as written unless the k-thread count changes.
+    auto wg = std::find(t.begin(), t.end(), "wg");
+    if (wg != t.end() && wg + 1 != t.end()
+            && (d.kr ? d.wgK != had.wgK : had.kr)) {
+        auto &v = *(wg + 1);
+        auto mn = v.substr(0, v.find('x', v.find('x') + 1));
+        v = d.kr ? mn + 'x' + std::to_string(d.wgK) : mn;
+    }
+    return gpu_utils::join(" ", t);
+}
+
+std::string kernel_str(const GEMMProblem &problem, int unroll_m, int unroll_n,
+        const std::string &strategy) {
+    auto astr = problem.scalarsToString();
+    if (!astr.empty()) astr += ' ';
+    return problem.toString() + ' ' + std::to_string(unroll_m) + ' '
+            + std::to_string(unroll_n) + ' ' + astr + strategy;
+}
+
+// Rejects strategies that do not say what they mean.
+void check_grammar(const GEMMStrategy &s) {
+    if (s.kParallelLocal && s.wg[LoopK] < 2)
+        throw std::runtime_error("kr needs wg MxNxK with K > 1");
+    if (!s.kInterleave && s.kInterleaveChunk > 0)
+        throw std::runtime_error("ki needs ikr");
+}
 } // anonymous namespace
+
+std::string gen_desc_t::decisions_t::str() const {
+    std::string s = std::string(kv ? " kv" : "") + (kb ? " kb" : "")
+            + (kr ? " kr x" + std::to_string(wgK) : "");
+    return s.empty() ? "none" : s.substr(1);
+}
 
 bool enable_generator_dsl() {
     static const bool ret
@@ -104,19 +211,26 @@ compute::scalar_type_t gen_desc_t::scalar_type() const {
     }
 }
 
-#ifdef DNNL_DEV_MODE
 static gemmstone::Scalar stringToScalar(const std::string &val) {
     using namespace gemmstone;
     return val[0] == '-' ? Scalar(Scalar::Variable) : Scalar(std::stoi(val));
 }
 
-status_t gen_desc_t::apply_kernel_override(
-        const std::string &ovr_strategy, const char *tags) {
+status_t gen_desc_t::apply_strategy(std::string ovr_strategy, const char *tags,
+        const int (&pd_align)[3], const EvaluateParams &eval_params,
+        bool is_override, int compile_k) {
+    const auto *selected = entry_;
     try {
         // Overrides problem data types; incompatible precisions lose accuracy.
-        entry_ = nullptr;
+        if (is_override) entry_ = nullptr;
         const GEMMProblem pd = problem_;
-        const Scalar pd_alpha = problem_.alpha, pd_beta = problem_.beta;
+        // problem_.beta may already be variable from the entry's k blocking.
+        auto pd_scalar = [](double v, bool zero_ok) {
+            return (v == 1.0 || (zero_ok && v == 0.0)) ? Scalar(int(v))
+                                                       : Scalar();
+        };
+        const Scalar pd_alpha = pd_scalar(eval_params.alpha, false);
+        const Scalar pd_beta = pd_scalar(eval_params.beta, true);
         stringstream_t ss(ovr_strategy);
         std::string val;
         // Skip tokens before `gemm`; the pd sets them.
@@ -124,13 +238,20 @@ status_t gen_desc_t::apply_kernel_override(
         if (val != "gemm") throw std::runtime_error("expected 'gemm' prefix");
         ss >> val;
         const char *pstr = val.c_str();
-        // Cannot modify external data types
+        // Cannot modify external data types; f32 data may be read as tf32.
+        auto ext_ok = [](Type &pd, Type ovr) {
+            bool f32 = utils::one_of(pd, Type::f32, Type::tf32)
+                    && utils::one_of(ovr, Type::f32, Type::tf32);
+            if (pd != ovr && !f32) return false;
+            pd = ovr;
+            return true;
+        };
         Type ext_dt;
         pstr = parsePrecisions(pstr, ext_dt, problem_.Ta);
-        if (ext_dt != problem_.Ta_ext)
+        if (!ext_ok(problem_.Ta_ext, ext_dt))
             throw std::runtime_error("invalid external A data type");
         pstr = parsePrecisions(pstr, ext_dt, problem_.Tb);
-        if (ext_dt != problem_.Tb_ext)
+        if (!ext_ok(problem_.Tb_ext, ext_dt))
             throw std::runtime_error("invalid external B data type");
         if (*pstr == '[') {
             pstr = parsePrecisions(pstr, problem_.Tc, ext_dt);
@@ -158,9 +279,9 @@ status_t gen_desc_t::apply_kernel_override(
             problem_.C.setAlignment(
                     problem_.C.defaultAlignment(problem_.Tc_ext));
 
-        if (pd.A.alignment % problem_.A.alignment
-                || pd.B.alignment % problem_.B.alignment
-                || pd.C.alignment % problem_.C.alignment)
+        if (pd_align[0] % problem_.A.alignment
+                || pd_align[1] % problem_.B.alignment
+                || pd_align[2] % problem_.C.alignment)
             throw std::runtime_error("alignment too strong");
 
         strategy_ = GEMMStrategy(hw_, stepping_);
@@ -179,95 +300,181 @@ status_t gen_desc_t::apply_kernel_override(
             throw std::runtime_error("alpha/beta mismatch");
 
         if (!ss) throw std::runtime_error("truncated kernel string");
-        std::string rest = ss.str().substr(ss.tellg());
-        parseStrategy(rest, problem_, strategy_);
+        ovr_strategy = ss.str().substr(ss.tellg()); // remaining string
 
-        // Later k-chunks accumulate (catalog parity).
-        auto block_k = strategy_.blocking[LoopK];
-        if (block_k <= 0) block_k = strategy_.defaultBlockK(hw_, problem_);
-        if (k_ > block_k && !problem_.beta1()) problem_.beta = Scalar();
+        auto unroll_m = strategy_.unroll[LoopM];
+        auto unroll_n = strategy_.unroll[LoopN];
+        parseStrategy(ovr_strategy, problem_, strategy_);
+        check_grammar(strategy_);
+        auto have = decisions_of(strategy_);
 
-        if (strategy_.kParallel)
-            throw std::runtime_error("unknown k0 for global k-parallel");
-        aux_params_ = EvaluateAuxOutput();
-        aux_params_.kParallelVariable = strategy_.kParallelVariable;
-        if (strategy_.kParallelLocal) {
-            if (strategy_.wg[LoopK] < 1 || strategy_.unroll[LoopK] < 1)
-                throw std::runtime_error("invalid k-parallel-local geometry");
-            aux_params_.k0
-                    = utils::rnd_up(utils::div_up(k_, strategy_.wg[LoopK]),
-                            strategy_.unroll[LoopK]);
-            aux_params_.wgK = std::max(1,
-                    std::min(strategy_.wg[LoopK],
-                            int(utils::div_up(k_, aux_params_.k0))));
+        // The catalog compiles its row's k-thread count; both launch `have`.
+        int wgK = 0;
+        if (compile_k > 0) {
+            wgK = have.wgK;
+            auto want = have;
+            want.kr = true;
+            want.wgK = compile_k;
+            reparse(with_decisions(ovr_strategy, have, want), unroll_m,
+                    unroll_n);
         }
+
+        resolve_launch(*selected, tags, eval_params, wgK);
     } catch (const std::exception &e) {
-        gpu_error_not_expected()
-                << "jit::gemm kernel override rejected: " << e.what() << ","
-                << ovr_strategy;
+        reject_reason_ = e.what();
         return status::unimplemented;
     }
     return status::success;
 }
-#endif
 
-status_t gen_desc_t::finalize(const char *tags) {
+void gen_desc_t::reparse(const std::string &str, int unroll_m, int unroll_n) {
+    strategy_ = GEMMStrategy(hw_, stepping_);
+    strategy_.unroll[LoopM] = unroll_m;
+    strategy_.unroll[LoopN] = unroll_n;
+    parseStrategy(str, problem_, strategy_);
+}
+
+void gen_desc_t::prepare(
+        GEMMStrategy &st, GEMMProblem &problem, const char *tags) const {
+    st.relaxedAccumulation |= relaxed_acc_;
+    st.systolicAvailable &= !disable_systolic_;
+    problem.autoTypeConversions(st.systolicAvailable);
+    adjustStrategy(hw_, problem, st, tags);
+}
+
+gen_desc_t::decisions_t gen_desc_t::kept_decisions(
+        const GEMMStrategy &st) const {
+    auto d = decisions_of(st);
+    // A single k-slice is no k-slicing.
+    if (d.kb && k_ >= 0 && k_ <= aux_params_.k0 * aux_params_.wgK)
+        d.kb = false;
+    return d;
+}
+
+gen_desc_t::decisions_t gen_desc_t::resolve_launch(const kcatalog::Entry &base,
+        const char *tags, const EvaluateParams &eval_params, int wgK) {
+    // Preflight as finalize will.
+    GEMMStrategy st = strategy_;
+    GEMMProblem problem = problem_;
+    prepare(st, problem, tags);
+    st.preflight(hw_, problem);
+
+    // Later k-chunks accumulate.
+    auto block_k = st.blocking[LoopK];
+    if (block_k <= 0) block_k = st.defaultBlockK(hw_, problem);
+    if (k_chunk_beta_ && k_ > block_k && !problem_.beta1())
+        problem_.beta = Scalar();
+
+    // The launch depends on the strategy and the problem, not on the entry.
+    kcatalog::Entry e = base;
+    e.driverInfo = driver_info_of(st);
+    e.selector.layouts[2] = isColMajor(problem_.C.layout) ? "N" : "T";
+    if (wgK > 0) e.driverInfo.wg[LoopK] = wgK;
+    aux_params_ = evaluateFixed(e, getDerivedParams(e, eval_params));
+
+    // Align k slice size and quantization group size
+    if (st.kParallelLocal) {
+        if (problem_.quantized2DA())
+            aux_params_.k0 = utils::rnd_up(aux_params_.k0, problem_.aqGroupK);
+        if (problem_.quantized2DB())
+            aux_params_.k0 = utils::rnd_up(aux_params_.k0, problem_.bqGroupK);
+    }
+
+    return kept_decisions(st);
+}
+
+status_t gen_desc_t::finalize(
+        const char *tags, const EvaluateParams &eval_params) {
+    reject_reason_.clear();
+    const int pd_align[3] = {
+            problem_.A.alignment, problem_.B.alignment, problem_.C.alignment};
+
+    // Update problem alignments to match catalog entry.
+    // Do not raise an alignment above the actual buffer alignment: catalog
+    // entries may accept lower alignments than driverInfo.alignment via
+    // unaligned access fallbacks, and overstating the alignment can cause
+    // illegal accesses (e.g. 2D block loads on a sub-DWord pitch).
+    if (!isPacked(problem_.A.layout)
+            && problem_.Ta_ext.paddedSize() >= problem_.Ta.paddedSize()) {
+        problem_.A.setAlignment(std::max(problem_.Ta_ext.paddedSize(),
+                std::min(entry_->driverInfo.alignment[0],
+                        int(problem_.A.alignment))));
+    }
+
+    if (!isPacked(problem_.B.layout)
+            && problem_.Tb_ext.paddedSize() >= problem_.Tb.paddedSize()) {
+        problem_.B.setAlignment(std::max(problem_.Tb_ext.paddedSize(),
+                std::min(entry_->driverInfo.alignment[1],
+                        int(problem_.B.alignment))));
+    }
+
+    if (!isPacked(problem_.C.layout)) {
+        problem_.C.setAlignment(std::max(problem_.Tc_ext.paddedSize(),
+                entry_->restrictions.alignment[2]));
+    }
+
     problem_.CO.setAlignment(problem_.Tco.paddedSize());
 
+    // The strategy this kernel is built from, logged as `use`: the override,
+    // or the catalog row with the selector's decisions.
+    std::string str;
+    bool is_override = false;
 #ifdef DNNL_DEV_MODE
-    std::string ovr_strategy
-            = gpu_utils::dev_getenv("GEMM_KERNEL", kernel_override_);
-    if (!ovr_strategy.empty()) {
-        CHECK(apply_kernel_override(ovr_strategy, tags));
-    } else {
+    str = gpu_utils::dev_getenv("GEMM_KERNEL", kernel_override_);
+    is_override = !str.empty();
 #endif
-        // Update problem alignments to match catalog entry.
-        // Do not raise an alignment above the actual buffer alignment: catalog
-        // entries may accept lower alignments than driverInfo.alignment via
-        // unaligned access fallbacks, and overstating the alignment can cause
-        // illegal accesses (e.g. 2D block loads on a sub-DWord pitch).
-        if (!isPacked(problem_.A.layout)
-                && problem_.Ta_ext.paddedSize() >= problem_.Ta.paddedSize()) {
-            problem_.A.setAlignment(std::max(problem_.Ta_ext.paddedSize(),
-                    std::min(entry_->driverInfo.alignment[0],
-                            int(problem_.A.alignment))));
+    int compile_k = 0;
+    if (!is_override) {
+        // Write the selector's decisions into the row, then fold in what
+        // preflight and the fixed rules leave of them, until stable.
+        auto um = entry_->driverInfo.unroll[LoopM];
+        auto un = entry_->driverInfo.unroll[LoopN];
+        std::string resolved = entry_->strategy;
+        reparse(resolved, um, un);
+        auto row = decisions_of(strategy_);
+        auto target = selector_decisions(strategy_, aux_params_);
+        for (int pass = 0;; pass++) {
+            auto have = decisions_of(strategy_);
+            if (target != have) {
+                resolved = with_decisions(resolved, have, target);
+                reparse(resolved, um, un);
+            }
+            try {
+                target = resolve_launch(*entry_, tags, eval_params);
+            } catch (const std::exception &e) {
+                gpu_debug() << "[" << lpad(entry_ - catalog().entries, 4)
+                            << "] resolve: " << e.what();
+                return status::unimplemented;
+            } catch (...) { return status::unimplemented; }
+            if (target == decisions_of(strategy_)) break;
+            if (pass == 2) {
+                gpu_debug() << "[" << lpad(entry_ - catalog().entries, 4)
+                            << "] resolve: unstable at " << target.str();
+                return status::unimplemented;
+            }
         }
+        str = kernel_str(problem_, um, un, resolved);
 
-        if (!isPacked(problem_.B.layout)
-                && problem_.Tb_ext.paddedSize() >= problem_.Tb.paddedSize()) {
-            problem_.B.setAlignment(std::max(problem_.Tb_ext.paddedSize(),
-                    std::min(entry_->driverInfo.alignment[1],
-                            int(problem_.B.alignment))));
-        }
-
-        if (!isPacked(problem_.C.layout)) {
-            problem_.C.setAlignment(std::max(problem_.Tc_ext.paddedSize(),
-                    entry_->restrictions.alignment[2]));
-        }
-
-        // Parse strategy string.
-        strategy_ = GEMMStrategy(hw_, stepping_);
-        strategy_.unroll[LoopM] = entry_->driverInfo.unroll[LoopM];
-        strategy_.unroll[LoopN] = entry_->driverInfo.unroll[LoopN];
-        parseStrategy(entry_->strategy, problem_, strategy_);
-#ifdef DNNL_DEV_MODE
+        // A k-thread count the selector lowered is compiled as the row's.
+        auto d = decisions_of(strategy_);
+        if (!d.kv && !d.kb && row.kr && !(d.kr && d.wgK == row.wgK))
+            compile_k = row.wgK;
     }
-#endif
-    modifyStrategy(strategy_, aux_params_);
+    resolved_str_ = str;
+    CHECK(apply_strategy(
+            str, tags, pd_align, eval_params, is_override, compile_k));
+    if (aux_params_.disableAtomics) strategy_.disableAtomics();
+    auto want = decisions_of(strategy_);
+    auto reject = [&](const std::string &why) {
+        reject_reason_ = why;
+        return status::unimplemented;
+    };
     if (l1_flush_wa_)
         strategy_.C.cachingW = makeL1Uncacheable(strategy_.C.cachingW);
     strategy_.panelCheck
             |= (isPacked(problem_.A.layout) || isPacked(problem_.B.layout));
 
     if (enable_generator_dsl()) { fixup_dsl_strategy(strategy_); }
-
-    // Align k slice size and quantization group size
-    if (strategy_.kParallelLocal) {
-        if (problem_.quantized2DA())
-            aux_params_.k0 = utils::rnd_up(aux_params_.k0, problem_.aqGroupK);
-        if (problem_.quantized2DB())
-            aux_params_.k0 = utils::rnd_up(aux_params_.k0, problem_.bqGroupK);
-    }
 
     if (hw_ == ngen::HW::Xe2 || hw_ == ngen::HW::Xe3) {
         // Use XeHPC register banking on Xe2/Xe3, in order
@@ -296,16 +503,6 @@ status_t gen_desc_t::finalize(const char *tags) {
         strategy_.namedBarriers[1] = 0;
     }
 
-    // Disable global k parallelization if it wouldn't be used.
-    if (strategy_.kParallel && k_ >= 0) {
-        auto k_min = aux_params_.k0 * aux_params_.wgK;
-        if (k_ <= k_min) {
-            strategy_.kParallel = false;
-            strategy_.C.atomic = false;
-            strategy_.CO.atomic = false;
-        }
-    }
-
     // Always use variable beta for global k-parallel kernels.
     if (strategy_.kParallel && !strategy_.fuseBeta) problem_.beta = Scalar();
 
@@ -325,7 +522,7 @@ status_t gen_desc_t::finalize(const char *tags) {
             dim_t n_tiles = dim_t(utils::div_up(n_, wg_tile_n));
             dim_t thread_per_tg = strategy_.wg[LoopM] * strategy_.wg[LoopN];
             if (!strategy_.kParallelVariable)
-                thread_per_tg *= std::max(strategy_.wg[LoopK], 1);
+                thread_per_tg *= std::max(aux_params_.wgK, 1);
             dim_t thread_gpu = eu_count_
                     * compute::device_info_t::threads_per_eu(
                             product_, strategy_.GRFs);
@@ -365,37 +562,40 @@ status_t gen_desc_t::finalize(const char *tags) {
         }
     }
 
-    strategy_.relaxedAccumulation |= relaxed_acc_;
-    strategy_.systolicAvailable &= !disable_systolic_;
-    problem_.autoTypeConversions(strategy_.systolicAvailable);
-    adjustStrategy(hw_, problem_, strategy_, tags);
+    prepare(strategy_, problem_, tags);
     try {
         strategy_.preflight(hw_, problem_);
-    } catch (...) { return status::unimplemented; }
+    } catch (const std::exception &e) { return reject(e.what()); } catch (...) {
+        return reject("preflight failed");
+    }
+    auto kept = kept_decisions(strategy_);
+    if (kept != want)
+        return reject("decisions changed: " + want.str() + " -> " + kept.str()
+                + "," + resolved_str_);
 
     // Override: fixed beta would be reapplied on later k-chunks.
     if (!entry_ && k_ > strategy_.blocking[LoopK] && problem_.beta.fixed()
             && !problem_.beta1())
-        return status::unimplemented;
+        return reject("fixed beta over k-chunks");
 
     // Check for legal 2D quantization group size.
     if (problem_.aOffset2D() || problem_.aScale2D())
         if (problem_.aqGroupK % strategy_.aqGroupKGranularity())
-            return status::unimplemented;
+            return reject("A quantization group");
     if (problem_.bOffset2D() || problem_.bScale2D())
         if (problem_.bqGroupK % strategy_.bqGroupKGranularity())
-            return status::unimplemented;
+            return reject("B quantization group");
     if (problem_.aScale2D()
             && problem_.aqGroupK % minOuterProductCount(problem_, strategy_)
                     != 0) {
         if (!problem_.Ta.isF4() || !problem_.Tb.isF4())
-            return status::unimplemented;
+            return reject("quantization group vs outer product");
     }
     if (problem_.bScale2D()
             && problem_.bqGroupK % minOuterProductCount(problem_, strategy_)
                     != 0) {
         if (!problem_.Ta.isF4() || !problem_.Tb.isF4())
-            return status::unimplemented;
+            return reject("quantization group vs outer product");
     }
 
     // If the M/N group size is equal to M or N, align up to a multiple of unroll size
@@ -422,17 +622,17 @@ status_t gen_desc_t::finalize(const char *tags) {
     if (strategy_.kInterleave) aux_params_.wgK = strategy_.wg[LoopK];
     if (aux_params_.wgK > strategy_.wg[LoopK])
         aux_params_.wgK = strategy_.wg[LoopK];
-    update_driver_info();
+    driver_info_ = driver_info_of(strategy_);
 
     return status::success;
 }
 
-void gen_desc_t::update_driver_info() {
+gemmstone::CommonDriverInfo gen_desc_t::driver_info_of(
+        const gemmstone::GEMMStrategy &strategy) const {
 #define ARCH_DISPATCH(arch) \
     case ngen::HW::arch: \
-        driver_info_ = gemm_kernel_generator_t<ngen::HW::arch>::driverInfo( \
-                problem_, strategy_); \
-        break;
+        return gemm_kernel_generator_t<ngen::HW::arch>::driverInfo( \
+                problem_, strategy);
 
     switch (hw_) {
         REG_XEHPG_ISA(ARCH_DISPATCH(XeHPG))
@@ -442,11 +642,11 @@ void gen_desc_t::update_driver_info() {
         REG_XE3P_ISA(ARCH_DISPATCH(Xe3p))
         default:
             assert(!"Unsupported architecture");
-            driver_info_ = entry_->driverInfo;
-            break;
+            return entry_ ? entry_->driverInfo : driver_info_;
     }
 #undef ARCH_DISPATCH
 }
+
 
 std::vector<const gemmstone::kcatalog::Entry *>
 gen_nocopy_desc_t::select_kernel(const compute::device_info_t &dev_info,
@@ -671,12 +871,11 @@ status_t gen_nocopy_desc_t::finalize() {
 
     if (problem_.Ts == Type::invalid) problem_.Ts = problem_.Tc;
 
-    auto block_k = entry_->driverInfo.blocking[LoopK];
     problem_.beta = beta_;
-    if (block_k > 0 && k_ > block_k && eval_params_.beta != 1.0f)
-        problem_.beta = Scalar();
+    k_chunk_beta_ = true;
+    aux_params_ = gemmstone::EvaluateAuxOutput();
     evaluate(*entry_, eval_params_, aux_params_);
-    return gen_desc_t::finalize(tags_.c_str());
+    return gen_desc_t::finalize(tags_.c_str(), eval_params_);
 }
 
 status_t gen_xe_systolic_kernel_desc_t::select_kernel(
@@ -811,7 +1010,7 @@ status_t gen_xe_systolic_kernel_desc_t::select_kernel(
 
     if (entries.size() < 1) return status::unimplemented;
     entry_ = entries[0];
-    return finalize(match_params.tags);
+    return finalize(match_params.tags, eval_params);
 }
 
 void gen_xe_systolic_kernel_desc_t::choose_unrolls(compute::gpu_arch_t arch,
@@ -1069,12 +1268,8 @@ dsl::kernel_t get_dsl_kernel(const GEMMProblem &problem,
 
 std::string dump_kernel(ngen::HW hw, const gemmstone::GEMMProblem &problem,
         const gemmstone::GEMMStrategy &strategy) {
-    auto pstr = problem.toString();
-    auto astr = problem.scalarsToString();
-    auto sstr = unparseStrategy(hw, problem, strategy);
-    if (!astr.empty()) astr += ' ';
-    return pstr + ' ' + std::to_string(strategy.unroll[LoopM]) + ' '
-            + std::to_string(strategy.unroll[LoopN]) + ' ' + astr + sstr;
+    return kernel_str(problem, strategy.unroll[LoopM], strategy.unroll[LoopN],
+            unparseStrategy(hw, problem, strategy));
 }
 
 status_t gen_kernel_t::get_kernel(
@@ -1109,10 +1304,14 @@ status_t gen_kernel_t::get_kernel(
             default: assert(!"Unsupported architecture"); break;
         }
     } catch (const std::runtime_error &err) {
-        // Print kernel generation errors only in debug mode
-        VDEBUGINFO(1, primitive, gpu, "%s,%s,%s", "jit::gemm", err.what(),
-                dump_kernel(desc()->hw_, desc()->problem_, desc()->strategy_)
-                        .c_str());
+        auto str = dump_kernel(
+                desc()->hw_, desc()->problem_, desc()->strategy_);
+        if (!desc()->has_entry())
+            VINFO(primitive, create, dispatch, gemm, "%s,%s,%s", "jit::gemm",
+                    err.what(), str.c_str());
+        else // Print kernel generation errors only in debug mode
+            VDEBUGINFO(1, primitive, gpu, "%s,%s,%s", "jit::gemm", err.what(),
+                    str.c_str());
     }
 #undef ARCH_DISPATCH
 

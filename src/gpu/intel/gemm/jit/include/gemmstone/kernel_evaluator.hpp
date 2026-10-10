@@ -65,6 +65,9 @@ struct EvaluateAuxOutput {
 DerivedEvaluateParams getDerivedParams(const kcatalog::Entry &e, const EvaluateParams &p);
 double evaluate(const kcatalog::Entry &e, const EvaluateParams &p, EvaluateAuxOutput &aux);
 double evaluate(const kcatalog::Entry &e, const DerivedEvaluateParams &p, EvaluateAuxOutput &aux);
+// Model-free dispatch: kv/kb/kr come from the entry's driver info as stated,
+// k0 and wgK from fixed rules; the entry's model is ignored.
+EvaluateAuxOutput evaluateFixed(const kcatalog::Entry &e, const DerivedEvaluateParams &p);
 
 void modifyStrategy(GEMMStrategy &strategy, const EvaluateAuxOutput &aux);
 
