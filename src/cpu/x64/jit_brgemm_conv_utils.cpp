@@ -912,7 +912,9 @@ float brg_blocking_t::est_eff() {
                     / 64,
             0.5f);
 
-    const dim_t sp_amount = static_cast<dim_t>(nb_od) * nb_oh * nb_sp;
+    const dim_t sp_amount = is_os_blocking
+            ? static_cast<dim_t>(nb_od) * nb_oh
+            : static_cast<dim_t>(nb_od) * nb_oh * nb_sp;
     const auto work_amount = sp_amount * mb * ngroups * nb_oc;
     const auto sp_eff = (static_cast<float>(sp)
             / static_cast<float>(rnd_up(sp, sp_block)));
