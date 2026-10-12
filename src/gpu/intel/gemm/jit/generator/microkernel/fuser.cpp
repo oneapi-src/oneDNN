@@ -182,14 +182,11 @@ static void fuse(std::vector<uint8_t> &binary,
         storeSectionHeaders(newBinary, sheaders);
 
         if (relSectionID >= 0) {
-            auto relSection = sheaders[relSectionID];
-            auto rel = reinterpret_cast<Relocation *>(
-                    newBase + relSection.offset);
-            auto relEnd = reinterpret_cast<Relocation *>(
-                    newBase + relSection.offset + relSection.size);
-            for (; rel < relEnd; rel++) {
-                if (rel->offset >= kbefore) rel->offset += sizeAdjust;
-            }
+            auto relocations
+                    = sectionEntries<Relocation>(newBinary, relSectionID);
+            for (auto &relocation : relocations)
+                if (relocation.offset >= kbefore) relocation.offset += sizeAdjust;
+            storeSectionEntries(newBinary, relSectionID, relocations);
         }
 
 #ifdef SPLICE_DEBUG
