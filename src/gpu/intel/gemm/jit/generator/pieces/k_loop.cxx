@@ -431,15 +431,47 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     // SLM quantization parameter loads.
     auto reqSLMLoadQ = every(slmKQLoad)
                      | lookahead(lookaheadSLMStore + lookaheadSLMReload + unrollKSLM - 1);
+    // Threads split SLM quantization loads in k; in the k remainder, zero groups past k instead of loading.
+    auto doSLMLoadQ = [&](Iteration h, bool isA) {
+        bool xo2D = isA ? ao2D : bo2D, xs2D = isA ? as2D : bs2D;
+        auto &XO_regs = isA ? state.A_offsetRegs : state.B_offsetRegs;
+        auto &XS_regs = isA ? state.A_scaleRegs  : state.B_scaleRegs;
+        auto &XO_layout = isA ? state.A_offsetLayout : state.B_offsetLayout;
+        auto &XS_layout = isA ? state.A_scaleLayout  : state.B_scaleLayout;
+        auto &XO_addrs = isA ? state.A_offsetAddrs : state.B_offsetAddrs;
+        auto &XS_addrs = isA ? state.A_scaleAddrs  : state.B_scaleAddrs;
+        int kx_slm = isA ? state.ka_slm : state.kb_slm;
+        int xqGroupK = isA ? problem.aqGroupK : problem.bqGroupK;
+        bool guard = (h.remaining() < slmKQLoad) && (kx_slm < unrollKSLM) && (xqGroupK < unrollKSLM);
+
+        Label skip;
+        if (guard) {
+            if (xo2D) zeroMatrix(XO_regs, strategy);
+            if (xs2D) zeroMatrix(XS_regs, strategy);
+            auto kOff = state.ra.allocSub<uint32_t>();
+            mulConstant(1, kOff, isA ? state.lidN : state.lidM, kx_slm);
+            if (kx_slm % xqGroupK)
+                alignDown(kOff, kOff, xqGroupK, strategy, state);
+            if (h.counterOffset() != 0)
+                add(1, kOff, kOff, -h.counterOffset());
+            cmp(1 | ge | state.flagAP, kOff.d(), state.K);
+            state.ra.safeRelease(kOff);
+            lastThresh = -1;
+            jmpi(1 | state.flagAP, skip);
+        }
+        if (xo2D) isA ? gemmALoad(XO_regs, XO_layout, XO_addrs, problem, strategy, state)
+                      : gemmBLoad(XO_regs, XO_layout, XO_addrs, problem, strategy, state);
+        if (xs2D) isA ? gemmALoad(XS_regs, XS_layout, XS_addrs, problem, strategy, state)
+                      : gemmBLoad(XS_regs, XS_layout, XS_addrs, problem, strategy, state);
+        if (guard) {
+            mark(skip);
+            state.wipeActiveVFlags();
+        }
+    };
+
     if (slmDequantize2D) ls.schedule(reqSLMLoadQ, [&](Iteration h) {
-        if (slmDequantize2DA) {
-            if (ao2D) gemmALoad(state.A_offsetRegs, state.A_offsetLayout, state.A_offsetAddrs, problem, strategy, state);
-            if (as2D) gemmALoad(state.A_scaleRegs,  state.A_scaleLayout,  state.A_scaleAddrs,  problem, strategy, state);
-        }
-        if (slmDequantize2DB) {
-            if (bo2D) gemmBLoad(state.B_offsetRegs, state.B_offsetLayout, state.B_offsetAddrs, problem, strategy, state);
-            if (bs2D) gemmBLoad(state.B_scaleRegs,  state.B_scaleLayout,  state.B_scaleAddrs,  problem, strategy, state);
-        }
+        if (slmDequantize2DA) doSLMLoadQ(h, true);
+        if (slmDequantize2DB) doSLMLoadQ(h, false);
     });
 
     // SLM loads.
