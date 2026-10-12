@@ -337,10 +337,11 @@ struct brgemm_matmul_conf_t {
                 || need_to_calculate_compensation_for_b;
     }
 
-    // True for a batch-only mask too, since brgemm has no batch concept.
+    // True for a batch-only mask, since brgemm has no batch concept.
+    // False when there are no weights scales at all.
     // A method, not a cached field, so it can't go stale vs. the flags below.
     inline bool is_single_wei_scale() const {
-        return !is_wei_scale_per_n && !is_wei_scale_per_k;
+        return with_wei_scales && !is_wei_scale_per_n && !is_wei_scale_per_k;
     }
 };
 
