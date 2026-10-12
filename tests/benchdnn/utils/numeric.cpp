@@ -177,8 +177,28 @@ float saturate_and_round(float value) {
 }
 
 bool is_integral_dt(dnnl_data_type_t dt) {
-    return dt == dnnl_s32 || dt == dnnl_s8 || dt == dnnl_u8 || dt == dnnl_s4
-            || dt == dnnl_u4 || dt == dnnl_u2 || dt == dnnl_u3;
+    switch (dt) {
+        case dnnl_s64:
+        case dnnl_s32:
+        case dnnl_s8:
+        case dnnl_u8:
+        case dnnl_s4:
+        case dnnl_u4:
+        case dnnl_u2:
+        case dnnl_u3: return true;
+        case dnnl_f64:
+        case dnnl_f32:
+        case dnnl_bf16:
+        case dnnl_f16:
+        case dnnl_e8m0:
+        case dnnl_f8_e5m2:
+        case dnnl_f8_e4m3:
+        case dnnl_f4_e2m1:
+        case dnnl_boolean: return false;
+        default: assert(!"unsupported data type"); SAFE_V(FAIL);
+    }
+
+    return false;
 }
 
 template <dnnl_data_type_t dt>

@@ -114,6 +114,15 @@ TEST(test_sizing, uint3) {
     EXPECT_EQ(types::data_type_bits(u3), 3);
 }
 
+TEST(test_type_helpers, is_integral_dt) {
+    using namespace impl::data_type;
+    for (auto dt : {s64, s32, s8, u8, s4, u4, u2, u3})
+        EXPECT_TRUE(impl::types::is_integral_dt(dt)) << dt;
+    for (auto dt : {f64, f32, tf32, bf16, f16, e8m0, f8_e5m2, f8_e4m3, f4_e2m1,
+                 boolean})
+        EXPECT_FALSE(impl::types::is_integral_dt(dt)) << dt;
+}
+
 TEST(test_nibble_layout, nibble8) {
     impl::nibble8_t octet {};
     // build 111 110 101 100 011 010 001 000
