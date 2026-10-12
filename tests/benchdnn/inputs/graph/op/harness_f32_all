@@ -883,3 +883,39 @@
 --reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=1:2x64 --case=op/f32/dynamicdq.json
 --reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:0 --in-shapes=1:scalar --case=op/f32/dynamicq.json
 --reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:0 --in-shapes=1:scalar --case=op/f32/dynamicdq.json
+# mask: packed and full-rank scales, size-1 masked dims, 5D GQA
+--reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=0:1x64x3x3+1:1x64 --case=op/f32/dynamicq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=0:1x64x3x3+1:1x64 --case=op/f32/dynamicdq.json
+--reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=1:2x64x1x1 --case=op/f32/dynamicq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=1:2x64x1x1 --case=op/f32/dynamicdq.json
+--reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=0:2x1x3x3+1:2x1 --case=op/f32/dynamicq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=0:2x1x3x3+1:2x1 --case=op/f32/dynamicdq.json
+--reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:15 --in-shapes=1:2x64x3x3 --case=op/f32/dynamicq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:15 --in-shapes=1:2x64x3x3 --case=op/f32/dynamicdq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:5 --in-shapes=1:2x3 --case=op/f32/dynamicdq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:5 --in-shapes=1:2x1x3x1 --case=op/f32/dynamicdq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:10 --in-shapes=1:64x3 --case=op/f32/dynamicdq.json
+# TODO: fail due to CPU reorder bug
+# --reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:5 --in-shapes=1:2x3 --case=op/f32/dynamicq.json
+# --reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:5 --in-shapes=1:2x1x3x1 --case=op/f32/dynamicq.json
+# --reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:10 --in-shapes=1:64x3 --case=op/f32/dynamicq.json
+--reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:7 --in-shapes=0:2x2x4x8x16+1:2x2x4 --case=op/f32/dynamicq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:7 --in-shapes=0:2x2x4x8x16+1:2x2x4 --case=op/f32/dynamicdq.json
+--reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:7 --in-shapes=0:2x2x1x8x16+1:2x2x1 --case=op/f32/dynamicq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:7 --in-shapes=0:2x2x1x8x16+1:2x2x1 --case=op/f32/dynamicdq.json
+--reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=0:1x2x1x8x16+1:1x2 --case=op/f32/dynamicq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --op-attrs=0:qtype:per_tensor*mask:3 --in-shapes=0:1x2x1x8x16+1:1x2 --case=op/f32/dynamicdq.json
+# per_channel on a size-1 axis
+--reset --dt=2:s8,2:u8,2:f8_e4m3,2:f8_e5m2 --in-shapes=0:2x1x3x3+1:1 --case=op/f32/dynamicq.json
+--reset --dt=0:s8,0:u8,0:f8_e4m3,0:f8_e5m2 --in-shapes=0:2x1x3x3+1:1 --case=op/f32/dynamicdq.json
+# per_group by qtype: broadcast dims via group_shape == src dims
+--reset --dt=0:s4+2:s4,0:u4+2:u4,0:s8+2:s8,0:u8+2:u8 --op-attrs=0:group_shape:1x32x8x1 --in-shapes=1:1x1x16x32+2:1x1x16x32 --case=op/f32/dynamicdq_s4.json
+--reset --dt=0:s4+2:s4,0:u4+2:u4 --op-attrs=0:group_shape:1x1x128x1 --in-shapes=1:1x32x1x32+2:1x32x1x32 --case=op/f32/dynamicdq_s4.json
+# TODO: fail due to GPU reorder bug
+# --reset --dt=0:s4+2:s4,0:u4+2:u4 --op-attrs=0:group_shape:1x1x8x32 --in-shapes=1:1x32x16x1+2:1x32x16x1 --case=op/f32/dynamicdq_s4.json
+--reset --dt=0:s4+2:s4,0:u4+2:u4 --in-shapes=0:2x32x128x32+1:2x32x16x32+2:2x32x16x32 --case=op/f32/dynamicdq_s4.json
+# mask + group_shape with full-rank scales
+--reset --dt=0:s4+2:s4,0:u4+2:u4 --op-attrs=0:qtype:per_tensor*axis:1*mask:15 --case=op/f32/dynamicdq_s4.json
+--reset --dt=0:s4+2:s4,0:u4+2:u4 --op-attrs=0:qtype:per_tensor*axis:1*mask:12*group_shape:1x32x8x1 --in-shapes=1:1x1x16x32+2:1x1x16x32 --case=op/f32/dynamicdq_s4.json
+--reset --dt=0:s4+2:s4,0:u4+2:u4 --op-attrs=0:qtype:per_tensor*axis:1*mask:13*group_shape:1x32x8x1 --in-shapes=1:1x1x16x32+2:1x1x16x32 --case=op/f32/dynamicdq_s4.json
+--reset --dt=0:s4+2:s4,0:u4+2:u4 --op-attrs=0:qtype:per_tensor*axis:1*mask:14*group_shape:1x1x8x1 --in-shapes=1:1x32x16x32+2:1x32x16x32 --case=op/f32/dynamicdq_s4.json
