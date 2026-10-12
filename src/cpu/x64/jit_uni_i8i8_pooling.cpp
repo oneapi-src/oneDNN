@@ -111,24 +111,25 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator_t {
     Xmm xmm_tmp = xreg(0); // temp to init vreg_tmp
     Vmm vreg_tmp = vreg(0); // max pooling : holds minimum values for data_type
     Vmm vreg_zeros = vreg(1);
-    Vmm vreg_tail = vreg(4);
+    Vmm vreg_ubound = vreg(2);
 
     // only in case of <isa> == avx2
-    Vmm vreg_mask = vreg(2); // full byte-mask
+    Vmm vreg_mask = vreg(3); // full byte-mask
     Xmm xreg_mask_lo = xreg(
-            2); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
+            3); // low 128-bits part of byte-mask (alias for xmm part of vreg_mask)
     Xmm xreg_mask_hi = xreg(
-            3); // "max" - high 128-bits part of byte-mask (stored separately)
+            4); // "max" - high 128-bits part of byte-mask (stored separately)
+    Vmm vreg_tail = vreg(5);
 
     // vreg_mask shifted left (aligned left) to be used in tail processing.
     // Example:       idx [31..0]
     //          vreg_mask = [0,0,0,0,0,.....,0,x,x,x,x,x] ; x => byte mask (msb set)
     //          vreg_mask_2 = [x,x,x,x,x,0,0,0,0,0,.....,0]
-    Vmm vreg_mask_2 = vreg(5);
-    Xmm xreg_mask_2_lo = xreg(5); // similar to xreg_mask_lo
-    Xmm xreg_mask_2_hi = xreg(6); // similar to xreg_mask_hi
+    Vmm vreg_mask_2 = vreg(6);
+    Xmm xreg_mask_2_lo = xreg(6); // similar to xreg_mask_lo
+    Xmm xreg_mask_2_hi = xreg(7); // similar to xreg_mask_hi
 
-    Vmm vreg_mask_q = vreg(3); // "avg" - 1/4 part for non-zero tails
+    Vmm vreg_mask_q = vreg(4); // "avg" - 1/4 part for non-zero tails
     Mmx mmx_dst_i8 = Mmx(
             0); // "avg" - Mmx reg for masked store results of s8/u8 operations
     Mmx mmx_full_msk = Mmx(
@@ -139,9 +140,9 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator_t {
     std::unique_ptr<injector::jit_uni_postops_injector_t<Vmm>>
             postops_injector_;
 
-    enum : int { max_vidx_base = utils::one_of(isa, avx2) ? 7 : 2 };
+    enum : int { max_vidx_base = utils::one_of(isa, avx2) ? 8 : 3 };
     //"avg" pool uses more registers for unrolling.
-    enum : int { avg_vidx_base = utils::one_of(isa, avx2) ? 4 : 2 };
+    enum : int { avg_vidx_base = utils::one_of(isa, avx2) ? 5 : 3 };
 
     Vmm max_base_vr(int idx) const { return vreg(max_vidx_base + idx); }
     Vmm avg_base_vr(int idx) const { return vreg(avg_vidx_base + idx); }
@@ -330,7 +331,8 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::pack_dst(
     };
 
     for (int ll = 0; ll < num_active_ll; ll++)
-        uni_vcvtps2dq(vreg_dst_f32_max(ll), vreg_dst_f32_max(ll));
+        saturate_cvt_f32(
+                vreg_dst_f32_max(ll), vreg_zeros, vreg_ubound, jpp.dst_dt);
 
     // s32 -> s16 always saturates as signed; the final uni_vpackuswb clamps to
     // [0, 255] for u8, so an unsigned first stage is not needed.
@@ -931,7 +933,10 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::compute_max_step(
             postops_injector_->compute_vector_range(vmm_idxs, rhs_arg_params);
 
             switch (jpp.src_dt) {
-                case s32: uni_vcvtps2dq(vreg_dst(jj), vreg_dst(jj)); break;
+                case s32:
+                    saturate_cvt_f32(
+                            vreg_dst(jj), vreg_zeros, vreg_ubound, jpp.dst_dt);
+                    break;
                 case s8: pack_dst(jj, num_active_ll, true); break;
                 case u8: pack_dst(jj, num_active_ll, false); break;
                 default: assert(!"unsupported src data type");
@@ -1313,7 +1318,9 @@ void jit_uni_i8i8_pooling_fwd_ker_t<isa>::generate() {
 
 #undef READ_PARAM
 
-    uni_vpxor(vreg_zeros, vreg_zeros, vreg_zeros);
+    init_saturate_f32(vreg_zeros, vreg_ubound, reg_tmp, f32, jpp.dst_dt);
+
+    if (jpp.src_dt != u8) uni_vpxor(vreg_zeros, vreg_zeros, vreg_zeros);
 
     init_mask();
 
