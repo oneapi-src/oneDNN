@@ -163,7 +163,7 @@
 #define REG_REORDER_P(...) __VA_ARGS__
 #else
 #define REG_REORDER_P(...) \
-    {}
+    { nullptr }
 #endif
 
 #if BUILD_PRIMITIVE_ALL || BUILD_RESAMPLING
