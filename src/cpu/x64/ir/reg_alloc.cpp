@@ -38,13 +38,18 @@
 // 2. The Control-Flow Graph
 //
 // To know what is read later we must know what runs after what. In this IR
-// that is nearly trivial. Each operation flows to the next, with three
+// that is nearly trivial. Each operation flows to the next, with five
 // exceptions:
 //   1. loop_end has two successors. It can fall through, or jump back to the
 //      body start (`back-edge`).
-//   2. jz has two successors. It can fall through, or jump to its label
+//   2. if_begin has two successors. It can fall through into the then body,
+//      or jump past it to the else body or out of the conditional
 //      (`forward-edge`).
-//   3. jmp has one successor. It redirects to its label (`forward edge`).
+//   3. _else has one successor. The end of the then body jumps over the else
+//      body to the matching if_end (`forward-edge`).
+//   4. jz has two successors. It can fall through, or jump to its label
+//      (`forward-edge`).
+//   5. jmp has one successor. It redirects to its label (`forward edge`).
 //
 //     Back-edge example:
 //
@@ -202,6 +207,15 @@ void compute_liveness(
         if (ir.ops()[i].kind == op_kind_t::label)
             label_to_op[(int)ir.ops()[i].label_id] = i;
 
+    // The _else and if_end of each if_begin, by op index. -1 for a conditional
+    // without an else, and at ops that are not an if_begin.
+    std::vector<int> else_of(n_ops, -1), end_of(n_ops, -1);
+    for (int i = 0; i < n_ops; i++) {
+        const op_t &op = ir.ops()[i];
+        if (op.kind == op_kind_t::_else) else_of[op.match] = i;
+        if (op.kind == op_kind_t::if_end) end_of[op.match] = i;
+    }
+
     for (int i = 0; i < n_ops; i++) {
         const op_t &op = ir.ops()[i];
         ir.def_use(op, def_vregs, use_vregs);
@@ -216,6 +230,14 @@ void compute_liveness(
         if (op.kind == op_kind_t::loop_end) {
             if (i + 1 < n_ops) successors[i].push_back(i + 1);
             successors[i].push_back(op.match + 1);
+        } else if (op.kind == op_kind_t::if_begin) {
+            assert(end_of[i] >= 0 && "if_begin without if_end");
+            // A false condition continues at the else body, or at if_end.
+            successors[i].push_back(i + 1);
+            successors[i].push_back(
+                    else_of[i] >= 0 ? else_of[i] + 1 : end_of[i]);
+        } else if (op.kind == op_kind_t::_else) {
+            successors[i].push_back(end_of[op.match]);
         } else if (op.kind == op_kind_t::jmp) {
             successors[i].push_back(label_to_op[(int)op.label_id]);
         } else if (op.kind == op_kind_t::jz) {

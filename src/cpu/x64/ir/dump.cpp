@@ -58,11 +58,29 @@ const char *kind_name(op_kind_t kind) {
         case op_kind_t::prefetch: return "prefetch";
         case op_kind_t::loop_begin: return "loop_begin";
         case op_kind_t::loop_end: return "loop_end";
+        case op_kind_t::if_begin: return "if_begin";
+        case op_kind_t::_else: return "_else";
+        case op_kind_t::if_end: return "if_end";
         case op_kind_t::label: return "label";
         case op_kind_t::jmp: return "jmp";
         case op_kind_t::jz: return "jz";
     }
     assert(!"unknown op kind");
+
+    return "?";
+}
+
+// Returns `cmp` as the C++ operator it stands for.
+const char *cmp_name(cmp_t cmp) {
+    switch (cmp) {
+        case cmp_t::eq: return "==";
+        case cmp_t::ne: return "!=";
+        case cmp_t::lt: return "<";
+        case cmp_t::le: return "<=";
+        case cmp_t::gt: return ">";
+        case cmp_t::ge: return ">=";
+    }
+    assert(!"unknown comparison");
 
     return "?";
 }
@@ -209,8 +227,9 @@ std::string postops_str(const ir_t &ir, const op_t &op, cpu_isa_t isa,
 
 // Returns the text of one operation, without index or indentation. Every kind
 // prints as its name followed by its operands, except the control-flow
-// markers. A loop prints as an opening and a closing brace, and a label prints
-// as `L<id>:`. Each vreg shows its location.
+// markers. A loop or a conditional prints as an opening and a closing brace,
+// an `_else` prints as `} else {`, and a label prints as `L<id>:`. Each vreg
+// shows its location.
 std::string op_str(const ir_t &ir, const op_t &op, cpu_isa_t isa,
         const reg_alloc_result_t &alloc, const std::vector<temp_reg_t> *temps) {
     const auto r = [&](vreg_t v) { return vreg_str(ir, v, isa, alloc, temps); };
@@ -252,6 +271,13 @@ std::string op_str(const ir_t &ir, const op_t &op, cpu_isa_t isa,
                     + " {";
         case op_kind_t::loop_end:
             return "} // " + r(op.dst) + " -= 1, repeat while > 0";
+        case op_kind_t::if_begin:
+            return "if (" + r(op.s0) + " " + cmp_name(op.cmp) + " "
+                    + (op.s1 != vreg_t::none ? r(op.s1)
+                                             : std::to_string(op.imm))
+                    + ") {";
+        case op_kind_t::_else: return "} else {";
+        case op_kind_t::if_end: return "}";
         case op_kind_t::label: return label_str(op.label_id) + ":";
         case op_kind_t::jmp: return k + label_str(op.label_id);
         case op_kind_t::jz: return k + r(op.s0) + ", " + label_str(op.label_id);
@@ -387,12 +413,15 @@ std::string ir_dump(const ir_t &ir, cpu_isa_t isa, const reg_pools_t &pools,
         ss << " " << name;
     ss << " | operation\n";
 
-    // Indentation follows the loop nesting. A loop's closing line is indented
-    // like its opening line, so the body stands out between the two.
+    // Indentation follows the nesting of loops and conditionals. A closing
+    // line, and the `} else {` line of a conditional, is indented like the
+    // opening line, so each body stands out between them.
     int depth = 0;
     for (int i = 0; i < ir.n_ops(); i++) {
         const op_t &op = ir.ops()[i];
-        if (op.kind == op_kind_t::loop_end) depth--;
+        if (utils::one_of(op.kind, op_kind_t::loop_end, op_kind_t::_else,
+                    op_kind_t::if_end))
+            depth--;
 
         ss << std::setw(5) << i << " | ";
         // Each number is right-aligned under the name of its file.
@@ -401,7 +430,9 @@ std::string ir_dump(const ir_t &ir, cpu_isa_t isa, const reg_pools_t &pools,
         ss << "| " << std::string(2 * std::max(depth, 0), ' ')
            << op_str(ir, op, isa, alloc, &alloc.temps[i]) << "\n";
 
-        if (op.kind == op_kind_t::loop_begin) depth++;
+        if (utils::one_of(op.kind, op_kind_t::loop_begin, op_kind_t::if_begin,
+                    op_kind_t::_else))
+            depth++;
     }
 
     return ss.str();

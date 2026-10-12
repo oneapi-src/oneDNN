@@ -15,6 +15,9 @@
 *******************************************************************************/
 
 #include <cassert>
+#include <cstdint>
+
+#include "common/z_magic.hpp"
 
 #include "cpu/x64/ir/ir.hpp"
 
@@ -242,7 +245,9 @@ int ir_t::loop_begin_imm(vreg_t counter, dim_t count) {
     op.dst = counter;
     op.imm = count;
     ops_.push_back(op);
-    return (int)ops_.size() - 1;
+    const int idx = (int)ops_.size() - 1;
+    open_regions_.push_back({idx, idx, false});
+    return idx;
 }
 
 int ir_t::loop_begin_reg(vreg_t counter, vreg_t init) {
@@ -252,10 +257,17 @@ int ir_t::loop_begin_reg(vreg_t counter, vreg_t init) {
     op.s0 = init;
     op.init_is_reg = true;
     ops_.push_back(op);
-    return (int)ops_.size() - 1;
+    const int idx = (int)ops_.size() - 1;
+    open_regions_.push_back({idx, idx, false});
+    return idx;
 }
 
 void ir_t::loop_end(vreg_t counter, int begin_idx) {
+    assert(!open_regions_.empty() && open_regions_.back().head == begin_idx
+            && ops_[begin_idx].kind == op_kind_t::loop_begin
+            && "loop_end: not the innermost open loop");
+    open_regions_.pop_back();
+
     op_t op;
     op.kind = op_kind_t::loop_end;
     op.dst = counter;
@@ -283,6 +295,79 @@ void ir_t::jz(vreg_t cond, label_t label_id) {
     op.s0 = cond;
     op.label_id = label_id;
     ops_.push_back(op);
+}
+
+int ir_t::if_begin(vreg_t lhs, cmp_t cmp, dim_t imm) {
+    // To compare with a constant wider than 32 bits, load it with `mov_imm`
+    // and use the gpr overload.
+    assert(imm == (int32_t)imm && "if_begin: immediate exceeds 32 bits");
+    return append_if_begin(lhs, cmp, vreg_t::none, imm);
+}
+
+int ir_t::if_begin(vreg_t lhs, cmp_t cmp, vreg_t rhs) {
+    assert(rhs != vreg_t::none && "if_begin: rhs is required");
+    return append_if_begin(lhs, cmp, rhs, 0);
+}
+
+void ir_t::else_if(int if_idx, vreg_t lhs, cmp_t cmp, dim_t imm) {
+    _else(if_idx);
+    if_begin(lhs, cmp, imm);
+    open_regions_.back().head = if_idx;
+}
+
+void ir_t::else_if(int if_idx, vreg_t lhs, cmp_t cmp, vreg_t rhs) {
+    _else(if_idx);
+    if_begin(lhs, cmp, rhs);
+    open_regions_.back().head = if_idx;
+}
+
+void ir_t::_else(int if_idx) {
+    assert_innermost_if(if_idx);
+    open_region_t &top = open_regions_.back();
+    assert(!top.has_else && "_else: the conditional already has an else");
+    top.has_else = true;
+
+    op_t op;
+    op.kind = op_kind_t::_else;
+    op.match = top.begin;
+    ops_.push_back(op);
+}
+
+void ir_t::if_end(int if_idx) {
+    assert_innermost_if(if_idx);
+    // Close the ifs that `else_if` opened, innermost first, then `if_idx`.
+    while (!open_regions_.empty() && open_regions_.back().head == if_idx) {
+        op_t op;
+        op.kind = op_kind_t::if_end;
+        op.match = open_regions_.back().begin;
+        ops_.push_back(op);
+        open_regions_.pop_back();
+    }
+}
+
+int ir_t::append_if_begin(vreg_t lhs, cmp_t cmp, vreg_t rhs, dim_t imm) {
+    assert(lhs != vreg_t::none && vreg_info_[(int)lhs].kind == reg_kind_t::gpr
+            && "if_begin: lhs must be a gpr");
+    assert((rhs == vreg_t::none || vreg_info_[(int)rhs].kind == reg_kind_t::gpr)
+            && "if_begin: rhs must be a gpr");
+
+    op_t op;
+    op.kind = op_kind_t::if_begin;
+    op.s0 = lhs;
+    op.s1 = rhs;
+    op.imm = imm;
+    op.cmp = cmp;
+    ops_.push_back(op);
+    const int idx = (int)ops_.size() - 1;
+    open_regions_.push_back({idx, idx, false});
+    return idx;
+}
+
+void ir_t::assert_innermost_if(int if_idx) const {
+    assert(!open_regions_.empty() && open_regions_.back().head == if_idx
+            && ops_[open_regions_.back().begin].kind == op_kind_t::if_begin
+            && "else_if/_else/if_end: not the innermost open conditional");
+    MAYBE_UNUSED(if_idx);
 }
 
 // For each operation, we record which virtual registers it reads (uses)
@@ -390,6 +475,12 @@ void ir_t::def_use(
             u(op.dst);
             d(op.dst);
             break;
+        case op_kind_t::if_begin:
+            u(op.s0);
+            u(op.s1); // none for an immediate right-hand side
+            break;
+        case op_kind_t::_else:
+        case op_kind_t::if_end: break;
         case op_kind_t::label:
         case op_kind_t::jmp: break;
         case op_kind_t::jz: u(op.s0); break;

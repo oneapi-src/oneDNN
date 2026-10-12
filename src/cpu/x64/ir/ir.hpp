@@ -49,6 +49,7 @@
 //
 // Loops are explicit structured nodes with a runtime counter register
 // (loop_begin/loop_end). Compile-time loops are unrolled by the builder.
+// Conditionals are explicit structured nodes too (if_begin/_else/if_end).
 
 #include <vector>
 
@@ -79,6 +80,10 @@ enum class vreg_t : int { none = -1 };
 
 // A label id names a jump target for label/jmp/jz.
 enum class label_t : int { none = -1 };
+
+// Integer comparison of a conditional (see `if_begin`). Signed, because gpr
+// values in this IR are counts, offsets, and flags.
+enum class cmp_t { eq, ne, lt, le, gt, ge };
 
 enum class op_kind_t {
     // General-purpose register operations
@@ -147,6 +152,14 @@ enum class op_kind_t {
     loop_begin,
     // decrement counter and jump to matching loop_begin if not zero
     loop_end,
+    // if s0 `cmp` (s1, or imm when s1 is none) holds, fall through into the
+    // then body. Otherwise continue after the matching _else, or at the
+    // matching if_end when there is no else.
+    if_begin,
+    // start the else body, which the then body skips
+    _else,
+    // close the conditional
+    if_end,
     // bind label id `label_id`
     label,
     // jump to label id `label_id`
@@ -192,12 +205,16 @@ struct mem_t {
 //         * loop_begin     -> loop trip count
 //         * set_mask_imm   -> active element count
 //         * inject_postops -> index into inject_postops_args()
+//         * if_begin       -> right-hand side of the comparison when s1 is
+//                             none
 // mem   - memory address used only by load/store operations.
 // mem_dt - element data type in memory, set by every vector load and store. It
 //        is the data type of the vreg when the access moves the value as it
 //        is, and a different one when the access converts.
-// match - for loop_end, index of matching loop_begin operation.
+// match - for loop_end, index of matching loop_begin operation. For _else and
+//         if_end, index of matching if_begin operation.
 // label_id - target label id for label/jmp/jz. When unused it's `none`.
+// cmp   - for if_begin, how s0 is compared with s1 or imm.
 // init_is_reg - for loop_begin, if true, initialize loop counter from s0
 //                (runtime value) instead of imm.
 struct op_t {
@@ -209,6 +226,7 @@ struct op_t {
     data_type_t mem_dt = data_type::undef;
     int match = -1;
     label_t label_id = label_t::none;
+    cmp_t cmp = cmp_t::eq;
     bool init_is_reg = false;
 };
 
@@ -347,6 +365,31 @@ struct DNNL_API ir_t {
     void jmp(label_t label_id);
     void jz(vreg_t cond, label_t label_id);
 
+    // Open a conditional on `lhs cmp imm`, or on `lhs cmp rhs` for a gpr
+    // `rhs`. Return the op index, which the `else_if`, `_else`, and `if_end`
+    // of the same statement take as `if_idx`. `imm` must fit in 32 bits.
+    //
+    // Example:
+    //   const int if_idx = ir.if_begin(pos, cmp_t::lt, 16);
+    //   ...                                   // pos < 16
+    //   ir.else_if(if_idx, pos, cmp_t::lt, 32);
+    //   ...                                   // 16 <= pos < 32
+    //   ir._else(if_idx);
+    //   ...                                   // pos >= 32
+    //   ir.if_end(if_idx);
+    int if_begin(vreg_t lhs, cmp_t cmp, dim_t imm);
+    int if_begin(vreg_t lhs, cmp_t cmp, vreg_t rhs);
+    // Close the current branch of `if_idx` and open one on a new condition.
+    // This appends `_else` followed by a nested `if_begin`.
+    void else_if(int if_idx, vreg_t lhs, cmp_t cmp, dim_t imm);
+    void else_if(int if_idx, vreg_t lhs, cmp_t cmp, vreg_t rhs);
+    // Close the current branch of `if_idx` and open the branch taken when no
+    // condition of the statement holds.
+    void _else(int if_idx);
+    // Close the conditional `if_idx`, including the ifs its `else_if` calls
+    // opened.
+    void if_end(int if_idx);
+
     // Fill defs/uses with the vregs this operation writes/reads. Liveness and
     // the allocator depend on it, so it must match what the emitter emits.
     void def_use(const op_t &op, std::vector<int> &defs,
@@ -357,12 +400,37 @@ private:
     // Return its id.
     vreg_t new_vreg(reg_kind_t k, data_type_t dt = data_type::undef);
 
+    // Append an `if_begin`.
+    int append_if_begin(vreg_t lhs, cmp_t cmp, vreg_t rhs, dim_t imm);
+
+    // Check that `if_idx` is the chain head of the innermost open conditional,
+    // the only one `else_if`, `_else`, and `if_end` may continue or close.
+    void assert_innermost_if(int if_idx) const;
+
+    // A loop or conditional that has been opened and not yet closed.
+    //   begin    - op index of its own loop_begin or if_begin, which its
+    //              `_else`, `if_end`, or `loop_end` links to through `match`
+    //   head     - op index of the first if_begin of its `else_if` chain (the
+    //              chain head), which the builder passes as `if_idx`. It is
+    //              equal to `begin` unless `else_if` opened this if. Every
+    //              entry with the same head is closed by one `if_end(head)`.
+    //   has_else - `_else` was appended for `begin`
+    struct open_region_t {
+        int begin;
+        int head;
+        bool has_else;
+    };
+
     // Info for each vreg, indexed by its id
     std::vector<vreg_info_t> vreg_info_;
     // All operations, in order
     std::vector<op_t> ops_;
     // Arguments of each `inject_postops` operation.
     std::vector<inject_postops_args_t> inject_postops_args_;
+    // Open loops and conditionals, innermost last. The builder calls use it to
+    // check nesting, and `if_end` uses it to find the ifs that `else_if`
+    // opened.
+    std::vector<open_region_t> open_regions_;
 
     // Label counter.
     int n_labels_ = 0;
