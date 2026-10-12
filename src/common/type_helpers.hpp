@@ -607,7 +607,28 @@ inline data_type_t default_accum_data_type(data_type_t src_dt,
 
 inline bool is_integral_dt(data_type_t dt) {
     using namespace data_type;
-    return utils::one_of(dt, s64, s32, s8, u8, u4, s4, u2, u3);
+    switch ((int)dt) {
+        case s64:
+        case s32:
+        case s8:
+        case u8:
+        case u4:
+        case s4:
+        case u2:
+        case u3: return true;
+        case f4_e2m1:
+        case e8m0:
+        case f8_e5m2:
+        case f8_e4m3:
+        case f16:
+        case bf16:
+        case tf32:
+        case f32:
+        case f64:
+        case boolean: return false;
+        case data_type::undef:
+        default: assert(!"unknown data_type"); return false;
+    }
 }
 
 template <typename data_t>
