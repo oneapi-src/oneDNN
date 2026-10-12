@@ -77,10 +77,9 @@ static void fuse(std::vector<uint8_t> &binary,
 
     bool foundZeInfo = false;
     const char *snames = nullptr;
-    std::vector<std::pair<SectionHeader *, int>> textSections;
+    std::vector<std::pair<SectionHeader, int>> textSections;
 
-    auto *sheaders = reinterpret_cast<SectionHeader *>(
-            base + fheader.sectionTableOff);
+    auto sheaders = sectionHeaders(binary);
 
     snames = reinterpret_cast<char *>(
             base + sheaders[fheader.strTableIndex].offset);
@@ -95,7 +94,7 @@ static void fuse(std::vector<uint8_t> &binary,
                         continue;
                     if (sname.substr(0, 6) != ".text.") continue;
                 }
-                textSections.emplace_back(sheaders + s, s);
+                textSections.emplace_back(sheaders[s], s);
                 break;
             }
             default: break;
@@ -107,13 +106,13 @@ static void fuse(std::vector<uint8_t> &binary,
                 "IGC did not generate a valid zebin program binary");
 
     for (auto &entry : textSections) {
-        auto *text = entry.first;
+        auto text = entry.first;
         int textSectionID = entry.second;
-        if (text->offset + text->size > bytes) continue;
+        if (!sectionInBounds(binary, text)) continue;
 
-        auto *insn = reinterpret_cast<const uint32_t *>(base + text->offset);
+        auto *insn = reinterpret_cast<const uint32_t *>(base + text.offset);
         auto *iend = reinterpret_cast<const uint32_t *>(
-                base + text->offset + text->size);
+                base + text.offset + text.size);
 
         const uint8_t *spliceStart = nullptr;
         const uint8_t *spliceEnd = nullptr;
@@ -132,11 +131,11 @@ static void fuse(std::vector<uint8_t> &binary,
         if (!spliceStart || !spliceEnd) continue;
 
         // Validate the argument placement against the selected base.
-        if (check && snames) checkPayload(*check, snames + text->name + 6);
+        if (check && snames) checkPayload(*check, snames + text.name + 6);
 
         int relSectionID = -1;
         std::string rname = ".rel";
-        rname += (snames + text->name);
+        rname += (snames + text.name);
         for (int s = 0; s < fheader.sectionCount; s++) {
             if (sheaders[s].type != SectionHeader::Type::Relocation) continue;
             if (rname != (snames + sheaders[s].name)) continue;
@@ -151,7 +150,7 @@ static void fuse(std::vector<uint8_t> &binary,
         size_t before = spliceStart - base;
         auto after = bytes - before - removeBytes;
 
-        auto kbefore = before - text->offset;
+        auto kbefore = before - text.offset;
 
         /* Keep the microkernel's (uncompacted) instructions 16-byte aligned
            so they do not straddle instruction cache lines. */
@@ -161,7 +160,7 @@ static void fuse(std::vector<uint8_t> &binary,
 
         ptrdiff_t sizeAdjust = blob.size() - removeBytes;
 
-        auto kafter = text->size - kbefore - removeBytes;
+        auto kafter = text.size - kbefore - removeBytes;
 
         std::vector<uint8_t> newBinary(bytes + sizeAdjust);
         auto newBase = newBinary.data();
@@ -171,7 +170,7 @@ static void fuse(std::vector<uint8_t> &binary,
         memmove(newBase + before + blob.size(),
                 spliceStart + removeBytes, after);
 
-        fixupJumpTargets(newBase + text->offset, kbefore, +sizeAdjust);
+        fixupJumpTargets(newBase + text.offset, kbefore, +sizeAdjust);
         fixupJumpTargets(
                 newBase + before + blob.size(), kafter, -sizeAdjust);
 
@@ -180,18 +179,18 @@ static void fuse(std::vector<uint8_t> &binary,
             storeFileHeader(newBinary, fheader);
         }
 
-        sheaders = reinterpret_cast<SectionHeader *>(
-                newBase + fheader.sectionTableOff);
+        sheaders = sectionHeaders(newBinary);
         sheaders[textSectionID].size += sizeAdjust;
         for (int s = 0; s < fheader.sectionCount; s++)
             if (sheaders[s].offset > before) sheaders[s].offset += sizeAdjust;
+        storeSectionHeaders(newBinary, sheaders);
 
         if (relSectionID >= 0) {
-            auto relSection = sheaders + relSectionID;
+            auto relSection = sheaders[relSectionID];
             auto rel = reinterpret_cast<Relocation *>(
-                    newBase + relSection->offset);
+                    newBase + relSection.offset);
             auto relEnd = reinterpret_cast<Relocation *>(
-                    newBase + relSection->offset + relSection->size);
+                    newBase + relSection.offset + relSection.size);
             for (; rel < relEnd; rel++) {
                 if (rel->offset >= kbefore) rel->offset += sizeAdjust;
             }
@@ -216,33 +215,26 @@ static void fuse(std::vector<uint8_t> &binary,
 // Drop the zebin SPIR-V section (ZebinSpirv -> Null) so the runtime can't
 // rebuild the program from stale IR and lose the spliced-in microkernels.
 static void stripIntermediateRepresentation(std::vector<uint8_t> &binary) {
-    auto base = binary.data();
     if (!isZebin(binary)) return;
     auto fheader = fileHeader(binary);
-
-    auto *sheaders = reinterpret_cast<SectionHeader *>(
-            base + fheader.sectionTableOff);
+    auto sheaders = sectionHeaders(binary);
     for (int s = 0; s < fheader.sectionCount; s++)
         if (sheaders[s].type == SectionHeader::ZebinSpirv)
             sheaders[s].type = SectionHeader::Null;
+    storeSectionHeaders(binary, sheaders);
 }
 
 static bool findZeInfo(
         const std::vector<uint8_t> &binary, const char *&text, size_t &length) {
-    auto base = binary.data();
-    auto bytes = binary.size();
-
     if (!isZebin(binary)) return false;
     auto fheader = fileHeader(binary);
 
-    auto *sheaders = reinterpret_cast<const SectionHeader *>(
-            base + fheader.sectionTableOff);
+    auto sheaders = sectionHeaders(binary);
     for (int s = 0; s < fheader.sectionCount; s++) {
         if (sheaders[s].type != SectionHeader::Type::ZeInfo) continue;
-        if (sheaders[s].offset > bytes
-                || sheaders[s].size > bytes - sheaders[s].offset)
-            return false;
-        text = reinterpret_cast<const char *>(base + sheaders[s].offset);
+        if (!sectionInBounds(binary, sheaders[s])) return false;
+        text = reinterpret_cast<const char *>(
+                binary.data() + sheaders[s].offset);
         length = size_t(sheaders[s].size);
         return true;
     }

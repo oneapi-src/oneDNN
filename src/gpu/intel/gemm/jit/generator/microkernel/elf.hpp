@@ -17,6 +17,7 @@
 #ifndef GEMMSTONE_GENERATOR_MICROKERNEL_ELF_HPP
 #define GEMMSTONE_GENERATOR_MICROKERNEL_ELF_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
@@ -128,6 +129,45 @@ inline void storeFileHeader(
     if (binary.size() < sizeof(header))
         throw std::runtime_error("Invalid zebin file header");
     std::memcpy(binary.data(), &header, sizeof(header));
+}
+
+inline std::vector<SectionHeader> sectionHeaders(
+        const std::vector<uint8_t> &binary) {
+    auto header = fileHeader(binary);
+    std::vector<SectionHeader> sections(header.sectionCount);
+    if (!sections.empty())
+        std::memcpy(sections.data(), binary.data() + header.sectionTableOff,
+                sections.size() * sizeof(SectionHeader));
+    return sections;
+}
+
+inline SectionHeader sectionHeader(
+        const std::vector<uint8_t> &binary, std::size_t index) {
+    auto header = fileHeader(binary);
+    if (index >= header.sectionCount)
+        throw std::runtime_error("Invalid zebin section index");
+    SectionHeader section;
+    std::memcpy(&section,
+            binary.data() + header.sectionTableOff
+                    + index * sizeof(SectionHeader),
+            sizeof(section));
+    return section;
+}
+
+inline void storeSectionHeaders(std::vector<uint8_t> &binary,
+        const std::vector<SectionHeader> &sections) {
+    auto header = fileHeader(binary);
+    if (sections.size() != header.sectionCount)
+        throw std::runtime_error("Invalid zebin section table");
+    if (!sections.empty())
+        std::memcpy(binary.data() + header.sectionTableOff, sections.data(),
+                sections.size() * sizeof(SectionHeader));
+}
+
+inline bool sectionInBounds(
+        const std::vector<uint8_t> &binary, const SectionHeader &section) {
+    return section.offset <= binary.size()
+            && section.size <= binary.size() - section.offset;
 }
 
 }
