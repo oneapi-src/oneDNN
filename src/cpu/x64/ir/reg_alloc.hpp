@@ -143,10 +143,9 @@ struct reg_pools_t {
 //      Formula: live_out[i] = union of live_in over all successors of `i`
 //
 // Scan each `i` from last to first, and repeat the whole scan until nothing
-// changes (the fixed point). Successors are `i+1` for a plain operation, the
-// label for jmp/jz, `i+1` plus the loop body start for loop_end (the
-// back-edge), `i+1` plus the else body or the if_end for if_begin, and the
-// if_end for _else.
+// changes (the fixed point). Successors are `i+1` for a plain operation, `i+1`
+// plus the loop body start for loop_end (the back-edge), `i+1` plus the else
+// body or the if_end for if_begin, and the if_end for _else.
 //
 // Small example: `p` is read at the top of a loop body and rewritten at the
 // bottom:

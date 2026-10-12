@@ -128,7 +128,8 @@ output with `ir::print_kernel_dump()` (see Debug Output).
 * **Structured control flow.** Loops and conditionals are explicit nested
   nodes. A loop (`loop_begin`/`loop_end`) has a runtime counter. A conditional
   (`if_begin`/`_else`/`if_end`) compares a gpr with a gpr or a build-time
-  constant, and `else_if` chains nest one conditional inside another.
+  constant, and `else_if` chains nest one conditional inside another. There are
+  no labels or jumps.
 * **Separation of concerns is the invariant to protect.** The builder is
   target-neutral, ISA and data-type knowledge lives only in the emitter and the
   register configuration, and the allocator knows only kinds and control flow.
@@ -271,7 +272,7 @@ marked `...` are left out.
 
 ```
 begin x64ir jit_brgemm_ir_kernel_t isa=avx512_core
-code: 1339 bytes (instructions 1339 bytes, static data 0 bytes)
+code: 1336 bytes (instructions 1336 bytes, static data 0 bytes)
 alloc gpr: pool 14, peak 15 at op 39, spilled 1
 alloc vec: pool 32, peak 19 at op 42, spilled 0
 alloc mask: pool 7, peak 0, spilled 0
@@ -282,27 +283,27 @@ index | gpr vec mask | operation
     1 |   2   0    0 | load g1@[rsp+0](temp rcx), [param+16]
     2 |   3   0    0 | load g2@rdx, [param+96]
 ...
-    9 |   9   0    0 | jz g8@r10, L0
-   10 |   9   0    0 | load g0@rax, [param+40]
-   11 |   9   0    0 | L0:
+    9 |   9   0    0 | if (g8@r10 != 0) {
+   10 |   9   0    0 |   load g0@rax, [param+40]
+   11 |   9   0    0 | }
    12 |  10   0    0 | loop g9@r11 = 2 {
    13 |  10   1    0 |   vzero f32:v10@zmm0
 ...
    29 |  11  16    0 |   mov_reg g28@r12, g1@[rsp+0](temp rcx)
-   30 |  11  16    0 |   jz g2@rdx, L1
-   31 |  12  16    0 |   loop g30@r13 = g2@rdx {
-   32 |  13  16    0 |     load g31@r14, [g28@r12+0]
+   30 |  11  16    0 |   if (g2@rdx > 0) {
+   31 |  12  16    0 |     loop g30@r13 = g2@rdx {
+   32 |  13  16    0 |       load g31@r14, [g28@r12+0]
 ...
-   39 |  15  16    0 |     loop g33@rcx = 16 {
-   40 |  15  17    0 |       vload f32:v26@zmm16, f32:[g32@r15+0]
-   41 |  15  18    0 |       vload f32:v27@zmm17, f32:[g32@r15+64]
-   42 |  15  19    0 |       vload_bcast f32:v29@zmm18, f32:[g31@r14+0]
-   43 |  15  19    0 |       prefetch [g32@r15+512]
-   44 |  15  19    0 |       vdot f32:v10@zmm0, f32:v26@zmm16, f32:v29@zmm18
+   39 |  15  16    0 |       loop g33@rcx = 16 {
+   40 |  15  17    0 |         vload f32:v26@zmm16, f32:[g32@r15+0]
+   41 |  15  18    0 |         vload f32:v27@zmm17, f32:[g32@r15+64]
+   42 |  15  19    0 |         vload_bcast f32:v29@zmm18, f32:[g31@r14+0]
+   43 |  15  19    0 |         prefetch [g32@r15+512]
+   44 |  15  19    0 |         vdot f32:v10@zmm0, f32:v26@zmm16, f32:v29@zmm18
 ...
-  154 |  15  16    0 |     } // g33@rcx -= 1, repeat while > 0
-  155 |  12  16    0 |   } // g30@r13 -= 1, repeat while > 0
-  156 |  10  16    0 |   L1:
+  154 |  15  16    0 |       } // g33@rcx -= 1, repeat while > 0
+  155 |  12  16    0 |     } // g30@r13 -= 1, repeat while > 0
+  156 |  10  16    0 |   }
 ...
   177 |  10  16    0 |   vstore f32:[g0@rax+0], f32:v10@zmm0
 ...
@@ -346,10 +347,8 @@ destination comes first. Operands print as follows:
   `[param+<disp>]` is a field of the kernel argument struct.
 * `<dt>:[...]` specifies the in-memory data type of a vector load or store. A
   converting access shows two types, for example, `vload f32:v3, bf16:[g0+0]`.
-* `L<id>` is an IR label, the target of `jmp` and `jz`.
 
-Loops, conditionals, and labels print in a special form, and the bodies of
-loops and conditionals are indented:
+Loops and conditionals print in a special form, and their bodies are indented:
 
 * `loop g9 = 2 {` is `loop_begin` with the counter `g9` and the iteration count
   `2`. The count can also be a virtual register, as in `loop g30 = g2 {`.
@@ -359,7 +358,6 @@ loops and conditionals are indented:
   right-hand side is an immediate or a virtual register. `} else {` is
   `_else`, and `}` is `if_end`. An `else_if` prints as a conditional nested in
   the else of the one before, which is how the IR records it.
-* `L0:` is the `label` operation for the label `L0`.
 
 ## References
 

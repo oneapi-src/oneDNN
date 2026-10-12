@@ -41,8 +41,6 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
     // `loop_end` jumps back to `labels[op.match]`. A map, so only loops get an
     // entry.
     std::unordered_map<int, Xbyak::Label> labels;
-    // One label per `label` id, for `label`/`jmp`/`jz`.
-    std::vector<Xbyak::Label> label_id_to_label(ir.n_labels());
 
     // Labels of one conditional, keyed by its `if_begin` instruction index.
     //   skip     - where a false condition jumps. Bound by `_else`, or by
@@ -396,22 +394,6 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
             case op_kind_t::if_end: {
                 if_labels_t &l = if_labels[op.match];
                 gen.L(l.has_else ? l.end : l.skip);
-                break;
-            }
-            case op_kind_t::label: {
-                gen.L(label_id_to_label[(int)op.label_id]);
-                break;
-            }
-            case op_kind_t::jmp: {
-                gen.jmp(label_id_to_label[(int)op.label_id],
-                        Xbyak::CodeGenerator::T_NEAR);
-                break;
-            }
-            case op_kind_t::jz: {
-                Xbyak::Reg64 c = gpr_use(op.s0);
-                gen.cmp(c, 0);
-                gen.jz(label_id_to_label[(int)op.label_id],
-                        Xbyak::CodeGenerator::T_NEAR);
                 break;
             }
         }

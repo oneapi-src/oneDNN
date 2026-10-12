@@ -68,18 +68,14 @@ namespace ir {
 
 enum class reg_kind_t { gpr, vec, mask };
 
-// vreg_t and label_t are strong aliases for `int`. They are distinct id types
-// that do not implicitly convert to or from `int`, or to each other, so a
-// vreg, a label, and a raw int cannot be mixed up by accident. `none` marks an
-// unset id. Cast to `int` where a raw index is needed.
+// vreg_t is a strong alias for `int`. It does not implicitly convert to or from
+// `int`, so a vreg and a raw int cannot be mixed up by accident. `none` marks
+// an unset id. Cast to `int` where a raw index is needed.
 
 // A virtual register id. A placeholder the allocator later maps to a physical
 // register or a spill slot. Its kind (gpr/vec/mask) and, for a vec, element
 // data type live separately in vreg_info_.
 enum class vreg_t : int { none = -1 };
-
-// A label id names a jump target for label/jmp/jz.
-enum class label_t : int { none = -1 };
 
 // Integer comparison of a conditional (see `if_begin`). Signed, because gpr
 // values in this IR are counts, offsets, and flags.
@@ -160,12 +156,6 @@ enum class op_kind_t {
     _else,
     // close the conditional
     if_end,
-    // bind label id `label_id`
-    label,
-    // jump to label id `label_id`
-    jmp,
-    // if s0 == 0 jump to label id `label_id`
-    jz,
 };
 
 // A memory address of the form base register + displacement.
@@ -213,7 +203,6 @@ struct mem_t {
 //        is, and a different one when the access converts.
 // match - for loop_end, index of matching loop_begin operation. For _else and
 //         if_end, index of matching if_begin operation.
-// label_id - target label id for label/jmp/jz. When unused it's `none`.
 // cmp   - for if_begin, how s0 is compared with s1 or imm.
 // init_is_reg - for loop_begin, if true, initialize loop counter from s0
 //                (runtime value) instead of imm.
@@ -225,7 +214,6 @@ struct op_t {
     mem_t mem;
     data_type_t mem_dt = data_type::undef;
     int match = -1;
-    label_t label_id = label_t::none;
     cmp_t cmp = cmp_t::eq;
     bool init_is_reg = false;
 };
@@ -286,15 +274,12 @@ struct DNNL_API ir_t {
     const std::vector<inject_postops_args_t> &inject_postops_args() const {
         return inject_postops_args_;
     }
-    int n_labels() const { return n_labels_; }
 
     // Convenience wrappers around `new_vreg` for the specific kinds.
     vreg_t new_gpr() { return new_vreg(reg_kind_t::gpr); }
     vreg_t new_vec(data_type_t dt) { return new_vreg(reg_kind_t::vec, dt); }
     vreg_t new_mask() { return new_vreg(reg_kind_t::mask); }
 
-    // Add a new label and return its id
-    label_t new_label() { return static_cast<label_t>(n_labels_++); }
     int n_vregs() const { return (int)vreg_info_.size(); }
     int n_ops() const { return (int)ops_.size(); }
 
@@ -361,9 +346,6 @@ struct DNNL_API ir_t {
     // Close the loop opened by `loop_begin_imm` or `loop_begin_reg`, passing
     // the op index it returned as `begin_idx`.
     void loop_end(vreg_t counter, int begin_idx);
-    void label(label_t label_id);
-    void jmp(label_t label_id);
-    void jz(vreg_t cond, label_t label_id);
 
     // Open a conditional on `lhs cmp imm`, or on `lhs cmp rhs` for a gpr
     // `rhs`. Return the op index, which the `else_if`, `_else`, and `if_end`
@@ -431,9 +413,6 @@ private:
     // check nesting, and `if_end` uses it to find the ifs that `else_if`
     // opened.
     std::vector<open_region_t> open_regions_;
-
-    // Label counter.
-    int n_labels_ = 0;
 };
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -485,18 +464,17 @@ void emit_loop_imm(ir_t &ir, dim_t count_imm, body_t body, step_t step) {
 }
 
 // Loop with a runtime iteration count held in `count_reg`. Use this when the
-// iteration count is not known at IR generation time. A count of 0 skips the
-// loop. A negative count never reaches 0 and gets stuck, so the caller must
-// ensure count_reg >= 0.
+// iteration count is not known at IR generation time. A count of 0 or less
+// skips the loop.
 template <typename body_t>
 void emit_loop_reg(ir_t &ir, vreg_t count_reg, body_t body) {
     const vreg_t counter = ir.new_gpr();
-    const label_t skip = ir.new_label();
-    ir.jz(count_reg, skip); // zero-trip guard. A negative count gets stuck.
+    // A negative count gets stuck.
+    const int guard = ir.if_begin(count_reg, cmp_t::gt, 0);
     const int begin = ir.loop_begin_reg(counter, count_reg);
     body();
     ir.loop_end(counter, begin);
-    ir.label(skip);
+    ir.if_end(guard);
 }
 
 } // namespace ir
