@@ -61,9 +61,6 @@ const char *kind_name(op_kind_t kind) {
         case op_kind_t::if_begin: return "if_begin";
         case op_kind_t::_else: return "_else";
         case op_kind_t::if_end: return "if_end";
-        case op_kind_t::label: return "label";
-        case op_kind_t::jmp: return "jmp";
-        case op_kind_t::jz: return "jz";
     }
     assert(!"unknown op kind");
 
@@ -170,10 +167,6 @@ std::string file_name(const reg_pools_t &pools, int f) {
     return "file" + std::to_string(f);
 }
 
-std::string label_str(label_t l) {
-    return "L" + std::to_string((int)l);
-}
-
 // Returns the memory operand of `op`. `data` is the vec vreg the access moves,
 // or `none` for an access that moves no vec value (e.g. `load`, `prefetch`).
 std::string mem_str(const ir_t &ir, const op_t &op, vreg_t data, cpu_isa_t isa,
@@ -228,8 +221,7 @@ std::string postops_str(const ir_t &ir, const op_t &op, cpu_isa_t isa,
 // Returns the text of one operation, without index or indentation. Every kind
 // prints as its name followed by its operands, except the control-flow
 // markers. A loop or a conditional prints as an opening and a closing brace,
-// an `_else` prints as `} else {`, and a label prints as `L<id>:`. Each vreg
-// shows its location.
+// and an `_else` prints as `} else {`. Each vreg shows its location.
 std::string op_str(const ir_t &ir, const op_t &op, cpu_isa_t isa,
         const reg_alloc_result_t &alloc, const std::vector<temp_reg_t> *temps) {
     const auto r = [&](vreg_t v) { return vreg_str(ir, v, isa, alloc, temps); };
@@ -278,9 +270,6 @@ std::string op_str(const ir_t &ir, const op_t &op, cpu_isa_t isa,
                     + ") {";
         case op_kind_t::_else: return "} else {";
         case op_kind_t::if_end: return "}";
-        case op_kind_t::label: return label_str(op.label_id) + ":";
-        case op_kind_t::jmp: return k + label_str(op.label_id);
-        case op_kind_t::jz: return k + r(op.s0) + ", " + label_str(op.label_id);
     }
     assert(!"unknown op kind");
 

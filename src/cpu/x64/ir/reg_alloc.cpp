@@ -38,7 +38,7 @@
 // 2. The Control-Flow Graph
 //
 // To know what is read later we must know what runs after what. In this IR
-// that is nearly trivial. Each operation flows to the next, with five
+// that is nearly trivial. Each operation flows to the next, with three
 // exceptions:
 //   1. loop_end has two successors. It can fall through, or jump back to the
 //      body start (`back-edge`).
@@ -47,9 +47,6 @@
 //      (`forward-edge`).
 //   3. _else has one successor. The end of the then body jumps over the else
 //      body to the matching if_end (`forward-edge`).
-//   4. jz has two successors. It can fall through, or jump to its label
-//      (`forward-edge`).
-//   5. jmp has one successor. It redirects to its label (`forward edge`).
 //
 //     Back-edge example:
 //
@@ -200,13 +197,6 @@ void compute_liveness(
     std::vector<std::vector<int>> successors(n_ops);
     std::vector<int> def_vregs, use_vregs;
 
-    // Map label IDs to operation indices so jmp/jz can resolve their target
-    // locations when building the control-flow graph.
-    std::vector<int> label_to_op(ir.n_labels(), -1);
-    for (int i = 0; i < n_ops; i++)
-        if (ir.ops()[i].kind == op_kind_t::label)
-            label_to_op[(int)ir.ops()[i].label_id] = i;
-
     // The _else and if_end of each if_begin, by op index. -1 for a conditional
     // without an else, and at ops that are not an if_begin.
     std::vector<int> else_of(n_ops, -1), end_of(n_ops, -1);
@@ -238,11 +228,6 @@ void compute_liveness(
                     else_of[i] >= 0 ? else_of[i] + 1 : end_of[i]);
         } else if (op.kind == op_kind_t::_else) {
             successors[i].push_back(end_of[op.match]);
-        } else if (op.kind == op_kind_t::jmp) {
-            successors[i].push_back(label_to_op[(int)op.label_id]);
-        } else if (op.kind == op_kind_t::jz) {
-            if (i + 1 < n_ops) successors[i].push_back(i + 1);
-            successors[i].push_back(label_to_op[(int)op.label_id]);
         } else if (i + 1 < n_ops) {
             successors[i].push_back(i + 1);
         }

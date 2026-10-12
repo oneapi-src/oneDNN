@@ -341,10 +341,10 @@ m_loop_input_regs_t init_m_loop_input_regs(
             ir.mov_reg(regs.advancing.store_ptr, regs.advancing.c_ptr);
         }
 
-        const ir::label_t store_ptr_done = ir.new_label();
-        ir.jz(regs.invariant.do_post_ops, store_ptr_done);
+        const int if_post_ops
+                = ir.if_begin(regs.invariant.do_post_ops, ir::cmp_t::ne, 0);
         ir.load_param(regs.advancing.store_ptr, GET_OFF(ptr_D));
-        ir.label(store_ptr_done);
+        ir.if_end(if_post_ops);
     } else {
         regs.advancing.store_ptr = regs.advancing.c_ptr;
     }
@@ -501,8 +501,8 @@ void emit_n_block(ir::ir_t &ir, const brgemm_ir_conf_t &cfg,
         ir::emit_loop_imm(ir, 1, bs_body);
 
     if (cfg.has_post_ops()) {
-        const ir::label_t skip_post_ops = ir.new_label();
-        ir.jz(regs.invariant.do_post_ops, skip_post_ops);
+        const int if_post_ops
+                = ir.if_begin(regs.invariant.do_post_ops, ir::cmp_t::ne, 0);
 
         if (cfg.with_bias) {
             // One bias vector per N register, shared by every M row of the
@@ -522,7 +522,7 @@ void emit_n_block(ir::ir_t &ir, const brgemm_ir_conf_t &cfg,
             }
         }
 
-        ir.label(skip_post_ops);
+        ir.if_end(if_post_ops);
     }
 
     // `store_ptr` already points at C or D, so the stores do not branch. Their

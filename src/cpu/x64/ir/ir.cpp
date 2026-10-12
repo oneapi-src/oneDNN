@@ -275,28 +275,6 @@ void ir_t::loop_end(vreg_t counter, int begin_idx) {
     ops_.push_back(op);
 }
 
-void ir_t::label(label_t label_id) {
-    op_t op;
-    op.kind = op_kind_t::label;
-    op.label_id = label_id;
-    ops_.push_back(op);
-}
-
-void ir_t::jmp(label_t label_id) {
-    op_t op;
-    op.kind = op_kind_t::jmp;
-    op.label_id = label_id;
-    ops_.push_back(op);
-}
-
-void ir_t::jz(vreg_t cond, label_t label_id) {
-    op_t op;
-    op.kind = op_kind_t::jz;
-    op.s0 = cond;
-    op.label_id = label_id;
-    ops_.push_back(op);
-}
-
 int ir_t::if_begin(vreg_t lhs, cmp_t cmp, dim_t imm) {
     // To compare with a constant wider than 32 bits, load it with `mov_imm`
     // and use the gpr overload.
@@ -481,9 +459,6 @@ void ir_t::def_use(
             break;
         case op_kind_t::_else:
         case op_kind_t::if_end: break;
-        case op_kind_t::label:
-        case op_kind_t::jmp: break;
-        case op_kind_t::jz: u(op.s0); break;
     }
 }
 

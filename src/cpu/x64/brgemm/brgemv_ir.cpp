@@ -281,10 +281,10 @@ m_loop_input_regs_t init_m_loop_input_regs(
         regs.advancing.store_ptr = ir.new_gpr();
         ir.mov_reg(regs.advancing.store_ptr, regs.advancing.y_ptr);
 
-        const ir::label_t store_ptr_done = ir.new_label();
-        ir.jz(regs.invariant.do_post_ops, store_ptr_done);
+        const int if_post_ops
+                = ir.if_begin(regs.invariant.do_post_ops, ir::cmp_t::ne, 0);
         ir.load_param(regs.advancing.store_ptr, GET_OFF(ptr_D));
-        ir.label(store_ptr_done);
+        ir.if_end(if_post_ops);
     } else {
         regs.advancing.store_ptr = regs.advancing.y_ptr;
     }
@@ -430,8 +430,8 @@ void emit_m_block(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
         // post-ops apply after bias. The two scales can swap because both are
         // multiplies but a scale must not move past the bias and the bias must
         // not move past the post-ops.
-        const ir::label_t skip_post_ops = ir.new_label();
-        ir.jz(regs.invariant.do_post_ops, skip_post_ops);
+        const int if_post_ops
+                = ir.if_begin(regs.invariant.do_post_ops, ir::cmp_t::ne, 0);
 
         if (cfg.with_src_scales) {
             // Loaded once and applied to every output.
@@ -487,7 +487,7 @@ void emit_m_block(ir::ir_t &ir, const brgemv_ir_conf_t &cfg,
             ir.inject_postops(acc, regs.advancing.store_ptr, out_byte_off);
         }
 
-        ir.label(skip_post_ops);
+        ir.if_end(if_post_ops);
     }
 
     for (int r = 0; r < m_block; r++)
