@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2017 Intel Corporation
 * Copyright 2020 FUJITSU LIMITED
+* Copyright 2023, 2025 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,93 +16,84 @@
 * limitations under the License.
 *******************************************************************************/
 
-#include "cpu/reorder/cpu_reorder.hpp"
+#include "common/impl_list_item.hpp"
+
+#include "cpu/cpu_engine.hpp"
+#include "cpu/reorder/cpu_reorder_pd.hpp"
+
+#if DNNL_X64
+#include "cpu/x64/jit_uni_reorder.hpp"
+#include "cpu/x64/jit_uni_reorder_direct_copy.hpp"
+#include "cpu/x64/matmul/brgemm_matmul_reorders.hpp"
+#if DNNL_X64_USE_ZEN
+#include "cpu/x64/zen64/reorder/zen_reorder.hpp"
+#endif
+#elif DNNL_AARCH64
+#include "cpu/aarch64/matmul/brgemm_matmul_reorders.hpp"
+#include "cpu/aarch64/reorder/jit_blk_reorder.hpp"
+#include "cpu/aarch64/reorder/jit_uni_reorder.hpp"
+#if defined(DNNL_AARCH64_USE_ACL)
+#include "cpu/aarch64/reorder/acl_reorder.hpp"
+#endif
+#elif DNNL_PPC64
+#include "cpu/ppc64/ppc64_gemm_reorder.hpp"
+#elif DNNL_RV64
+#include "cpu/rv64/reorder/jit_blk_reorder.hpp"
+#include "cpu/rv64/reorder/jit_uni_reorder.hpp"
+#endif
+
+#include "cpu/reorder/ref_reorder.hpp"
+#include "cpu/reorder/simple_reorder.hpp"
+#include "cpu/reorder/simple_sparse_reorder.hpp"
+#include "cpu/rnn/rnn_reorders.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace cpu {
 
-/* regular reorders */
-static const std::map<reorder_impl_key_t, const void *> &
-regular_impl_list_map() {
-    static const std::map<reorder_impl_key_t, const void *> the_map = {
-            {{f32, f4_e2m1, 0}, &regular_fp4_impl_list_map()},
-            {{f32, e8m0, 0}, &regular_f32_fp8_impl_list_map()},
-            {{f32, f8_e5m2, 0}, &regular_f32_fp8_impl_list_map()},
-            {{f32, f8_e4m3, 0}, &regular_f32_fp8_impl_list_map()},
-            {{f32, bf16, 0}, &regular_f32_bf16_impl_list_map()},
-            {{f32, f16, 0}, &regular_f32_f16_impl_list_map()},
-            {{f32, f32, 0}, &regular_f32_f32_impl_list_map()},
-            {{f32, s32, 0}, &regular_f32_s32_impl_list_map()},
-            {{f32, s8, 0}, &regular_f32_s8_impl_list_map()},
-            {{f32, u8, 0}, &regular_f32_u8_impl_list_map()},
-            {{f4_e2m1, data_type::undef, 0}, &regular_fp4_impl_list_map()},
-            {{f8_e5m2, data_type::undef, 0}, &regular_fp8_impl_list_map()},
-            {{f8_e4m3, data_type::undef, 0}, &regular_fp8_impl_list_map()},
-            {{e8m0, f32, 0}, &regular_fp8_impl_list_map()},
-            {{bf16, data_type::undef, 0}, &regular_bf16_impl_list_map()},
-            {{f16, data_type::undef, 0}, &regular_f16_impl_list_map()},
-            {{s32, data_type::undef, 0}, &regular_s32_impl_list_map()},
-            {{s8, data_type::undef, 0}, &regular_s8_impl_list_map()},
-            {{u8, data_type::undef, 0}, &regular_u8_impl_list_map()},
-            {{f32, s4, 0}, &regular_s4_impl_list_map()},
-            {{f32, u4, 0}, &regular_u4_impl_list_map()},
-            {{f32, u3, 0}, &regular_u3_impl_list_map()},
-            {{s4, data_type::undef, 0}, &regular_s4_impl_list_map()},
-            {{u4, data_type::undef, 0}, &regular_u4_impl_list_map()},
-            {{u3, data_type::undef, 0}, &regular_u3_impl_list_map()},
-            {{f32, u2, 0}, &regular_u2_impl_list_map()},
-            {{u2, data_type::undef, 0}, &regular_u2_impl_list_map()},
-    };
-    return the_map;
-}
+using namespace dnnl::impl::data_type;
+using namespace dnnl::impl::format_tag;
 
-/* conv reorders w/ compensation */
-static const std::map<reorder_impl_key_t, const void *> &
-comp_s8s8_impl_list_map() {
-    static const std::map<reorder_impl_key_t, const void *> the_map = {
-            {{f32, s8, 0}, &comp_f32_s8_impl_list_map()},
-            {{bf16, s8, 0}, &comp_bf16_s8_impl_list_map()},
-            {{s8, s8, 0}, &comp_s8_s8_impl_list_map()},
-    };
-    return the_map;
-}
+const impl_list_item_t *get_reorder_impl_list(const reorder_desc_t *) {
+    // clang-format off
+    static const impl_list_item_t the_list[] = REG_REORDER_P({
+            CPU_INSTANCE_X64_ZEN(x64::zen::reorder::zen_reorder_t)
+            CPU_INSTANCE_X64(x64::brgemm_matmul_copy_reorder_t)
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_direct_copy_t)
+            CPU_INSTANCE_X64(x64::jit_blk_reorder_t)
+            CPU_INSTANCE_X64(x64::jit_uni_reorder_t)
 
-const impl_list_item_t *get_reorder_impl_list(
-        const reorder_desc_t *reorder_desc) {
-    const memory_desc_t *src_md = &reorder_desc->src_desc;
-    const memory_desc_t *dst_md = &reorder_desc->dst_desc;
-    reorder_impl_key_t dt_pair {src_md->data_type, dst_md->data_type, 0};
-    const bool do_comp_s8s8 = dst_md->extra.flags
-            & (memory_extra_flags::compensation_conv_s8s8
-                    | memory_extra_flags::compensation_conv_asymmetric_src);
-    const auto &map = do_comp_s8s8 ? comp_s8s8_impl_list_map()
-                                   : regular_impl_list_map();
+            CPU_INSTANCE_AARCH64_ACL(aarch64::acl_reorder_fwd_t)
+            CPU_INSTANCE_AARCH64(aarch64::brgemm_matmul_copy_reorder_t)
+            CPU_INSTANCE_AARCH64(aarch64::jit_blk_reorder_t)
+            CPU_INSTANCE_AARCH64(aarch64::jit_uni_reorder_t)
 
-    static const impl_list_item_t empty_list[] = {nullptr};
-    auto top_map_it = map.find(dt_pair);
-    if (top_map_it == map.end()) {
-        dt_pair.dst_dt = data_type::undef;
-        top_map_it = map.find(dt_pair);
-        if (top_map_it == map.end()) return empty_list;
-    }
+            CPU_INSTANCE_PPC64(ppc64::ppc64_matrixA_reorder_t)
 
-    const impl_list_map_t *p_impl_list
-            = (const impl_list_map_t *)top_map_it->second;
-    reorder_impl_key_t key {dt_pair.src_dt, dt_pair.dst_dt, src_md->ndims};
+            CPU_INSTANCE_RV64(rv64::jit_blk_reorder_t)
+            CPU_INSTANCE_RV64(rv64::jit_uni_reorder_t)
 
-    {
-        const auto it = p_impl_list->find(key);
-        if (it != p_impl_list->cend()) return it->second.data();
-    }
+            CPU_INSTANCE(rnn_data_reorder_t<f32, s8>)
+            CPU_INSTANCE(rnn_data_reorder_t<f32, u8>)
+            CPU_INSTANCE(rnn_weights_reorder_t<f32, f32>)
+            CPU_INSTANCE(rnn_weights_reorder_t<f32, bf16>)
+            CPU_INSTANCE(rnn_weights_reorder_t<bf16, bf16>)
+            CPU_INSTANCE(rnn_weights_reorder_s8_t<f32>)
+            CPU_INSTANCE(rnn_weights_reorder_s8_t<s8>)
+            CPU_INSTANCE(rnn_brgemm_weights_reorder_s8_t<f32, s8>)
+            CPU_INSTANCE(rnn_brgemm_weights_reorder_s8_t<s8, s8>)
 
-    {
-        key.ndims = 0;
-        const auto it = p_impl_list->find(key);
-        if (it != p_impl_list->cend()) return it->second.data();
-    }
+            CPU_INSTANCE(simple_reorder_t)
 
-    return empty_list;
+            CPU_INSTANCE(ref_reorder_t)
+
+            CPU_INSTANCE_X64(simple_sparse_reorder_t<f32, impl::format_tag_t, any, s8, impl::format_tag_t, any>)
+            CPU_INSTANCE_X64(simple_sparse_reorder_t<s8, impl::format_tag_t, any, s8, impl::format_tag_t, any>)
+
+            nullptr,
+    });
+    // clang-format on
+    return the_list;
 }
 
 } // namespace cpu
