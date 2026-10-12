@@ -44,6 +44,32 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
     // One label per `label` id, for `label`/`jmp`/`jz`.
     std::vector<Xbyak::Label> label_id_to_label(ir.n_labels());
 
+    // Labels of one conditional, keyed by its `if_begin` instruction index.
+    //   skip     - where a false condition jumps. Bound by `_else`, or by
+    //              `if_end` when there is no else.
+    //   end      - where the then body jumps over the else body. Bound by
+    //              `if_end`.
+    //   has_else - `_else` was lowered, so `if_end` binds `end`
+    struct if_labels_t {
+        Xbyak::Label skip, end;
+        bool has_else = false;
+    };
+    std::unordered_map<int, if_labels_t> if_labels;
+
+    // Jump to `target` unless `cmp` is true, skipping the then body that
+    // follows. Each condition thus emits its inverse jump (`lt` -> `jge`).
+    auto jump_unless = [&](cmp_t cmp, const Xbyak::Label &target) {
+        const auto type = Xbyak::CodeGenerator::T_NEAR;
+        switch (cmp) {
+            case cmp_t::eq: gen.jne(target, type); break;
+            case cmp_t::ne: gen.je(target, type); break;
+            case cmp_t::lt: gen.jge(target, type); break;
+            case cmp_t::le: gen.jg(target, type); break;
+            case cmp_t::gt: gen.jle(target, type); break;
+            case cmp_t::ge: gen.jl(target, type); break;
+        }
+    };
+
     // if vreg needs to be spilled
     auto spilled
             = [&](vreg_t vr) { return alloc.assignments[(int)vr].spilled; };
@@ -345,6 +371,31 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
                 gen.dec(c);
                 if (spilled(op.dst)) gen.mov(slot(op.dst), c);
                 gen.jnz(labels[op.match]); // back-edge to the matching loop_begin
+                break;
+            }
+            case op_kind_t::if_begin: {
+                // `test lhs, lhs` sets the same flags as `cmp lhs, 0` with a
+                // shorter encoding.
+                const Xbyak::Reg64 lhs = gpr_use(op.s0);
+                if (op.s1 != vreg_t::none)
+                    gen.cmp(lhs, gpr_use(op.s1));
+                else if (op.imm == 0)
+                    gen.test(lhs, lhs);
+                else
+                    gen.cmp(lhs, (int)op.imm);
+                jump_unless(op.cmp, if_labels[i].skip);
+                break;
+            }
+            case op_kind_t::_else: {
+                if_labels_t &l = if_labels[op.match];
+                gen.jmp(l.end, Xbyak::CodeGenerator::T_NEAR);
+                gen.L(l.skip);
+                l.has_else = true;
+                break;
+            }
+            case op_kind_t::if_end: {
+                if_labels_t &l = if_labels[op.match];
+                gen.L(l.has_else ? l.end : l.skip);
                 break;
             }
             case op_kind_t::label: {

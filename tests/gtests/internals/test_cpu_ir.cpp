@@ -458,9 +458,8 @@ TEST(IRBuilderTests, LoopLinkageAndSingleIterationInlining) {
     }
 }
 
-// Validates that an if/else is well-formed. Labels are distinct and bound, and
-// each jump targets the right label. This proves the forward-edge control flow
-// is constructed correctly.
+// Validates that an if/else is well-formed. This proves the forward-edge
+// control flow is constructed correctly.
 TEST(IRBuilderTests, ForwardEdgeControlFlow) {
     ir_t ir;
 
@@ -475,9 +474,6 @@ TEST(IRBuilderTests, ForwardEdgeControlFlow) {
     ir.load_param(base, sizeof(int));
     ir.vload(a, base, 0, data_type::f32);
 
-    const label_t lbl_else = ir.new_label();
-    const label_t lbl_end = ir.new_label();
-
     // Build an IR for the following control flow:
     //
     //     if (cond != 0) { acc += a * a; }  // then block
@@ -485,7 +481,8 @@ TEST(IRBuilderTests, ForwardEdgeControlFlow) {
     //
     // which lowers to a forward-branch skeleton:
     //
-    //     jz cond -> else      ; fall through to 'then' when cond != 0
+    //     test cond, cond
+    //     je -> else           ; fall through to 'then' when cond != 0
     //   then:
     //     ...work...
     //     jmp -> end           ; skip the else block
@@ -493,49 +490,33 @@ TEST(IRBuilderTests, ForwardEdgeControlFlow) {
     //     ...
     //   end:
 
-    ir.jz(cond, lbl_else);
+    const int if_idx = ir.if_begin(cond, cmp_t::ne, 0);
 
     // then:
     ir.vzero(acc);
     ir.vdot(acc, a, a); // arbitrary work, just to populate the block
-    ir.jmp(lbl_end);
 
     // else:
-    ir.label(lbl_else);
+    ir._else(if_idx);
     ir.vzero(acc);
 
     // end:
-    ir.label(lbl_end);
+    ir.if_end(if_idx);
 
-    // The two labels have distinct ids.
-    EXPECT_NE(lbl_else, lbl_end);
-    EXPECT_EQ(ir.n_labels(), 2);
+    const int else_idx = find_op(ir, op_kind_t::_else);
+    const int end_idx = find_op(ir, op_kind_t::if_end);
+    ASSERT_NE(else_idx, -1);
+    ASSERT_NE(end_idx, -1);
 
-    // Every branch target points to a label that exists in the IR.
-    std::vector<int> bound(ir.n_labels(), -1);
-    for (int i = 0; i < ir.n_ops(); i++) {
-        if (ir.ops()[i].kind == op_kind_t::label) {
-            // Save the position of the label (`i`).
-            bound[(int)ir.ops()[i].label_id] = i;
-        }
-    }
+    // The returned index is the if_begin, and the _else and the if_end link
+    // back to it.
+    EXPECT_EQ(ir.ops()[if_idx].kind, op_kind_t::if_begin);
+    EXPECT_EQ(ir.ops()[else_idx].match, if_idx);
+    EXPECT_EQ(ir.ops()[end_idx].match, if_idx);
 
-    // != -1 means it's bound.
-    EXPECT_NE(bound[(int)lbl_else], -1);
-    EXPECT_NE(bound[(int)lbl_end], -1);
-
-    const int jz_idx = find_op(ir, op_kind_t::jz);
-    const int jmp_idx = find_op(ir, op_kind_t::jmp);
-    ASSERT_NE(jz_idx, -1);
-    ASSERT_NE(jmp_idx, -1);
-
-    // The conditional jump targets the else label. The unconditional jump jumps
-    // over the else block to the end label.
-    EXPECT_EQ(ir.ops()[jz_idx].label_id, lbl_else);
-    EXPECT_EQ(ir.ops()[jmp_idx].label_id, lbl_end);
-
-    // The then block's jmp precedes the else label it jumps over.
-    EXPECT_LT(jmp_idx, bound[(int)lbl_else]);
+    // The then block precedes the _else, which precedes the if_end.
+    EXPECT_LT(if_idx, else_idx);
+    EXPECT_LT(else_idx, end_idx);
 
     // The IR that contains branches can be handled by the allocator.
     // It assigns a location to every value that is read somewhere.
@@ -550,6 +531,43 @@ TEST(IRBuilderTests, ForwardEdgeControlFlow) {
         EXPECT_TRUE(as.spilled || as.phys >= 0);
     }
 }
+
+#ifndef NDEBUG
+// Validates that malformed loops and conditionals are rejected. The checks are
+// asserts, so the test runs only in a debug build.
+TEST(IRBuilderTests, RejectsMalformedControlFlow) {
+    // A conditional that is never closed.
+    {
+        ir_t ir;
+        ir.if_begin(ir.new_gpr(), cmp_t::ne, 0);
+        EXPECT_DEATH(allocate_registers(ir, make_pools(/*n_gpr=*/8)),
+                "if_begin without if_end");
+    }
+    // A second else.
+    {
+        ir_t ir;
+        const int if_idx = ir.if_begin(ir.new_gpr(), cmp_t::ne, 0);
+        ir._else(if_idx);
+        EXPECT_DEATH(ir._else(if_idx), "already has an else");
+    }
+    // A conditional that overlaps another conditional.
+    {
+        ir_t ir;
+        const int outer = ir.if_begin(ir.new_gpr(), cmp_t::ne, 0);
+        ir.if_begin(ir.new_gpr(), cmp_t::ne, 0);
+        EXPECT_DEATH(ir.if_end(outer), "not the innermost open conditional");
+    }
+    // A conditional that overlaps a loop.
+    {
+        ir_t ir;
+        const vreg_t counter = ir.new_gpr();
+        const int begin = ir.loop_begin_imm(counter, 2);
+        ir.if_begin(ir.new_gpr(), cmp_t::ne, 0);
+        EXPECT_DEATH(
+                ir.loop_end(counter, begin), "not the innermost open loop");
+    }
+}
+#endif
 
 // Validates the inject_postops builder and its liveness. The operation stores
 // its variable-length operands in a side table and keeps only the table index,
@@ -1221,27 +1239,24 @@ TEST(IntegrationTests, BranchSelectsCorrectValue) {
     const vreg_t b = ir.new_vec(data_type::f32);
     ir.vload(b, b_ptr, 0, data_type::f32);
 
-    const label_t lbl_else = ir.new_label();
-    const label_t lbl_end = ir.new_label();
-
     //     if (cond != 0) { c = a; }  // then block
     //     else           { c = b; }  // else block
     //
     // which lowers to a forward-branch skeleton:
     //
-    //     jz cond -> else      ; fall through to 'then' when cond != 0
+    //     test cond, cond
+    //     je -> else           ; fall through to 'then' when cond != 0
     //   then:
     //     store a -> c
     //     jmp -> end           ; skip the else block
     //   else:
     //     store b -> c
     //   end:
-    ir.jz(cond, lbl_else);
+    const int if_idx = ir.if_begin(cond, cmp_t::ne, 0);
     ir.vstore(c_ptr, 0, a, data_type::f32); // then: c = a
-    ir.jmp(lbl_end);
-    ir.label(lbl_else);
+    ir._else(if_idx);
     ir.vstore(c_ptr, 0, b, data_type::f32); // else: c = b
-    ir.label(lbl_end);
+    ir.if_end(if_idx);
 
     ir_kernel_t kernel(ir);
     ASSERT_TRUE(kernel.run_ir_pipeline());
@@ -1265,6 +1280,94 @@ TEST(IntegrationTests, BranchSelectsCorrectValue) {
     kernel.run(&args_b);
     for (int i = 0; i < simd_w(); i++)
         EXPECT_FLOAT_EQ(c_data[i], b_data[i]) << "lane " << i;
+}
+
+// Arguments for the conditional kernel. The branch that runs writes 0 to its
+// own element of `out`.
+struct cmp_args_t {
+    int64_t lhs;
+    int64_t rhs;
+    float *out;
+};
+
+// Returns `a cmp b` computed in C++.
+bool ref_cmp(cmp_t cmp, int64_t a, int64_t b) {
+    switch (cmp) {
+        case cmp_t::eq: return a == b;
+        case cmp_t::ne: return a != b;
+        case cmp_t::lt: return a < b;
+        case cmp_t::le: return a <= b;
+        case cmp_t::gt: return a > b;
+        case cmp_t::ge: return a >= b;
+    }
+    return false;
+}
+
+// Validates every comparison and an else_if chain end to end. For each
+// comparison the kernel runs
+//
+//     if (lhs cmp imm)      { out[0] = 0; }
+//     else if (lhs cmp rhs) { out[1] = 0; }
+//     else                  { out[2] = 0; }
+//
+// and must take the same branch as C++. The if compares with an immediate and
+// the else_if with a gpr. A zero immediate lowers to `test` and a non-zero one
+// to `cmp`, so both are used. The negative values check that the comparison is
+// signed.
+TEST(IntegrationTests, ConditionalTakesSameBranchAsCpp) {
+    SKIP_IF_NO_AVX2();
+
+    for (cmp_t cmp : {cmp_t::eq, cmp_t::ne, cmp_t::lt, cmp_t::le, cmp_t::gt,
+                 cmp_t::ge}) {
+        for (dim_t imm : {0, 1}) {
+            ir_t ir;
+            const vreg_t lhs = ir.new_gpr();
+            ir.load_param(lhs, offsetof(cmp_args_t, lhs));
+
+            const vreg_t rhs = ir.new_gpr();
+            ir.load_param(rhs, offsetof(cmp_args_t, rhs));
+
+            const vreg_t out_ptr = ir.new_gpr();
+            ir.load_param(out_ptr, offsetof(cmp_args_t, out));
+
+            const vreg_t zero = ir.new_vec(data_type::f32);
+            ir.vzero(zero);
+
+            const auto mark = [&](int branch) {
+                ir.vstore_scalar(out_ptr, branch * (dim_t)sizeof(float), zero,
+                        data_type::f32);
+            };
+
+            const int if_idx = ir.if_begin(lhs, cmp, imm);
+            mark(0);
+            ir.else_if(if_idx, lhs, cmp, rhs);
+            mark(1);
+            ir._else(if_idx);
+            mark(2);
+            ir.if_end(if_idx);
+
+            ir_kernel_t kernel(ir);
+            ASSERT_TRUE(kernel.run_ir_pipeline());
+
+            for (int64_t l = -1; l <= 2; l++) {
+                for (int64_t r = -1; r <= 2; r++) {
+                    float out[3] = {-1.f, -1.f, -1.f};
+                    cmp_args_t args {l, r, out};
+                    kernel.run(&args);
+
+                    const int taken = ref_cmp(cmp, l, imm) ? 0
+                            : ref_cmp(cmp, l, r)           ? 1
+                                                           : 2;
+                    for (int b = 0; b < 3; b++) {
+                        EXPECT_EQ(out[b], b == taken ? 0.f : -1.f)
+                                << "cmp " << (int)cmp << ", imm " << imm
+                                << ", lhs " << l << ", rhs " << r << ", branch "
+                                << b;
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Arguments for the binary post-op kernel. `binary_rhs` points to the array of
