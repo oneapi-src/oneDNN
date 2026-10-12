@@ -76,24 +76,18 @@ static void fuse(std::vector<uint8_t> &binary,
     auto fheader = fileHeader(binary);
 
     bool foundZeInfo = false;
-    const char *snames = nullptr;
     std::vector<std::pair<SectionHeader, int>> textSections;
 
     auto sheaders = sectionHeaders(binary);
-
-    snames = reinterpret_cast<char *>(
-            base + sheaders[fheader.strTableIndex].offset);
 
     for (int s = 0; s < fheader.sectionCount; s++) {
         switch (sheaders[s].type) {
             case SectionHeader::Type::ZeInfo: foundZeInfo = true; break;
             case SectionHeader::Type::Program: {
-                if (snames) {
-                    std::string sname(snames + sheaders[s].name);
-                    if (sname == ".text.Intel_Symbol_Table_Void_Program")
-                        continue;
-                    if (sname.substr(0, 6) != ".text.") continue;
-                }
+                std::string sname = sectionName(binary, s);
+                if (sname == ".text.Intel_Symbol_Table_Void_Program")
+                    continue;
+                if (sname.substr(0, 6) != ".text.") continue;
                 textSections.emplace_back(sheaders[s], s);
                 break;
             }
@@ -131,14 +125,16 @@ static void fuse(std::vector<uint8_t> &binary,
         if (!spliceStart || !spliceEnd) continue;
 
         // Validate the argument placement against the selected base.
-        if (check && snames) checkPayload(*check, snames + text.name + 6);
+        if (check)
+            checkPayload(*check,
+                    sectionName(binary, textSectionID) + 6);
 
         int relSectionID = -1;
         std::string rname = ".rel";
-        rname += (snames + text.name);
+        rname += sectionName(binary, textSectionID);
         for (int s = 0; s < fheader.sectionCount; s++) {
             if (sheaders[s].type != SectionHeader::Type::Relocation) continue;
-            if (rname != (snames + sheaders[s].name)) continue;
+            if (rname != sectionName(binary, s)) continue;
             if (relSectionID >= 0)
                 throw std::runtime_error(
                         "Multiple relocation sections for kernel");

@@ -170,6 +170,23 @@ inline bool sectionInBounds(
             && section.size <= binary.size() - section.offset;
 }
 
+inline const char *elfString(const std::vector<uint8_t> &binary,
+        std::size_t table, uint64_t offset) {
+    auto strings = sectionHeader(binary, table);
+    if (!sectionInBounds(binary, strings) || offset >= strings.size
+            || !std::memchr(binary.data() + strings.offset + offset, 0,
+                    strings.size - offset))
+        throw std::runtime_error("Invalid zebin string table entry");
+    return reinterpret_cast<const char *>(
+            binary.data() + strings.offset + offset);
+}
+
+inline const char *sectionName(
+        const std::vector<uint8_t> &binary, std::size_t index) {
+    return elfString(binary, fileHeader(binary).strTableIndex,
+            sectionHeader(binary, index).name);
+}
+
 }
 GEMMSTONE_NAMESPACE_END
 
