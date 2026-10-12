@@ -187,6 +187,32 @@ inline const char *sectionName(
             sectionHeader(binary, index).name);
 }
 
+template <typename T>
+std::vector<T> sectionEntries(
+        const std::vector<uint8_t> &binary, std::size_t index) {
+    auto section = sectionHeader(binary, index);
+    if (section.entrySize != sizeof(T) || section.size % sizeof(T) != 0
+            || !sectionInBounds(binary, section))
+        throw std::runtime_error("Invalid zebin section entries");
+    std::vector<T> entries(section.size / sizeof(T));
+    if (!entries.empty())
+        std::memcpy(entries.data(), binary.data() + section.offset,
+                section.size);
+    return entries;
+}
+
+template <typename T>
+void storeSectionEntries(std::vector<uint8_t> &binary, std::size_t index,
+        const std::vector<T> &entries) {
+    auto section = sectionHeader(binary, index);
+    if (section.size != entries.size() * sizeof(T)
+            || !sectionInBounds(binary, section))
+        throw std::runtime_error("Invalid zebin section entries");
+    if (!entries.empty())
+        std::memcpy(binary.data() + section.offset, entries.data(),
+                section.size);
+}
+
 }
 GEMMSTONE_NAMESPACE_END
 
