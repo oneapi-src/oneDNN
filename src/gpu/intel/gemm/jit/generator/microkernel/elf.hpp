@@ -18,6 +18,9 @@
 #define GEMMSTONE_GENERATOR_MICROKERNEL_ELF_HPP
 
 #include <cstdint>
+#include <cstring>
+#include <stdexcept>
+#include <vector>
 
 #include "gemmstone/config.hpp"
 
@@ -98,6 +101,34 @@ struct SectionHeader {
     uint64_t alignx10;
     uint64_t entrySize;
 };
+
+inline bool isZebin(const std::vector<uint8_t> &binary) {
+    if (binary.size() < sizeof(FileHeader)) return false;
+    FileHeader header;
+    std::memcpy(&header, binary.data(), sizeof(header));
+    return header.magic == ELFMagic && header.elfClass == ELFClass64
+            && header.endian == ELFLittleEndian
+            && (header.version == 0 || header.version == ELFVersion1)
+            && (header.type == ZebinExec || header.type == ELFRelocatable)
+            && header.sectionHeaderSize == sizeof(SectionHeader)
+            && header.sectionTableOff <= binary.size()
+            && (binary.size() - header.sectionTableOff) / sizeof(SectionHeader)
+            >= header.sectionCount;
+}
+
+inline FileHeader fileHeader(const std::vector<uint8_t> &binary) {
+    if (!isZebin(binary)) throw std::runtime_error("Invalid zebin file header");
+    FileHeader header;
+    std::memcpy(&header, binary.data(), sizeof(header));
+    return header;
+}
+
+inline void storeFileHeader(
+        std::vector<uint8_t> &binary, const FileHeader &header) {
+    if (binary.size() < sizeof(header))
+        throw std::runtime_error("Invalid zebin file header");
+    std::memcpy(binary.data(), &header, sizeof(header));
+}
 
 }
 GEMMSTONE_NAMESPACE_END
