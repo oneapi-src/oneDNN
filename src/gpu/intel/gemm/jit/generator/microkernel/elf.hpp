@@ -60,6 +60,21 @@ struct Relocation {
     uint64_t info;
 };
 
+struct RelocationWithAddend {
+    uint64_t offset;
+    uint64_t info;
+    int64_t addend;
+};
+
+struct Symbol {
+    uint32_t name;
+    uint8_t info;
+    uint8_t other;
+    uint16_t section;
+    uint64_t value;
+    uint64_t size;
+};
+
 struct SectionHeader {
     uint32_t name;
     enum Type : uint32_t {
@@ -67,7 +82,9 @@ struct SectionHeader {
         Program,
         SymbolTable = 2,
         StringTable = 3,
+        RelocationWithAddend = 4,
         Note = 7,
+        NoBits = 8,
         Relocation = 9,
         ZebinSpirv = 0xFF000009,
         ZeInfo = 0xFF000011
