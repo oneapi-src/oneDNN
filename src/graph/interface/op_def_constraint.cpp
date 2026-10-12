@@ -456,33 +456,42 @@ bool check_dyn_quant_dequant_scales_zps(const op_t *n) {
     if (has_zps && ltw(n->get_input_logical_tensor(2)).is_shape_unknown())
         return true;
 
+    // Dims the scales vary over. Derived from attributes only, so the packed
+    // layout never depends on dim sizes.
+    int64_t qmask = 0;
+    if (has_mask)
+        qmask = n->get_attr<int64_t>(op_attr::mask);
+    else if (has_group)
+        qmask = (1LL << r) - 1;
+    else if (qtype == "per_channel")
+        qmask = 1LL << norm_axis;
+
     // Canonical (full-rank) expected scales size per dim; 1 == shared dim.
     std::vector<int64_t> exp(r, 1);
-    if (has_group) {
-        const auto &group_shape = n->get_attr<dims>(op_attr::group_shape);
-        for (int64_t d = 0; d < r; ++d) {
-            const int64_t sd = src_lt.dims[d], gd = group_shape[d];
+    std::vector<int64_t> packed_exp;
+    const dims group_shape
+            = has_group ? n->get_attr<dims>(op_attr::group_shape) : dims();
+    for (int64_t d = 0; d < r; ++d) {
+        const int64_t sd = src_lt.dims[d];
+        const bool masked = qmask & (1LL << d);
+        if (has_group) {
+            const int64_t gd = group_shape[d];
             VCHECK_SHAPE_INFER(gd <= sd && sd % gd == 0,
                     "%s, group_shape[%d] must divide src[%d].", op_name.c_str(),
                     static_cast<int>(d), static_cast<int>(d));
-            exp[d] = sd / gd;
+            VCHECK_SHAPE_INFER(masked || gd == 1 || gd == sd,
+                    "%s, group_shape[%d] must be 1 or src[%d] on a dimension "
+                    "not selected by mask.",
+                    op_name.c_str(), static_cast<int>(d), static_cast<int>(d));
         }
-    } else if (has_mask) {
-        const int64_t mask = n->get_attr<int64_t>(op_attr::mask);
-        for (int64_t d = 0; d < r; ++d)
-            if (mask & (1LL << d)) exp[d] = src_lt.dims[d];
-    } else if (qtype == "per_channel") {
-        exp[norm_axis] = src_lt.dims[norm_axis];
+        if (!masked) continue;
+        exp[d] = has_group ? sd / group_shape[d] : sd;
+        packed_exp.push_back(exp[d]);
     }
-
-    // Packed dims
-    std::vector<int64_t> packed_exp;
-    for (int64_t d = 0; d < r; ++d)
-        if (exp[d] != 1) packed_exp.push_back(exp[d]);
 
     // scales must match the full-rank or the packed dims.
     const int64_t snd = scales_lt.ndims;
-    if (packed_exp.empty()) {
+    if (qmask == 0) {
         for (int64_t d = 0; d < snd; ++d)
             VCHECK_SHAPE_INFER(scales_lt.dims[d] == 1,
                     "%s, scales must be scalar for per_tensor quantization.",
