@@ -811,10 +811,13 @@ void jit_uni_binary_injector_t<Vmm>::compute_vector_range_impl(
                 = (rhs_broadcasting_strategy == broadcasting_strategy_t::scalar)
                 && needs_ternary_input;
 
-        assert(!params_differ(
-                       rhs_arg_params.vmm_idx_to_out_addr, vmm_idx, start_idx)
-                && !params_differ(
-                        rhs_arg_params.vmm_idx_to_out_reg, vmm_idx, start_idx)
+        assert(IMPLICATION(rhs_broadcasting_strategy
+                               != broadcasting_strategy_t::scalar,
+                       !params_differ(rhs_arg_params.vmm_idx_to_out_addr,
+                               vmm_idx, start_idx)
+                               && !params_differ(
+                                       rhs_arg_params.vmm_idx_to_out_reg,
+                                       vmm_idx, start_idx))
                 && "the destination base must be the same over the vmm range");
 
         if (is_start_idx
