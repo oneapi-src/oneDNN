@@ -528,6 +528,7 @@ gen_nocopy_desc_t::select_kernel(const compute::device_info_t &dev_info,
     add_mode_matches(!(fpmath_f16 || fpmath_bf16), [](Type dt) -> const char * {
         if (dt.bits() == 2) return "[PO]";
         if (dt.bits() == 4) return "[FO]";
+        if (dt.is3()) return "[FO]";
         return nullptr;
     });
 
