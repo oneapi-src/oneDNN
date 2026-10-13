@@ -352,8 +352,9 @@ void ref_post_ops_t::execute(float &res, const args_t &args) const {
                     const auto &src2_desc = e.binary.src2_desc;
                     const auto src2_off = get_binary_src_off(src2_desc,
                             args.l_offset, dst_d.dims(), dst_d.ndims());
-                    src2_val = static_cast<bool>(io::load_int_value(
-                            src2_desc.data_type, src2_binary_po, src2_off));
+                    src2_val = io::load_int_value(src2_desc.data_type,
+                                       src2_binary_po, src2_off)
+                            > 0;
                 }
                 const float val_po = io::load_float_value(
                         src1_desc.data_type, src1_binary_po, off);
