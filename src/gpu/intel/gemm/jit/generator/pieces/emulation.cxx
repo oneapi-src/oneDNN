@@ -246,7 +246,15 @@ template <typename S0>
 void Generator<hw>::eaddScaled(const InstructionModifier &mod, const RegData &dst, const S0 &src0, const RegData &src1, Type src2,
                                const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
-    if (src2.isSubByte()) {
+    if (src2.is3()) {
+        // u3 packs 8 elements into 3 bytes; byte offset = (elemIdx * 3) / 8.
+        auto tmpRange = state.ra.alloc_range(2);
+        auto tmp = tmpRange[0].retype(src1.getType());
+        emulConstant(mod, tmp, src1, 3, strategy, state, loc);
+        eshr(mod, tmp, tmp, 3, strategy, state, loc);
+        eadd(mod, dst, tmp, src0, strategy, state, loc);
+        state.ra.safeRelease(tmpRange);
+    } else if (src2.isSubByte()) {
         auto tmpRange = state.ra.alloc_range(2);
         auto tmp = tmpRange[0].retype(src1.getType());
         eshr(mod, tmp, src1, src2.logPerByte(), strategy, state, loc);
@@ -261,8 +269,13 @@ template <typename DT>
 void Generator<hw>::emulConstant(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, Type src1,
                                  const CommonStrategy &strategy, const CommonState &state, ngen::SourceLocation loc)
 {
-    if (src1.isSubByte())
+    if (src1.isSubByte() && !src1.is3())
         eshr<DT>(mod, dst, src0, src1.logPerByte(), strategy, state, loc);
+    else if (src1.is3()) {
+        // u3 packs 8 elements into 3 bytes; byte size = (elemCount * 3) / 8.
+        emulConstant<DT>(mod, dst, src0, 3, strategy, state, loc);
+        eshr<DT>(mod, dst, dst, 3, strategy, state, loc);
+    }
     else
         emulConstant<DT>(mod, dst, src0, src1.size(), strategy, state, loc);
 }
