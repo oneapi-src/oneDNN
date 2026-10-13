@@ -164,9 +164,10 @@ struct jit_uni_pool_ncsp_args_t {
     // (* sizeof(f32)) otherwise; the kernel advances it per channel chunk.
     const void *post_op_rhs = nullptr;
     dim_t post_op_off0 = 0;
-    // f16 generic path row unrolling: process n_pos output positions in one
-    // call (adjacent positions share the window, so only the base pointers
-    // advance). The f32 kernel ignores these and handles a single position.
+    // Position batching: process n_pos output positions in one call (the
+    // positions share the window shape, so only the base pointers advance).
+    // Used by the f16 nspc generic path and the ncsp interior rows; ignored
+    // (single position) when a binary post-op or max-training is fused.
     dim_t n_pos = 1;
     dim_t pos_src_byte_stride = 0;
     dim_t pos_dst_byte_stride = 0;
