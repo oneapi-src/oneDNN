@@ -71,11 +71,21 @@ inline void print_verbose_header(engine_kind_t kind) {
                         = dev_info && dev_info->mayiuse_ngen_kernels()
                         ? "enabled"
                         : "disabled";
+                auto s_product = dev_info ? dev_info->product_name()
+                                           : std::string("unknown");
 
                 verbose_printf(
-                        "info,%s,engine,%zu,backend:%s,name:%s,driver_version:%"
-                        "s,binary_kernels:%s\n",
+                        "info,%s,engine,%zu,backend:%s,name:%s,product:%s,"
+                        "hardware:%s,version_architecture:%u,version_release:%"
+                        "u,driver_version:%s,binary_kernels:%s\n",
                         s_engine_kind, i, s_backend.c_str(), s_name.c_str(),
+                        s_product.c_str(),
+                        dev_info
+                                ? gpu::intel::compute::to_string(
+                                        dev_info->gpu_arch())
+                                : "unknown",
+                        dev_info ? dev_info->version_architecture() : 0,
+                        dev_info ? dev_info->version_release() : 0,
                         s_ver.c_str(), s_binary_kernels);
                 continue;
             }

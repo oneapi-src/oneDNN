@@ -184,12 +184,16 @@ public:
         gpu_assert(product_) << "Product information not available";
         return *product_;
     }
+    // Returns a short product family name, e.g. "PVC", "DG2", "LNL".
+    std::string product_name() const;
     ngen::HW ngen_hw() const;
     int stepping_id() const;
     uint64_t native_extensions() const { return native_extensions_; }
     bool is_integrated() const;
     bool has_l1_flush_bug() const;
     uint32_t ip_version() const { return ip_version_; }
+    uint32_t version_architecture() const { return (ip_version_ >> 22) & 0x3FFu; }
+    uint32_t version_release() const { return (ip_version_ >> 14) & 0xFFu; }
     int max_eus_per_wg() const { return max_eus_per_wg_; }
     static int max_eus_per_wg(gpu_arch_t gpu_arch);
 

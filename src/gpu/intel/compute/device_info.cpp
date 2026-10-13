@@ -94,6 +94,34 @@ ngen::HW device_info_t::ngen_hw() const {
     return ngen::getCore(product_->family);
 }
 
+std::string device_info_t::product_name() const {
+#define CASE(_case) \
+    case ngen::ProductFamily::_case: return STRINGIFY(_case)
+    switch (product_ ? product_->family : ngen::ProductFamily::Unknown) {
+        CASE(GenericGen9);
+        CASE(GenericGen10);
+        CASE(GenericGen11);
+        CASE(GenericXeLP);
+        CASE(GenericXeHP);
+        CASE(GenericXeHPG);
+        CASE(DG2);
+        CASE(MTL);
+        CASE(ARL);
+        CASE(GenericXeHPC);
+        CASE(PVC);
+        CASE(PVCVG);
+        CASE(GenericXe2);
+        CASE(BMG);
+        CASE(LNL);
+        CASE(GenericXe3);
+        CASE(GenericXe3p);
+        CASE(NVLP);
+        CASE(CRI);
+        default: return "Unknown";
+    }
+#undef CASE
+}
+
 int device_info_t::stepping_id() const {
     return product_->stepping;
 }

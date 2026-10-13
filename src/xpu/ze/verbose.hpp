@@ -57,10 +57,15 @@ inline void print_verbose_header() {
 #if DNNL_GPU_VENDOR == DNNL_VENDOR_INTEL
         auto *intel_engine = utils::downcast<gpu::intel::engine_t *>(eng_ptr);
         auto *dev_info = intel_engine->device_info();
+        auto s_product = dev_info->product_name();
         verbose_printf(
-                "info,gpu,engine,%d,name:%s,driver_version:%s,binary_kernels:%"
-                "s\n",
-                (int)i, s_name.c_str(), s_ver.c_str(),
+                "info,gpu,engine,%d,name:%s,product:%s,hardware:%s,version_"
+                "architecture:%u,version_release:%u,driver_version:%s,binary_"
+                "kernels:%s\n",
+                (int)i, s_name.c_str(), s_product.c_str(),
+                gpu::intel::compute::to_string(dev_info->gpu_arch()),
+                dev_info->version_architecture(), dev_info->version_release(),
+                s_ver.c_str(),
                 dev_info->mayiuse_ngen_kernels() ? "enabled" : "disabled");
 #else
         verbose_printf("info,gpu,engine,%d,name:%s,driver_version:%s\n", (int)i,
