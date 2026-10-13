@@ -694,7 +694,8 @@ std::string arg2str(int arg) {
     return s;
 }
 
-std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
+static std::ostream &print_attr(std::ostream &ss, const primitive_attr_t *attr,
+        const memory_desc_t *dst_md) {
     struct {
         const char *operator()() {
             current[0] = next;
@@ -807,6 +808,18 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
                     int mask = 0;
                     for (int d = 0; d < md.ndims; ++d)
                         mask += md.dims[d] != 1 ? (1 << d) : 0;
+#if DNNL_EXPERIMENTAL_GROUPED_MEMORY
+                    // For the grouped matmul with grouped dst,
+                    // both per-group [G, 1] and per-token [M, 1] shapes would get mask 1 above.
+                    // However, per-group [G, 1] requires mask `0` for binary_mul
+                    // if grouped dst is used (mainly NVFP4 global scale case)
+                    const memory_desc_wrapper dst_mdw(dst_md);
+                    if (dst_mdw.is_grouped_desc()) {
+                        const auto &dst_g = dst_mdw.sparse_desc().grouped_desc;
+                        if (md.dims[0] == dst_g.group_count && md.dims[1] == 1)
+                            mask = 0;
+                    }
+#endif
                     ss << delim << eb.alg << ":" << md.data_type << ":" << mask;
                     const memory_desc_wrapper mdw(md);
                     switch (mdw.format_kind()) {
@@ -863,6 +876,10 @@ std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
         ss << ":" << attr->dropout_.use_host_scalars_;
     }
     return ss;
+}
+
+std::ostream &operator<<(std::ostream &ss, const primitive_attr_t *attr) {
+    return print_attr(ss, attr, nullptr);
 }
 
 std::string attr2str(const primitive_attr_t *attr) {
@@ -1304,7 +1321,8 @@ std::string init_info_matmul(const engine_t *e, const pd_t *pd) {
             pd->invariant_wei_user_format_kind(), bia_md,
             pd->invariant_bia_user_format_kind(), dst_md,
             pd->invariant_dst_user_format_kind());
-    ss << "," << pd->attr() << ",";
+    ss << ",";
+    print_attr(ss, pd->attr(), dst_md) << ",";
 
     if (pd->has_runtime_dims_or_strides()) {
         ss << "runtime_dims_masks:" << get_runtime_mask(src_md) << ":"
