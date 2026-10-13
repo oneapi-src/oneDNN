@@ -1676,9 +1676,9 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
     state.ka_repack = strategy.repackPeriod(true, problem);
     state.kb_repack = strategy.repackPeriod(false, problem);
     if (state.repackA)
-        state.Ar_layout = RegisterLayout(hw, Ta, unrollM, state.ka_repack, state.A_layout.colMajor(), crosspackA, tileM_A, tileK_A, true, splitA);
+       state.Ar_layout = RegisterLayout(hw, Ta, unrollM, state.ka_repack, state.A_layout.colMajor(), crosspackA, tileM_A, tileK_A, true, splitA);
     if (state.repackB)
-        state.Br_layout = RegisterLayout(hw, Tb, state.kb_repack, unrollN, state.B_layout.colMajor(), crosspackB, tileK_B, tileN_B, true, splitB);
+       state.Br_layout = RegisterLayout(hw, Tb, state.kb_repack, unrollN, state.B_layout.colMajor(), crosspackB, tileK_B, tileN_B, true, splitB);
     int opCountAB = outerProductCount(problem, strategy);
     if ((state.repackA ? state.Ar_layout.cols() : state.A_layout.cols()) < opCountAB)
         stub("A k-granularity too small for outer product count");

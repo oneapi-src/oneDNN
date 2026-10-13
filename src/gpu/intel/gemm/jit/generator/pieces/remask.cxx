@@ -36,13 +36,18 @@ void Generator<hw>::setupTeardownRemask(Type T, int index, bool setup, int nq, S
 
     if (setup) {
         bool subByte = T.isSubByte();
+        bool thirdByte = T.is3();
         Type Tsrc = T;
-        if (subByte) {
+        if (subByte && !thirdByte) {
             nq = div_up(nq, Tsrc.perByte());
+            T = Type::u8;
+        } else if (thirdByte) {
+            // Mask u3 data at whole 8-element group granularity.
             T = Type::u8;
         }
 
-        auto masks = state.remaskRegs[index] = state.ra.alloc_range(div_up(T.paddedSize(), 2) * div_up(nq * 2, GRF::bytes(hw)));
+        auto maskAlloc = state.ra.alloc_range(div_up(T.paddedSize(), 2) * div_up(nq * 2, GRF::bytes(hw)));
+        auto masks = state.remaskRegs[index] = maskAlloc;
         int ne16 = elementsPerGRF(hw, Type::u16);
         int n16 = std::min(nq, ne16);
         int ne = elementsPerGRF(hw, T);
@@ -63,7 +68,7 @@ void Generator<hw>::setupTeardownRemask(Type T, int index, bool setup, int nq, S
                 add(1, nremQ, remQ, -variableOffQ);
             else if (haveFixedOff)
                 add(1, nremQ, remQ, -fixedOffQ);
-            if (subByte)
+            if (subByte && !thirdByte)
                 divUp(nremQ, (haveVariableOff || haveFixedOff) ? nremQ : remQ, Tsrc.perByte(), strategy, state);
             remQ = nremQ;
         }
@@ -87,8 +92,9 @@ void Generator<hw>::setupTeardownRemask(Type T, int index, bool setup, int nq, S
                         asr(simd, r1, r1, 15);
                     });
                 }
-                if (T.paddedSize() == 1) for (int q0 = 0; q0 < nq; q0 += n16)
-                    mov(n16, masks[q0 / ne].ub(q0 % ne)(1), masks[q0 / n16].ub(1)(2));
+                if (T.paddedSize() == 1)
+                    for (int q0 = 0; q0 < nq; q0 += n16)
+                        mov(n16, masks[q0 / ne].ub(q0 % ne)(1), masks[q0 / n16].ub(1)(2));
                 break;
             case 4:
                 for (int qq0 = div_up(nq, ne16) - 1; qq0 >= 1; qq0--) {
@@ -136,11 +142,11 @@ void Generator<hw>::remaskLayout(int index, bool column,
 
                 auto necp = ne * crosspack;
                 necp = std::min(necp, 2 * elementsPerGRF(hw, Tr));
-                if ((necp * Tr) & 3) stub();
+                if (!T.is3() && ((necp * Tr) & 3)) stub();
 
                 int mstride;
                 Type mtype = Type::u32;
-                int dwCrosspack = std::max(1, 4 / Tr);
+                int dwCrosspack = T.is3() ? crosspack : std::max(1, 4 / Tr);
 
                 if (colMajor != column && crosspack == 1)
                     mstride = 1;
