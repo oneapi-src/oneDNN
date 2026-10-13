@@ -18,9 +18,12 @@
 #define GPU_INTEL_LOGGING_HPP
 
 #include <algorithm>
+#include <climits>
+#include <cstdlib>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
 
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
@@ -43,12 +46,32 @@ enum class log_level_t {
 
 // Parses `ONEDNN_VERBOSE` for a `xe=<level>` token independently of the generic
 // `debuginfo=<level>` verbose infrastructure. This provides a mechanism to
-// isolate gpu specific logs.
+// isolate gpu specific logs. Accepts a level name or a `debuginfo`-scale int.
 inline int get_xe_debug_level() {
     if (!is_dev_mode()) return 0;
     static const int level = [] {
-        for (auto &tok : gpu_utils::split(getenv_string_user("VERBOSE"), ","))
-            if (tok.rfind("xe=", 0) == 0) return std::atoi(tok.c_str() + 3);
+        static const std::pair<const char *, log_level_t> names[] = {
+                {"off", log_level_t::off},
+                {"warning", log_level_t::warning},
+                {"suggestion", log_level_t::suggestion},
+                {"info", log_level_t::info},
+                {"debug", log_level_t::debug},
+                {"perf", log_level_t::perf},
+                {"trace", log_level_t::trace},
+                {"all", log_level_t::trace},
+        };
+        for (auto &tok : gpu_utils::split(getenv_string_user("VERBOSE"), ",")) {
+            if (tok.rfind("xe=", 0) != 0) continue;
+            auto v = tok.substr(3);
+            for (auto &n : names)
+                if (v == n.first) return (int)n.second;
+            char *end = nullptr;
+            long l = std::strtol(v.c_str(), &end, 10);
+            if (end != v.c_str() && *end == '\0' && l >= 0)
+                return (int)std::min(l, (long)INT_MAX);
+            std::cerr << "Warning: ONEDNN_VERBOSE xe=" << v
+                      << " is not a valid level, ignored" << std::endl;
+        }
         return 0;
     }();
     return level;
