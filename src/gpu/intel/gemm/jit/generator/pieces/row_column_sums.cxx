@@ -225,6 +225,8 @@ void Generator<hw>::setupTeardownAccumulateSum(bool setup, Type T, const GEMMPro
             sysSumAll1s = state.ra.alloc();
             sysSumAll1s.setType(T.ngen());
 
+            if (T.is3())
+                stub("u3 does not support native systolic (DPAS) sum accumulation.");
             int ne = elementsPerGRF(hw, T);
             if (T.isSubByteInt() && T.bits() == 2)
                 mov(ne / 16, sysSumAll1s.ud(), uint32_t(0x55555555));

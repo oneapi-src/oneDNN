@@ -541,7 +541,7 @@ void Generator<hw>::dequantizeSubByteIntShift(Type Tsrc, GRFMultirange src, cons
     });
 }
 
-// Optimized int4/int2 -> f16/bf16/f32 dequantization sequence.
+// Optimized int2/int3/int4 -> f16/bf16/f32 dequantization sequence.
 template <HW hw>
 void Generator<hw>::dequantizeSubByteInt(bool doA, const RegisterLayout& layoutSrc, const RegisterLayout& layoutDst,
     const RegisterLayout& layoutOffset, const RegisterLayout& layoutScale,
