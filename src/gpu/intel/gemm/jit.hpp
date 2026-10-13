@@ -160,7 +160,7 @@ struct gen_t : public primitive_t {
 
             // Check parameters.
             if (utils::one_of(d->c_type(), s32, f16, bf16, f32, u8, s8)
-                    && utils::one_of(d->a_type(), u8, s8, u4, s4, u2)) {
+                    && utils::one_of(d->a_type(), u8, s8, u4, s4, u2, u3)) {
                 VDISPATCH_GEMM(
                         (utils::one_of(d->b_type(), u8, s8) || wei_decomp_),
                         VERBOSE_UNSUPPORTED_DT);
@@ -536,8 +536,12 @@ struct gen_t : public primitive_t {
                         md, md.ndims, dims, md.data_type, strides));
                 return status::success;
             };
-            if (a_any) CHECK(cache_line_align_md(a_desc));
-            if (b_any) CHECK(cache_line_align_md(b_desc));
+            // u3 requires the natural Block2DTranspose layout;
+            // cache_line_align_md assumes a whole-byte type.
+            if (a_any && a_desc.data_type != u3)
+                CHECK(cache_line_align_md(a_desc));
+            if (b_any && b_desc.data_type != u3)
+                CHECK(cache_line_align_md(b_desc));
 
             if ((is_f16 || is_bf16) && is_xe_hp_plus && use_tn) {
                 if (a_any && b_any) {

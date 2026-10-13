@@ -67,9 +67,6 @@ struct gemm_t : public primitive_t {
             VDISPATCH_MATMUL(
                     is_dense_format_kind(), VERBOSE_UNSUPPORTED_SPARSE_CFG);
 
-            // jit-gemm has no u3 kernel type; route u3 decompression to ref
-            VDISPATCH_MATMUL(b_md->data_type != u3, VERBOSE_UNSUPPORTED_DT);
-
             auto maybe_reshape = [&]() -> status_t {
                 // reduce output is not handled by the reshape logic.
                 if (with_reduce()) return status::success;
