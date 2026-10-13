@@ -328,6 +328,15 @@ status_t brgemm_matmul_copy_reorder_t::pd_t::init(const engine_t *engine,
     VDISPATCH_REORDER(
             !has_adj_scale, VERBOSE_UNSUPPORTED_MD_FLAG, "dst:scale_adjust");
 
+    // Reject destinations that carry extra flags this kernel cannot produce
+    // (e.g. RNN compensation buffers); otherwise they would be silently
+    // ignored and leave the appended buffer uninitialized.
+    const uint64_t supported_extra_flags
+            = memory_extra_flags::compensation_conv_s8s8
+            | memory_extra_flags::compensation_conv_asymmetric_src;
+    VDISPATCH_REORDER(!(od.extra().flags & ~supported_extra_flags),
+            VERBOSE_UNSUPPORTED_MD_FLAG, "dst");
+
     VDISPATCH_REORDER(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
 
     VDISPATCH_REORDER(
