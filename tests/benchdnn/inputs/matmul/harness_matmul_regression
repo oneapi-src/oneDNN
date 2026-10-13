@@ -11,6 +11,24 @@
 --reset --dt=bf16:bf16:bf16 2x1280:1280x65_n"parallel_reduction"
 # Shape to better test k tail.
 --reset --dt=bf16:bf16:bf16 --stag=ab --wtag=ab --dtag=ab 8x2664:2664x256_n"k_tail"
+--reset --impl=brg:sve_ --dt=bf16:bf16:f32 --wtag=any
+
+# Large-K input.
+--stag=ab --dtag=ab
+17x2184:2184x64_n"bf16_large_k"
+
+# Batched inputs with per-batch and broadcast weights.
+--stag=abc --dtag=abc
+2x17x64:2x64x64_n"bf16_batched_weights"
+2x17x64:1x64x64_n"bf16_broadcast_weights"
+
+# Broadcast across different batch axes with packed weights.
+--stag=abcd --dtag=abcd
+2x1x5x16:1x3x16x32_n"bf16_4d_broadcast_weights"
+
+# BF16 destination with bias, sum, and eltwise.
+--dt=bf16:bf16:bf16 --bia-dt=bf16 --stag=ab --dtag=ab --attr-post-ops=sum:1+relu
+31x72:72x128_n"bf16_epilogue"
 # Test that cases when M == 1 are handled correctly.
 --reset --dt=bf16 --stag=ba,ab --wtag=ab --dtag=ab 1x2:2x256
 # 4D matrix A with acbd-like layout (second dimension = 1) crash.
