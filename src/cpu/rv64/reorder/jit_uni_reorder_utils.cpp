@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2018-2025 Intel Corporation
+* Copyright 2018 Intel Corporation
 * Copyright 2020-2023 FUJITSU LIMITED
 * Copyright 2022-2025 Arm Ltd. and affiliates
 * Copyright 2026 Institute of Software, Chinese Academy of Sciences
@@ -398,6 +398,16 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
                             && p.dst_scale_type != scale_type_t::NONE,
                     src_mask == dst_mask),
             VERBOSE_UNSUPPORTED_SCALES_CFG);
+
+    // Reject destinations that carry extra flags this kernel cannot produce
+    // (e.g. RNN compensation buffers); otherwise they would be silently
+    // ignored and leave the appended buffer uninitialized.
+    const uint64_t supported_extra_flags
+            = memory_extra_flags::compensation_conv_s8s8
+            | memory_extra_flags::compensation_conv_asymmetric_src
+            | memory_extra_flags::scale_adjust;
+    VDISPATCH_REORDER_IC(!(om_d.extra().flags & ~supported_extra_flags),
+            VERBOSE_UNSUPPORTED_MD_FLAG, "dst");
 
     p.scale_adjust = (om_d.extra().flags & memory_extra_flags::scale_adjust)
             ? om_d.extra().scale_adjust
