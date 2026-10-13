@@ -81,11 +81,16 @@ struct gemm_desc_t : public op_desc_t {
         // Leading dimension must be byte-aligned
         using namespace data_type;
         bool is_4bit = utils::one_of(md.data_type, f4_e2m1, s4, u4);
+        bool is_3bit = md.data_type == u3;
+        bool is_2bit = md.data_type == u2;
         dim_t last_dim = md.dims[md.ndims - 1];
         auto strides = md.format_desc.blocking.strides;
         dim_t notranspose_ld
                 = md.dims[md.ndims - 2] > 1 ? strides[md.ndims - 2] : last_dim;
-        if (is_4bit && notranspose_ld % 2 != 0) return transpose::trans;
+        if ((is_4bit && notranspose_ld % 2 != 0)
+                || (is_3bit && notranspose_ld % 8 != 0)
+                || (is_2bit && notranspose_ld % 4 != 0))
+            return transpose::trans;
 
         return last_dim != 1 && strides[md.ndims - 1] != 1 ? transpose::trans
                                                            : transpose::notrans;
