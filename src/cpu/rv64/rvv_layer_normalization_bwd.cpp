@@ -49,14 +49,16 @@ struct jit_rvv_layernorm_bwd_kernel_t : public jit_generator_t {
         , scale_(scale)
         , stats_(stats)
         , weights_(weights) {
-        create_kernel();
+        status_ = create_kernel();
     }
+    status_t status() const { return status_; }
     void operator()(const call_params_t *p) const {
         jit_generator_t::operator()(p);
     }
 
 private:
     bool scale_, stats_, weights_;
+    status_t status_ = status::runtime_error;
     void generate() override {
 #if defined(XBYAK_RISCV_V) && XBYAK_RISCV_V == 1
         const Reg src = a1, dd = a2, ds = a3, gamma = a4;
@@ -230,10 +232,16 @@ status_t jit_uni_layer_normalization_bwd_t::pd_t::init(const engine_t *engine) {
 
 jit_uni_layer_normalization_bwd_t::jit_uni_layer_normalization_bwd_t(
         const pd_t *apd)
-    : primitive_t(apd) {
-    kernel_ = pd()->diff_weights_
+    : primitive_t(apd) {}
+
+status_t jit_uni_layer_normalization_bwd_t::init(engine_t *engine) {
+    UNUSED(engine);
+    const auto *kernel = pd()->diff_weights_
             ? &get_kernel<true>(pd()->use_scale(), !pd()->stats_are_src())
             : &get_kernel<false>(pd()->use_scale(), !pd()->stats_are_src());
+    CHECK(kernel->status());
+    kernel_ = kernel;
+    return status::success;
 }
 
 status_t jit_uni_layer_normalization_bwd_t::execute(
