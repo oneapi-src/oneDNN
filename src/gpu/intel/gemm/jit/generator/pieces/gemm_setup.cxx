@@ -1675,7 +1675,9 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
         // Repacked data can use significantly more registers than the loaded
         // data. Lazy repacking can reduce register utilization and improve load
         // pipelining at (in some cases) the expense of more work.
-        bool lazyRepack = state.Ta_load.isSubByte() && one_of(Ta, {Type::f16, Type::bf16, Type::f32});    // Other cases are unimplemented
+        // u3 is excluded: its packed 3-byte groups can't be sliced at arbitrary k.
+        bool lazyRepack = state.Ta_load.isSubByte() && !state.Ta_load.is3()
+                && one_of(Ta, {Type::f16, Type::bf16, Type::f32});    // Other cases are unimplemented
         if (lazyRepack)
             state.ka_repack = std::min(state.ka_repack, strategy.kb_load);
         int repackN = state.ka_repack;
