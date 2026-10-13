@@ -1,5 +1,6 @@
 #===============================================================================
 # Copyright 2016 Intel Corporation
+# Copyright 2026 Arm Ltd. and affiliates
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +22,12 @@ endif()
 
 include_directories_with_host_compiler(${PROJECT_SOURCE_DIR}/third_party/gtest/include)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/gtest gtest)
+
+# AArch64 feature queries use Xbyak functions hidden in the shared library.
+if(TARGET ${LIB_PACKAGE_NAME}_cpu_aarch64_xbyak_aarch64)
+    target_sources(dnnl_gtest PRIVATE
+        $<TARGET_OBJECTS:${LIB_PACKAGE_NAME}_cpu_aarch64_xbyak_aarch64>)
+endif()
 
 set(APP_NAME "gtest")
 set(MAIN_SRC_GTEST ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)

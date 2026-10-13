@@ -1,6 +1,6 @@
 /*******************************************************************************
 * Copyright 2016 Intel Corporation
-* Copyright 2023 Arm Ltd. and affiliates
+* Copyright 2023, 2026 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -56,6 +56,43 @@ TEST_P(reorder_simple_test_t_f32_f32, TestsReorder) {
 TEST_P(reorder_simple_test_t_s8_s8, TestsReorder) {
     Test();
 }
+
+#if DNNL_AARCH64
+TEST(AArch64MmlaWeights, DescriptorSizeAndRoundTrip) {
+    SKIP_IF(get_test_engine_kind() != engine::kind::cpu,
+            "This test targets AArch64 CPU weight preparation.");
+    SKIP_IF(unsupported_data_type(memory::data_type::bf16),
+            "Engine does not support BF16.");
+
+    auto eng = get_test_engine();
+    auto strm = make_stream(eng);
+    const auto plain_md
+            = memory::desc({64, 64, 3, 3}, memory::data_type::bf16, fmt::oihw);
+    auto plain = memory(plain_md, eng);
+    fill_data<bfloat16_t>(plain_md.get_size() / sizeof(bfloat16_t), plain);
+    for (const auto packed_tag : {fmt::OhwI2i16o4i, fmt::OhwI2i32o4i}) {
+        SCOPED_TRACE(static_cast<int>(packed_tag));
+        const auto packed_md = memory::desc(
+                plain_md.get_dims(), memory::data_type::bf16, packed_tag);
+        EXPECT_EQ(packed_md.get_size(), plain_md.get_size());
+        auto packed = memory(packed_md, eng);
+        auto round_trip = memory(plain_md, eng);
+        reorder(plain, packed).execute(strm, plain, packed);
+        reorder(packed, round_trip).execute(strm, packed, round_trip);
+        strm.wait();
+        check_reorder<bfloat16_t, bfloat16_t>(
+                plain_md, packed_md, plain, packed);
+        check_reorder<bfloat16_t, bfloat16_t>(
+                packed_md, plain_md, packed, round_trip);
+    }
+}
+
+CPU_INSTANTIATE_TEST_SUITE_P(MmlaWeights, reorder_simple_test_t_f32_f32,
+        ::testing::Values(cfg_f32 {fmt::oihw, fmt::OhwI2i16o4i, {33, 17, 3, 3}},
+                cfg_f32 {fmt::OhwI2i16o4i, fmt::oihw, {33, 17, 3, 3}},
+                cfg_f32 {fmt::oihw, fmt::OhwI2i32o4i, {33, 17, 3, 3}},
+                cfg_f32 {fmt::OhwI2i32o4i, fmt::oihw, {33, 17, 3, 3}}));
+#endif
 
 INSTANTIATE_TEST_SUITE_P(ACLCases, reorder_simple_test_t_f32_bf16,
         ::testing::Values(cfg_bf16 {fmt::ab, fmt::BA4b4a, {128, 128}},
