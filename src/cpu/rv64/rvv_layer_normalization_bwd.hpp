@@ -39,13 +39,14 @@ struct jit_uni_layer_normalization_bwd_t : public primitive_t {
     };
 
     explicit jit_uni_layer_normalization_bwd_t(const pd_t *apd);
+    status_t init(engine_t *engine) override;
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
     const pd_t *pd() const {
         return static_cast<const pd_t *>(primitive_t::pd().get());
     }
-    const jit_rvv_layernorm_bwd_kernel_t *kernel_;
+    const jit_rvv_layernorm_bwd_kernel_t *kernel_ = nullptr;
 };
 
 } // namespace rv64
