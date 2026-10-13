@@ -247,8 +247,42 @@ void pooling_ncsp(const ncsp_kernel_t<isa, d_type> &kernel,
                               : int_lo);
 
     if (int_lo < int_hi) {
-        parallel_nd(batch, channels, outD, outH,
-                [&](dim_t mb, dim_t c, dim_t od, dim_t oh) {
+        // Output rows whose H window lies fully inside the input share the
+        // window shape (and avg scale), so the kernel pools a block of them
+        // per call (n_pos rows, base pointers advanced per row). Rows in the
+        // H padding are processed one per call. Blocks are sized to keep at
+        // least ~8 work items per thread.
+        const dim_t oh_lo = std::min(
+                std::max((padT + strideH - 1) / strideH, (dim_t)0), outH);
+        const dim_t oh_hi = (inH + padT >= kerH)
+                ? std::min(std::max((inH - kerH + padT) / strideH + 1, oh_lo),
+                          outH)
+                : oh_lo;
+        const dim_t n_int_rows = oh_hi - oh_lo;
+        const dim_t n_planes = batch * channels * outD;
+        const dim_t min_work = 8 * (dim_t)dnnl_get_max_threads();
+        const dim_t oh_blk = n_int_rows > 0
+                ? utils::div_up(n_int_rows,
+                          std::min(n_int_rows,
+                                  utils::div_up(min_work, n_planes)))
+                : 1;
+        const dim_t n_int_blks = utils::div_up(n_int_rows, oh_blk);
+        const dim_t n_row_units = oh_lo + n_int_blks + (outH - oh_hi);
+
+        parallel_nd(batch, channels, outD, n_row_units,
+                [&](dim_t mb, dim_t c, dim_t od, dim_t u) {
+            dim_t oh, n_rows;
+            if (u < oh_lo) {
+                oh = u;
+                n_rows = 1;
+            } else if (u < oh_lo + n_int_blks) {
+                oh = oh_lo + (u - oh_lo) * oh_blk;
+                n_rows = std::min(oh_blk, oh_hi - oh);
+            } else {
+                oh = oh_hi + (u - oh_lo - n_int_blks);
+                n_rows = 1;
+            }
+
             const data_t *src_ch
                     = src + ((size_t)mb * channels + c) * spatial_size;
             data_t *dst_oh = dst
@@ -265,8 +299,9 @@ void pooling_ncsp(const ncsp_kernel_t<isa, d_type> &kernel,
             if ((id_start >= id_end || ih_start >= ih_end) && !jpp.fuse_eltwise
                     && !jpp.fuse_binary) {
                 const data_t ev = empty_window_value<data_t>(jpp);
-                for (dim_t ow = int_lo; ow < int_hi; ow++)
-                    dst_oh[ow] = ev;
+                for (dim_t r = 0; r < n_rows; r++)
+                    for (dim_t ow = int_lo; ow < int_hi; ow++)
+                        dst_oh[r * outW + ow] = ev;
                 return;
             }
 
@@ -292,6 +327,9 @@ void pooling_ncsp(const ncsp_kernel_t<isa, d_type> &kernel,
             p.with_relu = with_relu;
             p.src_vec_byte_stride = strideW * (dim_t)sizeof(data_t);
             p.dst_vec_byte_stride = (dim_t)sizeof(data_t);
+            p.n_pos = n_rows;
+            p.pos_src_byte_stride = strideH * inW * (dim_t)sizeof(data_t);
+            p.pos_dst_byte_stride = outW * (dim_t)sizeof(data_t);
             kernel(&p);
         });
     }
