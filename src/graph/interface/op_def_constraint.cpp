@@ -311,7 +311,7 @@ bool check_reduce_axes(const op_t *n) {
 // size of scales/zps should be 1. For f8 quantization, zps is not required.
 bool check_quant_dequant_scales_zps(const op_t *n) {
     const logical_tensor_t &src_lt = n->get_input_logical_tensor(0);
-    const logical_tensor_t &dst_lt = n->get_input_logical_tensor(0);
+    const logical_tensor_t &dst_lt = n->get_output_logical_tensor(0);
     const int64_t sz_scales
             = n->get_attr<std::vector<float>>(op_attr::scales).size();
 
