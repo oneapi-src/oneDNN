@@ -38,7 +38,11 @@ static inline constexpr int elementsPerGRF(ngen::HW hw, Type T)
 
 static inline constexpr int elementsPerGRF(ngen::HW hw, ngen::DataType dt)
 {
-    return (ngen::GRF::bytes(hw) << 3) >> getLog2Bits(dt);
+    // u3 (Type::ngen_u3()) has a 3-bit element width, which is not a power of
+    // two and thus has no valid getLog2Bits() encoding; compute directly via
+    // division instead (mirroring Type::operator/ for sub-byte types).
+    return (dt == Type::ngen_u3()) ? (ngen::GRF::bytes(hw) << 3) / 3
+                                   : (ngen::GRF::bytes(hw) << 3) >> getLog2Bits(dt);
 }
 
 static inline bool canSwizzle(ngen::HW hw, ngen::DataType dt)
