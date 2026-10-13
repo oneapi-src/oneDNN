@@ -113,6 +113,23 @@ public:
     Xbyak::Reg64 reg_tmp_ = Xbyak::util::rax;
 };
 
+class io_emu_e8m0_conf_t {
+public:
+    io_emu_e8m0_conf_t() = default;
+    // e8m0 <-> f32 conversions need a single scratch vector register (to hold
+    // a constant), a scratch opmask (to select the special e8m0 values) and a
+    // general-purpose register (to materialize the replacement constants).
+    io_emu_e8m0_conf_t(
+            int vreg_tmp_idx, int kmask_aux_idx, const Xbyak::Reg64 &reg_tmp);
+    io_emu_e8m0_conf_t(const io_emu_e8m0_conf_t &other) = default;
+
+    io_emu_e8m0_conf_t &operator=(const io_emu_e8m0_conf_t &other) = default;
+
+    Xbyak::Zmm vreg_tmp_ = Xbyak::Zmm(0);
+    Xbyak::Opmask kmask_aux_ = Xbyak::Opmask(2);
+    Xbyak::Reg64 reg_tmp_ = Xbyak::util::rax;
+};
+
 class io_saturation_conf_t {
 public:
     io_saturation_conf_t(const int vreg_zero_saturation_idx,
@@ -166,6 +183,8 @@ public:
             const utils::optional_t<io_gather_conf_t> &gather_conf
             = utils::nullopt,
             const utils::optional_t<io_emu_fp8_conf_t> &fp8_conf
+            = utils::nullopt,
+            const utils::optional_t<io_emu_e8m0_conf_t> &e8m0_conf
             = utils::nullopt);
     jit_io_helper_t(jit_io_helper_t &&) = default;
     jit_io_helper_t &operator=(jit_io_helper_t &&) = default;
@@ -222,6 +241,7 @@ private:
     void load_f16(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void load_f8(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void load_i8(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
+    void load_e8m0(const Xbyak::Address &src_addr, const Vmm &dst_vmm);
     void saturate(const Vmm &vmm, const bool use_sat_cvt);
     void store_byte_by_byte(const Vmm &src_vmm, const Xbyak::Address &dst_addr,
             const int store_size);
@@ -232,6 +252,7 @@ private:
     void store_f8(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
     void store_i8(const Vmm &src_vmm, const Xbyak::Address &dst_addr,
             const bool use_sat_cvt);
+    void store_e8m0(const Vmm &src_vmm, const Xbyak::Address &dst_addr);
     void convert_to_f32(const Vmm &dst_vmm, const Xbyak::Xmm &src_vmm,
             const data_type_t src_data_type);
 
@@ -249,6 +270,7 @@ private:
     const utils::optional_t<io_saturation_conf_t> saturation_conf_;
     const utils::optional_t<io_gather_conf_t> gather_conf_;
     const utils::optional_t<io_emu_fp8_conf_t> fp8_conf_;
+    const utils::optional_t<io_emu_e8m0_conf_t> e8m0_conf_;
 };
 
 template <typename Vmm>
@@ -267,6 +289,8 @@ public:
             const utils::optional_t<io_gather_conf_t> &gather_conf
             = utils::nullopt,
             const utils::optional_t<io_emu_fp8_conf_t> &fp8_conf
+            = utils::nullopt,
+            const utils::optional_t<io_emu_e8m0_conf_t> &e8m0_conf
             = utils::nullopt);
     virtual ~jit_io_multi_dt_helper_t();
     void prepare_tail_mask();
