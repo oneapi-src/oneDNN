@@ -315,6 +315,16 @@ status_t prb_init(prb_t &p, const memory_desc_t &imd, const memory_desc_t &omd,
                     src_mask == dst_mask),
             VERBOSE_UNSUPPORTED_SCALES_CFG);
 
+    // Reject destinations that carry extra flags this kernel cannot produce
+    // (e.g. RNN compensation buffers); otherwise they would be silently
+    // ignored and leave the appended buffer uninitialized.
+    const uint64_t supported_extra_flags
+            = memory_extra_flags::compensation_conv_s8s8
+            | memory_extra_flags::compensation_conv_asymmetric_src
+            | memory_extra_flags::scale_adjust;
+    VDISPATCH_REORDER_IC(!(om_d.extra().flags & ~supported_extra_flags),
+            VERBOSE_UNSUPPORTED_MD_FLAG, "dst");
+
     p.scale_adjust = (om_d.extra().flags & memory_extra_flags::scale_adjust)
             ? om_d.extra().scale_adjust
             : 1.f;
