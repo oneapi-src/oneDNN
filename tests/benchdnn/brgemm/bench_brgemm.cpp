@@ -121,6 +121,22 @@ int verify_input(const settings_t &s, const settings_t &def) {
         }
     }
 
+    for (const auto &i_post_ops : s.post_ops) {
+        for (int idx = 0; idx < i_post_ops.len(); ++idx) {
+            const auto &e = i_post_ops.entry[idx];
+            if (e.is_binary_kind()) {
+                if (e.binary.tag.empty() || e.binary.tag == "any"
+                        || e.binary.tag == "none") {
+                    BENCHDNN_PRINT(0, "%s\n",
+                            "ERROR: brgemm driver: binary post-op requires "
+                            "specifying `<alg>:<dt>:<policy>:<tag>` with a "
+                            "concrete format tag (e.g. `add:f32:per_oc:ab`).");
+                    return FAIL;
+                }
+            }
+        }
+    }
+
     return OK;
 }
 
