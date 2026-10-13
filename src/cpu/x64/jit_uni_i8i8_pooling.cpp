@@ -197,8 +197,8 @@ struct jit_uni_i8i8_pooling_fwd_ker_t : public jit_generator_t {
     } // ll: 0..4 [4..7]
 
     Vmm vreg_dst_f32(int jj, int ll) {
-        return avg_base_vr(3 * max_num_ll * jj + ll + 2 * max_num_ll);
-    } // ll: 0..4 [8..11]
+        return avg_base_vr(3 * max_num_ll * jj + ll + 1 * max_num_ll);
+    } // ll: 0..4 [4..7]
 
     Mmx mmx_mask(int ll) {
         return Mmx(mmx_msk_base_reg + ll);
