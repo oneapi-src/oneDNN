@@ -217,7 +217,7 @@ jobs:
           sudo apt install -y libomp-dev g++-${{ fromJson(steps.get-versions.outputs.output).dependencies.gcc }}
 
       - name: Download oneDNN
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: onednn-unit
           path: oneDNN_pkg
@@ -272,7 +272,7 @@ jobs:
             pip install scipy statistics gitpython
 
       - name: Download oneDNN base
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: onednn-perf-base
           path: oneDNN_pkg
@@ -284,7 +284,7 @@ jobs:
           patchelf --add-rpath ${{ github.workspace }}/oneDNN_base/ComputeLibrary/build ${{ github.workspace }}/oneDNN_base/oneDNN/build/src/libdnnl.so.3
 
       - name: Download oneDNN new
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: onednn-perf-new
           path: oneDNN_pkg
