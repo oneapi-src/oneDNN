@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2016 Intel Corporation
+* Copyright 2026 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -27,6 +28,7 @@
 #include <cstdlib>
 #include <limits>
 #include <locale>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -34,7 +36,6 @@
 
 #include <memory>
 #include <string>
-#include <tuple>
 
 #define MSAN_ENABLED 0
 #define ATTR_NO_MSAN
@@ -805,11 +806,12 @@ struct setting_t {
 private:
     static_assert(std::is_trivially_copyable<T>::value,
             "std::atomic<T> value_ requires T to be trivially copyable. Use "
-            "atomic-free specialization and secure thread-safety for it.");
+            "atomic-free specialization and secure thread-safety for it with a "
+            "member mutex.");
     // Use the default initialization to work around the bug in std::atomic
     // which was fixed in C++20 only:
     // https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p0883r2.pdf
-    std::atomic<T> value_ {};
+    std::atomic<T> value_ {T()};
     std::atomic<bool> initialized_ {false};
 
 public:
@@ -839,8 +841,12 @@ private:
     std::atomic<bool> initialized_ {false};
 
 public:
+    mutable std::mutex mutex;
+
     setting_t() = default;
 
+    // The caller is responsible for locking the member mutex between calls to
+    // initialized(), get() and set() operations
     bool initialized() const {
         return initialized_.load(std::memory_order_acquire);
     }
