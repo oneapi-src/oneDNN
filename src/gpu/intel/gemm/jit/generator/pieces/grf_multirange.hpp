@@ -45,7 +45,12 @@ struct GRFMultirange {
     }
 
     ngen::Subregister sub(int log2GRFBytes, int offset, ngen::DataType type, int *consecutive = nullptr) const {
-        const int lg2Len = log2GRFBytes + 3 - ngen::getLog2Bits(type);
+        // u3 is packed (8 elements/3 bytes) with no valid getLog2Bits();
+        // its `offset` is a byte offset (see RegisterBlock::find()), so use
+        // byte granularity like ub instead of the formula below.
+        const int lg2Len = (type == Type::ngen_u3())
+                ? log2GRFBytes
+                : log2GRFBytes + 3 - ngen::getLog2Bits(type);
         const int roffset = offset >> lg2Len;
         offset -= (roffset << lg2Len);
         int rconsecutive;

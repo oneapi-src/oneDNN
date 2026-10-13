@@ -54,6 +54,7 @@ public:
         f16      = 0x10011101,
         f32      = 0x10111201,
         f64      = 0x10211301,
+        u3       = 0x02021300,
         u2       = 0x11001100,
         s2       = 0x11101102,
         u4       = 0x11201200,
@@ -91,6 +92,11 @@ public:
     constexpr bool isFP()             const { return uint32_t(val) & 0x1; }
     constexpr bool isInteger()        const { return !isFP(); }
     constexpr bool isSubByteInt()     const { return isSubByte() && isInteger(); };
+    constexpr bool is2()              const { return bits() == 2; }
+    constexpr bool is3()              const { return val == Type::u3; }
+    constexpr bool is4()              const { return bits() == 4; }
+    constexpr bool isInt4()           const { return is4() && isInteger(); }
+    constexpr bool isIntSubByte()     const { return isSubByteInt(); }
     constexpr bool isInt8()           const { return (val == Type::u8)  || (val == Type::s8);  }
     constexpr bool isInt16()          const { return (val == Type::u16) || (val == Type::s16); }
     constexpr bool isF8()             const {
@@ -104,7 +110,7 @@ public:
     constexpr bool isByteSize()       const { return uint32_t(val) & (1 << 16); }
     constexpr int bits()              const {
         return (isByteSize() ? 8 : 1) * (isLog2Size() ? (1 << ((uint32_t(val) >> 8) & 0xF)) : ((uint32_t(val) >> 8) & 0xF)); }
-    constexpr int paddedSize()        const { return (bits() + 7) / 8; }
+    constexpr int paddedSize()        const { return is3() ? 3 : (bits() + 7) / 8; }
     int log2Size()                    const {
         subByteCheck();
         auto temp = bits() / 8;
@@ -116,8 +122,11 @@ public:
         return val; }
     int size()                        const { subByteCheck(); blockCheck(); return paddedSize(); }
     constexpr bool isSubByte()        const { return isValid() && (bits() < 8); }
-    constexpr int perByte()           const { return isSubByte() ? 8 / bits() : 1; }
-    uint16_t logPerByte()             const { if (!isSubByte()) stub(); return (perByte() == 4) ? 2 : 1; }
+    constexpr int perByte()           const { return is2() ? 4 : is4() ? 2 : 1; }
+    uint16_t logPerByte()             const {
+        if (!isSubByte() || is3()) stub();
+        return (perByte() == 4) ? 2 : 1;
+    }
     void subByteCheck()               const { if (isSubByte()) stub(); }
     void blockCheck()                 const { if (isBlocked()) stub(); }
 
@@ -144,6 +153,9 @@ public:
     // Not valid nGEN DataTypes; for gemmstone internal use only
     static constexpr ngen::DataType ngen_nf4()  { return static_cast<ngen::DataType>(0x58); }
     static constexpr ngen::DataType ngen_e8m0() { return static_cast<ngen::DataType>(0x79); }
+    // Pseudo type for packed u3 (8 elements/3 bytes) in the copy planner;
+    // rewritten into ub shift/mask sequences by planTypeConversions().
+    static constexpr ngen::DataType ngen_u3()   { return static_cast<ngen::DataType>(0x59); }
 
     ngen::DataType ngen() const
     {
@@ -161,7 +173,7 @@ public:
             DT::ub,      DT::b,       DT::uw,      DT::w,
             DT::ud,      DT::d,       DT::uq,      DT::q,
             dt28,        none,        none,        dt31,
-            none,        none,        none,        none,
+            ngen_u3(),   none,        none,        none,
             none,        none,        none,        none,
             none,        none,        none,        none,
             none,        none,        none,        none,
@@ -209,6 +221,7 @@ inline char typeToChar(Type T)
         case Type::f64:     return 'D';
         case Type::u2:      return 'p';
         case Type::s2:      return 'P';
+        case Type::u3:      return 'k';
         case Type::u4:      return 'f';
         case Type::s4:      return 'F';
         case Type::u8:      return 'o';
@@ -238,6 +251,7 @@ inline Type charToType(char c)
         case 'D': return Type::f64;
         case 'p': return Type::u2;
         case 'P': return Type::s2;
+        case 'k': return Type::u3;
         case 'f': return Type::u4;
         case 'F': return Type::s4;
         case 'o': return Type::u8;
