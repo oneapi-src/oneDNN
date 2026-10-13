@@ -748,6 +748,10 @@ RegisterBlock::RegisterBlock(HW hw_, Type T, int r, int c, const MatrixAddressin
             }
             xblock = std::min(X, maxBlockBytes / Tblock);
             xblock = std::max(xblock, 4 / Tblock);
+            // Block2D transpose messages only support power-of-2 widths
+            // (u3's 3-dword tail can't be covered by widening). Round
+            // down; appendBlocks() recurses on the leftover remainder.
+            if (transpose && (!T.is3() || !prefetch)) xblock = rounddown_pow2(xblock);
             int yblockLimit = writable ? 8 : 32;
 
             if (isPacked(atype.layout) && 2 * xblock <= X && static_cast<uint32_t>(X_logical) == atype.packSize) {
