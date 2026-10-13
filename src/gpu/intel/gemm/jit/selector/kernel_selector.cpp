@@ -368,10 +368,10 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, const ngen
     if(problem.Tbo.isSubByte() || problem.Tb_scale.isSubByte()){
         unrollReq[LoopN] = std::max(problem.Tbo.perByte(), problem.Tb_scale.perByte());
     }
-    if(problem.Tao.is3() || problem.Ta_scale.is3()){
+    if(problem.Ta_scale.is3()){
         unrollReq[LoopM] = 8;
     }
-    if(problem.Tbo.is3() || problem.Tb_scale.is3()){
+    if(problem.Tb_scale.is3()){
         unrollReq[LoopN] = 8;
     }
 
