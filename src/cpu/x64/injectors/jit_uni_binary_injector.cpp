@@ -811,19 +811,22 @@ void jit_uni_binary_injector_t<Vmm>::compute_vector_range_impl(
                 = (rhs_broadcasting_strategy == broadcasting_strategy_t::scalar)
                 && needs_ternary_input;
 
-        const bool params_differ = rhs_arg_params_differ(vmm_idx, vmm_idx - 1,
-                rhs_arg_params, rhs_broadcasting_strategy);
-        const bool need_new_addr = is_start_idx || params_differ || load_addr;
-        if (need_new_addr) {
-            const bool is_baddr_loop_invariant
-                    = utils::one_of(rhs_broadcasting_strategy,
-                            broadcasting_strategy_t::no_broadcast,
-                            broadcasting_strategy_t::per_mb_spatial);
-            const bool is_first = is_baddr_loop_invariant
-                    ? (is_start_idx || load_addr)
-                    : need_new_addr;
+        assert(IMPLICATION(rhs_broadcasting_strategy
+                               != broadcasting_strategy_t::scalar,
+                       !params_differ(rhs_arg_params.vmm_idx_to_out_addr,
+                               vmm_idx, start_idx)
+                               && !params_differ(
+                                       rhs_arg_params.vmm_idx_to_out_reg,
+                                       vmm_idx, start_idx))
+                && "the destination base must be the same over the vmm range");
+
+        if (is_start_idx
+                || rhs_arg_params_differ(vmm_idx, vmm_idx - 1, rhs_arg_params,
+                        rhs_broadcasting_strategy)
+                || load_addr) {
             rhs1_arg_addr = prepare_rhs_arg_addr(vmm_idx, rhs_arg_idx, post_op,
-                    rhs_arg_params, rhs_broadcasting_strategy, is_first, false);
+                    rhs_arg_params, rhs_broadcasting_strategy,
+                    is_start_idx || load_addr, false);
         }
 
         if (needs_ternary_input)
