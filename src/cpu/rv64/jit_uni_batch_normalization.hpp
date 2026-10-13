@@ -69,9 +69,6 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
 
             VDISPATCH_BNORM(!fuse_norm_add_relu(), VERBOSE_UNSUPPORTED_FEATURE,
                     "fuse_norm_add_relu not supported");
-            VDISPATCH_BNORM(use_global_stats() || is_training(),
-                    VERBOSE_UNSUPPORTED_FEATURE,
-                    "statistics must be inputs or training outputs");
             using smask_t = primitive_attr_t::skip_mask_t;
             VDISPATCH_BNORM(!(fuse_norm_relu()
                                     && desc()->prop_kind
@@ -101,10 +98,13 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
             VDISPATCH_BNORM(
                     check_layouts(src_d, dst_d), VERBOSE_UNSUPPORTED_TAG);
             const bool channels_dense = src_d.blocking_desc().strides[1] == 1;
-            VDISPATCH_BNORM(IMPLICATION(!use_global_stats(),
-                                    dtsrc == f16 && !channels_dense),
+            // Statistics are reduced over one contiguous D*H*W row per (n, c).
+            VDISPATCH_BNORM(
+                    IMPLICATION(!use_global_stats(),
+                            utils::one_of(dtsrc, f32, f16) && !channels_dense
+                                    && spatial_dense(src_d)),
                     VERBOSE_UNSUPPORTED_FEATURE,
-                    "computed statistics require f16 ncx data");
+                    "computed statistics require f32 or f16 ncx data");
 
             fused_relu_in_kernel_ = fuse_norm_relu();
             init_scratchpad();
@@ -125,6 +125,16 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
                     || src_d.blocking_desc().strides[ndims() - 1] == 1;
             return ndims_ok && plain_dense && same_layouts && vector_dim_dense;
         }
+        // True if the spatial dims of every (n, c) form one contiguous row.
+        bool spatial_dense(const memory_desc_wrapper &src_d) const {
+            const auto &strides = src_d.blocking_desc().strides;
+            dim_t sp_stride = 1;
+            for (int d = ndims() - 1; d >= 2; --d) {
+                if (strides[d] != sp_stride) return false;
+                sp_stride *= src_d.dims()[d];
+            }
+            return true;
+        }
 
         bool fused_relu_in_kernel() const { return fused_relu_in_kernel_; }
 
@@ -135,6 +145,9 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
             // Reserve per-channel temporary buffers for axb (channels-dense) path
             scratchpad.template book<float>(key_bnorm_tmp_mean, C());
             scratchpad.template book<float>(key_bnorm_tmp_var, C());
+            // Computed statistics that are not outputs (inference)
+            if (!use_global_stats() && !is_training())
+                scratchpad.template book<float>(key_bnorm_tmp_stats, 2 * C());
         }
         bool fused_relu_in_kernel_ = false;
     };
