@@ -182,6 +182,17 @@ const std::vector<const kcatalog::Entry *> getEntries(const kcatalog::Catalog &c
         }
     }
 
+    // u3 problems also match int4 ("[FO]") patterns; prefer dedicated u3
+    // entries over those, since int4 performance models underestimate u3 cost.
+    auto isU3Entry = [](const kcatalog::Entry *e) {
+        for (int i = 0; i < 2; i++) {
+            const char *p = e->selector.precisions[i];
+            char c = (p[0] == '[') ? p[1] : p[0];
+            if ((c & ~0x20) == 'K') return true;
+        }
+        return false;
+    };
+
     auto less = [&](const EntryData &lhs, const EntryData &rhs){
                       bool lhsFallback = (lhs.entry->restrictions.tags[0] == kcatalog::ReqAlignFallback);
                       int  lhsAlignA = std::max(lhs.entry->restrictions.alignment[0], 4);
@@ -191,6 +202,8 @@ const std::vector<const kcatalog::Entry *> getEntries(const kcatalog::Catalog &c
                       int  rhsAlignB = std::max(rhs.entry->restrictions.alignment[1], 4);
                       if (rhsFallback && lessAligned(rhsAlignA, rhsAlignB, lhsAlignA, lhsAlignB)) return true;
                       if (lhsFallback && lessAligned(lhsAlignA, lhsAlignB, rhsAlignA, rhsAlignB)) return false;
+                      bool lhsU3 = isU3Entry(lhs.entry), rhsU3 = isU3Entry(rhs.entry);
+                      if (lhsU3 != rhsU3) return lhsU3;
                       if (lhs.score < rhs.score) return true;
                       if (lhs.score > rhs.score) return false;
                       return (lhs.entry < rhs.entry);
