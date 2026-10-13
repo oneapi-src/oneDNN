@@ -612,6 +612,9 @@ TEST(IRBuilderTests, InjectPostopsRecordsArgsAndDefUse) {
 TEST(RegConfigTests, MapsMaskKindToFilePerIsa) {
     const int param_reg = 0, rsp_reg = 4;
     const std::vector<int> reserved_masks {6, 7};
+    // The GPR file excludes `rsp` and `param_reg`, plus `rbp` where the build
+    // reserves it (see `jit_generator_t::may_use_rbp()`).
+    const size_t n_reserved_gprs = jit_generator_t::may_use_rbp() ? 2 : 3;
 
     {
         const reg_config_t rc
@@ -620,7 +623,7 @@ TEST(RegConfigTests, MapsMaskKindToFilePerIsa) {
         ASSERT_EQ(rc.pools.files.size(), 2u);
         EXPECT_EQ(rc.pools.kind_to_file, std::vector<int>({0, 1, 1}));
         EXPECT_EQ(rc.pools.files[1].slot_size, 32u);
-        EXPECT_EQ(rc.pools.files[0].regs.size(), 14u);
+        EXPECT_EQ(rc.pools.files[0].regs.size(), 16u - n_reserved_gprs);
         EXPECT_EQ(rc.pools.files[1].regs.size(), 16u);
     }
 
@@ -632,7 +635,8 @@ TEST(RegConfigTests, MapsMaskKindToFilePerIsa) {
         EXPECT_EQ(rc.pools.kind_to_file, std::vector<int>({0, 1, 2}));
         EXPECT_EQ(rc.pools.files[1].slot_size, 64u);
         // `r16` to `r31` are added where the machine has Intel APX enabled.
-        EXPECT_EQ(rc.pools.files[0].regs.size(), mayiuse(avx10_2) ? 30u : 14u);
+        EXPECT_EQ(rc.pools.files[0].regs.size(),
+                (mayiuse(avx10_2) ? 32u : 16u) - n_reserved_gprs);
         EXPECT_EQ(rc.pools.files[1].regs.size(), 32u);
         // The mask file is k1..k7 less the reserved ones. k0 cannot encode a
         // write mask.
