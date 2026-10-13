@@ -251,6 +251,7 @@ void CopyPlan::transform()
     distributePhases();
     planEarlySubByteIntUpconversions();
     split2DRegions();
+    planEarlyInt3Upconversions();
 
     sort(SortType::Register);
 
@@ -869,6 +870,8 @@ void CopyPlan::planTypeConversions()
             stub("Unsupported move to 4-bit type");
         else if (isInt2(dt))
             stub("Unsupported move to 2-bit type");
+        else if (isInt3(dt))
+            stub("Unsupported move to 3-bit type");
         else if (isB(st) && getBytes(dt) == 8)
             copyThrough(i, DataType::w);
         else if (getBytes(st) == 8 && isB(dt))
@@ -1519,6 +1522,266 @@ void CopyPlan::planInt2Upconversion(CopyInstruction &i)
             i1.src1 = 0x3;
         }
     }
+}
+
+// Lower u3 copies before generic passes interpret their register regions.
+void CopyPlan::planEarlyInt3Upconversions()
+{
+    for (auto &i : insns)
+        if (i.src0.type == Type::ngen_u3()) {
+            if (i.op != Opcode::mov) stub("Unsupported u3 copy operation.");
+            planInt3Upconvert(i);
+        }
+    mergeChanges();
+}
+
+// Rewrite u3 -> int upconversion using byte operations.
+//
+// Eight u3 values are packed into 3 bytes (24 bits), laid out as three
+// "rows" of source bytes (row pitch and column pitch come from
+// CopyInstruction::u3Regioning). Lane k occupies bits [3k, 3k+3) of the
+// 24-bit group:
+//   - lanes 0,1,3,4,6,7 lie entirely within one byte: a single shr by the
+//     lane's bit offset extracts them.
+//   - lanes 2 and 5 straddle a byte boundary: the low bits come from a shr of
+//     the lower byte, the high bits from a shl of the next byte, and the two
+//     parts are combined with or_.
+// Lanes 0/1 and 6/7 share a source row, so when the destination stride is 2
+// they are merged into a single shr with a packed pair of shift immediates.
+// Each lane is written to its (possibly interleaved) destination position.
+// Finally, one and_ with 0x7 clears the leftover high bits of all unpacked
+// elements at once, and, for non-integer (hf/bf) destinations, a converting
+// mov turns the masked uw values into the final type.
+//
+// Example (dst stride 1, integer dst, simplified):
+//    shr  dst[0]  row0  0
+//    shr  dst[1]  row0  3
+//    shr  tmp     row0  6;  shl  tmpHi  row1  2;  or_  dst[2]  tmp  tmpHi
+//    ...
+//    and  dst[0-7]  dst[0-7]  0x7
+//
+void CopyPlan::planInt3Upconvert(CopyInstruction &i)
+{
+    if (i.src0.neg || i.hasCMod()) stub("Unsupported modifier");
+
+    struct U3Lane {
+        uint8_t byte, shift;        // low (or only) source row and shift amount
+        uint8_t hiByte, hiShift;    // high source row and shift amount, if straddling
+        bool straddle;
+    };
+    static const U3Lane lanes[8] = {
+        {0, 0, 0, 0, false},
+        {0, 3, 0, 0, false},
+        {0, 6, 1, 2, true},
+        {1, 1, 0, 0, false},
+        {1, 4, 0, 0, false},
+        {1, 7, 2, 1, true},
+        {2, 2, 0, 0, false},
+        {2, 5, 0, 0, false},
+    };
+
+    int n = i.simd;
+    if (n <= 0) stub("u3 upconversion requires a positive SIMD width.");
+    int grfBytes = GRF::bytes(hw);
+
+    // Integer destinations can be written directly; non-integer (hf/bf)
+    // destinations go through a raw-uw reinterpretation + converting mov.
+    bool directWrite = isInt(i.dst.type);
+    // Preserve the caller-requested dst stride (e.g. crosspack-2).
+    CopyOperand finalDst = i.dst;
+
+    CopyOperand srcBase = i.src0;
+    srcBase.type = DataType::ub;
+
+    if (i.u3Regioning.columnPitchBytes <= 1 || i.u3Regioning.rowPitchBytes <= 0)
+        stub("u3 upconversion requires row-spread regioning data.");
+
+    int nLocal = n;
+    int colPitchBytes = i.u3Regioning.columnPitchBytes;
+    int byteStep = 1;
+    int rowStrideBytes = i.u3Regioning.rowPitchBytes;
+
+    // Add a byte offset, handling column-quad overflow (wraps to the
+    // next row) and overflow into subsequent GRF registers.
+    auto addByteOffset = [&](CopyOperand op, int bytes) {
+        if ((op.offset % colPitchBytes + bytes) >= colPitchBytes)
+            op.offset = op.offset - (op.offset % colPitchBytes)
+                    + (op.offset % colPitchBytes + bytes) % colPitchBytes
+                    + rowStrideBytes;
+        else
+            op.offset += bytes;
+
+        int grfOffset = op.offset / grfBytes;
+        op.grf += grfOffset;
+        op.offset -= grfOffset * grfBytes;
+        return op;
+    };
+
+    // Lane pairs (0,1)/(6,7) share a row and can merge into one shr when
+    // dstStride == 2; otherwise all 8 lanes are processed individually.
+    constexpr int laneOps = 12;
+    // Trailing and_ mask + optional converting mov need 2 more slots.
+    constexpr int extraOps = 2;
+    constexpr int totalOps = laneOps + extraOps;
+
+    // split()/splitMultiple() push into `newInsns`, so reserve first.
+    int nOpsNeeded = totalOps;
+    newInsns.reserve(newInsns.size() + nOpsNeeded - 1);
+
+    auto setOp = [&](CopyInstruction *ci, Opcode op, int simd, const CopyOperand &d, const CopyOperand &s0, const CopyOperand &s1) {
+        ci->op = op;
+        ci->simd = simd;
+        ci->dst = d;
+        ci->src0 = s0;
+        ci->src1 = s1;
+        ci->src2 = CopyOperand();
+        ci->sat = false;
+        ci->cmod = ConditionModifier::none;
+    };
+
+    int type_size = getBytes(finalDst.type);
+    int dstStride = finalDst.stride;
+    switch (type_size) {
+        case 1:
+        case 2:
+        case 4: break;
+        default: stub("Unsupported dst type size for u3 upconversion.");
+    }
+
+    // Row-spread u3 sources are unpacked in a single pass: columns are
+    // stride-4 (crosspack-4) and rows are 1 byte apart.
+    CopyOperand rows[3];
+    rows[0] = srcBase;
+    rows[1] = addByteOffset(srcBase, byteStep);
+    rows[2] = addByteOffset(srcBase, 2 * byteStep);
+    for (auto &r : rows) r.stride = colPitchBytes;
+
+    // Straddling lanes need lo/hi scratch for their shift/or sequence.
+    auto tmp = newTemp(DataType::uw, nLocal, 2);
+    auto tmpHi = newTemp(DataType::uw, nLocal, 2);
+
+    std::vector<CopyInstruction*> allOps;
+    {
+        auto ops = splitMultiple<totalOps>(i);
+        allOps.assign(ops.begin(), ops.end());
+    }
+
+    int next = 0;
+
+    // Compute lane's destination region, interleaved with its pair
+    // partner's at stride dstStride (crosspack).
+    auto computeFinalDstLane = [&](int lane) {
+        int pairIdx = lane / dstStride;
+        int parity  = lane % dstStride;
+        auto fd = finalDst;
+        fd.stride = dstStride;
+        fd.offset += pairIdx * nLocal * fd.stride + parity;
+        int grfOffset = (fd.offset * type_size) / grfBytes;
+        fd.grf += grfOffset;
+        fd.offset -= ((grfOffset * grfBytes) / type_size);
+        if (!directWrite) fd.type = DataType::uw;
+        return fd;
+    };
+
+    // Element-index gap between two GRF-normalized lane destinations.
+    auto elemIndex = [&](const CopyOperand &op) {
+        return (int64_t) op.grf * (grfBytes / type_size) + op.offset;
+    };
+
+    // Merge two non-straddling lanes sharing a source row into one
+    // SIMD-2*nLocal shr using a packed shift immediate.
+    auto mergeRowPair = [&](int laneA, int laneB, CopyInstruction *shrOp) {
+        const auto &LA = lanes[laneA];
+        const auto &LB = lanes[laneB];
+        const auto &rowLo = rows[LA.byte];
+
+        auto dstA = computeFinalDstLane(laneA);
+        auto dstB = computeFinalDstLane(laneB);
+        int hstride = int(elemIndex(dstB) - elemIndex(dstA));
+
+        auto dstMerged = dstA;
+        dstMerged.width = 2;
+        dstMerged.stride = hstride;
+        dstMerged.vs = dstStride;
+
+        auto rowDup = rowLo;
+        rowDup.width = 2;
+        rowDup.vs = rowLo.stride;
+        rowDup.stride = 0;
+
+        CopyOperand shiftLo(int(LA.shift)), shiftHi(int(LB.shift));
+        shiftLo.type = shiftHi.type = DataType::uw;
+        CopyOperand packedShift;
+        packedShift = zipImmediates(shiftLo, shiftHi, 1);
+        if (!packedShift) stub("Failed to pack u3 shift immediates.");
+
+        setOp(shrOp, Opcode::shr, 2 * nLocal, dstMerged, rowDup, packedShift);
+    };
+
+    // Lanes 0&1/6&7 merge into one shr each when dstStride == 2; the
+    // middle pair and straddling lanes are always processed individually.
+    bool canMergePairs = (dstStride == 2);
+    if (canMergePairs) {
+        static const int mergePairs[2][2] = {{0, 1}, {6, 7}};
+        for (auto &pr : mergePairs)
+            mergeRowPair(pr[0], pr[1], allOps[next++]);
+    }
+
+    // Straddling lanes (2, 5) use a shr/shl/or_ sequence; non-merged
+    // lanes use a single shr.
+    std::vector<int> soloLanes = {2, 3, 4, 5};
+    if (!canMergePairs)
+        soloLanes = {0, 1, 2, 3, 4, 5, 6, 7};
+    for (int lane : soloLanes) {
+        const auto &L = lanes[lane];
+        auto finalDstLane = computeFinalDstLane(lane);
+        const auto &rowLo = rows[L.byte];
+
+        if (!L.straddle) {
+            setOp(allOps[next++], Opcode::shr, nLocal, finalDstLane, rowLo, CopyOperand(int(L.shift)));
+        } else {
+            const auto &rowHi = rows[L.hiByte];
+            setOp(allOps[next++], Opcode::shr, nLocal, tmp, rowLo, CopyOperand(int(L.shift)));
+            setOp(allOps[next++], Opcode::shl, nLocal, tmpHi, rowHi, CopyOperand(int(L.hiShift)));
+            setOp(allOps[next++], Opcode::or_, nLocal, finalDstLane, tmp, tmpHi);
+        }
+    }
+
+    // Invalidate unused trailing lane slots (fewer ops needed when pair
+    // merging was used).
+    while (next < laneOps)
+        allOps[next++]->invalidate();
+
+    // Mask all unpacked elements together, then convert if necessary.
+    int totalElems = nLocal * 8;
+    auto maskDst = finalDst;
+    maskDst.stride = 1;
+    if (!directWrite) maskDst.type = DataType::uw;
+    int maskBytes = getBytes(maskDst.type);
+    int maskElems = totalElems;
+    uint32_t mask = 7;
+    if (maskDst.absByteOffset(hw) % 4 == 0
+            && (totalElems * maskBytes) % 4 == 0) {
+        maskDst.type = DataType::ud;
+        maskDst.offset = finalDst.offset * getBytes(finalDst.type) / 4;
+        maskElems = totalElems * getBytes(finalDst.type) / 4;
+        if (maskBytes == 1)
+            mask = 0x07070707;
+        else if (maskBytes == 2)
+            mask = 0x00070007;
+    }
+    setOp(allOps[next++], Opcode::and_, maskElems, maskDst, maskDst,
+            CopyOperand(Immediate::ud(mask)));
+
+    // Convert masked uw values in place when dst isn't an integer type.
+    if (!directWrite) {
+        auto realDst = finalDst;
+        realDst.stride = 1;
+        auto rawSrc = realDst;
+        rawSrc.type = DataType::uw;
+        setOp(allOps[next++], Opcode::mov, totalElems, realDst, rawSrc, CopyOperand());
+    } else
+        allOps[next++]->invalidate();
 }
 
 // Rewrite int4 -> int upconversion using byte operations.
@@ -2672,7 +2935,8 @@ void CopyPlan::checkNoSubbytes()
 {
     for (auto &i: insns)
         if ((is4(i.dst.type) && i.op != Opcode::dnscl) || is4(i.src0.type) || is4(i.src1.type) || is4(i.src2.type)
-            || isInt2(i.dst.type) || isInt2(i.src0.type) || isInt2(i.src1.type) || isInt2(i.src2.type))
+            || isInt2(i.dst.type) || isInt2(i.src0.type) || isInt2(i.src1.type) || isInt2(i.src2.type)
+            || isInt3(i.dst.type) || isInt3(i.src0.type) || isInt3(i.src1.type) || isInt3(i.src2.type))
             stub("Unexpected sub-byte type");
 }
 

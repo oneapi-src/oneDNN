@@ -120,7 +120,14 @@ void Generator<hw>::copyRegisters(Type Ts, Type Td, const RegisterLayout &layout
     CopyPlan plan(getProductFamily(), strategy.systolicAvailable);
 
     for (auto &sblock : layoutSrc) {
-    for (int eoffY = 0; eoffY < sblock.*ny; eoffY++) {
+    if (Ts.is3() && (!sblock.colMajor || sblock.byteGlue
+                || sblock.crosspack <= 1 || sblock.ebytes <= 0))
+        stub("Flat u3 copy is unsupported.");
+    bool u3ColMajorGroups = Ts.is3();
+    if (u3ColMajorGroups
+            && ((dCM ? layoutDst[0].nc : layoutDst[0].nr) % 8))
+        stub();
+    for (int eoffY = 0; eoffY < sblock.*ny; eoffY += (u3ColMajorGroups ? 8 : 1)) {
     for (int eoffX = 0; eoffX < sblock.*nx;) {
         auto eoffR = sblock.colMajor ? eoffX : eoffY;
         auto eoffC = sblock.colMajor ? eoffY : eoffX;
@@ -160,9 +167,13 @@ void Generator<hw>::copyRegisters(Type Ts, Type Td, const RegisterLayout &layout
             stub("Unsupported scaling factor");
 
         // Issue pseudo-instructions.
-        if (alpha.fixed())
-            plan.append(Opcode::mov, n, mod, dOp, sOp);
-        else
+        if (alpha.fixed()) {
+            auto &copy = plan.append(Opcode::mov, n, mod, dOp, sOp);
+            if (Ts.is3()) {
+                copy.u3Regioning.columnPitchBytes = sblock.crosspack;
+                copy.u3Regioning.rowPitchBytes = sblock.ld * sblock.crosspack;
+            }
+        } else
             plan.append(Opcode::mul, n, mod, dOp, sOp, alpha_real.getRegAvoiding(hw, sOp.ngen()));
 
         eoffX += n;
