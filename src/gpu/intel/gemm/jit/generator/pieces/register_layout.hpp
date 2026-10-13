@@ -314,6 +314,8 @@ public:
 
     const V &allBlocks()             { return list; }
 
+    RegisterLayout int3UnpackLayout() const;
+
     /* Element lookups */
 
     // Find the subregister in a layout corresponding to element (i, j).

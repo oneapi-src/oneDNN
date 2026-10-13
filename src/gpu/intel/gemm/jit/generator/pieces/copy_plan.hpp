@@ -118,11 +118,17 @@ struct CopyRange {
 
 struct CopyInstruction
 {
+    struct U3Regioning {
+        int columnPitchBytes = 0;
+        int rowPitchBytes = 0;
+    };
+
     ngen::Opcode op;
     uint8_t ctrl;
     int simd = 0;
     uint16_t phase = 0, spread = 0;
     CopyOperand dst, src0, src1, src2, flag;
+    U3Regioning u3Regioning;
     ngen::ConditionModifier cmod = ngen::ConditionModifier::none;
     bool atomic = false, sat = false;
     CopyRange range;
@@ -282,6 +288,8 @@ protected:
     void planUnpack4To16(CopyInstruction &i);
     void planUnpack8To16High(CopyInstruction &i);
     void planInt2Upconversion(CopyInstruction &i);
+    void planInt3Upconvert(CopyInstruction &i);
+    void planEarlyInt3Upconversions();
     void planInt4Upconversion(CopyInstruction &i);
     void planSubByteShifts(CopyInstruction &i);
     void planInt2Downconversion(CopyInstruction &i);
