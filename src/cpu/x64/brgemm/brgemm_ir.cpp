@@ -662,10 +662,11 @@ status_t brgemm_ir_supported(const brgemm_desc_t &brg) {
     VCONDCHECK_BRGEMM_IR(!brg.is_tmm && !brg.is_ace(),
             VERBOSE_UNSUPPORTED_FEATURE, "tile accumulation");
 
-    // Allow the following ISAs. `avx512_core` is used to compute f32 directly.
-    // For the other ISAs we receive already upconverted to f32 inputs.
+    // Allow the following ISAs. `avx2` and `avx512_core` are used to compute
+    // f32 directly. For the other ISAs we receive already upconverted to f32
+    // inputs.
     VCONDCHECK_BRGEMM_IR(
-            one_of(brg.isa_impl, avx512_core, avx512_core_fp16, avx10_2),
+            one_of(brg.isa_impl, avx2, avx512_core, avx512_core_fp16, avx10_2),
             VERBOSE_UNSUPPORTED_ISA);
     VCONDCHECK_BRGEMM_IR(
             everyone_is(f32, brg.dt_a, brg.dt_b, brg.dt_c, brg.dt_d),
