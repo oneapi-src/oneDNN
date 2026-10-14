@@ -1892,11 +1892,11 @@ void CopyPlan::planInt2Downconversion(CopyInstruction &i)
         ie[9]->src0 = tmp;
         ie[9]->src0.stride = 1;
         ie[9]->src0.type = DataType::ub;
-    } else if (ddst.stride == 2 || ddst.stride == 4) {
+    } else if (ddst.stride >= 2) {
         // Use multiple bfn instructions to insert
         // values into the destination.
         auto offset = (ddst.offset % 8) * 2;
-        int simd_factor = 8 / ddst.stride;
+        int simd_factor = std::max(1, 8 / ddst.stride);
         int new_ins = std::min(simd, simd_factor);
 
         for (int j = 0; j < new_ins; ++j) {
@@ -1909,16 +1909,17 @@ void CopyPlan::planInt2Downconversion(CopyInstruction &i)
             ie[2*j + 1]->src0.stride *= simd_factor;
             ie[2*j + 1]->src1 = Immediate::uw((offset + 2*ddst.stride*j) % 16);
 
+            const auto stride = std::max(ddst.stride / 8, 1);
             ie[2*j + 2]->op = Opcode::bfn;
             ie[2*j + 2]->simd = std::max(simd/simd_factor, 1);
             ie[2*j + 2]->ctrl = 0xCA;
             ie[2*j + 2]->dst = ddst;
             ie[2*j + 2]->dst.type = DataType::uw;
-            ie[2*j + 2]->dst.stride = 1;
+            ie[2*j + 2]->dst.stride = stride;
             ie[2*j + 2]->dst.offset /= 8;
             ie[2*j + 2]->src0 = ddst;
             ie[2*j + 2]->src0.type = DataType::uw;
-            ie[2*j + 2]->src0.stride = 1;
+            ie[2*j + 2]->src0.stride = stride;
             ie[2*j + 2]->src0.offset /= 8;
             if (offset + 2*ddst.stride*j >= 16) {
                 ie[2*j + 2]->dst.offset += 1;
