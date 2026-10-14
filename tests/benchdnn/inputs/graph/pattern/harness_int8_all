@@ -114,14 +114,17 @@
 --reset --in-shapes=0:1x64x600x600*acdb+1:1x64x600x600*acdb+2:1x64x600x600*acdb --op-attrs=3:axis:1 --case=pattern/int8/int8_concat_fusion_3.json
 --reset --in-shapes=0:1x64x300x300*cdba+1:1x64x300x300*cdba+2:1x64x300x300*cdba --op-attrs=3:axis:3 --case=pattern/int8/int8_concat_fusion_3.json
 --reset --in-shapes=0:1x128x150x150*acdb+1:1x128x150x150*acdb+2:1x128x150x150*acdb --op-attrs=3:axis:0 --case=pattern/int8/int8_concat_fusion_3.json
-#layernorm: skip partition number check as it may not fuse on gpu.
---reset --expected-n-partitions=0 --case=pattern/int8/int8_lnorm_gelu_quantize.json
-# layernorm with zp != 0
---reset --expected-n-partitions=0 --op-attrs=2:zps:1 --case=pattern/int8/int8_lnorm_gelu_quantize.json
---reset --expected-n-partitions=0 --case=pattern/int8/int8_lnorm_multiply_quantize.json
---reset --expected-n-partitions=0 --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
-# layernorm with zp != 0 and broadcast binary
---reset --expected-n-partitions=0 --op-attrs=3:zps:1  --in-shapes=5:512 --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
-#softmax
---reset --case=pattern/int8/int8_softmax_add.json
---reset --op-attrs=3:zps:32 --case=pattern/int8/int8_softmax_add.json
+
+# layernorm + int8 quantize: skip partition number check as it may not fuse on gpu.
+--reset --expected-n-partitions=0 --op-kind=1:GELU,1:ReLU,1:undef --dt=5:s8,5:u8 --op-attrs=2:zps:undef,2:zps:1,2:zps:0 --case=pattern/int8/int8_lnorm_gelu_quantize.json
+--reset --expected-n-partitions=0 --op-attrs=2:zps:undef,2:zps:0,2:zps:1 --dt=6:s8,6:u8 --case=pattern/int8/int8_lnorm_multiply_quantize.json
+--reset --expected-n-partitions=0 --op-attrs=3:zps:undef,3:zps:0,3:zps:1 --in-shapes=,5:512 --dt=7:s8,7:u8 --case=pattern/int8/int8_lnorm_tc_multiply_quantize.json
+
+# layernorm + f8 quantize: f8 quantization does not support zps
+--reset --expected-n-partitions=0 --op-kind=1:GELU,1:ReLU,1:undef --dt=5:f8_e4m3,5:f8_e5m2 --op-attrs=2:zps:undef --case=pattern/int8/int8_lnorm_gelu_quantize.json
+
+# softmax + int8 quantize
+--reset --op-kind=1:Add,1:undef --dt=4:s8,4:u8,0:f32+4:s8,0:f32+4:u8,0:f16+4:s8,0:f16+4:u8 --op-attrs=3:zps:undef,3:zps:32,3:zps:0 --case=pattern/int8/int8_softmax_add.json
+
+# softmax + f8 quantize: f8 quantization does not support zps
+--reset --op-kind=1:Add,1:undef --dt=4:f8_e4m3,4:f8_e5m2,0:f32+4:f8_e4m3,0:f32+4:f8_e5m2,0:f16+4:f8_e4m3,0:f16+4:f8_e5m2 --op-attrs=3:zps:undef --case=pattern/int8/int8_softmax_add.json
