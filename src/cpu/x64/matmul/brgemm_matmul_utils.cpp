@@ -575,6 +575,7 @@ format_tag_t brgemm_matmul_conf_utils_t::get_gemv_B_tag(
  *   - data type is f32, bf16, or f16
  *   - A and B formats can be resolved to supported GEMV layouts
  *   - output layout satisfies GEMV requirements
+ *   - binary post-ops are supported by the GEMV kernel
  */
 bool is_gemv_applicable(const brgemm_matmul_conf_t &bgmmc,
         const brgemm_matmul_conf_utils_t &bm_conf_utils,
@@ -621,6 +622,24 @@ bool is_gemv_applicable(const brgemm_matmul_conf_t &bgmmc,
         if (C_md.format_kind != format_kind::any
                 && !dims_adjacent(C_md, bgmmc.ndims - 2, bgmmc.ndims - 1))
             return false;
+
+        // The kernel vectorizes `y` along M. The binary injector supports rhs
+        // in non-dense layouts only for `per_mb_spatial` broadcast, loading
+        // rhs vectors along the spatial dimensions, so such rhs require M to
+        // be a spatial dimension (ndims > 3) with unit stride.
+        const int m = bgmmc.ndims - 2;
+        const auto rhs_ok = [&](const memory_desc_t &md) {
+            const memory_desc_wrapper mdw(md);
+            if (mdw.format_any() || mdw.is_dense(true)) return true;
+            return bgmmc.ndims > 3 && mdw.is_plain()
+                    && (mdw.dims()[m] == 1
+                            || mdw.blocking_desc().strides[m] == 1);
+        };
+        const auto &po = attr.post_ops_;
+        for (int i = 0; i < po.len(); i++) {
+            const auto &e = po.entry_[i];
+            if (e.is_binary() && !rhs_ok(e.binary.src1_desc)) return false;
+        }
     }
 
     return true;
