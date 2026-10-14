@@ -13,7 +13,8 @@ name: oneDNN test_pt
 #   set <key>=<value> ... # optional
 #     opt : smoke | ut | e2e | all (= ut e2e)
 #     run : enabled set (default ut+e2e) minus disabled set
-#     set : python= pytorch= torch_xpu_ops= target= baseline= (default PR head/base)
+#     set : python= pytorch= torch_xpu_ops= target= baseline=
+#           (default: PR merge commit vs. its base parent)
 #   Example:
 #     make test_pt
 #     enable e2e
@@ -41,18 +42,16 @@ jobs:
     if: >-
       github.repository_owner == 'uxlfoundation' &&
       github.event.issue.pull_request &&
-      (github.event.comment.author_association == 'OWNER' ||
-       github.event.comment.author_association == 'MEMBER' ||
-       github.event.comment.author_association == 'COLLABORATOR') &&
       startsWith(github.event.comment.body, 'make test_pt')
     runs-on: ubuntu-latest
-    # Job-level so comments that fail the `if` above cannot cancel an
-    # authorized dispatch already running for the same PR.
+    # Serialize per PR without cancelling: the write-access check now happens in
+    # the job, so an unauthorized comment must not abort a dispatch in flight.
     concurrency:
       group: onednn-test-pt-${{ github.event.issue.number }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     env:
-      PR_NUMBER: ${{ github.event.issue.number }}
+      # Unique per dispatch so concurrent/retried runs stay distinguishable.
+      CALLER_ID: onednn-pr-${{ github.event.issue.number }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Parse command
         id: cmd
@@ -61,6 +60,21 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
           script: |
+            // Only users with write access may trigger a dispatch.
+            const actor = context.payload.comment.user.login;
+            let permission = 'none';
+            try {
+              permission = (await github.rest.repos.getCollaboratorPermissionLevel({
+                ...context.repo, username: actor,
+              })).data.permission;
+            } catch (e) {
+              core.warning(`Permission lookup for ${actor} failed: ${e.message}`);
+            }
+            if (!['write', 'admin'].includes(permission)) {
+              core.warning(`${actor} lacks write access; ignoring command.`);
+              core.setOutput('run', 'false');
+              return;
+            }
             const body = (process.env.COMMENT_BODY || '').trim();
             // First line `make test_pt`, then one directive per line:
             //   enable/disable <opt>...  (opt: smoke|ut|e2e|all=ut,e2e)
@@ -82,8 +96,8 @@ jobs:
               if (mode === 'enable') expand(t).forEach((x) => enable.add(x));
               else if (mode === 'disable') expand(t).forEach((x) => disable.add(x));
               else if (mode === 'set') {
-                const kv = raw.match(/^([a-zA-Z_]+)=(.+)$/);
-                if (kv && kv[1].toLowerCase() in opts) opts[kv[1].toLowerCase()] = kv[2];
+                const kv = raw.match(/^([a-zA-Z_]+)=([A-Za-z0-9._\/@+-]+)$/);
+                if (kv && Object.hasOwn(opts, kv[1].toLowerCase())) opts[kv[1].toLowerCase()] = kv[2];
               }
             }
             // enabled = (enable set if `enable` was used, else ut+e2e) minus disable
@@ -127,7 +141,16 @@ jobs:
             // Test the merge commit (PR merged into base); guaranteed present
             // here since a non-mergeable PR already failed above.
             core.setOutput('target_version', opts.target || pr.merge_commit_sha);
-            core.setOutput('baseline_version', opts.baseline || pr.base.sha);
+            // Base branch tip the PR was merged onto; `pr.base.sha` lags behind
+            // it and would fold unrelated base changes into the comparison.
+            let baseline = opts.baseline;
+            if (!baseline) {
+              const merge = (await github.rest.repos.getCommit({
+                owner, repo, ref: pr.merge_commit_sha,
+              })).data;
+              baseline = merge.parents[0].sha;
+            }
+            core.setOutput('baseline_version', baseline);
 
       - name: Set pending status
         if: steps.cmd.outputs.run == 'true'
@@ -163,7 +186,7 @@ jobs:
           gh workflow run "${XPU_OPS_WORKFLOW}" \
             --repo "${XPU_OPS_REPO}" \
             --ref "${XPU_OPS_REF}" \
-            -f caller="onednn-pr-${PR_NUMBER}" \
+            -f caller="${CALLER_ID}" \
             -f callback_repo="${{ github.repository }}" \
             -f callback_sha="${CALLBACK_SHA}" \
             -f callback_context="${ACCEPT_CONTEXT}" \
@@ -199,7 +222,7 @@ jobs:
             url=$(gh run list --repo "${XPU_OPS_REPO}" --workflow "${XPU_OPS_WORKFLOW}" \
               --event workflow_dispatch --created ">=${SINCE}" \
               --limit 20 --json url,displayTitle \
-              --jq "[.[] | select((.displayTitle // \"\") | test(\"caller:onednn-pr-${PR_NUMBER}$\"))] | .[0].url // empty" 2>/dev/null || true)
+              --jq "[.[] | select((.displayTitle // \"\") | test(\"caller:${CALLER_ID}$\"))] | .[0].url // empty" 2>/dev/null || true)
             [ -n "$url" ] && break
             sleep 3
           done
