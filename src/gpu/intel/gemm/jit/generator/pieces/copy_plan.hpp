@@ -292,7 +292,6 @@ protected:
     void emulateBooleanFunction();
     bool planShflUpconvertXe3p(CopyInstruction &i);
     void legalizeShfl();
-    void legalizeDstStrides();
     void legalizeBfImmediate(CopyInstruction &i1);
     void legalizeSIMD(bool initial = false);
     void legalizeRegions();
