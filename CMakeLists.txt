@@ -37,6 +37,11 @@ if(POLICY CMP0146)
     cmake_policy(SET CMP0146 OLD)
 endif()
 
+# CMake 4.3: CMAKE_<LANG>_LINK_FLAGS adds link flags to all target types
+if(POLICY CMP0210)
+    cmake_policy(SET CMP0210 NEW)
+endif()
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
