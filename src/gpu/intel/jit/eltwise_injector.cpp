@@ -37,7 +37,7 @@ int eltwise_injector_f32_t<ngen_generator_t>::min_scratch_regs() {
             case eltwise_elu_use_dst_for_bwd: return 1;
             case eltwise_exp:
             case eltwise_exp_use_dst_for_bwd: return 0;
-            case eltwise_gelu_erf: return 4;
+            case eltwise_gelu_erf: return 5;
             case eltwise_hardsigmoid: return 0;
             case eltwise_hardswish: return 1;
             case eltwise_log: return 0;
@@ -86,7 +86,7 @@ int eltwise_injector_f32_t<ngen_generator_t>::preferred_scratch_regs() {
         switch (alg_) {
             case eltwise_elu:
             case eltwise_elu_use_dst_for_bwd: return 8;
-            case eltwise_gelu_erf: return 8;
+            case eltwise_gelu_erf: return 9;
             case eltwise_hardswish: return 8;
             case eltwise_mish: return 8;
             case eltwise_relu:
@@ -126,8 +126,8 @@ int eltwise_injector_f32_t<ngen_generator_t>::max_batch_size() {
             case eltwise_soft_relu:
             case eltwise_swish: return ss;
             case eltwise_tanh:
-            case eltwise_mish:
-            case eltwise_gelu_erf: return ss / min_scratch_regs();
+            case eltwise_mish: return ss / min_scratch_regs();
+            case eltwise_gelu_erf: return (ss - 1) / (min_scratch_regs() - 1);
             case eltwise_gelu_tanh: return ss & ~1;
             default: break;
         }
@@ -151,7 +151,7 @@ int eltwise_injector_f32_t<ngen_generator_t>::phase_count(alg_kind_t alg) {
             case eltwise_elu_use_dst_for_bwd: return 5;
             case eltwise_exp:
             case eltwise_exp_use_dst_for_bwd: return 2;
-            case eltwise_gelu_erf: return 25;
+            case eltwise_gelu_erf: return 14;
             case eltwise_hardsigmoid: return 4;
             case eltwise_hardswish: return 5;
             case eltwise_log: return 2;
@@ -842,44 +842,31 @@ void eltwise_injector_f32_t<ngen_generator_t>::exp_compute_fwd(
 template <typename ngen_generator_t>
 void eltwise_injector_f32_t<ngen_generator_t>::gelu_erf_compute_fwd(
         int simd, const ngen::GRF &r, int phase, int off, int batch) {
-    auto temp = scratch_[off].f();
-    auto at_accum = scratch_[off + batch].f();
-    auto tpow = scratch_[off + 2 * batch].f();
-    auto temp2 = scratch_[off + 3 * batch].f();
+    auto a = scratch_[0];
+    auto t = scratch_[off].f();
+    auto u = scratch_[off + batch].f();
+    auto q = scratch_[off + 2 * batch].f();
+    auto e = scratch_[off + 3 * batch].f();
     const float log2e = 1.442695f; // log_2(e)
-    const float reciproc_sqrt_2 = 0.707106769084930419921875f; // 1/sqrt(2)
-    const float p = 0.3275911f;
-    const float a1 = 0.254829592f;
-    const float a2 = -0.284496736f;
-    const float a3 = 1.421413741f;
-    const float a4 = -1.453152027f;
-    const float a5 = 1.061405429f;
     switch (phase) {
-        case 0: h->mul(simd, temp, abs(r), reciproc_sqrt_2); break;
-        case 1: h->mul(simd, temp, temp, p); break;
-        case 2: h->add(simd, temp, temp, 1.f); break;
-        case 3: h->inv(simd, temp, temp); break;
-        case 4: h->mul(simd, at_accum, temp, a1); break;
-        case 5: h->mul(simd, tpow, temp, temp); break;
-        case 6: h->mul(simd, temp2, tpow, a2); break;
-        case 7: h->add(simd, at_accum, temp2, at_accum); break;
-        case 8: h->mul(simd, tpow, tpow, temp); break;
-        case 9: h->mul(simd, temp2, tpow, a3); break;
-        case 10: h->add(simd, at_accum, temp2, at_accum); break;
-        case 11: h->mul(simd, tpow, tpow, temp); break;
-        case 12: h->mul(simd, temp2, tpow, a4); break;
-        case 13: h->add(simd, at_accum, temp2, at_accum); break;
-        case 14: h->mul(simd, tpow, tpow, temp); break;
-        case 15: h->mul(simd, temp2, tpow, a5); break;
-        case 16: h->add(simd, at_accum, temp2, at_accum); break;
-        case 17: h->mul(simd, temp, r, r); break;
-        case 18: h->mul(simd, temp, temp, -log2e * 0.5f); break;
-        case 19: h->exp(simd, temp, temp); break;
-        case 20: h->mul(simd, temp, temp, at_accum); break;
-        case 21: h->mul(simd, temp, temp, r); break;
-        case 22: h->mul(simd, temp, temp, 0.5f); break;
-        case 23: h->add(simd, temp2, r, -temp); break;
-        case 24: h->csel(simd | le | f0[0], r, temp, temp2, r); break;
+        case 0: h->mad(simd, t, a.f(6), abs(r), a.f(0)); break;
+        // t = 1 / (1 + p * |r| / sqrt(2))
+        case 1: h->inv(simd, t, t); break;
+        case 2: h->mul(simd, e, r, r); break;
+        case 3: h->mul(simd, e, e, -log2e * 0.5f); break;
+        // e = e^(-0.5 * r^2)
+        case 4: h->exp(simd, e, e); break;
+        // Horner's method
+        case 5: h->mad(simd, q, a.f(4), t, a.f(5)); break;
+        case 6: h->mad(simd, q, a.f(3), t, q); break;
+        case 7: h->mad(simd, q, a.f(2), t, q); break;
+        case 8: h->mad(simd, q, a.f(1), t, q); break;
+        case 9: h->mul(simd, q, t, q); break;
+        // Final result: q = polynomial * e^(-0.5 * r^2)
+        case 10: h->mul(simd, q, e, q); break;
+        case 11: h->mul(simd, u, q, r); break;
+        case 12: h->add(simd, t, r, -u); break;
+        case 13: h->csel(simd | le | f0[0], r, u, t, r); break;
         default: assert(!"invalid phase");
     }
 }
@@ -974,6 +961,24 @@ void eltwise_injector_f32_t<ngen_generator_t>::compute(const int *grfs,
     auto bmax = max_batch_size();
     auto phases = phase_count(alg_);
 
+    if (is_fwd_ && alg_ == eltwise_gelu_erf) {
+        const float reciproc_sqrt_2 = 0.707106769084930419921875f; // 1/sqrt(2)
+        const float p = 0.3275911f;
+        const float a1 = 0.127414796f;
+        const float a2 = -0.142248368f;
+        const float a3 = 0.710706871f;
+        const float a4 = -0.726576013f;
+        const float a5 = 0.530702714f;
+        auto coeffs = scratch_[0];
+        h->mov(1, coeffs.f(0), p * reciproc_sqrt_2);
+        h->mov(1, coeffs.f(1), a1);
+        h->mov(1, coeffs.f(2), a2);
+        h->mov(1, coeffs.f(3), a3);
+        h->mov(1, coeffs.f(4), a4);
+        h->mov(1, coeffs.f(5), a5);
+        h->mov(1, coeffs.f(6), 1.0f);
+    }
+
     for (int idx0 = 0; idx0 < ngrf; idx0 += bmax) {
         auto batch = nstl::min(ngrf - idx0, bmax);
 
@@ -1008,7 +1013,8 @@ void eltwise_injector_f32_t<ngen_generator_t>::compute(const int *grfs,
                             exp_compute_fwd(simd, base, phase);
                             break;
                         case eltwise_gelu_erf:
-                            gelu_erf_compute_fwd(simd, base, phase, ii, batch);
+                            gelu_erf_compute_fwd(
+                                    simd, base, phase, ii + 1, batch);
                             break;
                         case eltwise_hardsigmoid:
                             hardsigmoid_compute_fwd(simd, base, phase, ii);
