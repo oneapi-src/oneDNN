@@ -569,7 +569,7 @@ void CopyPlan::copyThrough(CopyInstruction &i, DataType type, int stride, bool s
 {
     auto st = i.src0.type, dt = i.dst.type;
     auto sstride = i.src0.stride, dstride = i.dst.stride;
-    auto ssize = getBytes(st), dsize = getBytes(dt), isize = getBytes(type);
+    auto ssize = getBits(st), dsize = getBits(dt), isize = getBits(type);
 
     auto &i0 = i, &i1 = split(i);
 
@@ -617,14 +617,15 @@ void CopyPlan::copyThrough(CopyInstruction &i, DataType type, int stride, bool s
             stride = std::max(1, ssize * sstride / isize);
         int offset = 0;
         auto tryOffset = [&](const CopyOperand &op) {
-            if (op.byteStride() == isize * stride) {
-                auto bo = op.byteOffset();
-                if (bo < GRF::bytes(hw) - stride * getBytes(type) * (i.simd - 1))
+            const auto osize = getBits(op.type);
+            if (osize * op.stride == isize * stride) {
+                auto bo = osize * op.offset;
+                if (bo < (GRF::bytes(hw) << 3) - stride * isize * (i.simd - 1))
                     offset = bo / isize;
             }
         };
-        if (isize <= dsize) tryOffset(i1.dst.byteOffset());
-        if (isize <= ssize) tryOffset(i0.src0.byteOffset());
+        if (isize <= dsize) tryOffset(i1.dst);
+        if (isize <= ssize) tryOffset(i0.src0);
         if (type == DataType::hf)
             offset &= ~1;
         i0.dst = newTemp(type, i.simd, stride, 0, offset);
