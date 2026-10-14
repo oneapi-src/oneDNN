@@ -406,6 +406,10 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
 
     // k interleaving chunk size.
     if (kInterleave) {
+        // Software (non-systolic) flat row/column sum accumulation is incompatible
+        // with k-interleaved thread scheduling.
+        if (!systolic && (problem.needsASums() || problem.needsBSums()))
+            stub();
         int kchunk0 = lcm(ka_inc(), kb_inc());
         if (prefetchA) kchunk0 = lcm(kchunk0, ka_pfStride);
         if (prefetchB) kchunk0 = lcm(kchunk0, kb_pfStride);
