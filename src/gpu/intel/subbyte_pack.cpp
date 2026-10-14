@@ -17,6 +17,7 @@
 #include "gpu/intel/subbyte_pack.hpp"
 
 #include "common/memory_desc_wrapper.hpp"
+#include "common/type_helpers.hpp"
 #include "gpu/intel/block_structure.hpp"
 #include "gpu/intel/primitive.hpp"
 
@@ -28,7 +29,7 @@ namespace intel {
 status_t subbyte_pack_desc_t::init(const memory_desc_t &dst_md) {
     const memory_desc_wrapper mdw(dst_md);
     const dim_t elems_per_byte
-            = into<dim_t>(mdw.sub_byte_data_type_multiplier());
+            = into<dim_t>(types::bytes_to_elements(dst_md.data_type, 1));
     if (elems_per_byte == 1) return status::success;
     if (dst_md.format_kind != format_kind::blocked || dst_md.offset0 != 0)
         return status::unimplemented;

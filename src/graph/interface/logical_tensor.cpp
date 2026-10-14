@@ -44,9 +44,7 @@ size_t logical_tensor_wrapper_t::size() const {
                     static_cast<size_t>(strided_pdim * effective_stride));
         }
 
-        size_t data_size = utils::div_up(
-                max_size * data_type_size(), sub_byte_data_type_multiplier());
-        return data_size;
+        return types::elements_to_bytes(data_type(), max_size);
     } else if (is_opaque()) {
         size_t layout_id = lt->layout.layout_id;
         auto backend
