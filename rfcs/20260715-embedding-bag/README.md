@@ -5,26 +5,21 @@
 
 ## Introduction
 
-This RFC adds an Embedding Bag  as a public oneDNN primitive `dnnl::embedding_bag`,
-backed first by a portable CPU reference implementation.
+This RFC aims to improve Embedding Bag (EMB) functionality improvement in various frameworks.
 
-This primitive closely resembles PyTorch Embedding Bag (*nn.EmbeddingBag*) semantics.
+oneDNN currently has no direct primitive equivalent to Embedding and Embedding Bag (for example,
+PyTorch Embedding Bag). Framework users that integrate with oneDNN either need to depend on
+its framework implementation, or compose the operator using graph level API and multiple primitives.
+Such composition is complex and sub-optimal.
 
-oneDNN currently has no primitive equivalent to PyTorch Embedding Bag. The closest
-dense neighbours (`reduction`, graph `gather`) do not cover
-*indexed lookup + variable-length bag reduction* semantics. Framework users that
-integrate with oneDNN either need to depend on its framework implementation,
-or compose the operator using graph level API and multiple primitives. Such composition
-is complex and sub-optimal.
-
-The first PR promotes the primitive plumbing to a public C++ API, adds the CPU
+The first PR promotes the EMB plumbing to a public C++ API, adds the CPU
 reference implementation, and validates the behavior needed by recommendation
 and NLP workloads: sum / mean / max reduction over variable-length bags,
 optional per-sample weights, `padding_idx` skipping, and the
 `include_last_offset` flag matching PyTorch semantics.
 
-Future PRs include adding optimized implementations having vector intrinsic (AVX-512 intrinsics)
-based kernels that reuse the same API without any framework changes.
+Future PRs include adding optimized implementations using OneDNN dense-sparse matrix multiplication
+(DSMM) based kernels that reuse the same API without any framework changes.
 
 ## 1. Motivation
 
@@ -67,22 +62,20 @@ is given below for few representative loads.
 In production grade DLRM code, the embedding tables are more than 100 so we expect
 a performance gain of ~15% due to this operator on such networks.
 
-First PR aims to add only reference kernel. Subsequent PRs aim to add optimized kernels with vector
+First PR only aims to add only reference kernel. Subsequent PRs aim to add optimized kernels with vector
 intrinsics (AVX-512 / AVX-512-FP16) from AMD's ZenDNN, which ships these highly
 optimized  implementations through its internal
 `lowoha::embag` API. This RFC aims to upstreams those intrinsic kernels into oneDNN as a
 first-class primitive lifted into `src/cpu/x64/`, with ZenDNN removed from the
-runtime path after integration.
+runtime path after integration. This PR specifically DOES NOT aim to add the following.
 
-## 2. Non-Goals
-
-- Do not add backward / training support.
-- Do not add low precision (`bf16` / `fp16`) and quantized (`s8` / `s4` / `u4`)
+- backward / training support.
+- low precision (`bf16` / `fp16`) and quantized (`s8` / `s4` / `u4`)
   embedding tables in the first PR.
-- Do not add high precision (`s64` / `u64`) indexing in the first PR.
-- Do not add optimized (AVX-512 / AVX512-FP16) implementations in the first PR.
-- Do not add a GPU implementation in the first PR.
-- Do not replace any existing oneDNN primitive or Graph API path.
+- high precision (`s64` / `u64`) indexing in the first PR.
+- optimized (AVX-512 / AVX512-FP16) implementations in the first PR.
+- a GPU implementation in the first PR.
+- replace any existing oneDNN primitive or Graph API path.
 
 ## 3. Proposal — public embedding_bag primitive
 
@@ -334,7 +327,31 @@ paths, quantized tables (Phase 3), and GPU support (future).
   matrix, and indices-offsets pair with per-sample-weights could be taken
   as a sparse matrix.
 
-  Though tempting, DSMM and EMB serve different purposes, and it is advisable
+  This implementation is tried out and benchmarking results are compared with
+  ZenDNN implementation in the following tables
+
+  - Latency with single thread, embedding size 128
+
+  | Table Sz | Bach Sz | ZenDNN (ms)| PyTorch (ms)| MKLDNN (ms)|
+  |---|---|---|---|---|
+  | 4 | 4096 | 0.0455 | 0.0454 | 0.0908 |
+  | 1000 | 4096 | 0.0409 | 0.0411 | 0.1119 |
+  | 10000 | 4096 | 0.0588 | 0.0583 | 0.2143 |
+  | 100000 | 4096 | 0.0532 | 0.0540 | 2.8385 |
+
+  - Latency with two threads, embedding size 128
+  
+  | Table Sz | Bach Sz | ZenDNN (ms)| PyTorch (ms)| MKLDNN (ms)|
+  |---|---|---|---|---|
+  | 4 | 4096 | 0.0371 | 0.0391 | 0.0619 |
+  | 1000 | 4096 | 0.0338 | 0.0333 | 0.0806 |
+  | 10000 | 4096 | 0.0386 | 0.0396 | 0.1412 |
+  | 100000 | 4096 | 0.0414 | 0.0490 | 2.5519 |
+
+  These tables show that DSMM performance is not tuned for large and very large
+  table sizes.
+
+  Also DSMM and EMB serve different purposes, and it is advisable
   not to roll their implementation into one kernel (separation of concerns).
 
   - In a production grade recommender system, there are hundreds of embedding
