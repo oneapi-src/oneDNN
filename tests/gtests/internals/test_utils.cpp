@@ -49,7 +49,8 @@ void fill_random(std::vector<float> &out, const memory::desc &desc, float min,
             d = dist_f(get_generator());
     }
 
-    auto elems = product(desc.get_dims());
+    const auto dims = desc.get_dims();
+    auto elems = product(dims);
     for (memory::dim i = 0; i < elems; i += nrand) {
         size_t chunk = std::min(nrand, elems - i);
         std::memcpy(&out[i], random_data_f.data(), chunk * sizeof(float));
