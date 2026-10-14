@@ -299,10 +299,10 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
     // when every slice starts on a byte boundary. An odd logical-element batch
     // stride starts the next slice in the high nibble, which this direct
     // prepack interface cannot represent.
-    const size_t src_sub_byte_multiplier = id.sub_byte_data_type_multiplier();
-    VDISPATCH_REORDER(!batched || src_sub_byte_multiplier == 1
-                    || static_cast<size_t>(src_strides[0])
-                                    % src_sub_byte_multiplier
+    const size_t src_elems_per_byte
+            = types::bytes_to_elements(id.data_type(), 1);
+    VDISPATCH_REORDER(!batched
+                    || static_cast<size_t>(src_strides[0]) % src_elems_per_byte
                             == 0,
             VERBOSE_UNSUPPORTED_TAG_S, "src");
 
@@ -437,12 +437,10 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
     // Per-batch advance: source strides are expressed in logical elements.
     // Convert to bytes explicitly because s4/u4 store two elements per byte.
     // pd_t::init() rejects a sub-byte stride that starts on a high nibble.
-    const size_t src_elem = src_d.data_type_size();
-    const size_t src_sub_byte_multiplier
-            = src_d.sub_byte_data_type_multiplier();
-    const size_t src_slice_bytes = batched ? static_cast<size_t>(src_strides[0])
-                    * src_elem / src_sub_byte_multiplier
-                                           : 0;
+    const size_t src_slice_bytes = batched
+            ? types::elements_to_bytes(
+                      src_dt, static_cast<size_t>(src_strides[0]))
+            : 0;
     const size_t dst_slice_bytes = dst_d.zen_packed_desc().per_slice_size;
 
     const auto *src_base = CTX_IN_MEM(const uint8_t *, DNNL_ARG_FROM);

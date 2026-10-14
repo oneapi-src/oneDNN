@@ -227,18 +227,6 @@ struct memory_desc_wrapper {
     /** return the size of data type (a shortcut) */
     size_t data_type_size() const { return types::data_type_size(data_type()); }
 
-    /** For sub-byte data types returns number of elements per byte.
-     * For the rest data types returns 1. Not applicable to u3, which packs
-     * 8 elements into 3 bytes. */
-    size_t sub_byte_data_type_multiplier() const {
-        assert(data_type() != data_type::u3);
-        if (utils::one_of(data_type(), data_type::s4, data_type::u4,
-                    data_type::f4_e2m1))
-            return 2;
-        if (data_type() == data_type::u2) return 4;
-        return 1;
-    }
-
     /** return the size of data type of additional buffer */
     size_t additional_buffer_data_size(uint64_t flag_select) const {
         using namespace memory_extra_flags;
