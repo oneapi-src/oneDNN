@@ -289,7 +289,6 @@ void CopyPlan::transform()
     optimizeWriteSpread();
 
     legalizeImmediateTypes();
-    legalizeDstStrides();
 
     sort(SortType::PhaseOnly);
 
@@ -1114,53 +1113,6 @@ void CopyPlan::legalizeShfl()
             i.src0.vs = 1;
         }
     }
-}
-
-// Example case requiring this transformation:
-// --matmul --engine=gpu --dt=f16:u2:f16 --wtag=ba --attr-zero-points=wei:per_oc:u2 --attr-fpmath=f16:true 1x5120:5120x7680
-void CopyPlan::legalizeDstStrides()
-{
-    for (auto &i: insns) {
-        bool disaggregate = false;
-        if (i.dst.type != DataType::uw)
-            continue;
-        // dst stride can only go up to 4. If 8, switch to ud
-        if (i.dst.stride > 4) {
-            if (i.dst.stride > 8) {
-                disaggregate = true;
-            }
-            if (i.dst.offset % 2 != 0) {
-                disaggregate = true;
-            }
-            if (!i.dst.overwriteStride) {
-                disaggregate = true;
-            }
-            if (!disaggregate) {
-                i.dst.offset /= 2;
-                i.dst.stride /= 2;
-                i.dst.type = DataType::ud;
-            } else {
-                for (int k = 0; k < i.simd; k++) {
-                    auto &i1 = split(i, false);
-                    i1.dst.offset += k * i.dst.stride;
-                    i1.dst.stride = 1;
-                    i1.src0.offset += k * i.src0.stride;
-                    i1.src0.stride = 1;
-                    if (!i1.src1.isNull()) {
-                        i1.src1.offset += k * i.src1.stride;
-                        i1.src1.stride = 1;
-                    }
-                    if (!i1.src2.isNull()) {
-                        i1.src2.offset += k * i.src2.stride;
-                        i1.src2.stride = 1;
-                    }
-                    i1.simd = 1;
-                }
-                i.invalidate();
-            }
-        }
-    }
-    mergeChanges();
 }
 
 // Unpack 4-bit src type into 16 bits (zero extended), used in many conversion sequences.
