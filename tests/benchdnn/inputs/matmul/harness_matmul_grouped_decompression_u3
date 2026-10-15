@@ -26,3 +26,15 @@
 --attr-zero-points=wei:common:4:u8,wei:common:4,wei:host_scalar:4:u8
 --grouped=0:16:balanced,0:16:hot
 512x256:16x256x128
+
+# MoE decode: 8 active experts of 256, group 128 scales and s8 zero-points
+--reset
+--allow-enum-tags-only=0
+--dt=f16:u3:f16
+--wtag=acb
+--attr-scales=wei:7:f16:128x1
+--attr-zero-points=wei:7:s8:128x1
+--attr-fpmath=f16:true
+--grouped=0:256:decode
+8x2048:256x2048x512
+8x512:256x512x2048
