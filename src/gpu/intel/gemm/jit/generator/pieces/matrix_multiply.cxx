@@ -227,8 +227,8 @@ void Generator<hw>::outerProductFMA(int h, int ha_period, int hb_period, int opC
                         int compC    = csplit ? ocomp : 0;
                         int nc;
                         const RegisterBlock *C_block;
-                        auto C = repackC ? state.Cr_layout.find(i % Cr_unrollM, j % Cr_unrollN, state.Cr_regs, &nc, &C_block, compC)
-                                         : state.C_layout.find(i, j, state.C_regs[C_buffer], &nc, &C_block, compC);
+                        Subregister C = repackC ? state.Cr_layout.find(i % Cr_unrollM, j % Cr_unrollN, state.Cr_regs, &nc, &C_block, compC)
+                                                : state.C_layout.find(i, j, state.C_regs[C_buffer], &nc, &C_block, compC);
                         if (C_block->crosspack > 1) stub();
 
                         // Swap out C register for an accumulator, if necessary.
@@ -381,7 +381,8 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                                          const GRFMultirange &A_regs, const GRFMultirange &B_regs,
                                          const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    auto Ta = problem.Ta, Tb = problem.Tb, Tc = problem.Tc_compute();
+    auto Ta = problem.Ta, Tb = problem.Tb;
+    auto Tc = problem.Tc_compute();
     bool globalCM = state.C_layout.colMajor();
     auto params = systolicParams(problem);
     auto ksys = params.ksys;
@@ -419,14 +420,14 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
 
     int xinc = osys;
 
-    const int compA = 0, compB = 0;
-    const int incompCount = 1, oncompCount = 1;
-
     // Split y loop for k-chaining or boustrophedon ordering.
     bool reverse = false;
     int ny1 = 1;
     if (opCount > ksys || snake)
         ny1 = rcountMax * (strategy.dpasw ? 2 : 1);
+
+    const int compA = 0, compB = 0;
+    const int icxCompNCount = 1, ocxCompNCount = 1;
 
     for (int x = 0; x < nx; x += xinc) {
         Subregister A0, B0, C0;
@@ -461,7 +462,8 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                 && (problem.Tc != Type::f16);
             if (hhbase + ksys < opCount && canFwd) mod |= Fwd;
 
-            if (startRepackC && hhbase == 0)
+            bool nullC = startRepackC && hhbase == 0;
+            if (nullC)
                 srcC0 = null.retype(C0.getType());
 
             if (state.useBDPAS) {
@@ -472,19 +474,14 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
             }
         };
 
-        for (int oncomp = 0; oncomp < oncompCount; oncomp++, reverse = !reverse) {
+        for (int ocxCompN = 0; ocxCompN < ocxCompNCount; ocxCompN++, reverse = !reverse) {
         for (int y0_ = 0; y0_ < ny + sum; y0_ += ny1) {
             int y0 = (snake && reverse) ? (ny - ny1 - y0_) : y0_;
             for (int hh = 0; hh < opCount; hh += ksys) {
             for (int y1 = 0; y1 < ny1 && y0 + y1 < ny + sum; y1++) {
-            for (int incomp = 0; incomp < incompCount; incomp++) {
+            for (int icxCompN = 0; icxCompN < icxCompNCount; icxCompN++) {
                 int y = y0 + y1;
                 int hha = ha + hh, hhb = hb + hh;
-
-                // Find the appropriate A and B registers.
-                int na, nb, nc;
-                const RegisterBlock *A_block, *B_block, *C_block;
-                Subregister A, B, C;
 
                 const int cxCompA = -1, cxCompB = -1, cxCompC = -1, cBuffer = 0;
                 auto bdpasScaleArg = [&](const RegisterLayout Xr_scaleLayout, Type Tx_scaleOp,
@@ -508,6 +505,10 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                     return XS;
                 };
 
+                // Find the appropriate A and B registers.
+                int na, nb, nc;
+                const RegisterBlock *A_block, *B_block, *C_block;
+                Subregister A, B, C;
                 if (y < ny) {
                     if (strategy.dpasw && (y % (2 * dpaswTile) >= dpaswTile))
                         continue;
@@ -581,19 +582,19 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                 else {
                     if (strategy.dpasw && y < ny && rcount > 0 && rcount != dpaswTile) stub();
                     if (A0.isValid()) issueDPAS(false);
-                    AS0 = AS; BS0 = BS;
                     A0 = A; B0 = B; C0 = C; rcount = 1;
+                    AS0 = AS; BS0 = BS;
                     A0.setType(Ta.ngen());
                     B0.setType(Tb.ngen());
                     C0.setType(Tc.ngen());
                     ybase = y;
                     hhbase = hh;
                 }
-            } /* incomp loop */
+            } /* icxCompN loop */
             } /* y1 loop */
             } /* hh loop */
         } /* y loop */
-        } /* oncomp loop */
+        } /* ocxCompN loop */
 
         bool finishChain = !strategy.extendedAtomicFMA || (x + osys >= nx) || (repackC && x >= (Cr_unrollX - 2*xinc));
         issueDPAS(finishChain);

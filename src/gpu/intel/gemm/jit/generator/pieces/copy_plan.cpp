@@ -4082,7 +4082,7 @@ int CopyPlan::cycleCount() const
 
 void CopyPlan::dump(std::ostream &os, int n, bool sortInfo) const
 {
-    for (int i = 0; i < std::min(n, (int)insns.size()); ++i) {
+    for (int i = 0; i < std::min<int>(n, insns.size()); ++i) {
         insns[i].dump(os, *this, sortInfo);
         os << std::endl;
     }

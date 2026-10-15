@@ -392,8 +392,9 @@ void Generator<hw>::gemmOffsetABC(bool initial, Subregister i0, Subregister j0, 
     bool doCO = doC && (problem.cOffset != COffset::None) && !problem.cOffsetHostScalar();
     bool doAp = doA, doBp = doB;
 
-    Subregister tempQ0 = state.ra.alloc_sub<int64_t>(getHint(HintType::TempComp0, strategy));
-    Subregister tempQ1 = state.ra.alloc_sub<int64_t>(getHint(HintType::TempComp1, strategy));
+    Subregister tempQ0, tempQ1;
+    tempQ0 = state.ra.alloc_sub<int64_t>(getHint(HintType::TempComp0, strategy));
+    tempQ1 = state.ra.alloc_sub<int64_t>(getHint(HintType::TempComp1, strategy));
 
     bool a2D = strategy.A.address2D;
     bool b2D = strategy.B.address2D;
@@ -1315,10 +1316,10 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
 
             // ... and layout back from SLM.
             problem.A = state.Ao;
-            strategy.A.base = SLM;
             strategy.A.accessType = AccessType::Block;
-            strategy.A.address2D = false;
             strategy.A.newDP = (hw >= HW::XeHPG);
+            strategy.A.base = SLM;
+            strategy.A.address2D = false;
             strategy.A.cachingR = CacheSettingsLSC::Default;
             Ta_load = Ta;
             state.aioShare = matchBidirectional(state.Ai_layout, state.Ao_layout);
@@ -1326,7 +1327,8 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
             // If we will add k-masking later, check if extra registers are needed.
             state.Ai_regCount = state.Ai_layout.regs();
             if (!remK_A && remainderK && !state.Ai_strategy.address2D && !isRegisterColMajor(Ta_ext, state.Ai, state.Ai_strategy)) {
-                auto Ai_layoutKMasked = RegisterLayout::tryCreate(hw, Ta_ext, state.ma_slm, state.ka_slm, state.Ai, state.Ai_strategy, remM_A, true);
+                RegisterLayout Ai_layoutKMasked;
+                Ai_layoutKMasked = RegisterLayout::tryCreate(hw, Ta_ext, state.ma_slm, state.ka_slm, state.Ai, state.Ai_strategy, remM_A, true);
                 state.Ai_regCount = std::max(state.Ai_regCount, Ai_layoutKMasked.regs());
             }
 
@@ -1460,10 +1462,10 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
 
             // ... and layout back from SLM.
             problem.B = state.Bo;
-            strategy.B.base = SLM;
             strategy.B.accessType = AccessType::Block;
-            strategy.B.address2D = false;
             strategy.B.newDP = (hw >= HW::XeHPG);
+            strategy.B.base = SLM;
+            strategy.B.address2D = false;
             strategy.B.cachingR = CacheSettingsLSC::Default;
             Tb_load = Tb;
             state.bioShare = matchBidirectional(state.Bi_layout, state.Bo_layout);
@@ -1471,7 +1473,8 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
             // If we will add k-masking later, check if extra registers are needed.
             state.Bi_regCount = state.Bi_layout.regs();
             if (!remK_B && remainderK && !state.Bi_strategy.address2D && isRegisterColMajor(Tb_ext, state.Bi, state.Bi_strategy)) {
-                auto Bi_layoutKMasked = RegisterLayout::tryCreate(hw, Tb_ext, state.kb_slm, state.nb_slm, state.Bi, state.Bi_strategy, true, remN_B);
+                RegisterLayout Bi_layoutKMasked;
+                Bi_layoutKMasked = RegisterLayout::tryCreate(hw, Tb_ext, state.kb_slm, state.nb_slm, state.Bi, state.Bi_strategy, true, remN_B);
                 state.Bi_regCount = std::max(state.Bi_regCount, Bi_layoutKMasked.regs());
             }
 
@@ -3216,10 +3219,10 @@ void Generator<hw>::gemmInitState(GEMMProblem &problem, GEMMStrategy &strategy, 
     state.Cext_strategy = strategy.C;
     state.Cext_strategy.tileR = state.Cext_strategy.tileC = 0;
 
-    state.lidM = state.inputs.localIDM[0];
-    state.lidN = state.inputs.localIDN[0];
+    state.lidM = Subregister(state.inputs.localIDM, state.inputs.localIDM.getType());
+    state.lidN = Subregister(state.inputs.localIDN, state.inputs.localIDN.getType());
     if (strategy.kParallel || strategy.kParallelLocal)
-        state.lidK = state.inputs.localIDK[0];
+        state.lidK = Subregister(state.inputs.localIDK, state.inputs.localIDK.getType());
 
     state.k = state.wgK = state.inputs.k;
 
