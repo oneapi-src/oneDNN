@@ -17,6 +17,7 @@
 
 /build*
 external
+third_party/ZenDNN
 .vs
 .vscode
 .*.sw?
