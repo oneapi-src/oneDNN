@@ -68,6 +68,7 @@ struct gen_desc_t {
 
     const gemmstone::GEMMProblem *problem() const { return &problem_; }
     const gemmstone::GEMMStrategy *strategy() const { return &strategy_; }
+    std::string str() const;
 
     const gemmstone::CommonDriverInfo *driver_info() const {
         return &driver_info_;
@@ -175,6 +176,9 @@ struct gen_xe_systolic_kernel_desc_t : public gen_desc_t {
 
     static int min_block_k(data_type_t a_type) { return 2048; }
 };
+
+std::string dump_kernel(ngen::HW hw, const gemmstone::GEMMProblem &problem,
+        const gemmstone::GEMMStrategy &strategy);
 
 struct gen_kernel_t : public intel::jit::generator_base_t {
 
