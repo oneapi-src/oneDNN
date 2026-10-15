@@ -743,7 +743,7 @@ void Generator<hw>::gemmSubkernel(GEMMProblem &problem, GEMMStrategy &strategy, 
             cmp(1 | lt | flag, state.unclampedI0, 0);
             mov(1, upper, strategy.unroll[LoopM]);
             add(1 | sat | flag, upper, state.unclampedI0, strategy.unroll[LoopM]);
-            min_(1, state.remainders[LoopM], state.remainders[LoopM], upper);
+            emin_(1, state.remainders[LoopM], state.remainders[LoopM], upper, state);
             cmp(1 | le | f0[1], state.remainders[LoopM], 0);
             state.ra.safeRelease(flag);
             state.ra.safeRelease(state.unclampedI0);

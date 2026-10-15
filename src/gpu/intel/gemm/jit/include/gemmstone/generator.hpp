@@ -162,6 +162,11 @@ protected:
     doneShift(const BO &ptr, const BI &ptrShifted, int shift, CommonState &state);
     void doneShift(const SubregisterPair &ptr, const SubregisterPair &ptrShifted, int shift, CommonState &state);
 
+    template <typename DT = void> void emin_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::Immediate &src1, CommonState &state, ngen::SourceLocation loc = {});
+    template <typename DT = void> void emin_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, CommonState &state, ngen::SourceLocation loc = {});
+    template <typename DT = void> void emax_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::Immediate &src1, CommonState &state, ngen::SourceLocation loc = {});
+    template <typename DT = void> void emax_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, CommonState &state, ngen::SourceLocation loc = {});
+
     // asm_helpers.cxx
     void goto12(const ngen::InstructionModifier &mod, ngen::Label &jip) { goto12(mod, jip, jip); }
     void goto12(const ngen::InstructionModifier &mod, ngen::Label &jip, ngen::Label &uip, bool branchCtrl = false);

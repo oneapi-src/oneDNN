@@ -303,5 +303,28 @@ void Generator<hw>::ejmpi(InstructionModifier mod, Label &dst, ngen::SourceLocat
         jmpi(mod, dst, loc);
 }
 
+template <HW hw>
+template <typename DT>
+void Generator<hw>::emin_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::Immediate &src1, CommonState &state, ngen::SourceLocation loc) {
+        min_(mod, dst, src0, src1, loc);
+}
+
+template <HW hw>
+template <typename DT>
+void Generator<hw>::emin_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, CommonState &state, ngen::SourceLocation loc) {
+        min_(mod, dst, src0, src1, loc);
+}
+
+template <HW hw>
+template <typename DT>
+void Generator<hw>::emax_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::Immediate &src1, CommonState &state, ngen::SourceLocation loc) {
+        max_(mod, dst, src0, src1, loc);
+}
+
+template <HW hw>
+template <typename DT>
+void Generator<hw>::emax_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, CommonState &state, ngen::SourceLocation loc) {
+        max_(mod, dst, src0, src1, loc);
+}
 
 GEMMSTONE_NAMESPACE_END

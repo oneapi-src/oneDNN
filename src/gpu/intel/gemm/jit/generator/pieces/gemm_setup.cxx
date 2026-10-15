@@ -900,6 +900,7 @@ void Generator<hw>::gemmScaleInputs(const GEMMProblem &problem, const GEMMStrate
     auto &inputs = state.inputs;
 
     auto scale = [&](Type T, Subregister &s, Subregister defaultSrc = Subregister()) {
+        if (T == Type::invalid && (s.isValid() || defaultSrc.isValid())) stub();
         if (s.isValid())
             emulConstant(1, s, s, T, strategy, state);
         else if (defaultSrc.isValid()) {
