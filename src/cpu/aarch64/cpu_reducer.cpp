@@ -136,10 +136,10 @@ struct reducer_2d_driver_f_s_32_t : public reducer_2d_driver_t<data_type, isa> {
     const int vlen = cpu_isa_traits<isa>::vlen;
     const int typesize
             = sizeof(typename dnnl::impl::prec_traits_t<data_type>::type);
-    XReg reg_dst = abi_param1;
-    XReg reg_src = abi_param2;
-    XReg reg_ny = abi_param3;
-    XReg reg_nx = abi_param4;
+    XReg reg_dst = jit_generator_t::abi_param1;
+    XReg reg_src = jit_generator_t::abi_param2;
+    XReg reg_ny = jit_generator_t::abi_param3;
+    XReg reg_nx = jit_generator_t::abi_param4;
 
     XReg reg_x = this->x19;
     XReg reg_src_id = this->x20;
