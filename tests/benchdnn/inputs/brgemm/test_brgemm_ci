@@ -9,6 +9,18 @@
 --ld=,:96:96
 --batch=shapes_2d_no_tail_f32
 
+## f32:scales and binary post-ops
+## A binary argument needs an explicit tag, `any` is not supported by brgemm.
+## The explicit shapes mix full N vectors with an N tail.
+--reset
+--beta=0,1
+--attr-post-ops=,relu+add:f32:per_oc:ab
+--attr-scales=,src:common:0.5+wei:per_oc+dst:common:2
+--dt=f32
+--bia_dt=f32
+--batch=shapes_2d_no_tail_f32
+17x32:32x33 40x64:64x72 61x48:48x200
+
 # f16
 --reset
 --beta=0,1
