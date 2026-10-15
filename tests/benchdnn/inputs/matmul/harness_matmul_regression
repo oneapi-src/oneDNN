@@ -66,3 +66,5 @@
 --reset --dt=s8:u8:f16 --attr-scales=src:common:2:f16+wei:per_oc 3x6x1x2x4:1x6x7x4x1_n"non-f32_src_scale"
 # int4 weights + dynamic quant with N=1: must not swap A/B into an unsupported swapped kernel (must dispatch to jit)
 --reset --dt=s8:u4:f16 --stag=ab --wtag=ba --dtag=ab --attr-scales=wei:per_ocic:f16:64x1 --attr-zero-points=wei:per_ocic:u8:64x1 16x64:64x1
+# int4 weights decompression with 1 row and n > 65536: blocked launches must address grouped scales/zero points with the full problem size
+--reset --dt=f16:u4:f16 --stag=ab --wtag=ba --dtag=ab --attr-fpmath=f16:true --attr-scales=wei:per_ocic:f16:128x1 --attr-zero-points=,wei:common:8:u8,wei:per_oc:u8,wei:per_ocic:u8:128x1 1x256:256x65537
