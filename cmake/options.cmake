@@ -373,9 +373,17 @@ onednn_option(SAFE_RBP OFF
     runtime profiling with tools like Flame Graph.")
 
 onednn_option(X64_USE_ZEN OFF
-    "Enable ZenDNN integration. When ON, configuration requires a discoverable
-    ZenDNN package (>= 6.0.0) and ONEDNN_CPU_RUNTIME=OMP, and fails otherwise.")
-set(ZENDNNROOT "" CACHE STRING "Path to ZenDNN installation root")
+    "Enable ZenDNN integration. When ON, oneDNN builds ZenDNN from source
+    (third_party/ZenDNN, fetched when ONEDNN_ZENDNN_FETCH=ON). Requires
+    ZenDNN >= 6.1.0 and ONEDNN_CPU_RUNTIME=OMP, and fails otherwise.")
+
+if(DNNL_X64_USE_ZEN)
+    option(ONEDNN_ZENDNN_FETCH "Fetch ZenDNN automatically if not found locally" ON)
+    set(ONEDNN_ZENDNN_FETCH_URL "https://github.com/amd/ZenDNN.git"
+        CACHE STRING "URL for FetchContent ZenDNN download")
+    set(ONEDNN_ZENDNN_FETCH_TAG "4cce6f916e80e82a13ef8e99b497e525054dae0b"
+        CACHE STRING "Git commit for FetchContent ZenDNN download")
+endif()
 
 # -------------------
 # AArch64 CPU options
