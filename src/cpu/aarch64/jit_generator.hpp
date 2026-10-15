@@ -20,8 +20,8 @@
 #define CPU_AARCH64_JIT_GENERATOR_HPP
 
 #include <array>
+#include <climits>
 #include <cstdint>
-#include <limits.h>
 #include <vector>
 
 #include "common/type_helpers.hpp"
@@ -141,9 +141,8 @@ public:
     const Xbyak_aarch64::PReg P_NOT_128 = p14;
     const Xbyak_aarch64::PReg P_ALL_ONE = p0;
 
-    const std::vector<Xbyak_aarch64::XReg> x_tmp_vec
+    const std::array<Xbyak_aarch64::XReg, 5> temp_xregs
             = {X_TMP_0, X_TMP_1, X_TMP_2, X_TMP_3, X_TMP_4};
-    const int x_tmp_vec_size = x_tmp_vec.size();
 
     const Xbyak_aarch64::XReg param1 = abi_param1;
     constexpr static uint32_t DUMMY_IDX = 99;

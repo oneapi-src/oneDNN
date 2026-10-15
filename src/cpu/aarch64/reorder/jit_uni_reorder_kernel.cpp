@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstddef>
 
 #include "common/c_types_map.hpp"
 #include "common/nstl.hpp"
@@ -299,11 +300,11 @@ void jit_uni_reorder_kernel_f32_t::tr4x8_sve256(int i_off, int o_off) {
     auto z2 = ZRegS(2);
     auto z3 = ZRegS(3);
 
-    assert(x_tmp_vec.size() >= 4);
-    auto x_tmp_0 = x_tmp_vec[0];
-    auto x_tmp_1 = x_tmp_vec[1];
-    auto x_tmp_2 = x_tmp_vec[2];
-    auto x_tmp_3 = x_tmp_vec[3];
+    assert(temp_xregs.size() >= 4);
+    auto x_tmp_0 = temp_xregs[0];
+    auto x_tmp_1 = temp_xregs[1];
+    auto x_tmp_2 = temp_xregs[2];
+    auto x_tmp_3 = temp_xregs[3];
 
     // Load
     auto in_ptr_diff = itype_sz_ * prb_.is(0);
@@ -457,15 +458,15 @@ void jit_uni_reorder_kernel_f32_t::tr8x8_sve256(int i_off, int o_off) {
     const int node_0_input_stride = prb_.is(0);
     add_imm(X_TMP_0, XReg(x_ptr_in_off), itype_sz_ * i_off, X_DEFAULT_ADDR);
     for (int i = 1; i < unroll / 2; i++)
-        add_imm(x_tmp_vec[i], x_tmp_vec[i - 1], itype_sz_ * node_0_input_stride,
-                X_DEFAULT_ADDR);
-    for (uint32_t i = 0; i < unroll / 2; i++)
-        ld1w(ZRegS {i}, p_size / T_z, ptr(x_tmp_vec[i]));
-    for (int i = 0; i < unroll / 2; i++)
-        add_imm(x_tmp_vec[i], x_tmp_vec[(i + 3) % 4],
+        add_imm(temp_xregs[i], temp_xregs[i - 1],
                 itype_sz_ * node_0_input_stride, X_DEFAULT_ADDR);
     for (uint32_t i = 0; i < unroll / 2; i++)
-        ld1w(ZRegS {4 + i}, p_size / T_z, ptr(x_tmp_vec[i]));
+        ld1w(ZRegS {i}, p_size / T_z, ptr(temp_xregs[i]));
+    for (int i = 0; i < unroll / 2; i++)
+        add_imm(temp_xregs[i], temp_xregs[(i + 3) % 4],
+                itype_sz_ * node_0_input_stride, X_DEFAULT_ADDR);
+    for (uint32_t i = 0; i < unroll / 2; i++)
+        ld1w(ZRegS {4 + i}, p_size / T_z, ptr(temp_xregs[i]));
 
     if (interim_f32) cvt2ps(0, unroll, prb_.itype);
 
@@ -543,16 +544,16 @@ void jit_uni_reorder_kernel_f32_t::tr8x8_sve256(int i_off, int o_off) {
 
     add_imm(X_TMP_0, XReg(x_ptr_out_off), otype_sz_ * o_off, X_DEFAULT_ADDR);
     for (int i = 1; i < unroll / 2; i++)
-        add_imm(x_tmp_vec[i], x_tmp_vec[i - 1],
+        add_imm(temp_xregs[i], temp_xregs[i - 1],
                 otype_sz_ * node_1_output_stride, X_DEFAULT_ADDR);
     for (uint32_t i = 0; i < 4; i++)
-        st1w(ZRegS {i}, p_size / T_z, ptr(x_tmp_vec[i]));
+        st1w(ZRegS {i}, p_size / T_z, ptr(temp_xregs[i]));
     for (int i = 0; i < unroll / 2; i++)
-        add_imm(x_tmp_vec[i], x_tmp_vec[(i + 3) % 4],
+        add_imm(temp_xregs[i], temp_xregs[(i + 3) % 4],
                 otype_sz_ * node_1_output_stride, X_DEFAULT_ADDR);
 
     for (uint32_t i = 0; i < unroll / 2; i++)
-        st1w(ZRegS {4 + i}, p_size / T_z, ptr(x_tmp_vec[i]));
+        st1w(ZRegS {4 + i}, p_size / T_z, ptr(temp_xregs[i]));
 }
 
 bool jit_uni_reorder_kernel_f32_t::can_do_tr8x8() {
@@ -644,20 +645,21 @@ bool jit_uni_reorder_kernel_f32_t::process_direct_copy(
         int ur = 0;
         int tmp_ur = 0;
         while (ur < unroll) {
-            int count = 0;
+            size_t count = 0;
             const int vlen = cpu_isa_traits<isa>::vlen;
 
             do {
-                add_imm(x_tmp_vec[count++], x_ptr_in_off,
+                add_imm(temp_xregs[count++], x_ptr_in_off,
                         (off + ur * simd_w) * itype_sz_, X_DEFAULT_ADDR);
                 ur++;
-            } while (ur < unroll && count < x_tmp_vec_size);
+            } while (ur < unroll && count < temp_xregs.size());
 
-            for (int i = 0; i < count; i++) {
+            for (size_t i = 0; i < count; i++) {
                 if (vlen == 64 || vlen == 32)
-                    ld1w(ZRegS(tmp_ur + i), p_lsb_256 / T_z, ptr(x_tmp_vec[i]));
+                    ld1w(ZRegS(tmp_ur + i), p_lsb_256 / T_z,
+                            ptr(temp_xregs[i]));
                 else if (vlen == 16)
-                    ldr(QReg(tmp_ur + i), ptr(x_tmp_vec[i]));
+                    ldr(QReg(tmp_ur + i), ptr(temp_xregs[i]));
                 else
                     assert(!"unreachable");
             }
@@ -694,20 +696,21 @@ bool jit_uni_reorder_kernel_f32_t::process_direct_copy(
         ur = 0;
         tmp_ur = 0;
         while (ur < unroll) {
-            int count = 0;
+            size_t count = 0;
             const int vlen = cpu_isa_traits<isa>::vlen;
 
             do {
-                add_imm(x_tmp_vec[count++], x_ptr_out_off,
+                add_imm(temp_xregs[count++], x_ptr_out_off,
                         (off + ur * simd_w) * otype_sz_, X_DEFAULT_ADDR);
                 ur++;
-            } while (ur < unroll && count < x_tmp_vec_size);
+            } while (ur < unroll && count < temp_xregs.size());
 
-            for (int i = 0; i < count; i++) {
+            for (size_t i = 0; i < count; i++) {
                 if (vlen == 64 || vlen == 32)
-                    st1w(ZRegS(tmp_ur + i), p_lsb_256 / T_z, ptr(x_tmp_vec[i]));
+                    st1w(ZRegS(tmp_ur + i), p_lsb_256 / T_z,
+                            ptr(temp_xregs[i]));
                 else if (vlen == 16)
-                    str(QReg(tmp_ur + i), ptr(x_tmp_vec[i]));
+                    str(QReg(tmp_ur + i), ptr(temp_xregs[i]));
                 else
                     assert(!"unreachable");
             }
@@ -781,14 +784,14 @@ void jit_uni_reorder_kernel_f32_t::process_unroll_generic_step(int reg_unroll,
     };
 
     auto load_bytes_addr = [=](const int ur, const int r) {
-        add_imm(x_tmp_vec[r], x_ptr_in_off, i_off[ur + r] * itype_sz_,
+        add_imm(temp_xregs[r], x_ptr_in_off, i_off[ur + r] * itype_sz_,
                 X_DEFAULT_ADDR);
     };
     auto load_bytes = [=](const int ur, int size, int r) {
         switch (size) {
-            case 4: ld1(VReg4S(ur)[r], ptr(x_tmp_vec[r])); break;
-            case 2: ld1(VReg8H(ur)[r], ptr(x_tmp_vec[r])); break;
-            case 1: ld1(VReg16B(ur)[r], ptr(x_tmp_vec[r])); break;
+            case 4: ld1(VReg4S(ur)[r], ptr(temp_xregs[r])); break;
+            case 2: ld1(VReg8H(ur)[r], ptr(temp_xregs[r])); break;
+            case 1: ld1(VReg16B(ur)[r], ptr(temp_xregs[r])); break;
             default: assert(!"unreachable");
         }
     };
@@ -865,22 +868,22 @@ void jit_uni_reorder_kernel_f32_t::process_unroll_generic_step(int reg_unroll,
             int ur = 0;
             int tmp_ur = 0;
             while (ur < reg_unroll) {
-                int count = 0;
+                size_t count = 0;
 
                 do {
-                    add_imm(x_tmp_vec[count++], x_ptr_in_off,
+                    add_imm(temp_xregs[count++], x_ptr_in_off,
                             i_off[ur] * itype_sz_, X_DEFAULT_ADDR);
                     ur += load_step;
-                } while (ur < reg_unroll && count < x_tmp_vec_size);
+                } while (ur < reg_unroll && count < temp_xregs.size());
 
-                for (int i = 0; i < count; i++) {
+                for (size_t i = 0; i < count; i++) {
 
                     switch (load_step * itype_sz_) {
-                        case 16: ldr(QReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        case 8: ldr(DReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        case 4: ldr(SReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        case 2: ldr(HReg(tmp_ur), ptr(x_tmp_vec[i])); break;
-                        case 1: ldr(BReg(tmp_ur), ptr(x_tmp_vec[i])); break;
+                        case 16: ldr(QReg(tmp_ur), ptr(temp_xregs[i])); break;
+                        case 8: ldr(DReg(tmp_ur), ptr(temp_xregs[i])); break;
+                        case 4: ldr(SReg(tmp_ur), ptr(temp_xregs[i])); break;
+                        case 2: ldr(HReg(tmp_ur), ptr(temp_xregs[i])); break;
+                        case 1: ldr(BReg(tmp_ur), ptr(temp_xregs[i])); break;
                         default: assert(!"unreachable");
                     }
                     tmp_ur += load_step;
@@ -923,17 +926,17 @@ void jit_uni_reorder_kernel_f32_t::process_unroll_generic_step(int reg_unroll,
             }
             for (int ur = 0; ur < reg_unroll; ur += load_step) {
                 for (int r = 0; r < load_step; ++r) {
-                    add_imm(x_tmp_vec[r], x_ptr_out_off,
+                    add_imm(temp_xregs[r], x_ptr_out_off,
                             o_off[ur + r] * otype_sz_, X_DEFAULT_ADDR);
                 }
 
                 for (int r = 0; r < load_step; ++r) {
                     if (otype_sz_ == 4)
-                        st1(VReg4S(ur)[r], ptr(x_tmp_vec[r]));
+                        st1(VReg4S(ur)[r], ptr(temp_xregs[r]));
                     else if (otype_sz_ == 2)
-                        st1(VReg8H(ur)[r], ptr(x_tmp_vec[r]));
+                        st1(VReg8H(ur)[r], ptr(temp_xregs[r]));
                     else
-                        st1(VReg16B(ur)[r], ptr(x_tmp_vec[r]));
+                        st1(VReg16B(ur)[r], ptr(temp_xregs[r]));
                 }
             }
             return;
@@ -1019,13 +1022,13 @@ void jit_uni_reorder_kernel_f32_t::process_unroll_generic_step(int reg_unroll,
                     for (int r = ur; r < ur + ur_step; ++r)
                         if (zero_padding[r] == 0 || !tail_processing) {
                             if (scale_arg == scale_arg_t::SRC)
-                                mov(x_tmp_vec[r - ur], src_s_addr(s_off[r]));
+                                mov(temp_xregs[r - ur], src_s_addr(s_off[r]));
                             else
-                                mov(x_tmp_vec[r - ur], dst_s_addr(s_off[r]));
+                                mov(temp_xregs[r - ur], dst_s_addr(s_off[r]));
                         }
                     for (int r = ur; r < ur + ur_step; ++r)
                         if (zero_padding[r] == 0 || !tail_processing)
-                            ld1(vreg_scales[r - ur], ptr(x_tmp_vec[r - ur]));
+                            ld1(vreg_scales[r - ur], ptr(temp_xregs[r - ur]));
                     fmul(VReg4S(ur), VReg4S(ur), vreg_scales);
                 }
             }
@@ -1040,42 +1043,42 @@ void jit_uni_reorder_kernel_f32_t::process_unroll_generic_step(int reg_unroll,
             int tmp_ur = 0;
 
             while (ur < reg_unroll) {
-                int count = 0;
+                size_t count = 0;
 
                 do {
-                    add_imm(x_tmp_vec[count++], x_ptr_out_off,
+                    add_imm(temp_xregs[count++], x_ptr_out_off,
                             o_off[ur] * otype_sz_, X_DEFAULT_ADDR);
                     ur += ur_step;
-                } while (ur < reg_unroll && count < x_tmp_vec_size);
+                } while (ur < reg_unroll && count < temp_xregs.size());
 
                 assert(count <= z_tmp_vec_size);
                 /* Firstly, data is loaded. */
-                for (int i = 0; i < count; i++) {
+                for (size_t i = 0; i < count; i++) {
 
                     if (prb_.otype == f32 || prb_.otype == s32) {
-                        ldr(QReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i])); // bug
+                        ldr(QReg(tmp_vec_idx[i]), ptr(temp_xregs[i])); // bug
                     } else if (prb_.otype == data_type::s8
                             || prb_.otype == u8) {
-                        ldr(SReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i])); // bug
+                        ldr(SReg(tmp_vec_idx[i]), ptr(temp_xregs[i])); // bug
                     } else
                         assert(!"unreachable");
                 }
 
                 /* Secondly, it is added. */
                 if (prb_.otype == f32) {
-                    for (int i = 0; i < count; i++) {
+                    for (size_t i = 0; i < count; i++) {
                         VReg4S v(tmp_ur);
                         fadd(v, v, VReg4S(tmp_vec_idx[i]));
                         tmp_ur += ur_step;
                     }
                 } else {
-                    for (int i = 0; i < count; i++) {
+                    for (size_t i = 0; i < count; i++) {
                         /* cvt2ps() generate successive instructions
                                which have save destination operand,
                                but out of order can be expected. */
                         cvt2ps(tmp_vec_idx[i], 1, prb_.otype);
                     }
-                    for (int i = 0; i < count; i++) {
+                    for (size_t i = 0; i < count; i++) {
                         VReg4S v(tmp_ur);
                         fadd(v, v, VReg4S(tmp_vec_idx[i]));
                         tmp_ur += ur_step;
@@ -1099,7 +1102,7 @@ void jit_uni_reorder_kernel_f32_t::process_unroll_generic_step(int reg_unroll,
                 std::vector<uint32_t> vec_reg;
                 std::vector<XReg> addr_reg;
                 const size_t max_cnt_per_loop
-                        = std::min(tmp_vec_idx.size(), x_tmp_vec.size());
+                        = std::min(tmp_vec_idx.size(), temp_xregs.size());
                 size_t cnt = 0; // valid unroll steps count
 
                 // 1. Listing up valid steps
@@ -1110,7 +1113,7 @@ void jit_uni_reorder_kernel_f32_t::process_unroll_generic_step(int reg_unroll,
                         vec_reg.push_back(tmp_vec_idx[cnt % max_cnt_per_loop]);
                         if (s_off[ur])
                             addr_reg.push_back(
-                                    x_tmp_vec[cnt % max_cnt_per_loop]);
+                                    temp_xregs[cnt % max_cnt_per_loop]);
                         else
                             addr_reg.push_back(scale_arg == scale_arg_t::SRC
                                             ? x_ptr_src_scale_off
@@ -1157,44 +1160,44 @@ void jit_uni_reorder_kernel_f32_t::process_unroll_generic_step(int reg_unroll,
             int ur = 0;
             int tmp_ur = 0;
             while (ur < reg_unroll) {
-                int count = 0;
+                size_t count = 0;
 
                 do {
-                    add_imm(x_tmp_vec[count++], x_ptr_out_off,
+                    add_imm(temp_xregs[count++], x_ptr_out_off,
                             o_off[ur] * otype_sz_, X_DEFAULT_ADDR);
                     ur += ur_step;
-                } while (ur < reg_unroll && count < (x_tmp_vec_size / 2));
+                } while (ur < reg_unroll && count < (temp_xregs.size() / 2));
 
                 assert(static_cast<size_t>(count) <= z_tmp_vec.size());
 
                 if (prb_.otype == f32) {
                     /* addss: dest[31:0] <- src1[31:0] + src2[31:0]
                          dset[MAXVL-1:32] (Unmodified) */
-                    for (int i = 0; i < count; i++) {
+                    for (size_t i = 0; i < count; i++) {
                         ld1(VReg4S(z_tmp_vec[i].getIdx())[0],
-                                ptr(x_tmp_vec[i]));
+                                ptr(temp_xregs[i]));
                     }
-                    for (int i = 0; i < count; i++) {
+                    for (size_t i = 0; i < count; i++) {
                         SReg s {tmp_vec_idx[i]};
                         fadd(s, s, SReg(tmp_ur + ur_step * i));
                     }
-                    for (int i = 0; i < count; i++) {
+                    for (size_t i = 0; i < count; i++) {
                         mov(VReg4S(tmp_ur)[0], VReg4S(tmp_vec_idx[i])[0]);
                         tmp_ur += ur_step;
                     }
                 } else {
-                    for (int i = 0; i < count; i++) {
+                    for (size_t i = 0; i < count; i++) {
                         if (prb_.otype == s32) {
-                            ldr(SReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i]));
+                            ldr(SReg(tmp_vec_idx[i]), ptr(temp_xregs[i]));
                         } else if (utils::one_of(
                                            prb_.otype, data_type::s8, u8)) {
-                            ldr(BReg(tmp_vec_idx[i]), ptr(x_tmp_vec[i]));
+                            ldr(BReg(tmp_vec_idx[i]), ptr(temp_xregs[i]));
                         } else {
                             assert(!"unsupported o_type");
                         }
                         cvt2ps(tmp_vec_idx[i], 1, prb_.otype);
                     }
-                    for (int i = 0; i < count; i++) {
+                    for (size_t i = 0; i < count; i++) {
                         VReg4S v(tmp_ur);
                         fadd(v, v, VReg4S(tmp_vec_idx[i]));
                         tmp_ur += ur_step;

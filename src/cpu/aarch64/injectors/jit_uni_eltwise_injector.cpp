@@ -94,9 +94,9 @@ void jit_uni_eltwise_injector_t<isa>::injector_preamble(
     assert(preserved_vecs_count == vecs_to_preserve);
 
     // jit_generator_t provides a collection of temporary gprs we can use.
-    assert(aux_gprs_count() <= h->x_tmp_vec.size());
+    assert(aux_gprs_count() <= h->temp_xregs.size());
     size_t preserved_gprs_count = 0;
-    for (const auto &x_tmp : h->x_tmp_vec) {
+    for (const auto &x_tmp : h->temp_xregs) {
         // Already allocated enough gprs, we are done.
         if (preserved_gprs_count == aux_gprs_count()) { break; }
 
