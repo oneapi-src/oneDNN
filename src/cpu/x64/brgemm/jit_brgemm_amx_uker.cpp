@@ -135,12 +135,21 @@ struct jit_brgemm_amx_uker_t : public brgemm_kernel_t {
                     || with_binary_batch_bcast_ || with_binary_spatial_bcast_
                     || with_binary_no_bcast_;
         }
-        use_ils_ = brg.brgattr.use_interleave_stores && !brg.is_ace();
+        use_ils_ = jit_brgemm_amx_uker_t::use_ils(brg);
     }
 
     DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_brgemm_amx_uker_t)
 
     brgemm_desc_t brg;
+
+    /* How the unrolled kernel stores its accumulators, exposed here so the
+     * roll decision and the code generator do not drift apart. */
+    static bool may_load_accumulators(const brgemm_desc_t &brg);
+    static bool need_to_apply_alpha_beta(const brgemm_desc_t &brg);
+    static bool use_ils(const brgemm_desc_t &brg);
+    static bool store_by_vectors(const brgemm_desc_t &brg, bool apply_post_ops);
+    static bool actual_ils(const brgemm_desc_t &brg, bool apply_post_ops,
+            bool skip_accumulation);
 
 private:
     using po_injector_t = injector::jit_uni_postops_injector_t<Zmm>;
@@ -662,22 +671,11 @@ private:
     dim_t skipped_bd_mask(dim_t inp_bd) noexcept;
 
     bool get_store_by_vectors(bool apply_post_ops) const {
-        const bool need_to_apply_post_ops
-                = are_post_ops_applicable_ && apply_post_ops;
-        // Tile-direct-store fast-path dumps raw accumulator dtype; for
-        // narrow dt_c (bf16/f16) we must go through the per-vector store
-        // path that downconverts via store_vector_without_post_ops.
-        const bool c_dt_needs_cvt
-                = !utils::one_of(brg.dt_c, data_type::f32, data_type::s32);
-        const auto store_by_vectors = need_to_apply_alpha_beta_
-                || need_to_apply_post_ops || brg.brgattr.bd_mask_level
-                || brg.has_per_k_scales() || brg.with_per_mn_compensation
-                || c_dt_needs_cvt;
-        return store_by_vectors;
+        return jit_brgemm_amx_uker_t::store_by_vectors(brg, apply_post_ops);
     }
     bool actual_ils(bool apply_post_ops, bool skip_accumulation = false) const {
-        return (use_ils_ && get_store_by_vectors(apply_post_ops)
-                && !skip_accumulation);
+        return jit_brgemm_amx_uker_t::actual_ils(
+                brg, apply_post_ops, skip_accumulation);
     }
 
     dim_t A_offset(
@@ -731,6 +729,44 @@ private:
             jit_brgemm_amx_uker_t::reg64_t &reg_base, dim_t src_offset,
             jit_brgemm_amx_uker_t::reg64_t &reg_src_stride, bool use_memadvice);
 };
+
+bool jit_brgemm_amx_uker_t::may_load_accumulators(const brgemm_desc_t &brg) {
+    // Tile-load accumulators from C instead of add-on-store, when beta == 1
+    // and dt_c == f32; excluded for ACE (no tileloadd) and per-K/per-mn.
+    return one_of(brg.alpha, 0.f, 1.f) && brg.beta == 1.f && !brg.is_ace()
+            && brg.dt_c == brg.dt_d && !brg.has_per_k_scales()
+            && !brg.with_per_mn_compensation
+            && IMPLICATION(brg.is_input_convert(), brg.is_fp8_via_convert())
+            && IMPLICATION(
+                    brg.is_f32 || brg.is_bf16, brg.dt_c == data_type::f32)
+            && IMPLICATION(brg.is_int8, brg.is_integer_acc())
+            && brg.brgattr.bd_mask_level == 0;
+}
+
+bool jit_brgemm_amx_uker_t::need_to_apply_alpha_beta(const brgemm_desc_t &brg) {
+    return (brg.beta != 0.f && !may_load_accumulators(brg)) || brg.alpha != 1.f;
+}
+
+bool jit_brgemm_amx_uker_t::use_ils(const brgemm_desc_t &brg) {
+    return brg.brgattr.use_interleave_stores && !brg.is_ace();
+}
+
+bool jit_brgemm_amx_uker_t::store_by_vectors(
+        const brgemm_desc_t &brg, bool apply_post_ops) {
+    // A narrow dt_c (bf16/f16) needs the vector store path to down-convert.
+    const bool c_dt_needs_cvt
+            = !one_of(brg.dt_c, data_type::f32, data_type::s32);
+    return need_to_apply_alpha_beta(brg)
+            || (brg.are_post_ops_applicable() && apply_post_ops)
+            || brg.brgattr.bd_mask_level != 0 || brg.has_per_k_scales()
+            || brg.with_per_mn_compensation || c_dt_needs_cvt;
+}
+
+bool jit_brgemm_amx_uker_t::actual_ils(
+        const brgemm_desc_t &brg, bool apply_post_ops, bool skip_accumulation) {
+    return use_ils(brg) && store_by_vectors(brg, apply_post_ops)
+            && !skip_accumulation;
+}
 
 bool jit_brgemm_amx_uker_t::bi_shift_output(
         brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi) {
@@ -3531,22 +3567,9 @@ void jit_brgemm_amx_uker_t::generate() {
     ldb_tail_C_size_ = static_cast<dim_t>(brg.typesize_C) * brg.ldb_tail;
     ldb_tail_D_size_ = static_cast<dim_t>(brg.typesize_D) * brg.ldb_tail;
 
-    // if beta == 1 and C datatype is f32 it is better to perform addition by
-    // reading tiles directly from C instead of by reading/writing by vectors
-    // ACE palette does not support tileloadd, so we must use vector path
-    // Per-K scales / per-(M,N) compensation must be applied to the current
-    // K-block's partial result only, so previous results must not be
-    // pre-loaded into the tile accumulators.
-    may_load_accumulators_ = one_of(brg.alpha, 0.f, 1.f) && brg.beta == 1.f
-            && !brg.is_ace() && brg.dt_c == brg.dt_d && !brg.has_per_k_scales()
-            && !brg.with_per_mn_compensation
-            && IMPLICATION(brg.is_input_convert(), brg.is_fp8_via_convert())
-            && IMPLICATION(
-                    brg.is_f32 || brg.is_bf16, brg.dt_c == data_type::f32)
-            && IMPLICATION(brg.is_int8, brg.is_integer_acc())
-            && brg.brgattr.bd_mask_level == 0;
+    may_load_accumulators_ = jit_brgemm_amx_uker_t::may_load_accumulators(brg);
     need_to_apply_alpha_beta_
-            = (brg.beta != 0.f && !may_load_accumulators_) || brg.alpha != 1.f;
+            = jit_brgemm_amx_uker_t::need_to_apply_alpha_beta(brg);
     are_post_ops_applicable_ = brg.are_post_ops_applicable();
 
     assert(IMPLICATION(brg.brgattr.LDB2 == 0, brg.load_dim <= brg.LDB));
