@@ -21,10 +21,15 @@
 #include "gemmstone_config.hpp"
 #else
 
+namespace gemmstone {
 enum class GEMMVerbose { DebugInfo };
 inline int getVerbose(GEMMVerbose v) { return 0; }
+} // namespace gemmstone
 
 #define GEMMSTONE_ASSERTIONS 1
+#define GEMMSTONE_IR_EXTENSION_HANDLER nullptr
+
+#define MICROKERNEL_INTERFACE
 
 #if (__cplusplus >= 202002L || _MSVC_LANG >= 202002L)
 #if __has_include(<version>)

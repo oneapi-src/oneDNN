@@ -19,11 +19,15 @@
 
 #include "gemmstone/config.hpp"
 
+#include <array>
+#include <functional>
 #include <limits>
+#include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <sstream>
+#include <type_traits>
 #include <map>
 
 #ifdef GEMMSTONE_ENABLE_SOURCE_LOCATION
@@ -348,6 +352,142 @@ protected:
 #endif
 
 };
+
+template <typename T, typename... Types>
+struct is_one_of : std::false_type {};
+
+template <typename T, typename Head, typename... Tail>
+struct is_one_of<T, Head, Tail...>
+    : std::conditional<std::is_same<T, Head>::value, std::true_type,
+              is_one_of<T, Tail...>>::type {};
+
+// std::variant functionality with pointer storage.
+template <typename... Types>
+struct generic_t {
+    generic_t() = default;
+
+    template <typename T>
+    generic_t(T x)
+        : index_(index_of<T, Types...>())
+        , impl_(new storage_t<T>(std::move(x))) {
+        static_assert(is_one_of<T, Types...>::value, "Unexpected type.");
+    }
+
+    generic_t(const generic_t &other)
+        : index_(other.index_)
+        , impl_(other.impl_ ? other.impl_->clone() : nullptr) {}
+
+    generic_t(generic_t &&other) = default;
+
+    generic_t &operator=(const generic_t &other) {
+        if (this == &other) return *this;
+        index_ = other.index_;
+        impl_ = other.impl_ ? other.impl_->clone() : nullptr;
+        return *this;
+    }
+
+    generic_t &operator=(generic_t &&other) = default;
+
+    explicit operator bool() const { return (bool)impl_; }
+
+    template <typename T>
+    bool is() const {
+        return impl_ && impl_->type() == typeid(T);
+    }
+
+    template <typename T>
+    T &as() {
+        gemm_assert(is<T>());
+        return static_cast<storage_t<T> *>(impl_.get())->data;
+    }
+
+    template <typename T>
+    const T &as() const {
+        gemm_assert(is<T>());
+        return static_cast<const storage_t<T> *>(impl_.get())->data;
+    }
+
+    template <typename T>
+    T *as_ptr() {
+        if (!is<T>()) return nullptr;
+        return &as<T>();
+    }
+
+    template <typename T>
+    const T *as_ptr() const {
+        if (!is<T>()) return nullptr;
+        return &as<T>();
+    }
+
+    size_t index() const { return index_; }
+
+private:
+    template <typename T>
+    static constexpr size_t index_of() {
+        return 1;
+    }
+
+    template <typename T, typename First, typename ... Rest>
+    static constexpr size_t index_of() {
+        return std::is_same<T, First>::value ? 0 : 1 + index_of<T, Rest...>();
+    }
+
+    struct storage_impl_t {
+        virtual ~storage_impl_t() = default;
+        virtual const std::type_info &type() const = 0;
+        virtual std::unique_ptr<storage_impl_t> clone() const = 0;
+    };
+
+    template <typename T>
+    struct storage_t : storage_impl_t {
+        T data;
+        storage_t(T x) : data(std::move(x)) {}
+        const std::type_info &type() const override { return typeid(T); }
+        std::unique_ptr<storage_impl_t> clone() const override {
+            return std::unique_ptr<storage_impl_t>(new storage_t<T>(data));
+        }
+    };
+
+    size_t index_ = sizeof...(Types);
+    std::unique_ptr<storage_impl_t> impl_;
+
+    template <typename ... Ts, typename F>
+    friend auto visit(const generic_t<Ts...> &g, const F &f) -> decltype(g.invoke(f));
+};
+
+template <typename ... Ts> struct overload_t;
+
+template <typename T, typename ... Ts>
+struct overload_t<T, Ts...> : T, overload_t<Ts...> {
+    using T::operator();
+    using overload_t<Ts...>::operator();
+
+    overload_t(const T &t, const Ts &...ts)
+        : T(t), overload_t<Ts...>(ts...) {}
+};
+
+template <typename T>
+struct overload_t<T> : T {
+    using T::operator();
+
+    overload_t(const T &t) : T(t) {}
+};
+
+template <typename ... Ts>
+overload_t<Ts...> overload(const Ts &...ts) {
+    return overload_t<Ts...>{ts...};
+}
+
+template <typename First, typename ... Rest, typename F>
+auto visit(const generic_t<First, Rest...> &g, const F &f) -> decltype(f(std::declval<First>())) {
+    using return_type_t = decltype(f(std::declval<First>()));
+    gemm_assert(g.index() < 1 + sizeof...(Rest));
+    std::array<std::function<return_type_t(void)>, 1 + sizeof...(Rest)> funcs = {
+        [&]() { return f(g.template as<First>()); },
+        [&]() { return f(g.template as<Rest>()); }...
+    };
+    return funcs[g.index()]();
+}
 
 GEMMSTONE_NAMESPACE_END
 
