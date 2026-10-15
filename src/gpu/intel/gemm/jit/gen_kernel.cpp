@@ -978,10 +978,18 @@ void gen_kernel_t::init_interface() {
         interface_.newArgument("group_stride", DataType::ud);
     if (strategy.variableSLM())
         interface_.newArgument("local_mem", ExternalArgumentType::LocalPtr);
-    if (problem.aoPtrDims >= 1 || problem.aScale2D())
-        interface_.newArgument("offset_Aq", DataType::q);
-    if (problem.boPtrDims >= 1 || problem.bScale2D())
-        interface_.newArgument("offset_Bq", DataType::q);
+    if (problem.aoPtrDims >= 1)
+        interface_.newArgument("offset_AO", DataType::q);
+    if (problem.boPtrDims >= 1)
+        interface_.newArgument("offset_BO", DataType::q);
+    if (problem.aScale2D())
+        interface_.newArgument("offset_A_scale", DataType::q);
+    if (problem.bScale2D())
+        interface_.newArgument("offset_B_scale", DataType::q);
+    if (problem.needsAGroupSums())
+        interface_.newArgument("offset_Ag", DataType::q);
+    if (problem.needsBGroupSums())
+        interface_.newArgument("offset_Bg", DataType::q);
 
     if (desc()->hw_ >= HW::XeHPG) interface_.allowArgumentRearrangement(false);
     interface_.externalName(kernel_name());
