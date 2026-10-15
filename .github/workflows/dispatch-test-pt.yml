@@ -41,10 +41,10 @@ on:
     types: [created]
 
 permissions:
+  checks: write
   contents: read
-  pull-requests: read
+  pull-requests: write
   statuses: write
-  issues: write
 
 env:
   XPU_OPS_REPO: intel/torch-xpu-ops
@@ -73,7 +73,7 @@ jobs:
         id: cmd
         env:
           COMMENT_BODY: ${{ github.event.comment.body }}
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             // Only users with write access may trigger a dispatch.
@@ -141,6 +141,9 @@ jobs:
                 owner, repo, pull_number: context.payload.issue.number,
               })).data;
             }
+            // Exposed before the mergeable gate so a failure that stops here
+            // can still be reported on the PR head.
+            core.setOutput('head_sha', pr.head.sha);
             // An unmergeable PR has no valid merge commit to test; stop before
             // dispatching anything.
             if (!pr.mergeable) {
@@ -153,7 +156,6 @@ jobs:
             core.setOutput('python', opts.python);
             core.setOutput('pytorch', opts.pytorch);
             core.setOutput('torch_xpu_ops', opts.torch_xpu_ops);
-            core.setOutput('head_sha', pr.head.sha);
             // Test the merge commit (PR merged into base); guaranteed present
             // here since a non-mergeable PR already failed above.
             core.setOutput('target_version', opts.target || pr.merge_commit_sha);
@@ -170,7 +172,7 @@ jobs:
 
       - name: Set pending status
         if: steps.cmd.outputs.run == 'true'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.cmd.outputs.head_sha }}
           PATTERN: ${{ steps.cmd.outputs.pattern }}
@@ -246,7 +248,7 @@ jobs:
 
       - name: Finalize statuses
         if: ${{ always() && steps.cmd.outputs.run == 'true' }}
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.cmd.outputs.head_sha }}
           PATTERN: ${{ steps.cmd.outputs.pattern }}
@@ -267,4 +269,25 @@ jobs:
               context: process.env.ACCEPT_CONTEXT, target_url: runUrl,
               description: ok ? `Running oneDNN acceptance (${pattern}) in ${process.env.XPU_OPS_REPO}`
                               : 'Not started (dispatch failed).',
+            });
+
+      - name: Report failure to the PR
+        if: ${{ failure() && steps.cmd.outputs.head_sha != '' }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          HEAD_SHA: ${{ steps.cmd.outputs.head_sha }}
+        with:
+          script: |
+            // An `issue_comment` run is not attached to the PR, so a failed
+            // dispatch is only discoverable there as a check run.
+            const { owner, repo } = context.repo;
+            await github.rest.checks.create({
+              owner, repo, head_sha: process.env.HEAD_SHA,
+              name: 'oneDNN test_pt dispatch',
+              status: 'completed', conclusion: 'failure',
+              details_url: `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+              output: {
+                title: 'Dispatch failed',
+                summary: 'See the dispatch log for details.',
+              },
             });
