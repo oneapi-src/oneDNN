@@ -1,5 +1,0 @@
-gemm SSS ABN 32 16
-gemm DDD ABN 16 16
-gemm DDD ABN 32 8
-gemm CCC ABN 16 8
-gemm ZZZ ABN 16 4

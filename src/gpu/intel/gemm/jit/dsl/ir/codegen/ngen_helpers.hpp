@@ -28,6 +28,10 @@ GEMMSTONE_NAMESPACE_START
 namespace dsl {
 namespace ir {
 
+constexpr ngen::DataType ngen_f4_e2m1() {
+    return static_cast<ngen::DataType>(0x5A);
+}
+
 template <typename T>
 T to_cpp(const ngen::Immediate &imm) {
     auto u64 = uint64_t(imm);
@@ -52,13 +56,14 @@ T to_cpp(const ngen::Immediate &imm) {
 // type_t to ngen::DataType convertor.
 inline ngen::DataType to_ngen(const type_t &type) {
     if (type.is_undef()) return ngen::DataType::invalid;
+
     dsl_assert(type.is_scalar()) << "Expected scalar type.";
 
 #define CASE(_kind, ngen_enum) \
-    if (type.base() == type_t::_kind()) return ngen::DataType::ngen_enum
+    if (type.scalar() == type_t::_kind()) return ngen::DataType::ngen_enum
 
     // Until f4_e2m1 lands in ngen
-    if (type.base() == type_t::f4_e2m1()) return ngen::DataType::e2m1;
+    if (type.scalar() == type_t::f4_e2m1()) return ngen_f4_e2m1();
 
     CASE(bf16, bf);
     CASE(f16, hf);
@@ -77,7 +82,6 @@ inline ngen::DataType to_ngen(const type_t &type) {
     CASE(u64, uq);
     CASE(u8, ub);
     CASE(u4, u4);
-    CASE(u2, u2);
 
     if (type == type_t::byte(1, type::attr_t::ptr)) return ngen::DataType::uq;
 
@@ -91,7 +95,7 @@ inline type_t to_ir(ngen::DataType type) {
 #define CASE(_kind, ngen_enum) \
     if (type == ngen::DataType::ngen_enum) return type_t::_kind();
 
-    if (type == ngen::DataType::e2m1) return type_t::f4_e2m1();
+    if (type == ngen_f4_e2m1()) return type_t::f4_e2m1();
 
     CASE(bf16, bf);
     CASE(f16, hf);
@@ -109,7 +113,6 @@ inline type_t to_ir(ngen::DataType type) {
     CASE(u64, uq);
     CASE(u8, ub);
     CASE(u4, u4);
-    CASE(u2, u2);
 
 #undef CASE
     stub();

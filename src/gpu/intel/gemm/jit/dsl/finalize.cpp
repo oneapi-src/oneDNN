@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2022 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,7 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-/*@kcatalog@*/
-auto _CATALOG_ = kcatalog::toArray({
+#include "dsl/finalize.hpp"
+#include "dsl/ir/pass/pass.hpp"
+#include "dsl/ir/pass/trace.hpp"
 
-});
+GEMMSTONE_NAMESPACE_START
+namespace dsl {
+
+void finalize(kernel_t &kernel) {
+    auto &stmt = kernel.body;
+    stmt = ir::simplify(stmt);
+        ir::fixup_if_conditions(kernel);
+}
+
+} // namespace dsl
+GEMMSTONE_NAMESPACE_END

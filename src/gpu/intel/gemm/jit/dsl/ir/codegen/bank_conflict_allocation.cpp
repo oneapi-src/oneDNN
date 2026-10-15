@@ -83,7 +83,7 @@ struct hw_context_t {
             case ngen::HW::Xe2:
             case ngen::HW::Xe3:
             case ngen::HW::Xe3p: return 16;
-            default: gpu_error_not_expected();
+            default: stub();
         }
         return -1;
     }

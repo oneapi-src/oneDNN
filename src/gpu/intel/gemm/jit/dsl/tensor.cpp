@@ -17,7 +17,6 @@
 #include "gemmstone/dsl/tensor.hpp"
 #include "dsl/ir/ir.hpp"
 #include "dsl/ir/pass/simplify.hpp"
-#include "gemmstone/dsl/dsl.hpp"
 
 #include <algorithm>
 

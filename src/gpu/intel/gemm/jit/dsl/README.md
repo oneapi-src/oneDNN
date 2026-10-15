@@ -148,4 +148,3 @@ class ir_to_ngen_t final : public ir_visitor_t {
     ...
 }
 ```
-

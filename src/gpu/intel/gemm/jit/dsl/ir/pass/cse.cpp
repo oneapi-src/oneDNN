@@ -728,6 +728,10 @@ stmt_t eliminate_common_subexprs_impl(const stmt_t &_stmt, cse_context_t &ctx,
     ctx.reset_cse_exprs();
     return stmt_t();
 }
+void eliminate_common_subexprs(kernel_t &k, int memory_usage_limit) {
+    ir_context_t ir_ctx(k);
+    k.body = eliminate_common_subexprs(k.body, ir_ctx, memory_usage_limit);
+}
 
 stmt_t eliminate_common_subexprs(
         const stmt_t &_stmt, ir_context_t &ir_ctx, int memory_usage_limit) {
@@ -801,11 +805,6 @@ stmt_t eliminate_common_subexprs(const stmt_t &stmt, ir_context_t &ir_ctx,
         memory_usage_limit -= (gmem_bufs - 1) * v.g2s_buf_size();
     }
     return eliminate_common_subexprs(stmt, ir_ctx, memory_usage_limit);
-}
-
-void eliminate_common_subexprs(kernel_t &k, int memory_usage_limit) {
-    ir_context_t ir_ctx(k);
-    k.body = eliminate_common_subexprs(k.body, ir_ctx, memory_usage_limit);
 }
 
 } // namespace ir

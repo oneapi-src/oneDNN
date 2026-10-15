@@ -139,13 +139,13 @@ public:
     reg_buf_data_t(const reg_buf_t &reg_buf, const ngen::RegData &rd)
         : reg_buf_(std::make_shared<reg_buf_t>(reg_buf)), rd_(rd) {}
 
+    reg_buf_data_t(ngen::HW hw, const ngen::GRF &grf)
+        : reg_buf_(std::make_shared<reg_buf_t>(hw, grf)), rd_(grf) {}
+
     reg_buf_data_t(ngen::HW hw, const ngen::Subregister &sub)
         : reg_buf_(std::make_shared<reg_buf_t>(
                   hw, ngen::GRFRange(sub.getBase(), 1)))
         , rd_(sub) {}
-
-    reg_buf_data_t(ngen::HW hw, const ngen::GRF &grf)
-        : reg_buf_(std::make_shared<reg_buf_t>(hw, grf)), rd_(grf) {}
 
     const reg_buf_t &reg_buf() const { return *reg_buf_; }
 

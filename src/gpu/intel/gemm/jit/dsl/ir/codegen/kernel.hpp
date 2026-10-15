@@ -146,13 +146,12 @@ class expr_evaluator_t;
 template <typename GeneratorT>
 class ir_to_ngen_t;
 
-struct setup_flags_t {
-    bool has_send_atomics;
-    bool has_dpas;
-    bool has_signal_header;
+struct kernel_attr_t {
+    kernel_attr_t(const stmt_t &s);
+    bool has_send_atomics = false;
+    bool has_dpas = false;
+    bool has_signal_header = false;
 };
-
-setup_flags_t get_setup_flags(const stmt_t &s);
 
 template <typename BaseGeneratorT>
 class ir_to_ngen_generator_t : public BaseGeneratorT {
@@ -209,9 +208,18 @@ public:
         for (int i = 0; i < 3; i++) {
             auto local_id = alloc_mgr.find_var(ir::local_id_name(i), true);
             if (!local_id.is_empty()) {
-                auto local_id_reg = BaseGeneratorT::getLocalID(i).uw(0);
-                ra_.claim(local_id_reg);
-                expr_binding().bind(local_id, local_id_reg);
+                if (local_id.type().elems() == 1) {
+                    // Used by legacy oneDNN applications
+                    auto local_id_reg = BaseGeneratorT::getLocalID(i).uw(0);
+                    ra_.claim(local_id_reg);
+                    reg_buf_data_t local_reg_buf(getHardware(), local_id_reg);
+                    expr_binding().bind(local_id, local_reg_buf);
+                } else {
+                    auto local_id_reg = BaseGeneratorT::getLocalID(i);
+                    ra_.claim(local_id_reg);
+                    reg_buf_data_t local_reg_buf(getHardware(), local_id_reg);
+                    expr_binding().bind(local_id, local_reg_buf);
+                }
             }
             auto local_size = alloc_mgr.find_var(ir::local_size_name(i), true);
             if (!local_size.is_empty()) {
@@ -280,9 +288,9 @@ public:
             emu_state_.temp[1] = ra_.alloc();
         }
 
-        auto setup_flags = get_setup_flags(kernel_body);
+        auto kernel_attrs = kernel_attr_t(kernel_body);
         // Allocate and initialize signal header for future use.
-        if (setup_flags.has_signal_header) {
+        if (kernel_attrs.has_signal_header) {
             signal_header_ = ra_.alloc();
             BaseGeneratorT::barrierheader(signal_header_);
         }
@@ -528,7 +536,7 @@ public:
         auto src0 = _src0;
         auto src1 = _src1;
         auto src2 = _src2;
-        ngen_register_scope_t scope(ra_);
+        auto scope = ngen_register_scope_t(ra_);
         align_src_dst_offset(this, scope, mod, dst, src0);
         align_src_dst_offset(this, scope, mod, dst, src1, true);
         if (getHardware() >= ngen::HW::XeHP) {
@@ -557,7 +565,7 @@ public:
         auto src0 = _src0;
         auto src1 = _src1;
         auto src2 = _src2;
-        ngen_register_scope_t scope(ra_);
+        auto scope = ngen_register_scope_t(ra_);
         align_src_dst_offset(this, scope, mod, dst, src1, true);
         if (src2.is_reg_data()) {
             align_src_dst_offset(this, scope, mod, dst, src0);
@@ -1161,6 +1169,9 @@ public:
 
     const ngen::NEOInterfaceHandler &getInterface() const { return interface_; }
     int getSIMD() const { return interface_.getSIMD(); }
+    ngen::Subregister getGroupID(int dim) const {
+        return interface_.getGroupID(dim);
+    }
     void prologue() { interface_.generatePrologue(*this); }
     void epilogue(ngen::RegData r0_info) {
         int GRFCount = interface_.getGRFCount();

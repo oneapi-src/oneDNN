@@ -19,13 +19,10 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <memory>
-#include <numeric>
 #include <string>
 
 #include "gemmstone/../../dsl/dsl_impl.hpp"
 #include "gemmstone/../../dsl/utils/utils.hpp"
-#include "gemmstone/dsl/ir.hpp"
 
 // All IR expression objects.
 #define HANDLE_EXPR_IR_OBJECTS() \
@@ -649,7 +646,7 @@ void normalize_ptr(const type_t &type, expr_t &base, expr_t &off);
 class load_t : public expr_iface_t<load_t> {
 public:
     // offset and stride are expressed in bytes.
-    // default stride means unit stride (in terms of type.base() elements).
+    // default stride means unit stride (in terms of type.scalar() elements).
     static expr_t make(const type_t &type, const expr_t &buf, const expr_t &off,
             int stride = default_stride) {
         return expr_t(new load_t(type, buf, off, stride));
@@ -660,9 +657,7 @@ public:
                 && off.is_equal(other.off) && (stride == other.stride);
     }
 
-    size_t compute_hash() const override {
-        return hash(type, buf, off, stride);
-    }
+    size_t compute_hash() const override { return hash(type, buf, off, stride); }
 
     bool has_default_stride() const { return stride == default_stride; }
 
@@ -678,7 +673,7 @@ private:
         : expr_iface_t(_type), buf(_buf), off(_off), stride(_stride) {
         normalize_ptr(type, buf, off);
         dsl_assert(is_var(buf) || is_ref(buf)) << buf;
-        if (stride == type.base().size()) stride = default_stride;
+        if (stride == type.scalar().size()) stride = default_stride;
     }
 };
 
@@ -846,7 +841,7 @@ private:
         auto elem_type = vec[0].type();
         if (vec.size() == 1 && elem_type.is_simd()) {
             dsl_assert(idx.size() == 1);
-            return elem_type.base();
+            return elem_type.scalar();
         }
 
         for (auto &v : vec)
@@ -939,9 +934,7 @@ public:
         return this == &other;
     }
 
-    size_t compute_hash() const override {
-        return std::hash<std::string> {}(name);
-    }
+    size_t compute_hash() const override { return std::hash<std::string> {}(name); }
 
     std::string name;
     bool is_mutable = false;
@@ -1322,7 +1315,7 @@ private:
 class store_t : public stmt_iface_t<store_t> {
 public:
     // offset and stride are expressed in bytes.
-    // default stride means unit stride (in terms of value.type().base()
+    // default stride means unit stride (in terms of value.type().scalar()
     // elements).
     static stmt_t make(const expr_t &buf, const expr_t &off,
             const expr_t &_value, int stride = default_stride,
@@ -1338,7 +1331,7 @@ public:
                 if (!fill_mask0) return stmt_t();
                 auto type = value.type();
                 value = shuffle_t::make_broadcast(
-                        cast_t::make(type.base(), 0), type.elems());
+                        cast_t::make(type.scalar(), 0), type.elems());
                 mask = expr_t();
             }
         }
@@ -1389,7 +1382,7 @@ private:
         , fill_mask0(_fill_mask0) {
         normalize_ptr(value.type(), buf, off);
         dsl_assert(is_var(buf) || is_ref(buf)) << buf;
-        if (stride == value.type().base().size()) stride = default_stride;
+        if (stride == value.type().scalar().size()) stride = default_stride;
         if (mask)
             dsl_assert(mask.type() == type_t::_bool(value.type().elems()));
     }

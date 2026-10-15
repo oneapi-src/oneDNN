@@ -46,7 +46,7 @@ constexpr kind_t min = kind_t::min;
 constexpr kind_t max = kind_t::max;
 constexpr kind_t prelu = kind_t::prelu;
 
-#ifdef DNNL
+#ifndef STANDALONE
 kind_t kind(dnnl::impl::alg_kind_t alg);
 #endif
 

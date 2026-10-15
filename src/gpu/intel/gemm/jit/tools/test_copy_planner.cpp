@@ -26,6 +26,8 @@ using namespace gemmstone;
 DataType toDT(std::string name)
 {
 #define CASE(x) if (name == #x) return DataType::x;
+    CASE(u2)
+    CASE(s2)
     CASE(u4)
     CASE(s4)
     CASE(ub)
@@ -82,7 +84,7 @@ int main(int argc, char **argv)
                      "  e.g. " << argv[0] << " 16 hf 1 s4 1\n"
                      "\n"
                      "Types are specified with assembly syntax:\n"
-                     "    df, f, hf, bf, hf8, bf8, e2m1, uq, q, ud, d, uw, w, ub, b, u4, s4\n"
+                     "    df, f, hf, bf, hf8, bf8, e2m1, uq, q, ud, d, uw, w, ub, b, u4, s4, u2, s2\n"
                      "\n"
                      "Use the HW environment variable to set GPU type (XeHPG, XeHPC, etc.)\n";
         exit(1);

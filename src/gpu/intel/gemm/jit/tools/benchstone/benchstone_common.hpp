@@ -36,6 +36,7 @@
 #include "tools/types/hfloat8.hpp"
 #include "tools/types/fp16.hpp"
 #include "tools/types/int4.hpp"
+#include "tools/types/int2.hpp"
 #include "tools/types/tf32.hpp"
 #include "tools/types/complex_helpers.hpp"
 #include "tools/hw_queries.hpp"
@@ -130,6 +131,8 @@ TYPE_MAP(tf32, tf32)
 TYPE_MAP(double, f64)
 TYPE_MAP(f4_e2m1, f4_e2m1)
 TYPE_MAP(nf4, nf4)
+TYPE_MAP(uint2, u2)
+TYPE_MAP(int2, s2)
 TYPE_MAP(uint4, u4)
 TYPE_MAP(int4, s4)
 TYPE_MAP(uint8_t, u8)
@@ -146,8 +149,8 @@ using AllTypes = std::tuple<
     bfloat16, half, float, tf32, double,
     complex<bfloat16>, complex<half>, complex<float>, complex<tf32>, complex<double>,
     bfloat8, hfloat8, f4_e2m1, nf4, scale_e8m0,
-    uint4, uint8_t, uint16_t, uint32_t,
-    int4, int8_t, int16_t, int32_t
+    uint2, uint4, uint8_t, uint16_t, uint32_t,
+    int2, int4, int8_t, int16_t, int32_t
 >;
 
 #define TYPE_TEMPLATIFY_LOOKUP(f)                                               \
@@ -173,6 +176,8 @@ auto f(gemmstone::Type key, Args&& ...args) {                                   
 /* Type helpers. */
 template <typename T>
 constexpr bool isIntegral()                        { return std::is_integral_v<T>; }
+template <> constexpr bool isIntegral<int2>()      { return true; }
+template <> constexpr bool isIntegral<uint2>()     { return true; }
 template <> constexpr bool isIntegral<int4>()      { return true; }
 template <> constexpr bool isIntegral<uint4>()     { return true; }
 
@@ -232,6 +237,8 @@ template <typename T> static inline T conj(T x)
 
 /* Type conversions */
 template <typename T> struct sumHelper { using type = T; };
+template <> struct sumHelper<int2>     { using type = int32_t; };
+template <> struct sumHelper<uint2>    { using type = int32_t; };
 template <> struct sumHelper<int4>     { using type = int32_t; };
 template <> struct sumHelper<uint4>    { using type = int32_t; };
 template <> struct sumHelper<int8_t>   { using type = int32_t; };
@@ -495,29 +502,59 @@ inline void dealloc(fp *mem, size_t nelem)
 void TypedData::smash()
 {
     if (T.perByte() == 1) return;
-    if (T.perByte() != 2) gemmstone::stub();
-
-    for (size_t i = 0; i < bytes/2; i++)
-        ptr[i] = ptr[2*i] | (ptr[2*i + 1] << 4);
-    if (bytes & 1)
-        ptr[bytes >> 1] = ptr[bytes - 1];
+    if (T.perByte() == 2) {
+        for (size_t i = 0; i < bytes / 2; i++)
+            ptr[i] = ptr[2 * i] | (ptr[2 * i + 1] << 4);
+        if (bytes & 1)
+            ptr[bytes >> 1] = ptr[bytes - 1];
+        return;
+    }
+    if (T.perByte() == 4) {
+        for (size_t i = 0; i < bytes / 4; i++)
+            ptr[i] = ptr[4 * i] | (ptr[4 * i + 1] << 2) | (ptr[4 * i + 2] << 4) | (ptr[4 * i + 3] << 6);
+        uint8_t val = 0;
+        switch (bytes % 4) {
+        case 3: val |= ptr[bytes - 1] << 4;
+        case 2: val |= ptr[bytes - (bytes % 4) + 1] << 2;
+        case 1: val |= ptr[bytes - (bytes % 4)];
+        default: break;
+        }
+        ptr[bytes >> 2] = val;
+        return;
+    }
+    gemmstone::stub();
 }
 
 void TypedData::unsmash()
 {
     if (T.perByte() == 1) return;
-    if (T.perByte() != 2) gemmstone::stub();
-
-    if (bytes & 1)
-        ptr[bytes - 1] = ptr[bytes >> 1] & 0xF;
-    for (size_t i = bytes/2 - 1; i >= 1; i--) {
-        ptr[2*i]     = ptr[i] & 0xF;
-        ptr[2*i + 1] = ptr[i] >> 4;
+    if (T.perByte() == 2) {
+        if (bytes & 1)
+            ptr[bytes - 1] = ptr[bytes >> 1] & 0xF;
+        for (size_t i = bytes / 2 - 1; i >= 1; i--) {
+            ptr[2 * i] = ptr[i] & 0xF;
+            ptr[2 * i + 1] = ptr[i] >> 4;
+        }
+        if (bytes >= 2) {
+            ptr[1] = ptr[0] >> 4;
+            ptr[0] &= 0xF;
+        }
     }
-    if (bytes >= 2) {
-        ptr[1] = ptr[0] >> 4;
-        ptr[0] &= 0xF;
+    if (T.perByte() == 4) {
+        switch (bytes % 4) {
+        case 3: ptr[bytes - 1] = ptr[bytes >> 2] >> 4;
+        case 2: ptr[bytes - (bytes % 4) + 1] = (ptr[bytes >> 2] >> 2) & 0x3;
+        case 1: ptr[bytes - (bytes % 4)] = ptr[bytes >> 2] & 0x3;
+        default: break;
+        }
+        for (size_t i = bytes / 4 - 1; i >= 0; i--) {
+            ptr[4 * i + 3] = ptr[i] >> 6;
+            ptr[4 * i + 2] = (ptr[i] >> 4) & 0x3;
+            ptr[4 * i + 1] = (ptr[i] >> 2) & 0x3;
+            ptr[4 * i] = ptr[i] & 0x3;
+        }
     }
+    gemmstone::stub();
 }
 
 enum Metric {

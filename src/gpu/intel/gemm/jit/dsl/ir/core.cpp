@@ -216,8 +216,7 @@ type_t ternary_op_type(
             return binary_op_type(op_kind_t::_add, a.type(),
                     binary_op_type(op_kind_t::_mul, b, c));
         case op_kind_t::_idiv:
-        case op_kind_t::_imod:
-            return a.type().is_signed() ? type_t::s32() : type_t::u32();
+        case op_kind_t::_imod: return binary_op_type(op_kind_t::_idiv, a, b);
         default: stub();
     }
     return type_t::undef();
@@ -344,7 +343,9 @@ object_t ir_mutator_t::_mutate(const ref_t &obj) {
     return ref_t::make(var, obj.off, obj.elems);
 }
 
-void ir_visitor_t::_visit(const ref_t &obj) {}
+void ir_visitor_t::_visit(const ref_t &obj) {
+    visit(obj.var);
+}
 
 object_t ir_mutator_t::_mutate(const binary_op_t &obj) {
     auto a = mutate(obj.a);

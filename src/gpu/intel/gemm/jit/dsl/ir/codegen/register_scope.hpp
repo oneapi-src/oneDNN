@@ -34,7 +34,10 @@ public:
 
     ngen_register_scope_t(const ngen_register_scope_t &) = delete;
 
-    ngen_register_scope_t(ngen_register_scope_t &&) = delete;
+    ngen_register_scope_t(ngen_register_scope_t &&other)
+        : ra_(other.ra_)
+        , grf_ranges_(std::move(other.grf_ranges_))
+        , subregisters_(std::move(other.subregisters_)) {}
 
     reg_allocator_t &register_allocator() { return ra_; }
 
@@ -84,7 +87,9 @@ public:
 
     reg_buf_t alloc_reg_buf(
             int regs, ngen::Bundle base_bundle = ngen::Bundle()) {
-        return reg_buf_t(hw(), alloc_range(regs, base_bundle));
+        auto range = ra_.alloc_range(regs, base_bundle);
+        grf_ranges_.push_back(range);
+        return reg_buf_t(ra_.hardware(), range);
     }
 
     reg_buf_data_t alloc_reg_buf_data(
@@ -94,19 +99,23 @@ public:
 
     reg_buf_data_t alloc_reg_data(const type_t &type, int stride = 1,
             ngen::Bundle bundle = ngen::Bundle()) {
-        if (type.is_scalar())
-            return reg_buf_data_t(hw(), alloc_sub(to_ngen(type), bundle));
+        if (type.is_scalar()) {
+            auto sub = alloc_sub(to_ngen(type), bundle);
+            return reg_buf_data_t(hw(), sub);
+        }
 
         int grf_size = ngen::GRF::bytes(hw());
         int regs = div_up(
                 type.with_elems(type.elems() * stride).size(), grf_size);
         auto buf = alloc_reg_buf(regs, bundle);
         reg_buf_data_t rbd(buf);
-        return rbd.format(0, type.elems(), stride, to_ngen(type.base()));
+        return rbd.format(0, type.elems(), stride, to_ngen(type.scalar()));
     }
 
     ngen::GRF alloc(ngen::Bundle bundle = ngen::Bundle()) {
-        return alloc_range(1, bundle)[0];
+        auto range = ra_.alloc_range(1, bundle);
+        grf_ranges_.push_back(range);
+        return range[0];
     }
 
     ngen::Subregister alloc_sub(
@@ -136,6 +145,11 @@ public:
     void claim(const ngen::Subregister &sub) {
         ra_.claim(sub);
         subregisters_.push_back(sub);
+    }
+
+    template <typename T>
+    void safeRelease(T &t) {
+        ra_.safeRelease(t);
     }
 
 private:

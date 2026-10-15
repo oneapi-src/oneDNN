@@ -29,12 +29,14 @@ namespace dsl {
 int grf_size();
 int min_align_2d();
 int min_pitch_2d();
+const hw_t &get_hw();
 
 struct send_hint_t {
     send_cache_hint_t cache;
 };
 
-void declare_kernel(const kernel::iface_t &interface, ir::ir_context_t &ctx);
+void declare_kernel(
+        const kernel::iface_t &interface, const kernel::options_t &ctx);
 kernel_t end_kernel();
 
 void begin_scope();
@@ -44,8 +46,13 @@ void append(stmt_t stmt); // Adds statement to the current scope
 
 void assume(const expr_t &e);
 
+// Multiply and add: dst = a * b + c.
+expr_t mad(
+        const expr_t &dst, const expr_t &a, const expr_t &b, const expr_t &c);
+
 const std::array<expr_t, 3> &group_ids();
 const expr_t &group_id(int idx);
+const expr_t &group_subgroup_count();
 const std::array<expr_t, 3> &local_ids();
 const expr_t &local_id(int idx);
 const std::array<expr_t, 3> &local_sizes();
@@ -97,11 +104,47 @@ public:
     expr_t var;
 };
 
+#define DECLARE_LVAL_BINARY_OPERATOR(op) \
+    inline expr_t operator op(const lval_t &a, const lval_t &b) { \
+        return expr_t(a) op expr_t(b); \
+    } \
+    inline expr_t operator op(const lval_t &a, const expr_t &b) { \
+        return expr_t(a) op b; \
+    } \
+    inline expr_t operator op(const expr_t &a, const lval_t &b) { \
+        return a op expr_t(b); \
+    }
+
+DECLARE_LVAL_BINARY_OPERATOR(+)
+DECLARE_LVAL_BINARY_OPERATOR(-)
+DECLARE_LVAL_BINARY_OPERATOR(*)
+DECLARE_LVAL_BINARY_OPERATOR(/)
+DECLARE_LVAL_BINARY_OPERATOR(%)
+DECLARE_LVAL_BINARY_OPERATOR(<<)
+DECLARE_LVAL_BINARY_OPERATOR(>>)
+DECLARE_LVAL_BINARY_OPERATOR(==)
+DECLARE_LVAL_BINARY_OPERATOR(!=)
+DECLARE_LVAL_BINARY_OPERATOR(>)
+DECLARE_LVAL_BINARY_OPERATOR(>=)
+DECLARE_LVAL_BINARY_OPERATOR(<)
+DECLARE_LVAL_BINARY_OPERATOR(<=)
+DECLARE_LVAL_BINARY_OPERATOR(&)
+DECLARE_LVAL_BINARY_OPERATOR(|)
+DECLARE_LVAL_BINARY_OPERATOR(^)
+
+#undef DECLARE_LVAL_BINARY_OPERATOR
+
+inline expr_t operator-(const lval_t &a) {
+    return -expr_t(a);
+}
+
 expr_t subgroup_id(int idx = 0);
 expr_t subgroup_local_id();
+expr_t subgroup_linear_id();
+
 expr_t arg(const std::string &name, bool allow_empty = false);
-lval_t def(const std::string &name, const type_t &type,
-        const expr_t &value = {}, bool force_alloc = false);
+lval_t def(
+        const std::string &name, const type_t &type, const expr_t &value = {});
 lval_t def(const std::string &name, const expr_t &value);
 tensor_t def(const std::string &name, const layout_t &layout,
         type::attr_t attr = {});
@@ -127,24 +170,27 @@ expr_t _round_up(const expr_t &a, uint32_t b);
 
 void assign(const expr_t &var, const expr_t &value);
 
-const hw_t &get_hw();
+void prefetch(const global_tensor_t &g, const icoord_t &base = {},
+        const send_hint_t &hint = {});
 
-expr_t mad(
-        const expr_t &dst, const expr_t &a, const expr_t &b, const expr_t &c);
+expr_t load(const expr_t &buf, const expr_t &off, const expr_t &mask = {},
+        const send_hint_t &hint = {});
+
+void load(const tensor_t &t, const global_tensor_t &g,
+        const icoord_t &base = {}, const send_hint_t &hint = {});
+
+void store(const expr_t &buf, const expr_t &off, const expr_t &val,
+        const expr_t mask = {}, const send_hint_t &hint = {});
+
+void store(const global_tensor_t &g, const tensor_t &t,
+        const icoord_t &base = {}, const send_hint_t &hint = {});
+
+void mma(const tensor_t &C, const tensor_t &A, const tensor_t &B);
 
 expr_t cast(const type_t &type, const expr_t &src);
 tensor_t cast(const type_t &type, const tensor_t &src);
 
 void slm_fence();
-
-void prefetch(const global_tensor_t &g, const icoord_t &base = {},
-        const send_hint_t &hint = {});
-void load(const tensor_t &t, const global_tensor_t &g,
-        const icoord_t &base = {}, const send_hint_t &hint = {});
-void store(const global_tensor_t &g, const tensor_t &t,
-        const icoord_t &base = {}, const send_hint_t &hint = {});
-
-void mma(const tensor_t &C, const tensor_t &A, const tensor_t &B);
 
 void _if_impl(const expr_t &cond, const stmt_t &body);
 template <typename F>

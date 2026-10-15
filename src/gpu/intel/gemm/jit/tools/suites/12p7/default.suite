@@ -1,2 +1,0 @@
-gemm SSS ABN 32 16
-gemm CCC ABN 16 8

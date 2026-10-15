@@ -16,48 +16,17 @@
 
 #include "dsl/ir/fma.hpp"
 #include "dsl/ir/pass/dpas.hpp"
-#include "dsl/ir/pass/pass.hpp"
-#include "dsl/ir/pass/trace.hpp"
+#include "dsl/ir/pass/simplify.hpp"
 #include "dsl/utils/logging.hpp"
 #include "dsl/utils/utils.hpp"
 #include "gemmstone/config.hpp"
 #include "gemmstone/dsl/dsl.hpp"
 #include "gemmstone/strategy.hpp"
 #include "generator_dsl/kernel_desc.hpp"
-#include "gpu/intel/jit/utils/type_bridge.hpp"
 
 GEMMSTONE_NAMESPACE_START
 
 using namespace dsl;
-
-inline type_t into_ir(Type t, int elems = 1) {
-    using namespace ir;
-    switch (t) {
-        case Type::invalid: return type_t::undef();
-
-        case Type::f4_e2m1: return type_t::f4_e2m1(elems);
-        case Type::bf8: return type_t::bf8(elems);
-        case Type::hf8: return type_t::hf8(elems);
-        case Type::bf16: return type_t::bf16(elems);
-        case Type::f16: return type_t::f16(elems);
-        case Type::tf32: return type_t::tf32(elems);
-        case Type::f32: return type_t::f32(elems);
-        case Type::f64: return type_t::f64(elems);
-
-        case Type::u4: return type_t::u4(elems);
-        case Type::s4: return type_t::s4(elems);
-        case Type::u8: return type_t::u8(elems);
-        case Type::s8: return type_t::s8(elems);
-        case Type::u16: return type_t::u16(elems);
-        case Type::s16: return type_t::s16(elems);
-        case Type::u32: return type_t::u32(elems);
-        case Type::s32: return type_t::s32(elems);
-        case Type::u64: return type_t::u64(elems);
-        case Type::s64: return type_t::s64(elems);
-
-        default: stub(); return type_t::undef();
-    }
-}
 
 struct transform_t {
     // Sample transforms on bf16 data with pack_size 16:
@@ -146,6 +115,59 @@ static const idx_t m_var("m");
 static const idx_t n_var("n");
 static const idx_t k_var("k");
 
+struct kloop_iterator_t {
+
+    virtual const global_tensor_t &A_prefetch() const = 0;
+    virtual const global_tensor_t &A_load() const = 0;
+    virtual const global_tensor_t &B_prefetch() const = 0;
+    virtual const global_tensor_t &B_load() const = 0;
+    virtual const global_tensor_t &C_store() const = 0;
+
+    virtual void A_prefetch_inc(int64_t k_block) = 0;
+    virtual void A_load_inc(int64_t k_block) = 0;
+
+    virtual void B_prefetch_inc(int64_t k_block) = 0;
+    virtual void B_load_inc(int64_t k_block) = 0;
+
+    virtual void kloop_inc(int64_t k_block) = 0;
+
+    virtual expr_t update_C() const = 0;
+
+    // Returns whether the given increment is in bounds
+    virtual expr_t is_inbounds(int64_t increment) const = 0;
+};
+
+transform_t get_transform(const MatrixAddressingStrategy &matrix_strategy,
+        std::array<idx_t, 2> dims, bool is_prefetch = false) {
+    switch (matrix_strategy.accessType) {
+        case AccessType::Scattered:
+            // TODO: Remove workaround unimplemented scattered->vnni support.
+            if (is_prefetch)
+                return transform_t(transform_t::kind_t::none, 0,
+                        matrix_strategy.cachingR, dims);
+
+            return transform_t(transform_t::kind_t::transpose_vnni,
+                    matrix_strategy.tileR, matrix_strategy.cachingR, dims);
+
+        case AccessType::ChannelScattered: stub(); return {};
+        case AccessType::Block2DTranspose:
+            return transform_t(transform_t::kind_t::transpose_vnni,
+                    matrix_strategy.tileR, matrix_strategy.cachingR, dims);
+        case AccessType::Block:
+        case AccessType::PseudoBlock:
+            return transform_t(transform_t::kind_t::block,
+                    matrix_strategy.tileR, matrix_strategy.cachingR, dims);
+        case AccessType::Block2D: {
+            return transform_t(transform_t::kind_t::block,
+                    matrix_strategy.tileR, matrix_strategy.cachingR, dims);
+        };
+        case AccessType::Block2DVNNI: {
+            return transform_t(transform_t::kind_t::vnni, matrix_strategy.tileR,
+                    matrix_strategy.cachingR, dims);
+        }
+        default: stub(); return {};
+    }
+}
 static void multiply(const tensor_t &C, const tensor_t &A, const tensor_t &B,
         const tile_t &tile, const icoord_t &base, bool is_systolic) {
     using ir::dpas_t;
@@ -246,59 +268,6 @@ static void multiply(const tensor_t &C, const tensor_t &A, const tensor_t &B,
     }
 }
 
-struct kloop_iterator_t {
-
-    virtual const global_tensor_t &A_prefetch() const = 0;
-    virtual const global_tensor_t &A_load() const = 0;
-    virtual const global_tensor_t &B_prefetch() const = 0;
-    virtual const global_tensor_t &B_load() const = 0;
-    virtual const global_tensor_t &C_store() const = 0;
-
-    virtual void A_prefetch_inc(int64_t k_block) = 0;
-    virtual void A_load_inc(int64_t k_block) = 0;
-
-    virtual void B_prefetch_inc(int64_t k_block) = 0;
-    virtual void B_load_inc(int64_t k_block) = 0;
-
-    virtual void kloop_inc(int64_t k_block) = 0;
-
-    virtual expr_t update_C() const = 0;
-
-    // Returns whether the given increment is in bounds
-    virtual expr_t is_inbounds(int64_t increment) const = 0;
-};
-
-transform_t get_transform(const MatrixAddressingStrategy &matrix_strategy,
-        std::array<idx_t, 2> dims, bool is_prefetch = false) {
-    switch (matrix_strategy.accessType) {
-        case AccessType::Scattered:
-            // TODO: Remove workaround unimplemented scattered->vnni support.
-            if (is_prefetch)
-                return transform_t(transform_t::kind_t::none, 0,
-                        matrix_strategy.cachingR, dims);
-
-            return transform_t(transform_t::kind_t::transpose_vnni,
-                    matrix_strategy.tileR, matrix_strategy.cachingR, dims);
-
-        case AccessType::ChannelScattered: stub(); return {};
-        case AccessType::Block2DTranspose:
-            return transform_t(transform_t::kind_t::transpose_vnni,
-                    matrix_strategy.tileR, matrix_strategy.cachingR, dims);
-        case AccessType::Block:
-        case AccessType::PseudoBlock:
-            return transform_t(transform_t::kind_t::block,
-                    matrix_strategy.tileR, matrix_strategy.cachingR, dims);
-        case AccessType::Block2D: {
-            return transform_t(transform_t::kind_t::block,
-                    matrix_strategy.tileR, matrix_strategy.cachingR, dims);
-        };
-        case AccessType::Block2DVNNI: {
-            return transform_t(transform_t::kind_t::vnni, matrix_strategy.tileR,
-                    matrix_strategy.cachingR, dims);
-        }
-        default: stub(); return {};
-    }
-}
 idx_map_t<expr_t> get_strides(
         MatrixLayout layout, std::array<idx_t, 2> pvars, expr_t ld) {
     switch (layout) {
@@ -322,6 +291,7 @@ struct tensor_config_t {
     transform_t transform;
 };
 
+#ifndef STANDALONE
 void apply_post_ops(const dnnl::impl::gpu::intel::gpu_post_ops_t &ops,
         const tensor_t &C, const std::vector<expr_t> &idxs,
         const std::vector<idx_t> &dims) {
@@ -372,7 +342,8 @@ void apply_post_ops(const dnnl::impl::gpu::intel::gpu_post_ops_t &ops,
             }();
 
             layout_t src_layout = {src_g.scalar_type()};
-            for (auto &b : C.layout().blocks()) {
+            auto C_layout = C.layout();
+            for (auto &b : C_layout.blocks()) {
                 if (!e.src1_desc.is_broadcast(dim_to_md[b.idx], ndims)) {
                     src_layout = src_layout.with_block({b.idx, b.size});
                 } else {
@@ -395,6 +366,7 @@ void apply_post_ops(const dnnl::impl::gpu::intel::gpu_post_ops_t &ops,
         }
     }
 }
+#endif
 
 // Basic iterator with no iteration over m and n.
 struct basic_iterator_t : kloop_iterator_t {
@@ -492,9 +464,12 @@ private:
 
 struct generator_dsl_t {
     generator_dsl_t(const generator_dsl_desc_t &desc)
-        : problem(desc.problem), strategy(desc.strategy) {}
+        : problem(desc.problem)
+        , strategy(desc.strategy)
+        , iface(desc.kernel_iface())
+        , options(desc.options) {}
 
-    kernel_t build(kernel::iface_t iface, ir::ir_context_t &ctx) {
+    kernel_t build() {
         if (strategy.kParallel || strategy.kParallelLocal) {
             dsl_warning() << "kParallel support is unimplemented";
             return {};
@@ -530,7 +505,7 @@ struct generator_dsl_t {
             return {};
         }
 
-        declare_kernel(iface, ctx);
+        declare_kernel(iface, options);
 
         const auto m = arg("m");
         const auto n = arg("n");
@@ -555,20 +530,22 @@ struct generator_dsl_t {
         tile_t C_dims {{{m_var, m_blk}, {n_var, n_blk}}};
         auto C_store_transform = get_transform(strategy.C, C_vars);
 
-        tensor_t C = def("C_blk",
-                C_store_transform.get_layout(C_dims, into_ir(problem.Tc)), 0);
+        tensor_t C = def(
+                "C_blk", C_store_transform.get_layout(C_dims, problem.Tc), 0);
 
         idx_t subgroup_dim = C.layout()[0].idx;
         int m_group_idx = strategy.loopOrder[0] == LoopM ? 0 : 1;
+        auto thr_local_id = [](int idx) { return extract(local_id(idx), 0); };
+
         auto m_idx = let("m_idx",
                 (group_id(m_group_idx) * local_size(m_group_idx)
-                        + local_id(m_group_idx))
+                        + thr_local_id(m_group_idx))
                         * (subgroup_dim == m_var ? m_blk / strategy.subgroupSize
                                                  : m_blk));
         int n_group_idx = strategy.loopOrder[0] == LoopN ? 0 : 1;
         auto n_idx = let("n_idx",
                 (group_id(n_group_idx) * local_size(n_group_idx)
-                        + local_id(n_group_idx))
+                        + thr_local_id(n_group_idx))
                         * (subgroup_dim == n_var ? n_blk / strategy.subgroupSize
                                                  : n_blk));
         auto k_idx = def("k_idx", k.type(), 0);
@@ -599,7 +576,7 @@ struct generator_dsl_t {
             }();
 
             auto id = let("batch_id" + std::to_string(problem.batchDims - 1),
-                    group_id(2) * local_size(2) + local_id(2));
+                    group_id(2) * local_size(2) + thr_local_id(2));
             for (int i = problem.batchDims - 1; i >= 0; i--) {
                 std::string i_s = std::to_string(i);
 
@@ -636,7 +613,9 @@ struct generator_dsl_t {
                 strategy.kb_load, C_base);
 
         auto store_C = [&]() {
+#ifndef STANDALONE
             apply_post_ops(problem.postOps.ops, C, C_idxs, {m_var, n_var});
+#endif
             store(kloop_it.C_store(), C, {}, {C_store_transform.cache_hint});
         };
 
@@ -676,7 +655,7 @@ struct generator_dsl_t {
                 = (int)lcm(A_load_short.tile[k_var], B_load_short.tile[k_var]);
         k_loop_config_t k_loop_short {k_blk_short, 0, 0, kloop_it,
                 std::move(A_load_short), std::move(B_load_short),
-                A_prefetch_transform, B_prefetch_transform, std::move(C)};
+                A_prefetch_transform, B_prefetch_transform, C};
         dsl_assert(k_loop_short.k_warmup() == 0);
 
         if (problem.A.alignment) {
@@ -766,7 +745,7 @@ struct generator_dsl_t {
                 : 0;
         auto B_prefetch = [&](int64_t k_unroll_idx) {
             if (cfg.B_prefetch_warmup == 0) return;
-            auto idx = pipeline_idx(
+            int64_t idx = pipeline_idx(
                     k_unroll_idx, cfg.B_prefetch_warmup, B_prefetch_blk);
             if (idx % B_prefetch_blk != 0) return;
             prefetch(kloop_it.B_prefetch(), {{k_var, 0}},
@@ -784,7 +763,7 @@ struct generator_dsl_t {
             kloop_it.B_load_inc(B_load_blk);
         };
 
-        auto k_unroll_blk = [&]() {
+        int64_t k_unroll_blk = [&]() {
             auto ret = k_blk;
             for (auto v :
                     {A_prefetch_blk, A_load_blk, B_prefetch_blk, B_load_blk}) {
@@ -806,7 +785,7 @@ struct generator_dsl_t {
 
             if (do_mma) {
                 if (k_offset % mma_k_blk == 0) {
-                    tile_t tile = C.layout().tile();
+                    tile_t tile = C.tile();
                     tile[k_var] = mma_k_blk;
                     multiply(C, A, B, tile, {{k_var, k_offset}},
                             strategy.systolic);
@@ -850,24 +829,12 @@ struct generator_dsl_t {
 
     const GEMMProblem &problem;
     const GEMMStrategy &strategy;
+    const kernel::iface_t &iface;
+    const kernel::options_t &options;
 };
 
 kernel_t make_kernel(const generator_dsl_desc_t &desc) {
-    ir::constraint_set_t cset;
-    ir::ir_context_t ctx(desc.options, cset);
-
-    ir::trace_start();
-    auto k = generator_dsl_t(desc).build(desc.kernel_iface(), ctx);
-    ir::trace_pass("build generator_dsl_t", k.body, ctx);
-
-    k.body = ir::simplify(k.body, ctx);
-    k.body = ir::inject_send(k.body, ctx);
-
-    // TODO: This should be unnecessary as it could happen at codegen
-    k.body = ir::fixup_if_conditions(k.body, ctx);
-    k.body = ir::eliminate_common_subexprs(
-            k.body, ctx, desc.strategy.GRFs * ctx.hw().grf_size());
-    return k;
+    return generator_dsl_t(desc).build();
 }
 
 GEMMSTONE_NAMESPACE_END

@@ -52,6 +52,3 @@ bias = 1;
 [I,J]=arrayfun(@hlike, 0:(m*n-1), m*ones(1,m*n), n*ones(1,m*n), bias*ones(1,m*n));
 M = [I;J];
 walkplot(M)
-
-
-

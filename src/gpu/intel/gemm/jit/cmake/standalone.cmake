@@ -118,7 +118,6 @@ add_subdirectory(tools)
 
 # Copy scripts and suites into build directory.
 
-file(COPY tools/suites DESTINATION .)
 file(COPY tools/matlab DESTINATION .)
 file(COPY selector/db DESTINATION selector)
 

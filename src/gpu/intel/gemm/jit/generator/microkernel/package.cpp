@@ -139,4 +139,3 @@ Package::Status Package::finalize(const ClobberSet &knownClobbers) {
 
 }
 GEMMSTONE_NAMESPACE_END
-

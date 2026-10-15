@@ -714,4 +714,3 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
 
 }
 GEMMSTONE_NAMESPACE_END
-

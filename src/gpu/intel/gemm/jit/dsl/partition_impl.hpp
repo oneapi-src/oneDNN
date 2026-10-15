@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,17 +14,20 @@
 * limitations under the License.
 *******************************************************************************/
 
+#ifndef GEMMSTONE_DSL_PARTITION_IMPL_HPP
+#define GEMMSTONE_DSL_PARTITION_IMPL_HPP
 
-#ifndef GEMMSTONE_GENERATOR_PIECES_INVERT_HPP
-#define GEMMSTONE_GENERATOR_PIECES_INVERT_HPP
-
-#include "gemmstone/type.hpp"
+#include "gemmstone/dsl/dsl.hpp"
+#include "gemmstone/dsl/tensor.hpp"
 
 GEMMSTONE_NAMESPACE_START
+namespace dsl {
 
-// Maximum allowed SIMD width for reciprocal subroutine.
-int maxInvertSubSIMD(ngen::HW hw, Type Ts);
+std::pair<tile_t, coord_t> split_to(
+        const layout_t &layout, int64_t size, expr_t id);
+layout_t tile_by(const layout_t &layout, int64_t tile_elems);
 
+} // namespace dsl
 GEMMSTONE_NAMESPACE_END
 
-#endif /* header guard */
+#endif

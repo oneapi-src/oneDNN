@@ -1,5 +1,5 @@
 /*******************************************************************************
-* Copyright 2019 Intel Corporation
+* Copyright 2025 Intel Corporation
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -14,12 +14,18 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef HASH_H
-#define HASH_H
+#ifndef GEMMSTONE_DSL_FINALIZE_HPP
+#define GEMMSTONE_DSL_FINALIZE_HPP
 
-#include <stddef.h>
-#include <stdint.h>
+#include "gemmstone/dsl/decl.hpp"
+#include "gemmstone/dsl/kernel.hpp"
 
-uint32_t neo_hash(const char *buf, size_t len);
+GEMMSTONE_NAMESPACE_START
+namespace dsl {
 
-#endif /* header guard */
+void finalize(kernel_t &kernel);
+
+} // namespace dsl
+GEMMSTONE_NAMESPACE_END
+
+#endif

@@ -17,9 +17,9 @@
 #ifndef GEMMSTONE_INCLUDE_GEMMSTONE_DSL_KERNEL_HPP
 #define GEMMSTONE_INCLUDE_GEMMSTONE_DSL_KERNEL_HPP
 
-#include <array>
 #include <vector>
 
+#include "gemmstone/config.hpp"
 #include "gemmstone/dsl/hw.hpp"
 #include "gemmstone/dsl/ir/object.hpp"
 
@@ -82,13 +82,18 @@ private:
     std::vector<arg_t> args_;
 };
 
+#ifdef GEMMSTONE_IR_EXTENSION_HANDLER
+static constexpr codegen_extension_handler_t default_extension_handler
+        = GEMMSTONE_IR_EXTENSION_HANDLER;
+#else
 extern codegen_extension_handler_t default_extension_handler;
+#endif
 
 // Compilation options used for IR generation and lowering
 class options_t : public stringify_t<options_t> {
 public:
     options_t() = default;
-    options_t(const hw_t &hw) : hw_(hw) {}
+    options_t(const hw_t &hw) : options_t(hw, 128, default_simd(hw)) {}
     options_t(const hw_t &hw, int regs, int simd)
         : hw_(hw), regs_(regs), simd_(simd) {}
 

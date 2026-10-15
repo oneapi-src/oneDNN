@@ -467,4 +467,3 @@ bool hasMicrokernels(const char *source) {
 
 }
 GEMMSTONE_NAMESPACE_END
-

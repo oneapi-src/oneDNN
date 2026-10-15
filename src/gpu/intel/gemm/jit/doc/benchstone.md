@@ -9,7 +9,7 @@ Preparing a Kernel for Benchmarking
 
 Prior to running `benchstone`, the kernel needs to be prepared for benchmarking. Usually this is done via one of the `*prep.pl` (Linux) or `*prep.bat` (Windows) scripts, which call the appropriate `frontend` executable to generate the kernel and place the resulting kernel binary and *infofile* in a known temporary location for `benchstone` to read.
 
-./prep.pl gemm SSS NNN 16 8 1 0
+./oprep.pl gemm SSS NNN 16 8 1 0
 
 The kernel binary and infofile are stored in files `gemm.<userid>.{bin, note}` in the top-level temporary directory &mdash; `/tmp` (Linux) or `C:\Temp` (Windows).
 

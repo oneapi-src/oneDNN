@@ -19,14 +19,11 @@ Frontend will automatically detect your GPU and create binaries and assembly for
 
 For most output types, there are associated Perl scripts (Linux only) that prepare the resulting kernels for use with gemmstone's benchmark, placing them in a temporary location where `benchstone` will find them. They take the same input arguments as the frontend does (described in the next section).
 
-* `prep.pl ...`: generate assembly text, assemble with IGA (Intel Graphics Assembler), and package with `npack`.
 * `oprep.pl ...`: generate program binaries directly, via `ofrontend`.
 * `eprep.pl ...`: generate zebin directly, via `efrontend`.
 * `clprep.pl <source.cl>`: package an already-generated OpenCL `.cl` file (not a kernel description) so `benchstone` can find it.
 
 On Windows the Perl scripts are not available, but `oprep.bat` and `eprep.bat` provide the same functionality as `oprep.pl` and `eprep.pl`.
-
-Note that the assembly text path requires IGA (`iga64`) to be available on your system, which can be found in the libigc-tools package.
 
 
 Basic Command-Line Syntax
@@ -72,8 +69,6 @@ The basic kernel types are:
     - *Note:* By default, `trsm3` kernels handle both unit and non-unit diagonal cases. For better efficiency, the kernel can be specialized for unit or non-unit diagonals by appending `u` or `n` respectively -- e.g. `trsm3llu`, `trsm3run`.
 * `symm{ll,lu,rl,ru}`: SYMM kernel -- like GEMM, but A (left) or B (right) is a symmetric matrix, of which only the lower or upper triangle is stored in memory.
 * `hemm{ll,lu,rl,ru}`: HEMM kernel -- similar to SYMM, but A/B are Hermitian symmetric.
-
-More information on non-GEMM kernels is available [here](algorithms/level_3_blas.md).
 
 ### Kernel Type Modifiers
 
@@ -156,6 +151,7 @@ gemmstone supports the following precisions:
 | int16    | W      | w        |
 | int8     | O      | o        |
 | int4     | F      | f        |
+| int2     | P      | p        |
 
 By default, alpha/beta have the same type as C, but this can be overridden by adding the type for alpha/beta at the end: `OoIS` means A int8, B uint8, C int32, alpha/beta single precision.
 

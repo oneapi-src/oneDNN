@@ -766,4 +766,3 @@ std::string generateShim(const Package &package, HostLanguage language,
 
 }
 GEMMSTONE_NAMESPACE_END
-
