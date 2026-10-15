@@ -211,20 +211,15 @@ You can build the library on Linux, macOS, or Windows using the compiler of your
 
 #### Use GCC or Clang with ZenDNN on AMD64 (x86_64) host
 
-This opt-in path links oneDNN against the [ZenDNN](https://github.com/amd/ZenDNN)
-library to enable AMD (Zen) CPU-tuned kernels. It is `OFF` by default; see
-[ONEDNN_X64_USE_ZEN](@ref opt_x64_use_zen) for the full list of requirements
-(Linux on x86_64, CMake >= 3.26, GCC >= 11.2 or Clang >= 14, `ONEDNN_CPU_RUNTIME=OMP`,
-and a ZenDNN install >= 6.0.0 built as either a static archive or a shared
-library; Windows builds are rejected at configure time).
+This opt-in path builds [ZenDNN](https://github.com/amd/ZenDNN) from source and
+links oneDNN against it to enable AMD (Zen) CPU-tuned kernels. It is `OFF` by
+default; see [ONEDNN_X64_USE_ZEN](@ref opt_x64_use_zen) for the full list of
+requirements (Linux on x86_64, CMake >= 3.26, GCC >= 11.2 or Clang >= 14,
+`ONEDNN_CPU_RUNTIME=OMP`, and ZenDNN source >= 6.1.0; Windows builds are
+rejected at configure time).
 
 1. Set up the environment for the compiler
-
-   Build (or install) a prebuilt ZenDNN binary as documented in the
-   [ZenDNN repository](https://github.com/amd/ZenDNN) and point `ZENDNNROOT` to
-   the install directory.
    ~~~sh
-   export ZENDNNROOT=<path/to/zendnnl/install>
    export CC=gcc
    export CXX=g++
    ~~~
@@ -234,16 +229,27 @@ library; Windows builds are rejected at configure time).
    mkdir -p build ; cd build
    cmake .. -DONEDNN_X64_USE_ZEN=ON
    ~~~
-   @note You can also pass the ZenDNN location directly on the command line with
-   `-DZENDNNROOT=<path/to/zendnnl/install>` instead of exporting it. If
-   `ZENDNNROOT` is unset, CMake searches the default package paths; if no
-   ZenDNN install is found (or the found version is older than 6.0.0),
-   configuration fails with an error.
+   @note CMake uses a ZenDNN source tree at `third_party/ZenDNN` when one is
+   already there. Otherwise, with `ONEDNN_ZENDNN_FETCH=ON` (the default), it
+   clones [ZenDNN](https://github.com/amd/ZenDNN) at a pinned commit into that
+   directory during configuration. Override the remote with
+   `-DONEDNN_ZENDNN_FETCH_URL=<url>` and
+   `-DONEDNN_ZENDNN_FETCH_TAG=<commit>`. To skip the download,
+   place the source at `third_party/ZenDNN` before configuring. Set
+   `-DONEDNN_ZENDNN_FETCH=OFF` to make configuration fail instead of
+   downloading when that tree is missing. Configuration also fails if the
+   version in ZenDNN's `CMakeLists.txt` is older than 6.1.0.
 
 3. Build the library
    ~~~sh
    cmake --build . --parallel $(nproc)
    ~~~
+   ZenDNN is built as part of this step. oneDNN configures it with
+   `ZENDNNL_DEPENDS_ONEDNN=OFF` so the ZenDNN build does not pull in its own
+   oneDNN. The first build in a build directory also downloads ZenDNN's own
+   dependencies (AOCL-DLP, AOCL-Utils, and nlohmann-json), so it needs network
+   access even when the ZenDNN source is already in place. Later builds in the
+   same build directory reuse them.
 
 ### Build on Windows
 
