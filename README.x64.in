@@ -2,8 +2,8 @@ This distribution of oneDNN supports systems based on
 @DNNL_ARCH_NAME@ architecture.
 
 The library is optimized for the following CPUs:
-* Intel Xeon(R) processor E3, E5, and E7 family (formerly Sandy Bridge,
-  Ivy Bridge, Haswell, and Broadwell)
+* Intel Xeon(R) processor E3, E5, and E7 family v3+ lineups (formerly
+  Haswell and Broadwell)
 * Intel Xeon Scalable processor (formerly Skylake, Cascade Lake, Cooper
   Lake, Ice Lake, Sapphire Rapids, and Emerald Rapids)
 * Intel Xeon CPU Max Series (formerly Sapphire Rapids HBM)

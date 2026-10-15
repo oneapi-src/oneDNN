@@ -11,7 +11,10 @@ This package contains oneDNN v@PROJECT_VERSION@ (@DNNL_VERSION_HASH@)
 built for @DNNL_ARCH_NAME@ architecture.
 
 You can find information about the latest version and release notes
-at the oneDNN Github (https://github.com/uxlfoundation/oneDNN).
+at the oneDNN GitHub (https://github.com/uxlfoundation/oneDNN).
+
+The oneDNN project is part of the UXL Foundation
+(https://www.uxlfoundation.org).
 
 Documentation
 -------------
@@ -33,8 +36,13 @@ System Requirements
 Support
 -------
 
-Submit questions, feature requests, and bug reports on the
-GitHub issues page (https://github.com/uxlfoundation/oneDNN/issues).
+Ask questions and share your projects in GitHub Discussions
+(https://github.com/uxlfoundation/oneDNN/discussions). Submit feature
+requests and bug reports on the GitHub issues page
+(https://github.com/uxlfoundation/oneDNN/issues).
+
+You can also contact oneDNN developers via UXL Foundation Slack
+(https://slack-invite.uxlfoundation.org/) in the #onednn channel.
 
 License
 -------
@@ -42,14 +50,20 @@ License
 oneDNN is licensed under Apache License Version 2.0. Refer to the "LICENSE"
 file for the full license text and copyright notice.
 
-This distribution includes third party software governed by separate license
+This distribution includes third-party software governed by separate license
 terms.
 
 3-clause BSD license:
 * Xbyak (https://github.com/herumi/xbyak)
+* Xbyak_riscv (https://github.com/herumi/xbyak_riscv)
 * Instrumentation and Tracing Technology API (ITT API)
   (https://github.com/intel/ittapi)
 * CMake (https://github.com/Kitware/CMake)
+
+Apache License Version 2.0:
+* Xbyak_aarch64 (https://github.com/fujitsu/xbyak_aarch64)
+* OpenCL(TM) API Headers (https://github.com/KhronosGroup/OpenCL-Headers)
+* Arm(R) KleidiAI(TM) (https://gitlab.arm.com/kleidi/kleidiai)
 
 Boost Software License, Version 1.0:
 * Boost C++ Libraries (https://www.boost.org/)
@@ -65,9 +79,9 @@ MIT License:
 
 This third-party software, even if included with the distribution of
 other software, may be governed by separate license terms,
-including without limitation, third party license terms, other
+including without limitation, third-party license terms, other
 software license terms, and open source software license terms. These
-separate license terms govern your use of the third party programs as
+separate license terms govern your use of the third-party programs as
 set forth in the "THIRD-PARTY-PROGRAMS" file.
 
 Security
@@ -75,16 +89,16 @@ Security
 
 Security Policy (https://github.com/uxlfoundation/oneDNN/blob/main/SECURITY.md)
 outlines our guidelines and procedures for ensuring the highest level
-of Security and trust for our users who consume oneDNN.
+of security and trust for our users who consume oneDNN.
 
 Trademark Information
 ---------------------
 
-Intel, the Intel logo, Arc, Intel Atom, Intel Core, Iris,
-OpenVINO, the OpenVINO logo, Pentium, VTune, and Xeon are trademarks
-of Intel Corporation or its subsidiaries.
+Intel, the Intel logo, Arc, Intel Core, OpenVINO, the OpenVINO logo,
+and Xeon are trademarks of Intel Corporation or its subsidiaries.
 
-Arm and Neoverse are trademarks, or registered trademarks of Arm Ltd.
+Arm, KleidiAI, and Neoverse are trademarks, or registered trademarks of
+Arm Ltd.
 
 \* Other names and brands may be claimed as the property of others.
 

@@ -37,7 +37,7 @@ oneDNN project is part of the [UXL Foundation].
 
 ## Highlights
 
-* **Single API, many devices:** The same code targets Intel64/AMD64, and AArch64,
+* **Single API, many devices:** The same code targets Intel 64/AMD64, AArch64,
  RISC-V CPUs, and Intel GPUs.
 * **Hardware specialization:** oneDNN detects the hardware features at runtime
  and JIT-generates kernels specialized for instruction set, number of cores,
@@ -48,8 +48,8 @@ oneDNN project is part of the [UXL Foundation].
   quantization into matmul and convolution. The [Graph API] fuses larger
   patterns such as scaled dot-product attention (SDPA) and grouped-query
   attention (GQA).
-* **Interoperability:** Supports OpenMP, TBB, and custom threadpools on CPUs. SYCL, and OpenCL
-  on GPUs.
+* **Interoperability:** Supports OpenMP, TBB, and custom threadpools on CPUs,
+  SYCL, and OpenCL on GPUs.
 
 [OCP microscaling formats]: https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf
 [Graph API]: https://uxlfoundation.github.io/oneDNN/dev_guide_graph_basic_concepts.html
@@ -79,7 +79,7 @@ conda install -c conda-forge onednn
 ```
 
 Build and run the [matrix multiplication performance example], which
-measures matmul throughput for `f32`, `f16`, `bf16`, and `s8`/`u8` data types:
+measures matmul throughput for `f32`, `f16`, `bf16`, and `s8` data types:
 
 ```sh
 wget https://raw.githubusercontent.com/uxlfoundation/oneDNN/main/examples/matmul_perf.cpp \
@@ -105,14 +105,12 @@ GitHub. It helps others discover it.
 
 You can download and install the oneDNN library using one of the following options:
 
-- Binary Distribution: You can download pre-built binary packages from
-  the following sources:
-    - [conda-forge]: If the configuration you need is not available on
-      the conda-forge channel, you can build the library using the
-      Source Distribution.
-    - Intel oneAPI:
-       - [Intel® oneAPI Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit-download.html)
-       - [Intel® oneDNN package](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn-download.html)
+- [conda-forge]: If the configuration you need is not available on
+  the conda-forge channel, you can build the library using the
+  Source Distribution.
+- Intel oneAPI:
+  - [Intel oneAPI Toolkit](https://www.intel.com/content/www/us/en/developer/tools/oneapi/oneapi-toolkit-download.html)
+  - [Intel oneDNN](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onednn-download.html)
 - Source Distribution: You can build the library from source by
   following the instructions on the [Build from Source] page.
 
@@ -137,7 +135,7 @@ You can download and install the oneDNN library using one of the following optio
 ## System Requirements
 
 oneDNN supports platforms based on the following architectures:
-- [Intel 64 or AMD64](https://en.wikipedia.org/wiki/X86-64),
+- [Intel 64/AMD64](https://en.wikipedia.org/wiki/X86-64),
 - [Arm 64-bit Architecture (AArch64)](https://developer.arm.com/architectures/cpu-architecture/a-profile).
 - [OpenPOWER](https://openpowerfoundation.org/) / [IBM Power ISA](https://en.wikipedia.org/wiki/Power_ISA).
 - [IBMz z/Architecture (s390x)](https://en.wikipedia.org/wiki/Z/Architecture).
@@ -146,7 +144,7 @@ oneDNN supports platforms based on the following architectures:
 > **WARNING**
 >
 > Power ISA (PPC64), IBMz (s390x), and RISC-V (RV64) support is
-> **experimental** with limited testing validation.
+> **experimental** with limited validation.
 
 The library is optimized for the following CPUs:
 * Intel 64/AMD64 architecture
@@ -163,7 +161,7 @@ The library is optimized for the following CPUs:
     (code name Diamond Rapids)
 * AArch64 architecture
   * Arm Neoverse(TM) N-Series and V-Series
-* RISC-V architecture based processors with the following ISA extensions:
+* RISC-V architecture-based processors with the following ISA extensions:
   * RISC-V Vector (RVV) extension, version 1.0
   * Zvfh (FP16 vector) and Zvfbfwma (BF16 vector)
 
@@ -449,6 +447,7 @@ license terms.
 
 3-clause BSD license:
 * [Xbyak](https://github.com/herumi/xbyak)
+* [Xbyak_riscv](https://github.com/herumi/xbyak_riscv)
 * [gtest](https://github.com/google/googletest)
 * [Instrumentation and Tracing Technology API
 (ITT API)](https://github.com/intel/ittapi)
