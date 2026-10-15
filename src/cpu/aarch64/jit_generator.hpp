@@ -19,6 +19,8 @@
 #ifndef CPU_AARCH64_JIT_GENERATOR_HPP
 #define CPU_AARCH64_JIT_GENERATOR_HPP
 
+#include <array>
+#include <cstdint>
 #include <limits.h>
 #include <vector>
 
@@ -64,82 +66,46 @@
             mn(op, (mask), ptr(addr_off(addr, off, X_DEFAULT_ADDR, X_TMP_0))); \
     } while (0)
 
-static const size_t CSIZE = sizeof(uint32_t);
-
 namespace dnnl {
 namespace impl {
 namespace cpu {
 namespace aarch64 {
 
-// TODO: move this to jit_generator class?
-namespace {
-
-enum max_code_size_t {
-    MAX_CODE_SIZE = 256 * 1024,
-};
-
-// Callee-saved registers
-constexpr Xbyak_aarch64::Operand::Code abi_save_gpr_regs[]
-        = {Xbyak_aarch64::Operand::X16, Xbyak_aarch64::Operand::X17,
-                Xbyak_aarch64::Operand::X19, Xbyak_aarch64::Operand::X20,
-                Xbyak_aarch64::Operand::X21, Xbyak_aarch64::Operand::X22,
-                Xbyak_aarch64::Operand::X23, Xbyak_aarch64::Operand::X24,
-                Xbyak_aarch64::Operand::X25, Xbyak_aarch64::Operand::X26,
-                Xbyak_aarch64::Operand::X27, Xbyak_aarch64::Operand::X28};
-
-// See "Procedure Call Standsard for the ARM 64-bit Architecture (AArch64)"
-const Xbyak_aarch64::XReg abi_param1(Xbyak_aarch64::Operand::X0),
-        abi_param2(Xbyak_aarch64::Operand::X1),
-        abi_param3(Xbyak_aarch64::Operand::X2),
-        abi_param4(Xbyak_aarch64::Operand::X3),
-        abi_param5(Xbyak_aarch64::Operand::X4),
-        abi_param6(Xbyak_aarch64::Operand::X5),
-        abi_param7(Xbyak_aarch64::Operand::X6),
-        abi_param8(Xbyak_aarch64::Operand::X7),
-        abi_not_param1(Xbyak_aarch64::Operand::X15);
-
-template <typename T,
-        typename std::enable_if<std::is_unsigned<T>::value,
-                std::nullptr_t>::type
-        = nullptr>
-bool is_imm12(T imm) {
-    uint64_t bit_ptn = static_cast<uint64_t>(imm);
-
-    const uint64_t IMM12_MASK = ~uint64_t(0xfff);
-    // <= 4095
-    return ((bit_ptn & IMM12_MASK) == 0);
-}
-
-template <typename T,
-        typename std::enable_if<std::is_signed<T>::value, std::nullptr_t>::type
-        = nullptr>
-bool is_imm12(T imm) {
-    /* Sign bit must be extended. */
-    int64_t bit_ptn = static_cast<int64_t>(imm);
-    const uint64_t IMM12_MASK = ~uint64_t(0xfff);
-
-    // <= 4095
-    return (imm >= 0) && ((bit_ptn & IMM12_MASK) == 0);
-}
-
-} // namespace
-
 class jit_generator_t : public Xbyak_aarch64::CodeGenerator {
 private:
-    const size_t xreg_len = 8;
-    const size_t vreg_len_preserve = 8; // Only bottom 8byte must be preserved.
-    const size_t vreg_to_preserve = 8; // VREG8 - VREG15
+    static constexpr size_t xreg_size_in_bytes = 8;
+    // Only bottom 8byte must be preserved.
+    static constexpr size_t vreg_bytes_preserve = 8;
+    static constexpr size_t vreg_to_preserve = 8; // VREG8 - VREG15
 
-    const size_t num_abi_save_gpr_regs
-            = sizeof(abi_save_gpr_regs) / sizeof(abi_save_gpr_regs[0]);
+    static constexpr size_t num_abi_save_gpr_regs = 12;
 
-    const size_t preserved_stack_size = xreg_len * (2 + num_abi_save_gpr_regs)
-            + vreg_len_preserve * vreg_to_preserve;
+    static constexpr size_t preserved_stack_bytes = xreg_size_in_bytes
+                    * (num_abi_save_gpr_regs + /*frame pointer*/ 1
+                            + /*link register*/ 1)
+            + vreg_bytes_preserve * vreg_to_preserve;
 
-    const size_t size_of_abi_save_regs = num_abi_save_gpr_regs * x0.getBit() / 8
-            + vreg_to_preserve * vreg_len_preserve;
+    static constexpr size_t size_of_abi_save_regs
+            = num_abi_save_gpr_regs * xreg_size_in_bytes
+            + vreg_to_preserve * vreg_bytes_preserve;
 
 public:
+    // See "Procedure Call Standsard for the ARM 64-bit Architecture (AArch64)"
+    const Xbyak_aarch64::XReg abi_param1 = x0;
+    const Xbyak_aarch64::XReg &abi_param2 = x1;
+    const Xbyak_aarch64::XReg &abi_param3 = x2;
+    const Xbyak_aarch64::XReg &abi_param4 = x3;
+    const Xbyak_aarch64::XReg &abi_param5 = x4;
+    const Xbyak_aarch64::XReg &abi_param6 = x5;
+    const Xbyak_aarch64::XReg &abi_param7 = x6;
+    const Xbyak_aarch64::XReg &abi_param8 = x7;
+    const Xbyak_aarch64::XReg &abi_not_param1 = x15;
+
+    // Callee-saved registers
+    const std::array<Xbyak_aarch64::XReg, num_abi_save_gpr_regs>
+            abi_save_gpr_regs
+            = {x16, x17, x19, x20, x21, x22, x23, x24, x25, x26, x27, x28};
+
     enum {
         _cmp_eq_oq = 0u,
         _cmp_lt_os = 1u,
@@ -151,6 +117,8 @@ public:
         _op_floor = 1u,
         _op_mxcsr = 4u,
     };
+
+    static constexpr int MAX_CODE_SIZE = 256 * 1024;
 
     const uint64_t cpu_sveLen = get_sve_length();
 
@@ -184,73 +152,15 @@ public:
         return size_of_abi_save_regs;
     }
 
-    void preamble() {
-        using namespace Xbyak_aarch64::util;
-        uint64_t sveLen = get_sve_length();
+    void preamble();
 
-        stp(x29, x30, pre_ptr(sp, -16));
-        /* x29 is a frame pointer. */
-        mov(x29, sp);
-        sub(sp, sp, static_cast<int64_t>(preserved_stack_size) - 16);
-
-        /* x9 can be used as a temporal register. */
-        mov(x9, sp);
-
-        if (vreg_to_preserve) {
-            st4((v8.d - v11.d)[0], post_ptr(x9, vreg_len_preserve * 4));
-            st4((v12.d - v15.d)[0], post_ptr(x9, vreg_len_preserve * 4));
-        }
-        for (size_t i = 0; i < num_abi_save_gpr_regs; i += 2) {
-            stp(Xbyak_aarch64::XReg(abi_save_gpr_regs[i]),
-                    Xbyak_aarch64::XReg(abi_save_gpr_regs[i + 1]),
-                    post_ptr(x9, xreg_len * 2));
-        }
-
-        if (sveLen) { /* SVE is available. */
-            ptrue(P_ALL_ONE.b);
-            pfalse(P_ALL_ZERO.b);
-        }
-        if (sveLen >= SVE_256) {
-            ptrue(P_NOT_128.b, Xbyak_aarch64::VL16);
-            not_(P_NOT_128.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_NOT_128.b);
-        }
-        if (sveLen >= SVE_512) {
-            ptrue(P_NOT_256.b, Xbyak_aarch64::VL32);
-            not_(P_NOT_256.b, P_ALL_ONE / Xbyak_aarch64::T_z, P_NOT_256.b);
-        }
-    }
-
-    void postamble() {
-        using namespace Xbyak_aarch64::util;
-
-        mov(x9, sp);
-
-        if (vreg_to_preserve) {
-            ld4((v8.d - v11.d)[0], post_ptr(x9, vreg_len_preserve * 4));
-            ld4((v12.d - v15.d)[0], post_ptr(x9, vreg_len_preserve * 4));
-        }
-
-        for (size_t i = 0; i < num_abi_save_gpr_regs; i += 2) {
-            ldp(Xbyak_aarch64::XReg(abi_save_gpr_regs[i]),
-                    Xbyak_aarch64::XReg(abi_save_gpr_regs[i + 1]),
-                    post_ptr(x9, xreg_len * 2));
-        }
-
-        add(sp, sp, static_cast<int64_t>(preserved_stack_size) - 16);
-        ldp(x29, x30, post_ptr(sp, 16));
-        ret();
-    }
+    void postamble();
 
     // Disallow char-based labels completely
     void L(const char *label) = delete;
-    void L(Xbyak_aarch64::Label &label) {
-        Xbyak_aarch64::CodeGenerator::L(label);
-    }
+    void L(Xbyak_aarch64::Label &label);
 
-    void L_aligned(Xbyak_aarch64::Label &label, int alignment = 16) {
-        align(alignment);
-        L(label);
-    }
+    void L_aligned(Xbyak_aarch64::Label &label, int alignment = 16);
 
     template <typename T>
     Xbyak_aarch64::XReg addr_off(const Xbyak_aarch64::XReg &base, const T off,
@@ -262,28 +172,21 @@ public:
     }
 
     void ldr_imm(Xbyak_aarch64::XReg reg, Xbyak_aarch64::XReg &addr,
-            uint32_t offset) {
-        if (is_imm12(offset)) {
-            ldr(reg, ptr(addr, offset));
-        } else {
-            add_imm(X_DEFAULT_ADDR, addr, offset, X_DEFAULT_ADDR);
-            ldr(reg, ptr(X_DEFAULT_ADDR));
-        }
-    }
+            uint32_t offset);
 
-    inline int compute_off_mul_vl(int off, int size, int cpu_sveLen) {
+    int compute_off_mul_vl(int off, int size, int cpu_sveLen) {
         const int mul_vl_len = (cpu_sveLen / 4) * size;
         return off / mul_vl_len;
     }
 
-    inline bool use_mul_vl(int off, int size, int cpu_sveLen) {
+    bool use_mul_vl(int off, int size, int cpu_sveLen) {
         const int mul_vl_len = (cpu_sveLen / 4) * size;
         int off_mod = off % mul_vl_len;
         int off_mul_vl = off / mul_vl_len;
         return (off_mod == 0 && -8 <= off_mul_vl && off_mul_vl <= 7);
     }
 
-    inline void add_vl_or_imm(Xbyak_aarch64::XReg dst, Xbyak_aarch64::XReg src,
+    void add_vl_or_imm(Xbyak_aarch64::XReg dst, Xbyak_aarch64::XReg src,
             int offset, Xbyak_aarch64::XReg tmp) {
         // If offset is a multiple of the vector length and
         // offset / vector_length is compatible with addvl
@@ -303,30 +206,7 @@ public:
             const Xbyak_aarch64::XReg &base,
             const Xbyak_aarch64::XReg &reg_stride_bytes,
             const int32_t stride_bytes, const int32_t n,
-            const Xbyak_aarch64::XReg &tmp) {
-        int32_t offset_bytes = stride_bytes * n;
-        if (n == 0) {
-            // (0 instructions) Use the base
-            return base;
-        } else if (is_imm12(offset_bytes)) {
-            // (1 instruction) The byte offset can be expressed as an int12 immediate in the add instruction
-            add(dst, base, static_cast<uint32_t>(offset_bytes & 0xfff));
-            return dst;
-        } else {
-            const auto LSL = Xbyak_aarch64::ShMod::LSL;
-            switch (n) {
-                case 1:
-                    // 1 instruction
-                    add(dst, base, reg_stride_bytes);
-                    return dst;
-                case 2: add(dst, base, reg_stride_bytes, LSL, 1); return dst;
-                case 4: add(dst, base, reg_stride_bytes, LSL, 2); return dst;
-                case 8: add(dst, base, reg_stride_bytes, LSL, 3); return dst;
-                case 16: add(dst, base, reg_stride_bytes, LSL, 4); return dst;
-                default: add_imm(dst, base, offset_bytes, tmp); return dst;
-            }
-        }
-    }
+            const Xbyak_aarch64::XReg &tmp);
 
     template <typename PRegBHSD>
     void set_preg(const PRegBHSD &p, size_t tail_size,
@@ -358,16 +238,10 @@ public:
     }
 
     void uni_add(const Xbyak_aarch64::VReg4S &x1,
-            const Xbyak_aarch64::VReg4S &x2, const Xbyak_aarch64::VReg4S &op) {
-        add(x1, x2, op);
-    }
+            const Xbyak_aarch64::VReg4S &x2, const Xbyak_aarch64::VReg4S &op);
 
     void uni_add(const Xbyak_aarch64::ZReg &x1, const Xbyak_aarch64::ZReg &x2,
-            const Xbyak_aarch64::ZReg &op) {
-        add(Xbyak_aarch64::ZRegS(x1.getIdx()),
-                Xbyak_aarch64::ZRegS(x2.getIdx()),
-                Xbyak_aarch64::ZRegS(op.getIdx()));
-    }
+            const Xbyak_aarch64::ZReg &op);
 
     template <typename T>
     void udiv_mod(const T &q, const T &r, const T &divend, const T &divisor) {
@@ -390,18 +264,8 @@ public:
         sub(r, divend, r);
     }
 
-    void uni_clear(const Xbyak_aarch64::VReg &dst) {
-        // movi 0 on any part of the SIMD&FP reg will also zero out the rest of the
-        // SIMD vector (see the Arm ARM C7.1.1).
-        // We use this because movi d is zero latency on Neoverse V2
-        movi(Xbyak_aarch64::DReg(dst.getIdx()), 0);
-    }
-    void uni_clear(const Xbyak_aarch64::ZReg &dst) {
-        // movi 0 on any part of the SIMD&FP reg will also zero out the rest of the SVE vector
-        // (see the Arm ARM C7.1.1 and B1.4.3 R_WKYLB)
-        // We use this because movi d is zero latency on Neoverse V2
-        movi(Xbyak_aarch64::DReg(dst.getIdx()), 0);
-    }
+    void uni_clear(const Xbyak_aarch64::VReg &dst);
+    void uni_clear(const Xbyak_aarch64::ZReg &dst);
 
     template <typename T>
     void uni_fadd(const T &dst, const T &src, const T &src2) {
@@ -410,27 +274,16 @@ public:
 
     // Float addition across all vector elements
     void uni_fadd_reduce(
-            const Xbyak_aarch64::SReg &dst, const Xbyak_aarch64::ZRegS &src) {
-        faddv(dst, P_ALL_ONE / Xbyak_aarch64::T_z, src);
-    }
+            const Xbyak_aarch64::SReg &dst, const Xbyak_aarch64::ZRegS &src);
 
     void uni_fadd_reduce(
-            const Xbyak_aarch64::SReg &dst, const Xbyak_aarch64::VReg4S &src) {
-        const auto &vreg_dst = Xbyak_aarch64::VReg(dst.getIdx());
-
-        faddp(vreg_dst.s, src, src);
-        faddp(vreg_dst.s2, vreg_dst.s2, vreg_dst.s2);
-    }
+            const Xbyak_aarch64::SReg &dst, const Xbyak_aarch64::VReg4S &src);
 
     void uni_fcvtzs(
-            const Xbyak_aarch64::VReg4S &d, const Xbyak_aarch64::VReg4S &s) {
-        fcvtzs(d, s);
-    }
+            const Xbyak_aarch64::VReg4S &d, const Xbyak_aarch64::VReg4S &s);
 
     void uni_fcvtzs(
-            const Xbyak_aarch64::ZRegS &d, const Xbyak_aarch64::ZRegS &s) {
-        fcvtzs(d, P_ALL_ONE / Xbyak_aarch64::T_z, s);
-    }
+            const Xbyak_aarch64::ZRegS &d, const Xbyak_aarch64::ZRegS &s);
 
     template <typename TReg>
     void uni_fdiv(const TReg &dst, const TReg &src, const TReg &src2,
@@ -461,11 +314,7 @@ public:
 
     void uni_fdiv(const Xbyak_aarch64::VReg4S &dst,
             const Xbyak_aarch64::VReg4S &src, const Xbyak_aarch64::VReg4S &src2,
-            const Xbyak_aarch64::VReg4S &tmp, const Xbyak_aarch64::PReg &pred) {
-        UNUSED(tmp);
-        UNUSED(pred);
-        fdiv(dst, src, src2);
-    }
+            const Xbyak_aarch64::VReg4S &tmp, const Xbyak_aarch64::PReg &pred);
 
     template <typename T>
     void uni_fmad(const T &dst, const T &src, const T &src2) {
@@ -474,22 +323,15 @@ public:
 
     void uni_fmad(const Xbyak_aarch64::VReg4S &dst,
             const Xbyak_aarch64::VReg4S &src,
-            const Xbyak_aarch64::VReg4S &src2) {
-        fmul(dst, dst, src);
-        fadd(dst, dst, src2);
-    }
+            const Xbyak_aarch64::VReg4S &src2);
 
     void float_point_fused_multiply_add(const Xbyak_aarch64::ZReg &dst_vmm,
             const Xbyak_aarch64::ZReg &src1_vmm,
-            const Xbyak_aarch64::ZReg &src2_vmm) {
-        fmla(dst_vmm.s, P_ALL_ONE / Xbyak_aarch64::T_m, src1_vmm.s, src2_vmm.s);
-    }
+            const Xbyak_aarch64::ZReg &src2_vmm);
 
     void float_point_fused_multiply_add(const Xbyak_aarch64::VReg &dst_vmm,
             const Xbyak_aarch64::VReg &src1_vmm,
-            const Xbyak_aarch64::VReg &src2_vmm) {
-        fmla(dst_vmm.s, src1_vmm.s, src2_vmm.s);
-    }
+            const Xbyak_aarch64::VReg &src2_vmm);
 
     template <typename T>
     void uni_fmax(const T &dst, const T &src, const T &src2) {
@@ -502,13 +344,7 @@ public:
 
     void uni_fmax(const Xbyak_aarch64::VReg4S &dst,
             const Xbyak_aarch64::VReg4S &src,
-            const Xbyak_aarch64::VReg4S &src2) {
-        uint32_t dstIdx = dst.getIdx();
-        uint32_t srcIdx = src.getIdx();
-        if (dstIdx != srcIdx)
-            mov(Xbyak_aarch64::VReg16B(dstIdx), Xbyak_aarch64::VReg16B(srcIdx));
-        fmax(dst, src, src2);
-    }
+            const Xbyak_aarch64::VReg4S &src2);
 
     template <typename T>
     void uni_fmaxnm(const T &dst, const T &src, const T &src2) {
@@ -521,9 +357,7 @@ public:
 
     void uni_fmaxnm(const Xbyak_aarch64::VReg4S &dst,
             const Xbyak_aarch64::VReg4S &src,
-            const Xbyak_aarch64::VReg4S &src2) {
-        fmaxnm(dst, src, src2);
-    }
+            const Xbyak_aarch64::VReg4S &src2);
 
     template <typename T>
     void uni_fmin(const T &dst, const T &src, const T &src2) {
@@ -536,13 +370,7 @@ public:
 
     void uni_fmin(const Xbyak_aarch64::VReg4S &dst,
             const Xbyak_aarch64::VReg4S &src,
-            const Xbyak_aarch64::VReg4S &src2) {
-        uint32_t dstIdx = dst.getIdx();
-        uint32_t srcIdx = src.getIdx();
-        if (dstIdx != srcIdx)
-            mov(Xbyak_aarch64::VReg16B(dstIdx), Xbyak_aarch64::VReg16B(srcIdx));
-        fmin(dst, src, src2);
-    }
+            const Xbyak_aarch64::VReg4S &src2);
 
     template <typename T>
     void uni_fmul(const T &dst, const T &src, const T &src2) {
@@ -550,40 +378,27 @@ public:
     }
 
     void contiguous_load_unsigned_words(const Xbyak_aarch64::ZReg &src_vmm,
-            const Xbyak_aarch64::XReg &addr) {
-        ld1w(src_vmm.s, P_ALL_ONE / Xbyak_aarch64::T_z,
-                Xbyak_aarch64::ptr(addr));
-    }
+            const Xbyak_aarch64::XReg &addr);
 
     void contiguous_load_unsigned_words(const Xbyak_aarch64::VReg &src_vmm,
-            const Xbyak_aarch64::XReg &addr) {
-        ld1(src_vmm.s, Xbyak_aarch64::ptr(addr));
-    }
+            const Xbyak_aarch64::XReg &addr);
 
     void uni_frinti(
-            const Xbyak_aarch64::VReg4S &d, const Xbyak_aarch64::VReg4S &s) {
-        frinti(d, s);
-    }
+            const Xbyak_aarch64::VReg4S &d, const Xbyak_aarch64::VReg4S &s);
 
     void uni_frinti(
-            const Xbyak_aarch64::ZRegS &d, const Xbyak_aarch64::ZRegS &s) {
-        frinti(d, P_ALL_ONE / Xbyak_aarch64::T_m, s);
-    }
+            const Xbyak_aarch64::ZRegS &d, const Xbyak_aarch64::ZRegS &s);
 
     template <typename T>
     void uni_fsqrt(const T &dst, const T &src) {
         fsqrt(dst, P_ALL_ONE / Xbyak_aarch64::T_m, src);
     }
 
-    void uni_fsqrt(const Xbyak_aarch64::VReg4S &dst,
-            const Xbyak_aarch64::VReg4S &src) {
-        fsqrt(dst, src);
-    }
+    void uni_fsqrt(
+            const Xbyak_aarch64::VReg4S &dst, const Xbyak_aarch64::VReg4S &src);
 
     void uni_fsub(const Xbyak_aarch64::VReg4S &v1,
-            const Xbyak_aarch64::VReg4S &v2, const Xbyak_aarch64::VReg4S &v3) {
-        fsub(v1, v2, v3);
-    }
+            const Xbyak_aarch64::VReg4S &v2, const Xbyak_aarch64::VReg4S &v3);
 
     template <typename T>
     void uni_fsub(const T &dst, const T &src, const T &src2) {
@@ -591,53 +406,25 @@ public:
     }
 
     void uni_fsub(const Xbyak_aarch64::ZRegS &z1,
-            const Xbyak_aarch64::ZRegS &z2, const Xbyak_aarch64::ZRegS &z3) {
-        fsub(z1, z2, z3);
-    }
+            const Xbyak_aarch64::ZRegS &z2, const Xbyak_aarch64::ZRegS &z3);
 
     void uni_eor(const Xbyak_aarch64::VReg &v1, const Xbyak_aarch64::VReg &v2,
-            const Xbyak_aarch64::VReg &v3) {
-        eor(Xbyak_aarch64::VReg16B(v1.getIdx()),
-                Xbyak_aarch64::VReg16B(v2.getIdx()),
-                Xbyak_aarch64::VReg16B(v3.getIdx()));
-    }
+            const Xbyak_aarch64::VReg &v3);
 
     void uni_eor(const Xbyak_aarch64::ZReg &z1, const Xbyak_aarch64::ZReg &z2,
-            const Xbyak_aarch64::ZReg &z3) {
-        eor(Xbyak_aarch64::ZRegD(z1.getIdx()),
-                Xbyak_aarch64::ZRegD(z2.getIdx()),
-                Xbyak_aarch64::ZRegD(z3.getIdx()));
-    }
+            const Xbyak_aarch64::ZReg &z3);
 
     void uni_ld1rw(const Xbyak_aarch64::VReg4S &dst,
-            const Xbyak_aarch64::XReg &base, const int64_t off) {
-        if (off == 0) {
-            ld1r(dst, ptr(base));
-        } else {
-            add_imm(X_DEFAULT_ADDR, base, off, X_TMP_0);
-            ld1r(dst, ptr(X_DEFAULT_ADDR));
-        }
-    }
+            const Xbyak_aarch64::XReg &base, const int64_t off);
 
     void uni_ld1rw(const Xbyak_aarch64::ZRegS &dst,
-            const Xbyak_aarch64::XReg &base, const int64_t off) {
-        if (-32 <= off && off < 32) {
-            ld1rw(dst, P_ALL_ONE / Xbyak_aarch64::T_z, ptr(base, (int)off));
-        } else {
-            add_imm(X_DEFAULT_ADDR, base, off, X_TMP_0);
-            ld1rw(dst, P_ALL_ONE / Xbyak_aarch64::T_z, ptr(X_DEFAULT_ADDR));
-        }
-    }
+            const Xbyak_aarch64::XReg &base, const int64_t off);
 
     void uni_ldr(
-            const Xbyak_aarch64::VReg &dst, const Xbyak_aarch64::XReg &addr) {
-        ldr(Xbyak_aarch64::QReg(dst.getIdx()), ptr(addr));
-    }
+            const Xbyak_aarch64::VReg &dst, const Xbyak_aarch64::XReg &addr);
 
     void uni_ldr(
-            const Xbyak_aarch64::ZReg &dst, const Xbyak_aarch64::XReg &addr) {
-        ldr(dst, ptr(addr));
-    }
+            const Xbyak_aarch64::ZReg &dst, const Xbyak_aarch64::XReg &addr);
 
     template <typename T>
     void uni_ldr(const Xbyak_aarch64::ZReg &r, const Xbyak_aarch64::XReg &base,
@@ -669,57 +456,31 @@ public:
         }
     }
 
-    void uni_mov(const Xbyak_aarch64::VReg &d, const Xbyak_aarch64::VReg &s) {
-        if (d.getIdx() != s.getIdx()) { mov(d.b16, s.b16); }
-    }
+    void uni_mov(const Xbyak_aarch64::VReg &d, const Xbyak_aarch64::VReg &s);
 
-    void uni_mov(const Xbyak_aarch64::ZReg &d, const Xbyak_aarch64::ZReg &s) {
-        if (d.getIdx() != s.getIdx()) { mov(d.d, s.d); }
-    }
+    void uni_mov(const Xbyak_aarch64::ZReg &d, const Xbyak_aarch64::ZReg &s);
 
-    void uni_dup(const Xbyak_aarch64::VReg4S &dst, int32_t value) {
-        assert(value >= -128 && value <= 127);
+    void uni_dup(const Xbyak_aarch64::VReg4S &dst, int32_t value);
 
-        if (value >= 0)
-            movi(dst, static_cast<uint32_t>(value));
-        else
-            mvni(dst, static_cast<uint32_t>(~value));
-    }
-
-    void uni_dup(const Xbyak_aarch64::ZRegS &dst, int32_t value) {
-        assert(value >= -128 && value <= 127);
-        dup(dst, value);
-    }
+    void uni_dup(const Xbyak_aarch64::ZRegS &dst, int32_t value);
 
     void uni_orr(const Xbyak_aarch64::VReg &d, const Xbyak_aarch64::VReg &s0,
-            const Xbyak_aarch64::VReg &s1) {
-        orr(d.b16, s0.b16, s1.b16);
-    }
+            const Xbyak_aarch64::VReg &s1);
 
     void uni_orr(const Xbyak_aarch64::ZReg &d, const Xbyak_aarch64::ZReg &s0,
-            const Xbyak_aarch64::ZReg &s1) {
-        orr(d.d, s0.d, s1.d);
-    }
+            const Xbyak_aarch64::ZReg &s1);
 
     void uni_scvtf(
-            const Xbyak_aarch64::VReg4S &t0, const Xbyak_aarch64::VReg4S &t1) {
-        scvtf(t0, t1);
-    }
+            const Xbyak_aarch64::VReg4S &t0, const Xbyak_aarch64::VReg4S &t1);
 
     void uni_scvtf(
-            const Xbyak_aarch64::ZRegS &t0, const Xbyak_aarch64::ZRegS &t1) {
-        scvtf(t0, P_ALL_ONE / Xbyak_aarch64::T_m, t1);
-    }
+            const Xbyak_aarch64::ZRegS &t0, const Xbyak_aarch64::ZRegS &t1);
 
     void uni_str(
-            const Xbyak_aarch64::VReg &src, const Xbyak_aarch64::XReg &addr) {
-        str(Xbyak_aarch64::QReg(src.getIdx()), ptr(addr));
-    }
+            const Xbyak_aarch64::VReg &src, const Xbyak_aarch64::XReg &addr);
 
     void uni_str(
-            const Xbyak_aarch64::ZReg &src, const Xbyak_aarch64::XReg &addr) {
-        str(src, ptr(addr));
-    }
+            const Xbyak_aarch64::ZReg &src, const Xbyak_aarch64::XReg &addr);
 
     template <typename T>
     void uni_sub(const T &x1, const T &x2, const T &op) {
@@ -974,11 +735,13 @@ public:
 private:
     const cpu_isa_t max_cpu_isa_;
     const uint8_t *getCode() {
-        this->ready();
+        ready();
         if (!is_initialized()) return nullptr;
-        const uint8_t *code
-                = reinterpret_cast<const uint8_t *>(CodeGenerator::getCode());
-        register_jit_code(code, getSize() * CSIZE);
+
+        const uint8_t *code = CodeGenerator::getCode();
+        const size_t code_size_in_bytes = getSize();
+
+        register_jit_code(code, code_size_in_bytes);
         return code;
     }
 
