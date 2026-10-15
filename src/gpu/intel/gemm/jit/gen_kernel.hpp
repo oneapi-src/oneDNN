@@ -103,6 +103,10 @@ struct gen_desc_t {
         efficient_64b_ = efficient_64b;
     }
 
+    void set_kernel_override(const std::string &kernel) {
+        kernel_override_ = kernel;
+    }
+
 protected:
     compute::gpu_arch_t arch_;
     ngen::HW hw_ = ngen::HW::Unknown;
@@ -116,6 +120,8 @@ protected:
     gemmstone::CommonDriverInfo driver_info_;
 
     bool efficient_64b_ = false;
+
+    std::string kernel_override_;
 
     /* optional information to fine-tune kernel */
     int m_ = -1, n_ = -1, k_ = -1;

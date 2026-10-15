@@ -219,7 +219,7 @@ status_t gen_desc_t::finalize(const char *tags) {
 
 #ifdef DNNL_DEV_MODE
     std::string ovr_strategy
-            = gpu_utils::dev_getenv("GEMM_KERNEL", std::string());
+            = gpu_utils::dev_getenv("GEMM_KERNEL", kernel_override_);
     if (!ovr_strategy.empty()) {
         CHECK(apply_kernel_override(ovr_strategy, tags));
     } else {
