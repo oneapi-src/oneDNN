@@ -525,13 +525,17 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         } else if (mod.substr(0, 3) == "dot") {
             mod.erase(0,3);
             strategy.dotVL = mod.empty() ? 1 : std::stoi(mod);
-        } else if (mod.substr(0, 2) == "ra") {
-            strategy.raHW = parseRAHW(mod.substr(2));
         } else if (mod.length() >= 2) {
             if (mod.substr(0, 2) == "ms")
                 strategy.mSplitThresh = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "ns")
                 strategy.nSplitThresh = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ra" && mod.length() > 2 && std::isdigit(mod[2]))
+                strategy.ka_repack = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ra")
+                strategy.raHW = parseRAHW(mod.substr(2));
+            else if (mod.substr(0, 2) == "rb")
+                strategy.kb_repack = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "ki")
                 strategy.kInterleaveChunk = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "kc")
@@ -971,6 +975,8 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.raHW != hw)
         if (auto ra = unparseRAHW(strategy.raHW))
             s << " ra" << ra;
+    if (strategy.ka_repack) s << " ra" << strategy.ka_repack;
+    if (strategy.kb_repack) s << " rb" << strategy.kb_repack;
 
     if (strategy.coopA == CoopSplit::MN)    s << " sm";
     if (strategy.coopA == CoopSplit::FullK) s << " ska";

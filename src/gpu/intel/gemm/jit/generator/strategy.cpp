@@ -333,6 +333,11 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     ka_load_masked = align_up(ka_load_masked, maskedOPCount);
     kb_load_masked = align_up(kb_load_masked, maskedOPCount);
 
+    if (ka_repack && repackPeriod(true, problem) != ka_repack)
+        stub("Invalid A repack period");
+    if (kb_repack && repackPeriod(false, problem) != kb_repack)
+        stub("Invalid B repack period");
+
     if (ka_load == 0 || kb_load == 0)
         stub("Zero k-load granularity is invalid");
 
@@ -600,6 +605,26 @@ bool GEMMStrategy::minimize(HW hw, const GEMMProblem &problem)
     }
 
     return better;
+}
+
+// Return the A/B repack period for the current k loads: ka/kb_repack if valid, else the default.
+int GEMMStrategy::repackPeriod(bool isA, const GEMMProblem &problem) const
+{
+    int opCount = outerProductCount(problem, *this);
+    int k_load = isA ? ka_load : kb_load;
+    int k_repack = isA ? ka_repack : kb_repack;
+    if (k_repack > 0 && k_repack % opCount == 0 && k_load % k_repack == 0)
+        return k_repack;
+    int repackMin = std::min(std::max(4 / (isA ? problem.Ta_ext : problem.Tb_ext), 1), k_load);
+    int period = gcd(k_load, align_up(std::max(std::min(ka_load, kb_load), repackMin), opCount));
+    // Avoid spanning quantization groups if the period stays a multiple of opCount.
+    bool q2D = isA ? problem.quantized2DA() : problem.quantized2DB();
+    int qGroupK = isA ? problem.aqGroupK : problem.bqGroupK;
+    if (q2D && qGroupK > 0 && qGroupK % period != 0 && period % qGroupK != 0) {
+        int qPeriod = gcd(qGroupK, period);
+        if (qPeriod % opCount == 0) period = qPeriod;
+    }
+    return period;
 }
 
 // Return preferred k alignment for this kernel (avoiding remainder loads).
