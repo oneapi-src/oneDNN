@@ -303,150 +303,35 @@ void jit_uni_eltwise_injector_t<isa>::set_coef_to_regs() {
 }
 
 template <cpu_isa_t isa>
-void jit_uni_eltwise_injector_t<isa>::compute_cmp_mask(
-        const TRegS &vmm_src, const TRegS &compare_operand, int cmp_predicate) {
-    enum {
-        EQ_OQ = 0,
-        LT_OS = 1,
-        LE_OS = 2,
-        UNORD_Q = 3,
-        NEQ_UQ = 4,
-        NLT_US = 5,
-        NLE_US = 6,
-        ORD_Q = 7,
-        EQ_UQ = 8,
-        NGE_US = 9,
-        NGT_US = 10,
-        FALSE_OQ = 11,
-        NEQ_OQ = 12,
-        GE_OS = 13,
-        GT_OS = 14,
-        TRUE_UQ = 15,
-        EQ_OS = 16,
-        LT_OQ = 17,
-        LE_OQ = 18,
-        UNORD_S = 19,
-        NEQ_US = 20,
-        NLT_UQ = 21,
-        NLE_UQ = 22,
-        ORD_S = 23,
-        EQ_US = 24,
-        NGE_UQ = 25,
-        NGT_UQ = 26,
-        FALSE_OS = 27,
-        NEQ_OS = 28,
-        GE_OQ = 29,
-        GT_OQ = 30,
-        TRUE_US = 31,
-    };
-
+void jit_uni_eltwise_injector_t<isa>::compute_cmp_mask(const TRegS &vmm_src,
+        const TRegS &compare_operand, alg_kind_t cmp_predicate) {
     h->mov(PRegB(IDX(p_tmp0)), p_all / T_z, p_all.b);
+    using namespace alg_kind;
     switch (cmp_predicate) {
-        case EQ_OQ:
-            h->fcmeq(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case LT_OS:
-            h->fcmlt(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case LE_OS:
-            h->fcmle(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NEQ_UQ:
-            h->fcmne(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NLT_US:
-            h->fcmge(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NLE_US:
+        case binary_gt:
             h->fcmgt(
                     PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
             break;
-        case EQ_UQ:
-            h->fcmeq(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NGE_US:
-            h->fcmlt(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NGT_US:
-            h->fcmle(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NEQ_OQ:
-            h->fcmne(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case GE_OS:
+        case binary_ge:
             h->fcmge(
                     PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
             break;
-        case GT_OS:
-            h->fcmgt(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case EQ_OS:
+        case binary_eq:
             h->fcmeq(
                     PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
             break;
-        case LT_OQ:
-            h->fcmlt(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case LE_OQ:
-            h->fcmle(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NEQ_US:
+        case binary_ne:
             h->fcmne(
                     PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
             break;
-        case NLT_UQ:
-            h->fcmge(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NLE_UQ:
-            h->fcmgt(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case EQ_US:
-            h->fcmeq(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case NGE_UQ:
+        case binary_lt:
             h->fcmlt(
                     PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
             break;
-        case NGT_UQ:
+        case binary_le:
             h->fcmle(
                     PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
             break;
-        case NEQ_OS:
-            h->fcmne(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case GE_OQ:
-            h->fcmge(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-        case GT_OQ:
-            h->fcmgt(
-                    PRegS(IDX(p_mask)), p_tmp0 / T_z, vmm_src, compare_operand);
-            break;
-
-        case UNORD_Q:
-        case ORD_Q:
-        case FALSE_OQ:
-        case TRUE_UQ:
-        case UNORD_S:
-        case ORD_S:
-        case FALSE_OS:
-        case TRUE_US:
         default: assert(!"Unsupported compare mode"); break;
     }
 }
@@ -880,7 +765,8 @@ void jit_uni_eltwise_injector_t<isa>::soft_relu_compute_vector_fwd(
 
     // get vmm_mask = src > max logf
     // y = (x < max log f) ? soft_relu(x) : x
-    compute_cmp_mask(vmm_aux2, table_val(exp_ln_flt_max_f, z_tmp), _cmp_gt_os);
+    compute_cmp_mask(
+            vmm_aux2, table_val(exp_ln_flt_max_f, z_tmp), alg_kind::binary_gt);
     blend_with_mask(vmm_src, vmm_aux2);
     if (alpha_ == 1.f) { // standard soft_relu case
         // Skip an instruction.
@@ -1238,12 +1124,12 @@ void jit_uni_eltwise_injector_t<isa>::elu_compute_vector_bwd(
         // R = exp(s)
         exp_compute_vector_fwd(vmm_src);
         // after exponentiation, get mask by comparing with exp(0)=1.f, not 0.f
-        compute_cmp_mask(vmm_src, table_val(one, z_tmp), _cmp_gt_os);
+        compute_cmp_mask(vmm_src, table_val(one, z_tmp), alg_kind::binary_gt);
         // R * alpha, then blend with 1.f
         h->fmul(vmm_src, vmm_src, table_val(alpha, z_tmp));
     } else {
         // get mask of `d` > 0
-        compute_cmp_mask(vmm_src, table_val(zero, z_tmp), _cmp_gt_os);
+        compute_cmp_mask(vmm_src, table_val(zero, z_tmp), alg_kind::binary_gt);
         // R = `d` + alpha, then blend with 1.f
         h->fadd(vmm_src, vmm_src, table_val(alpha, z_tmp));
     }
@@ -1317,10 +1203,10 @@ template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_t<isa>::abs_compute_vector_bwd(
         const TRegS &vmm_src) {
     // replace positive values with 1.f
-    compute_cmp_mask(vmm_src, table_val(zero, z_tmp), _cmp_gt_os);
+    compute_cmp_mask(vmm_src, table_val(zero, z_tmp), alg_kind::binary_gt);
     blend_with_mask(vmm_src, table_val(one, z_tmp));
     // replace negative values with -1.f
-    compute_cmp_mask(vmm_src, table_val(zero, z_tmp), _cmp_lt_os);
+    compute_cmp_mask(vmm_src, table_val(zero, z_tmp), alg_kind::binary_lt);
     blend_with_mask(vmm_src, table_val(minus_one, z_tmp));
 }
 
@@ -3429,7 +3315,7 @@ DEFINE_ASIMD_EMPTY_FUNC(hardsigmoid_compute_vector_bwd);
 
 template <>
 void jit_uni_eltwise_injector_t<asimd>::compute_cmp_mask(const TRegS &vmm_src,
-        const TRegS &compare_operand, int cmp_predicate) {}
+        const TRegS &compare_operand, alg_kind_t cmp_predicate) {}
 
 template <>
 void jit_uni_eltwise_injector_t<asimd>::blend_with_mask(

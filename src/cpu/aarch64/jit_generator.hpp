@@ -106,18 +106,6 @@ public:
             abi_save_gpr_regs
             = {x16, x17, x19, x20, x21, x22, x23, x24, x25, x26, x27, x28};
 
-    enum {
-        _cmp_eq_oq = 0u,
-        _cmp_lt_os = 1u,
-        _cmp_le_os = 2u,
-        _cmp_neq_uq = 4u,
-        _cmp_nlt_us = 5u,
-        _cmp_nle_us = 6u,
-
-        _op_floor = 1u,
-        _op_mxcsr = 4u,
-    };
-
     static constexpr int MAX_CODE_SIZE = 256 * 1024;
 
     const uint64_t cpu_sveLen = get_sve_length();
