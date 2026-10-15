@@ -215,7 +215,8 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool splitCopy = false;                      // Separate SLM copy and compute threads?
     bool tlbWarmup = false;                      // Enable TLB warmup?
     bool tokenAlloc = false;                     // Enable dedicated SWSB token allocation for k loop loads/stores.
-    int slmBuffers = 0;                          // # of A/B SLM buffers, 0 for none.
+    int slmBuffersA = 0;                          // # of A SLM buffers, 0 for none.
+    int slmBuffersB = 0;                          // # of B SLM buffers, 0 for none.
     int unrollKSLM = 0;                          // k unroll for SLM copies (0 = auto = unroll[LoopK]/slmCopies)
     int unrollKSLMMasked = 0;                    //   Alternate value to use with masking (0 = same as unrollKSLM)
     bool slmATrans = false, slmBTrans = false;   // Whether A/B SLM data should be completely crosspacked (transposed).
@@ -340,29 +341,29 @@ struct GEMMStrategy : public GEMMStrategyPOD
     int wgTile(LoopType l)                            const { return unroll[l] * wg[l]; }
     int cInterleaveChunk(Type Tc_ext)                 const { return cInterleave ? 64 / Tc_ext : 1; }
 
-    bool lateExit()                                   const { return (slmBuffers > 0) || barrierFreq || kParallelLocal || fuseBeta || fusePostOps || cooperativePF; }
+    bool lateExit()                                   const { return (std::max(slmBuffersA, slmBuffersB) > 0) || barrierFreq || kParallelLocal || fuseBeta || fusePostOps || cooperativePF; }
 
     int slmABufBlockSize(const GEMMProblem &problem)  const { return fixedSystolic ? 1152 : int(slmA) * unroll[LoopM] * unrollKSLM * problem.Ta * problem.Ta.components(); }
     int slmBBufBlockSize(const GEMMProblem &problem)  const { return fixedSystolic ? 1536 : int(slmB) * unroll[LoopN] * unrollKSLM * problem.Tb * problem.Tb.components(); }
-    int slmGEMMABufSize(const GEMMProblem &problem)   const { return slmABufBlockSize(problem) * wg[LoopM] * wg[LoopK] * slmBuffers; }
-    int slmGEMMBBufSize(const GEMMProblem &problem)   const { return slmBBufBlockSize(problem) * wg[LoopN] * wg[LoopK] * slmBuffers; }
+
+    int slmGEMMABufSize(const GEMMProblem &problem)   const { return slmABufBlockSize(problem) * wg[LoopM] * wg[LoopK] * slmBuffersA; }
+    int slmGEMMBBufSize(const GEMMProblem &problem)   const { return slmBBufBlockSize(problem) * wg[LoopN] * wg[LoopK] * slmBuffersB; }
     int slmABufSize(const GEMMProblem &problem)       const { return slmGEMMABufSize(problem); }
     int slmBBufSize(const GEMMProblem &problem)       const { return slmGEMMBBufSize(problem); }
     int slmSysgemmBlockSize()                         const { return 1152 * wg[LoopM] + 1536 * wg[LoopN]; }
     bool variableSLM()                                const { return kParallelLocal; }
-    int slmBarriersPerUnroll()                        const { return (slmBuffers == 0) ? 0 :
-                                                                     (slmBuffers == 1) ? 2 : 1; }
+    int slmBarriersPerUnroll()                        const { return (std::max(slmBuffersA, slmBuffersB) == 0) ? 0 :
+                                                                     (std::max(slmBuffersA, slmBuffersB) == 1) ? 2 : 1; }
 
     int ka_inc() const { return slmA ? unrollKSLM : ka_load; }
     int kb_inc() const { return slmB ? unrollKSLM : kb_load; }
 
     bool persistentLoop()     const { return persistent || kParallelVariable; }
 
-    bool needsMNLocalIDs()    const { return xParallel || (slmBuffers > 0) || cooperativePF || kParallelLocal || persistentLoop()
-                                                       || namedBarriers[LoopM] || namedBarriers[LoopN] || (dpasw && !fixedSystolic)
-                                                       || (l3PrefetchA || l3PrefetchB); }
+    bool needsMNLocalIDs()    const { return xParallel || (std::max(slmBuffersA, slmBuffersB) > 0) || cooperativePF || kParallelLocal || persistentLoop()
+                                                       || namedBarriers[LoopM] || namedBarriers[LoopN] || (dpasw && !fixedSystolic) || (l3PrefetchA || l3PrefetchB); }
     bool needsKLocalIDs()     const { return kParallelLocal || persistentLoop(); }
-    bool needsKLoopBarrier()  const { return (barrierFreq > 0) || (slmBuffers > 0); }
+    bool needsKLoopBarrier()  const { return (barrierFreq > 0) || (std::max(slmBuffersA, slmBuffersB) > 0); }
     bool needsBarrier()       const { return needsKLoopBarrier() || xParallel || kParallelLocal || fuseBeta || fusePostOps; }
 
     bool needsUnnamedBarrier(const GEMMProblem &problem) const;
@@ -375,7 +376,7 @@ struct GEMMStrategy : public GEMMStrategyPOD
     WGType getWGType(const GEMMProblem &problem) const {
         if (forceWGUpdate == WGFixed)
             return WGFixed;
-        if ((slmBuffers > 0) || (forceWGUpdate == WGFixed) || namedBarriers[LoopM] || namedBarriers[LoopN])
+        if ((std::max(slmBuffersA, slmBuffersB) > 0) || (forceWGUpdate == WGFixed) || namedBarriers[LoopM] || namedBarriers[LoopN])
             return WGFixed;
         if (cooperativePF)
             return WGFixed;     /* until flexible cooperative PF enabled */
