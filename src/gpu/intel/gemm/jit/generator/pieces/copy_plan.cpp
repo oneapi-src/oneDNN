@@ -1281,7 +1281,6 @@ CopyOperand CopyPlan::bfImmediate(uint16_t bits, bool ternary)
     }
 };
 
-
 // {b,ub}->bf sequence.
 void CopyPlan::planInt8ToBF(CopyInstruction &i)
 {
@@ -4019,7 +4018,6 @@ void CopyPlan::materializeTemps(const GRFAllocator &grfAllocator, const FlagAllo
 
     temps.clear();
 }
-
 
 CopyResource::Kind CopyResource::makeConstant32(uint32_t c)
 {

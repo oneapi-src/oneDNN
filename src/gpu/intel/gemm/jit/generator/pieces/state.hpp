@@ -316,9 +316,9 @@ struct GEMMState : public CommonState {
     ngen::Subregister unclampedI0;                          // d
     ngen::Subregister ctiShiftJ0;                           // d
     ngen::Subregister threadK0, k0Rem, wgK;                 // ud
-    ngen::Subregister remainders[3];                        // d (todo: w)
+    ngen::Subregister remainders[3];                        // d (TODO: w)
     ngen::Subregister remaindersFused[2];                   // w
-    ngen::Subregister remaindersWG[2];                      // d (todo: w)
+    ngen::Subregister remaindersWG[2];                      // d (TODO: w)
     ngen::Subregister remaindersCoop[3];                    // d
     ngen::Subregister remFusedStorage;                      // d
     ngen::Subregister diagA, diagB, diagC;                  // d

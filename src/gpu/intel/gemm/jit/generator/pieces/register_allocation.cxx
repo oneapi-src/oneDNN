@@ -575,6 +575,7 @@ void Generator<hw>::gemmAllocRegs(GEMMProblem &problem, GEMMStrategy &strategy, 
     state.Bg_regs = state.ra.alloc_range(state.Bg_layout.regs());
     state.Agr_regs = state.ra.alloc_range(state.Agr_layout.regs());
     state.Bgr_regs = state.ra.alloc_range(state.Bgr_layout.regs());
+
 }
 
 template <HW hw>

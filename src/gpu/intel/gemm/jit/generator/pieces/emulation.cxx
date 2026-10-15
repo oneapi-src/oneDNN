@@ -64,7 +64,7 @@ void Generator<hw>::eadd3(const InstructionModifier &mod, const RegData &dst, co
 template <HW hw>
 template <typename S0>
 void Generator<hw>::ecsel(const InstructionModifier &mod, const InstructionModifier &cmod, const FlagRegister &flag,
-                          const RegData &dst,  const S0 &src0,
+                          const RegData &dst, const S0 &src0,
                           const RegData &src1, const RegData &src2, ngen::SourceLocation loc)
 {
     if (dst.getByteOffset() & 7) {
@@ -152,8 +152,9 @@ void Generator<hw>::eadd(const InstructionModifier &mod, const RegData &dst, con
         add(mod, dst, src0, temp.bf(0)(1), loc);
 
         state.ra.safeRelease(alloced);
-    } else
+    } else {
         EmulationImplementation::eadd<DT>(*this, mod, dst, src0, src1, strategy.emulate, state.emulate, loc);
+    }
 }
 
 template <HW hw>

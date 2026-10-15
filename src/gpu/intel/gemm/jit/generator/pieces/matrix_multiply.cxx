@@ -175,7 +175,7 @@ void Generator<hw>::outerProductFMA(int h, int ha_period, int hb_period, int opC
         noAccSBSet = false;
 
     if (repackC && Cr_unrollX < nx && (Cr_unrollX % nx1))
-            stub("Invalid C repack panel size");
+        stub("Invalid C repack panel size");
 
     // Last A/B blocks found.
     const RegisterBlock *A_blockLast = nullptr, *B_blockLast = nullptr;
@@ -466,8 +466,7 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
 
             if (state.useBDPAS) {
                 bdpas(mod, sdepth, rc, C0, srcC0, V0, N0, AS0, BS0);
-            } else
-            {
+            } else {
                 useDPASW ? dpasw(mod, sdepth, rc, C0, srcC0, V0, N0) :
                             dpas(mod, sdepth, rc, C0, srcC0, V0, N0);
             }
@@ -608,7 +607,6 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
 
     if (endRepackC) for (int xr = nx - Cr_unrollX + xinc; xr < nx; xr += xinc)
         outerProductRepackC(xr, xr % Cr_unrollX, xinc, h, rem, problem, strategy, state);
-
 }
 
 // Repack (part of) a C tile, converting types and scaling as needed.

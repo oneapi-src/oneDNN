@@ -188,7 +188,7 @@ void Generator<hw>::storeMatrixBlock(const GRF &src, const RegisterBlock &block,
                                      const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy,
                                      const RegisterRange &addr, const CommonStrategy &strategy, CommonState &state, bool series)
 {
-    InstructionModifier mod = block.simdSize;;
+    InstructionModifier mod = block.simdSize;
 
     // Zero SIMD size blocks are filled as part of another store. Skip them.
     if (!block.isLoadBlock())
@@ -432,7 +432,6 @@ void Generator<hw>::atomicAddMatrixBlock(Type T, const GRF &src, const RegisterB
     } else
         finishRegisterBlockMasking(state);
 }
-
 
 // Setup/teardown for descriptor handling code.
 template <HW hw>

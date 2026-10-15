@@ -220,6 +220,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     checkBeta1 |= C.atomic && !problem.beta1();
 
     GRFs = std::min(GRFs, GRF::maxRegs(hw));
+
     // CRI has unique GRF mode behaviour - automatically update to optimal options
     if (problem.product.family == ngen::ProductFamily::CRI) {
         if (GRFs == 128) GRFs = 192;
@@ -316,7 +317,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     if (kb_load_masked == 0) kb_load_masked = kb_load;
 
     int maskedOPCount = minOPCount;
-    if(problem.product.family == ProductFamily::CRI && kChain >= 2)
+    if (problem.product.family == ProductFamily::CRI && kChain >= 2)
         // On CRI, dpas fwd modifier is required for optimal compute throughput
         maskedOPCount *= 2;
 

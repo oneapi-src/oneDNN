@@ -653,8 +653,9 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
             add(1 | gt | f0[0], state.K, state.K, -unrollK);
             if (lateKLoopCheck) {
                 state.raVFlag.lock(state.flagAP);
-                if (state.vflagsEnabled())
+                if (state.vflagsEnabled()) {
                     state.activeVFlags[state.flagAP.index()].clear();
+                }
             }
         },
         [&](Iteration h) {
@@ -1507,8 +1508,9 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     ls.setCallback(CT::JumpIfLT, [&](int thresh, int label) {
         if (size_t(label) >= labels.size())
             labels.resize(label + 1);
-        if (thresh != lastThresh)
+        if (thresh != lastThresh) {
             cmp(1 | lt | state.flagAP, state.K, thresh);
+        }
         jmpi(1 | state.flagAP, labels[label]);
         lastThresh = thresh;
     });
@@ -1655,9 +1657,9 @@ void Generator<hw>::gemmAIncrementInternal(const RegisterLayout &layout, const s
 
     if (ka_inc == 0)
         /* no-op */;
-    else if (astrategy.address2D)
+    else if (astrategy.address2D) {
         incDecAddr(addrs, Subregister(), 0, ka_inc, layout, strategy, state, problem.backward());
-    else if (atype.layout == MatrixLayout::N) {
+    } else if (atype.layout == MatrixLayout::N) {
         bool release = false;
         auto lda_ka = lookupIncrement(state.ldaIncrements, state.lda, ka_inc, strategy, state, &release);
         incDecAddr(addrs, lda_ka, layout, strategy, state, problem.backward());
@@ -1736,9 +1738,9 @@ void Generator<hw>::gemmBIncrementInternal(const RegisterLayout &layout, const s
     const auto &astrategy = layout.addressingStrategy();
     if (kb_inc == 0)
         /* no-op */;
-    else if (astrategy.address2D)
+    else if (astrategy.address2D) {
         incDecAddr(addrs, Subregister(), kb_inc, 0, layout, strategy, state, problem.backward());
-    else if (atype.layout == MatrixLayout::T) {
+    } else if (atype.layout == MatrixLayout::T) {
         bool release = false;
         auto ldb_kb = lookupIncrement(state.ldbIncrements, state.ldb, kb_inc, strategy, state, &release);
         incDecAddr(addrs, ldb_kb, layout, strategy, state, problem.backward());
@@ -1816,7 +1818,7 @@ void Generator<hw>::gemmAiBiRemLoadInc(int h, bool incremental, bool incremental
                                        const GRFMultirange &Xo_regs, const RegisterLayout &Xo_layout,
                                        const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    auto kx_slm = doA ? state.ka_slm   : state.kb_slm;
+    auto kx_slm = doA ? state.ka_slm : state.kb_slm;
 
     auto unrollKSLM = strategy.unrollKSLM;
     bool kSLMCountUp = state.kSLMCountUp;
@@ -2144,7 +2146,7 @@ void Generator<hw>::kLoopActivateSLMRemainder(bool active, bool preactivate, con
         }
 
         if ((needKSLMA || needKSLMB) && kOffset != 0) {
-                add(2 | sat, kSLMStorage.uw()(1), kSLMStorage.uw()(1), kOffset);
+            add(2 | sat, kSLMStorage.uw()(1), kSLMStorage.uw()(1), kOffset);
         }
 
         initSLMKOffset = kOffset;

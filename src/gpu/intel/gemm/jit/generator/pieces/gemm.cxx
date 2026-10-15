@@ -747,11 +747,13 @@ void Generator<hw>::gemmSubkernel(GEMMProblem &problem, GEMMStrategy &strategy, 
             cmp(1 | le | f0[1], state.remainders[LoopM], 0);
             state.ra.safeRelease(flag);
             state.ra.safeRelease(state.unclampedI0);
-        } else
+        } else {
             min_(1, state.remainders[LoopM], state.remainders[LoopM], uint16_t(strategy.unroll[LoopM]));
+        }
     }
-    if (remN)
+    if (remN) {
         min_(1, state.remainders[LoopN], state.remainders[LoopN], uint16_t(strategy.unroll[LoopN]));
+    }
 
     gemmCalcIncrements(problem, strategy, state);
 
@@ -1161,10 +1163,11 @@ bool Generator<hw>::mnRemainderHandling(LoopType loop, Problem &problem, GEMMStr
 
         // Jump to remainder loop if needed.
         // If threads fused in this direction, factor fused ID into calculation.
-        if (wgRemCheck(problem, strategy))
+        if (wgRemCheck(problem, strategy)) {
             cmp(1 | lt | f0[0], null.d(), state.remaindersWG[loop], uint16_t(unroll * strategy.wg[loop]));
-        else
+        } else {
             cmp(1 | lt | f0[0], null.d(), state.remaindersFused[loop], uint16_t(unroll));
+        }
 
         if (splitThresh) {
             cmp(1 | lt | f1[0], null.d(), mn, int32_t(splitThresh));
@@ -1347,7 +1350,6 @@ bool Generator<hw>::mnJointSplitRemainderHandling(Problem &problem, GEMMStrategy
             cmp(1 | lt | f1[0], null.d(), state.remaindersFused[LoopN], uint16_t(unrollN));
         }
         ejmpi(1 | f0[0] | anyv, label_remainder);
-
         // First generate code that ignores remainder handling.
         GEMMStrategy substrategy = strategy;
         substrategy.remHandling[LoopM] = RemainderHandling::Ignore;
