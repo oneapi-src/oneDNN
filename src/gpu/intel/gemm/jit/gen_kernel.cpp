@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <stdexcept>
+
 #include "gpu/intel/gemm/jit/gen_kernel.hpp"
 
 #include "common/c_types_map.hpp"
@@ -91,65 +93,37 @@ compute::scalar_type_t gen_desc_t::scalar_type() const {
 }
 
 #ifdef DNNL_DEV_MODE
-static gemmstone::Scalar stringToScalar(std::string val) {
+static gemmstone::Scalar stringToScalar(const std::string &val) {
     using namespace gemmstone;
-    switch (val.c_str()[0]) {
-        case '-': return Scalar(Scalar::Variable);
-        default: return Scalar(std::stoi(val));
-    }
+    return val[0] == '-' ? Scalar(Scalar::Variable) : Scalar(std::stoi(val));
 }
-#endif
 
-status_t gen_desc_t::finalize(const char *tags) {
-    // Update problem alignments to match catalog entry.
-    // Do not raise an alignment above the actual buffer alignment: catalog
-    // entries may accept lower alignments than driverInfo.alignment via
-    // unaligned access fallbacks, and overstating the alignment can cause
-    // illegal accesses (e.g. 2D block loads on a sub-DWord pitch).
-    if (!isPacked(problem_.A.layout)
-            && problem_.Ta_ext.paddedSize() >= problem_.Ta.paddedSize()) {
-        problem_.A.setAlignment(std::max(problem_.Ta_ext.paddedSize(),
-                std::min(entry_->driverInfo.alignment[0],
-                        int(problem_.A.alignment))));
-    }
-
-    if (!isPacked(problem_.B.layout)
-            && problem_.Tb_ext.paddedSize() >= problem_.Tb.paddedSize()) {
-        problem_.B.setAlignment(std::max(problem_.Tb_ext.paddedSize(),
-                std::min(entry_->driverInfo.alignment[1],
-                        int(problem_.B.alignment))));
-    }
-
-    if (!isPacked(problem_.C.layout)) {
-        problem_.C.setAlignment(std::max(problem_.Tc_ext.paddedSize(),
-                entry_->restrictions.alignment[2]));
-    }
-
-    problem_.CO.setAlignment(problem_.Tco.paddedSize());
-
-    // Parse strategy string.
-    strategy_ = GEMMStrategy(hw_, stepping_);
-#ifdef DNNL_DEV_MODE
-    std::string ovr_strategy;
-    ovr_strategy = gpu_utils::dev_getenv("GEMM_KERNEL", ovr_strategy);
-    if (!ovr_strategy.empty()) {
+status_t gen_desc_t::apply_kernel_override(
+        const std::string &ovr_strategy, const char *tags) {
+    try {
+        // Overrides problem data types; incompatible precisions lose accuracy.
         entry_ = nullptr;
-        std::stringstream ss(ovr_strategy);
+        const GEMMProblem pd = problem_;
+        const Scalar pd_alpha = problem_.alpha, pd_beta = problem_.beta;
+        stringstream_t ss(ovr_strategy);
         std::string val;
-        ss >> val;
-        gpu_assert(val == "gemm");
+        // Skip tokens before `gemm`; the pd sets them.
+        while (ss >> val && val != "gemm") {}
+        if (val != "gemm") throw std::runtime_error("expected 'gemm' prefix");
         ss >> val;
         const char *pstr = val.c_str();
         // Cannot modify external data types
         Type ext_dt;
         pstr = parsePrecisions(pstr, ext_dt, problem_.Ta);
-        gpu_assert(ext_dt == problem_.Ta_ext) << "Invalid external A data type";
+        if (ext_dt != problem_.Ta_ext)
+            throw std::runtime_error("invalid external A data type");
         pstr = parsePrecisions(pstr, ext_dt, problem_.Tb);
-        gpu_assert(ext_dt == problem_.Tb_ext) << "Invalid external B data type";
+        if (ext_dt != problem_.Tb_ext)
+            throw std::runtime_error("invalid external B data type");
         if (*pstr == '[') {
             pstr = parsePrecisions(pstr, problem_.Tc, ext_dt);
-            gpu_assert(ext_dt == problem_.Tc_ext)
-                    << "Invalid external C data type";
+            if (ext_dt != problem_.Tc_ext)
+                throw std::runtime_error("invalid external C data type");
         } else {
             pstr = parsePrecision(pstr, problem_.Tc);
         }
@@ -158,6 +132,9 @@ status_t gen_desc_t::finalize(const char *tags) {
         pstr = parseLayout(pstr, problem_.A);
         pstr = parseLayout(pstr, problem_.B);
         pstr = parseLayout(pstr, problem_.C);
+        if (problem_.A.layout != pd.A.layout || problem_.B.layout != pd.B.layout
+                || problem_.C.layout != pd.C.layout)
+            throw std::runtime_error("layout mismatch");
 
         if (problem_.A.alignment == 0)
             problem_.A.setAlignment(
@@ -169,6 +146,11 @@ status_t gen_desc_t::finalize(const char *tags) {
             problem_.C.setAlignment(
                     problem_.C.defaultAlignment(problem_.Tc_ext));
 
+        if (pd.A.alignment % problem_.A.alignment
+                || pd.B.alignment % problem_.B.alignment
+                || pd.C.alignment % problem_.C.alignment)
+            throw std::runtime_error("alignment too strong");
+
         strategy_ = GEMMStrategy(hw_, stepping_);
         ss >> strategy_.unroll[LoopM];
         ss >> strategy_.unroll[LoopN];
@@ -177,27 +159,82 @@ status_t gen_desc_t::finalize(const char *tags) {
         problem_.alpha = stringToScalar(val);
         ss >> val;
         problem_.beta = stringToScalar(val);
+        auto scalar_ok = [](const Scalar &want, const Scalar &ovr) {
+            return !ovr.fixed() || want == int(ovr);
+        };
+        if (!scalar_ok(pd_alpha, problem_.alpha)
+                || !scalar_ok(pd_beta, problem_.beta))
+            throw std::runtime_error("alpha/beta mismatch");
 
-        ovr_strategy = ss.str().substr(ss.tellg()); // remaining string
-        parseStrategy(ovr_strategy, problem_, strategy_);
+        if (!ss) throw std::runtime_error("truncated kernel string");
+        std::string rest = ss.str().substr(ss.tellg());
+        parseStrategy(rest, problem_, strategy_);
 
-        // TODO: override derived values in aux_params_ in a way that's
-        // consistent with the kernel evaluator (typically requires extra
-        // benchmarking data not supplied with the kernel override string)
-        // Currently: assume the W model because it's simple
+        // Later k-chunks accumulate (catalog parity).
+        auto block_k = strategy_.blocking[LoopK];
+        if (block_k <= 0) block_k = strategy_.defaultBlockK(hw_, problem_);
+        if (k_ > block_k && !problem_.beta1()) problem_.beta = Scalar();
+
+        if (strategy_.kParallel)
+            throw std::runtime_error("unknown k0 for global k-parallel");
+        aux_params_ = EvaluateAuxOutput();
+        aux_params_.kParallelVariable = strategy_.kParallelVariable;
         if (strategy_.kParallelLocal) {
+            if (strategy_.wg[LoopK] < 1 || strategy_.unroll[LoopK] < 1)
+                throw std::runtime_error("invalid k-parallel-local geometry");
             aux_params_.k0
                     = utils::rnd_up(utils::div_up(k_, strategy_.wg[LoopK]),
                             strategy_.unroll[LoopK]);
             aux_params_.wgK = std::max(1,
                     std::min(strategy_.wg[LoopK],
                             int(utils::div_up(k_, aux_params_.k0))));
-        } else {
-            aux_params_.k0 = EvaluateAuxOutput().k0;
-            aux_params_.wgK = EvaluateAuxOutput().wgK;
         }
+    } catch (const std::exception &e) {
+        gpu_error_not_expected()
+                << "jit::gemm kernel override rejected: " << e.what() << ","
+                << ovr_strategy;
+        return status::unimplemented;
+    }
+    return status::success;
+}
+#endif
+
+status_t gen_desc_t::finalize(const char *tags) {
+    problem_.CO.setAlignment(problem_.Tco.paddedSize());
+
+#ifdef DNNL_DEV_MODE
+    std::string ovr_strategy
+            = gpu_utils::dev_getenv("GEMM_KERNEL", std::string());
+    if (!ovr_strategy.empty()) {
+        CHECK(apply_kernel_override(ovr_strategy, tags));
     } else {
 #endif
+        // Update problem alignments to match catalog entry.
+        // Do not raise an alignment above the actual buffer alignment: catalog
+        // entries may accept lower alignments than driverInfo.alignment via
+        // unaligned access fallbacks, and overstating the alignment can cause
+        // illegal accesses (e.g. 2D block loads on a sub-DWord pitch).
+        if (!isPacked(problem_.A.layout)
+                && problem_.Ta_ext.paddedSize() >= problem_.Ta.paddedSize()) {
+            problem_.A.setAlignment(std::max(problem_.Ta_ext.paddedSize(),
+                    std::min(entry_->driverInfo.alignment[0],
+                            int(problem_.A.alignment))));
+        }
+
+        if (!isPacked(problem_.B.layout)
+                && problem_.Tb_ext.paddedSize() >= problem_.Tb.paddedSize()) {
+            problem_.B.setAlignment(std::max(problem_.Tb_ext.paddedSize(),
+                    std::min(entry_->driverInfo.alignment[1],
+                            int(problem_.B.alignment))));
+        }
+
+        if (!isPacked(problem_.C.layout)) {
+            problem_.C.setAlignment(std::max(problem_.Tc_ext.paddedSize(),
+                    entry_->restrictions.alignment[2]));
+        }
+
+        // Parse strategy string.
+        strategy_ = GEMMStrategy(hw_, stepping_);
         strategy_.unroll[LoopM] = entry_->driverInfo.unroll[LoopM];
         strategy_.unroll[LoopN] = entry_->driverInfo.unroll[LoopN];
         parseStrategy(entry_->strategy, problem_, strategy_);
@@ -323,6 +360,11 @@ status_t gen_desc_t::finalize(const char *tags) {
     try {
         strategy_.preflight(hw_, problem_);
     } catch (...) { return status::unimplemented; }
+
+    // Override: fixed beta would be reapplied on later k-chunks.
+    if (!entry_ && k_ > strategy_.blocking[LoopK] && problem_.beta.fixed()
+            && !problem_.beta1())
+        return status::unimplemented;
 
     // Check for legal 2D quantization group size.
     if (problem_.aOffset2D() || problem_.aScale2D())
