@@ -37,14 +37,11 @@ namespace ir {
 //                    right-hand-side argument pointer array
 //   dst_orig_off   - byte offset in the kernel argument struct of the
 //                    destination origin pointer
-//   tail_elems     - right-hand-side elements a partial (tail) load reads. 0
-//                    means every accumulator holds a full vector
 struct postops_config_t {
     const post_ops_t *post_ops = nullptr;
     const memory_desc_t *dst_md = nullptr;
     int rhs_arg_offset = 0;
     dim_t dst_orig_off = 0;
-    int tail_elems = 0;
 };
 
 // Generates the complete kernel for `ir` into `gen`.

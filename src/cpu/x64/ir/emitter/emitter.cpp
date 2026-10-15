@@ -308,7 +308,8 @@ void emit(backend_t &be, const ir_t &ir, const reg_alloc_result_t &alloc,
                         ? -1
                         : gpr_use(args.base_ptr).getIdx();
                 JIT_ASSERT(postops && "inject_postops: missing injector");
-                postops->inject(acc_phys, base_phys, args.out_byte_off);
+                postops->inject(
+                        acc_phys, base_phys, args.out_byte_off, args.n_elems);
                 for (size_t a = 0; a < args.acc.size(); a++)
                     if (spilled(args.acc[a]))
                         spill_store(args.acc[a], acc_phys[a]);

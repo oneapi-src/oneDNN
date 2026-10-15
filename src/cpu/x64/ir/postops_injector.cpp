@@ -52,20 +52,31 @@ injector_t<Vmm> *cast2tgt(void *injector) {
 postops_injector_t::postops_injector_t(jit_generator_t &gen, cpu_isa_t isa,
         const post_ops_t &post_ops, const memory_desc_t &dst_md,
         const Xbyak::Reg64 &param_reg, int rhs_arg_offset, dim_t dst_orig_off,
-        int tail_elems, int eltwise_opmask, int binary_tail_opmask)
+        const ir_t &ir, int eltwise_opmask, int binary_tail_opmask)
     : is_zmm_(is_superset(isa, avx512_core))
-    , tail_elems_(tail_elems)
+    , vlen_elems_((is_zmm_ ? 64 : 32) / (int)sizeof(float))
     , binary_tail_opmask_(binary_tail_opmask) {
     const memory_desc_wrapper dst_d(dst_md);
+
+    // The Xbyak injector takes the tail count once, at creation, so every
+    // partial accumulator in the kernel must hold the same number of elements.
+    for (const auto &args : ir.inject_postops_args()) {
+        for (vreg_t v : args.acc)
+            JIT_ASSERT(ir.vreg_info()[(int)v].dt == data_type::f32
+                    && "postops_injector: accumulator must be f32");
+        JIT_ASSERT(args.n_elems > 0 && args.n_elems <= vlen_elems_
+                && "postops_injector: n_elems is out of range");
+        if (args.n_elems == vlen_elems_) continue;
+        JIT_ASSERT(utils::one_of(tail_elems_, 0, args.n_elems)
+                && "postops_injector: partial accumulators differ in size");
+        tail_elems_ = args.n_elems;
+    }
 
     // The eltwise injector overwrites its mask and the binary injector reads
     // its own across the same call, so sharing one register would destroy the
     // tail pattern.
     JIT_ASSERT(eltwise_opmask != binary_tail_opmask
             && "postops_injector: eltwise and binary opmask must differ");
-    // `init()` builds the tail pattern with a 64-bit shift.
-    JIT_ASSERT(tail_elems < 64 && "postops_injector: tail is too wide");
-
     // The injector preserves the state of the gpr and vec registers it borrows.
     static constexpr bool preserve_gpr = true;
     static constexpr bool preserve_vmm = true;
@@ -77,12 +88,12 @@ postops_injector_t::postops_injector_t(jit_generator_t &gen, cpu_isa_t isa,
     // load path only, by sum. Eltwise does not use it.
     // `rhs_arg_offset` locates the argument pointer array in the parameter
     // struct. `dst_orig_off` locates the destination origin, used to turn an
-    // accumulator address into its destination position. `tail_elems` is the
+    // accumulator address into its destination position. `tail_elems_` is the
     // element count a partial load reads, as an integer on avx2 and through
     // `binary_tail_opmask` on avx512.
     const binary_injector::rhs_arg_static_params_t rhs_sp {
             rhs_dt_helper_vmm_idx, gen.r14, gen.r15, gen.r13, preserve_gpr,
-            preserve_vmm, rhs_arg_offset, dst_orig_off, dst_d, tail_elems,
+            preserve_vmm, rhs_arg_offset, dst_orig_off, dst_d, tail_elems_,
             Xbyak::Opmask(binary_tail_opmask), use_exact_tail_scalar_bcast};
 
     const binary_injector::static_params_t bsp {param_reg,
@@ -123,7 +134,11 @@ void postops_injector_t::init(jit_generator_t &gen) const {
 }
 
 void postops_injector_t::inject(const std::vector<int> &acc_phys, int base_phys,
-        const std::vector<dim_t> &out_byte_off) {
+        const std::vector<dim_t> &out_byte_off, int n_elems) {
+    const bool is_tail = n_elems < vlen_elems_;
+    JIT_ASSERT(IMPLICATION(is_tail, n_elems == tail_elems_)
+            && "postops_injector: n_elems differs from the kernel tail");
+
     injector_utils::vmm_index_set_t vmm_idxs;
     for (int idx : acc_phys)
         vmm_idxs.insert(idx);
@@ -140,10 +155,9 @@ void postops_injector_t::inject(const std::vector<int> &acc_phys, int base_phys,
         return;
     }
 
-    // A positive `tail_elems_` means an accumulator holds fewer valid elements
-    // than a full vector, so a right-hand-side load has to stop at that count
-    // to stay in bounds. `init()` has put that pattern in the tail opmask.
-    const bool is_tail = tail_elems_ > 0;
+    // A tail accumulator holds fewer valid elements than a full vector, so a
+    // right-hand-side load has to stop at `tail_elems_` to stay in bounds.
+    // `init()` has put that pattern in the tail opmask.
 
     // Map each accumulator to its destination address. A binary post-op uses it
     // to locate the corresponding right-hand-side slice, and the sum operation

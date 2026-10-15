@@ -57,8 +57,7 @@ void generate_kernel(
     if (with_postops) {
         injector.reset(new postops_injector_t(gen, isa, *postops.post_ops,
                 *postops.dst_md, abi_param1, postops.rhs_arg_offset,
-                postops.dst_orig_off, postops.tail_elems, eltwise_opmask,
-                binary_tail_opmask));
+                postops.dst_orig_off, ir, eltwise_opmask, binary_tail_opmask));
     }
 
     gen.preamble();

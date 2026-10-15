@@ -267,13 +267,11 @@ public:
     //                     right-hand-side pointer array
     //   dst_orig_offset - byte offset in the argument struct of the
     //                     destination origin pointer
-    //   tail_elems      - right-hand-side elements a partial (tail) load reads
     struct postops_cfg_t {
         const impl::post_ops_t *post_ops = nullptr;
         const impl::memory_desc_t *dst_md = nullptr;
         size_t rhs_arg_offset = 0;
         size_t dst_orig_offset = 0;
-        int tail_elems = 0;
     };
     void set_postops(const postops_cfg_t &cfg) { postops_cfg_ = cfg; }
 
@@ -319,8 +317,8 @@ protected:
             injector.reset(new postops_injector_t(*this, max_cpu_isa(),
                     *postops_cfg_.post_ops, *postops_cfg_.dst_md, abi_param1,
                     static_cast<int>(postops_cfg_.rhs_arg_offset),
-                    postops_cfg_.dst_orig_offset, postops_cfg_.tail_elems,
-                    eltwise_opmask, binary_tail_opmask));
+                    postops_cfg_.dst_orig_offset, ir_, eltwise_opmask,
+                    binary_tail_opmask));
         }
 
         preamble();
@@ -592,7 +590,7 @@ TEST(IRBuilderTests, InjectPostopsRecordsArgsAndDefUse) {
     for (int r = 0; r < n; r++)
         out_byte_off[r] = r * (dim_t)sizeof(float);
 
-    ir.inject_postops(acc, base, out_byte_off);
+    ir.inject_postops(acc, base, out_byte_off, /*n_elems=*/1);
 
     const int idx = find_op(ir, op_kind_t::inject_postops);
     ASSERT_NE(idx, -1);
@@ -604,6 +602,7 @@ TEST(IRBuilderTests, InjectPostopsRecordsArgsAndDefUse) {
     EXPECT_EQ(args.acc, acc);
     EXPECT_EQ(args.base_ptr, base);
     EXPECT_EQ(args.out_byte_off, out_byte_off);
+    EXPECT_EQ(args.n_elems, 1);
 
     // def_use reports every accumulator as read and written, and the base
     // pointer as read.
@@ -1437,12 +1436,13 @@ TEST(IntegrationTests, BinaryPostOpAddsPerElementRhs) {
     for (int r = 0; r < n; r++)
         ir.vhreduce(acc[r], ws);
 
-    // Each accumulator is a single scalar. Its output offset locates it in the
-    // destination so the injector reads the matching right-hand-side element.
+    // Each accumulator is a single scalar, so one element is valid. Its output
+    // offset locates it in the destination so the injector reads the matching
+    // right-hand-side element.
     std::vector<dim_t> out_byte_off(n);
     for (int r = 0; r < n; r++)
         out_byte_off[r] = r * (dim_t)sizeof(float);
-    ir.inject_postops(acc, c_ptr, out_byte_off);
+    ir.inject_postops(acc, c_ptr, out_byte_off, /*n_elems=*/1);
 
     for (int r = 0; r < n; r++)
         ir.vstore_scalar(
@@ -1454,7 +1454,6 @@ TEST(IntegrationTests, BinaryPostOpAddsPerElementRhs) {
     cfg.dst_md = &dst_md;
     cfg.rhs_arg_offset = offsetof(binary_args_t, binary_rhs);
     cfg.dst_orig_offset = offsetof(binary_args_t, dst_orig);
-    cfg.tail_elems = 1;
     kernel.set_postops(cfg);
 
     ASSERT_TRUE(kernel.run_ir_pipeline());
@@ -1513,7 +1512,7 @@ TEST(IntegrationTests, InjectPostopsWorksWithAnyRegisterLayout) {
     acc[1] = ir.new_vec(f32);
     ir.vload(acc[1], a_ptr, vlen, f32);
 
-    ir.inject_postops(acc, c_ptr, {0, vlen});
+    ir.inject_postops(acc, c_ptr, {0, vlen}, /*n_elems=*/simd_w());
     for (int r = 0; r < 2; r++)
         ir.vstore(c_ptr, r * vlen, acc[r], f32);
     for (int i = 0; i < n_live; i++)
@@ -1571,6 +1570,79 @@ TEST(IntegrationTests, InjectPostopsWorksWithAnyRegisterLayout) {
     }
     EXPECT_FALSE(full.spilled());
     EXPECT_TRUE(spilling.spilled());
+}
+
+// Validates that one kernel applies post-ops to both full and tail vectors, as a
+// kernel with a tail along the vector dimension does. The destination row holds
+// one full vector and a tail of 3 elements, and each goes through its own
+// `inject_postops` operation. The chain adds a per-element right-hand side and
+// then sums the previous destination value, so both post-ops read relative to
+// the output. The full operation has to read every element and the tail
+// operation only the tail, which one tail decision for the whole kernel cannot
+// do.
+TEST(IntegrationTests, InjectPostopsMixesFullAndTailVectors) {
+    SKIP_IF_NO_AVX2();
+
+    const int tail = 3;
+    const int n = simd_w() + tail;
+    const dim_t vlen = simd_w() * (dim_t)sizeof(float);
+    const auto f32 = data_type::f32;
+
+    ir_t ir;
+    const vreg_t a_ptr = ir.new_gpr();
+    ir.load_param(a_ptr, offsetof(binary_args_t, a));
+    const vreg_t c_ptr = ir.new_gpr();
+    ir.load_param(c_ptr, offsetof(binary_args_t, c));
+    const vreg_t mask = ir.new_mask();
+    ir.set_mask_imm(mask, tail);
+
+    const vreg_t full = ir.new_vec(f32);
+    ir.vload(full, a_ptr, 0, f32);
+    const vreg_t part = ir.new_vec(f32);
+    ir.vload_masked(part, a_ptr, vlen, mask, f32);
+
+    ir.inject_postops({full}, c_ptr, std::vector<dim_t> {0}, simd_w());
+    ir.inject_postops({part}, c_ptr, std::vector<dim_t> {vlen}, tail);
+
+    ir.vstore(c_ptr, 0, full, f32);
+    ir.vstore_masked(c_ptr, vlen, part, mask, f32);
+
+    using dt = dnnl::memory::data_type;
+    using tag = dnnl::memory::format_tag;
+    const dnnl::memory::desc dst_desc({1, n}, dt::f32, tag::ab);
+    dnnl::post_ops po;
+    po.append_binary(dnnl::algorithm::binary_add, dst_desc);
+    po.append_sum();
+
+    ir_kernel_t kernel(ir);
+    ir_kernel_t::postops_cfg_t cfg;
+    cfg.post_ops = po.get();
+    cfg.dst_md = dst_desc.get();
+    cfg.rhs_arg_offset = offsetof(binary_args_t, binary_rhs);
+    cfg.dst_orig_offset = offsetof(binary_args_t, dst_orig);
+    kernel.set_postops(cfg);
+    ASSERT_TRUE(kernel.run_ir_pipeline());
+
+    // The destination is padded to two vectors. The elements past `n` must keep
+    // their sentinel value.
+    const float sentinel = -1.f;
+    std::vector<float> a(2 * simd_w(), 0.f), rhs(n);
+    std::vector<float> c(2 * simd_w(), sentinel);
+    for (int i = 0; i < n; i++) {
+        a[i] = (float)(i % 5) - 2.f;
+        rhs[i] = (float)(10 * (i + 1));
+        c[i] = (float)(i % 3);
+    }
+    const std::vector<float> prev = c;
+
+    const void *rhs_ptrs[1] = {rhs.data()};
+    binary_args_t args {a.data(), nullptr, c.data(), rhs_ptrs, c.data()};
+    kernel.run(&args);
+
+    for (int i = 0; i < n; i++)
+        EXPECT_EQ(c[i], a[i] + rhs[i] + prev[i]) << "element " << i;
+    for (int i = n; i < 2 * simd_w(); i++)
+        EXPECT_EQ(c[i], sentinel) << "element " << i;
 }
 
 // Debug output tests

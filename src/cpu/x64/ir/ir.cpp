@@ -226,11 +226,13 @@ void ir_t::prefetch(vreg_t base, dim_t disp) {
 }
 
 void ir_t::inject_postops(const std::vector<vreg_t> &acc, vreg_t base_ptr,
-        const std::vector<dim_t> &out_byte_off) {
+        const std::vector<dim_t> &out_byte_off, int n_elems) {
+    assert(n_elems > 0 && "inject_postops: no valid elements");
     inject_postops_args_t args;
     args.acc = acc;
     args.base_ptr = base_ptr;
     args.out_byte_off = out_byte_off;
+    args.n_elems = n_elems;
     inject_postops_args_.push_back(args);
 
     op_t op;

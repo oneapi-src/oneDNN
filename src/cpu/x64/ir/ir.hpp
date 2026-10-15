@@ -237,18 +237,21 @@ struct vreg_info_t {
 //                  parallel to `acc`. Locates each accumulator in the
 //                  destination tensor so binary post-ops address the matching
 //                  right-hand-side slice
+//   n_elems      - number of leading elements of each accumulator that hold
+//                  output values: 1 for a scalar, the vector width for a full
+//                  register, or anything in between for a partial one. Loads
+//                  and stores relative to the output touch only these
 //
-// `base_ptr` and `out_byte_off` are unused by an eltwise-only chain.
+// `base_ptr`, `out_byte_off` and `n_elems` are unused by an eltwise-only chain.
 //
-// How many elements of an accumulator are active is not recorded here. That is
-// a detail of hooking the Xbyak injector up to the IR, not of the IR itself.
-// The count is fixed for a kernel, so the lowering takes it once instead (see
-// `postops_injector_t`), and the register that carries the pattern is
-// ISA-specific. Neither belongs in a target-neutral IR.
+// The operation carries the count itself, so it is complete without any other
+// state. One kernel can apply post-ops to full and partial accumulators through
+// separate operations.
 struct inject_postops_args_t {
     std::vector<vreg_t> acc;
     vreg_t base_ptr = vreg_t::none;
     std::vector<dim_t> out_byte_off;
+    int n_elems = 0;
 };
 
 // An `ir_t` is the operation list plus, for each virtual register, its info
@@ -332,10 +335,10 @@ struct DNNL_API ir_t {
 
     // post-ops
     // Apply post-ops to `acc` in place. `base_ptr` and `out_byte_off` describe
-    // where each accumulator lands in the output (see
-    // `inject_postops_args_t`).
+    // where each accumulator lands in the output, and `n_elems` how many of its
+    // leading elements are valid (see `inject_postops_args_t`).
     void inject_postops(const std::vector<vreg_t> &acc, vreg_t base_ptr,
-            const std::vector<dim_t> &out_byte_off);
+            const std::vector<dim_t> &out_byte_off, int n_elems);
 
     // control flow
     // Pass the returned op index to `loop_end` to close the loop.

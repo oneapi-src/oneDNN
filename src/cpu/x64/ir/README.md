@@ -93,8 +93,11 @@ step. They are omitted above for clarity.
   operation itself carries only that index. The table also holds each
   accumulator's output offset, which a binary post-op needs to address its
   right-hand-side argument and a sum post-op needs to read the previous
-  destination value. The injector saves and restores its own registers and does
-  not participate in IR allocation.
+  destination value, and how many leading elements of each accumulator are
+  valid (`n_elems`), from a single scalar to a full vector. One kernel can mix
+  full and partial operations, but the Xbyak injector takes the partial count
+  once, so all partial operations in a kernel must agree. The injector saves and
+  restores its own registers and does not participate in IR allocation.
 
 ### Control and Data Flow
 

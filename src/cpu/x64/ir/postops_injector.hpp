@@ -59,6 +59,7 @@
 
 #include "common/c_types_map.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/ir/ir.hpp"
 #include "cpu/x64/jit_generator.hpp"
 
 namespace dnnl {
@@ -83,15 +84,16 @@ struct postops_injector_t {
     //                      destination origin pointer, used to turn an
     //                      accumulator address into its position in the
     //                      destination tensor
-    // tail_elems         - right-hand-side elements a partial (tail) load
-    //                      reads. 0 means every accumulator holds a full vector
+    // ir                 - kernel IR. The `n_elems` of its `inject_postops`
+    //                      operations give the tail count. The injector
+    //                      supports one partial count per kernel
     // eltwise_opmask     - AVX-512 opmask the eltwise injector uses as scratch
-    // binary_tail_opmask - AVX-512 opmask holding the `tail_elems` pattern for
-    //                      the binary injector
+    // binary_tail_opmask - AVX-512 opmask holding the tail pattern for the
+    //                      binary injector
     DNNL_API postops_injector_t(jit_generator_t &gen, cpu_isa_t isa,
             const post_ops_t &post_ops, const memory_desc_t &dst_md,
             const Xbyak::Reg64 &param_reg, int rhs_arg_offset,
-            dim_t dst_orig_off, int tail_elems, int eltwise_opmask,
+            dim_t dst_orig_off, const ir_t &ir, int eltwise_opmask,
             int binary_tail_opmask);
 
     postops_injector_t(const postops_injector_t &) = delete;
@@ -107,8 +109,10 @@ struct postops_injector_t {
     // `out_byte_off` give each accumulator's output address: binary reaches its
     // right-hand-side argument through it, sum reads the previous destination
     // value from it. `base_phys` is -1 for a chain that needs neither.
+    // `n_elems` is the number of valid leading elements in each accumulator.
+    // Fewer than a full vector makes those accesses stop at `n_elems`.
     void DNNL_API inject(const std::vector<int> &acc_phys, int base_phys,
-            const std::vector<dim_t> &out_byte_off);
+            const std::vector<dim_t> &out_byte_off, int n_elems);
 
     // Emit the post-ops constant table. Call once, after the postamble. Only
     // eltwise and sum post-ops have a table, so this is a no-op without one.
@@ -127,7 +131,10 @@ private:
     // and prelu to reach their right-hand-side argument, sum to read the
     // previous destination value.
     bool needs_rhs_args_ = false;
-    // Number of right-hand-side elements a tail load reads.
+    // Number of f32 elements in a full accumulator.
+    int vlen_elems_ = 0;
+    // Number of valid elements in a partial accumulator. 0 if the kernel has
+    // none.
     int tail_elems_ = 0;
     // AVX-512 opmask holding the `tail_elems_` pattern, written by `init()`.
     int binary_tail_opmask_ = -1;

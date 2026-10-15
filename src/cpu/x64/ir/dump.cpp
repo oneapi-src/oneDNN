@@ -188,7 +188,7 @@ std::string mem_str(const ir_t &ir, const op_t &op, vreg_t data, cpu_isa_t isa,
 
 // Returns the operands of an `inject_postops` op from its side-table entry:
 // the accumulators, then `base=` unless the base pointer is `none`, then
-// `off=` unless the offsets are empty.
+// `off=` unless the offsets are empty, then `n_elems=`.
 std::string postops_str(const ir_t &ir, const op_t &op, cpu_isa_t isa,
         const reg_alloc_result_t &alloc, const std::vector<temp_reg_t> *temps) {
     const auto &table = ir.inject_postops_args();
@@ -214,6 +214,8 @@ std::string postops_str(const ir_t &ir, const op_t &op, cpu_isa_t isa,
         }
         s += "]";
     }
+
+    s += ", n_elems=" + std::to_string(args.n_elems);
 
     return s;
 }
