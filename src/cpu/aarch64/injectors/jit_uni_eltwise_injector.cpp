@@ -124,9 +124,9 @@ void jit_uni_eltwise_injector_t<isa>::injector_preamble(
             for (size_t i = 0; i < preserved_vecs_count; ++i)
                 store_preserved_vec(i, preserved_vec_idxs[i]);
         }
-        load_table_addr();
     }
 
+    load_table_addr();
     assign_regs();
     set_coef_to_regs();
 }
