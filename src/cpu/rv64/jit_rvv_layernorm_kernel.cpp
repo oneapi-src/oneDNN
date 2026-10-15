@@ -757,6 +757,130 @@ void jit_rvv_layernorm_f16_fused_kernel_t::generate() {
 
 #undef GET_F16_OFF
 
+jit_rvv_layernorm_bwd_kernel_t::jit_rvv_layernorm_bwd_kernel_t(
+        bool scale, bool stats, bool weights)
+    : jit_generator_t("jit_rvv_layernorm_bwd_kernel")
+    , scale_(scale)
+    , stats_(stats)
+    , weights_(weights) {
+    status_ = create_kernel();
+}
+
+void jit_rvv_layernorm_bwd_kernel_t::generate() {
+#if defined(XBYAK_RISCV_V) && XBYAK_RISCV_V == 1
+    const Reg src = a1, dd = a2, ds = a3, gamma = a4;
+    const Reg dg = a5, db = a6, len = a7;
+    const Reg vl = t0, bytes = t1;
+    const FReg mean = ft0, inv = ft1, channels = ft2;
+    const FReg sum = ft3, sum_x = ft4, zero = ft5;
+    const VReg x(0), dy(1), u(2), tmp(3), acc(4), g(5);
+    const VReg v_sum(8), v_sum_x(9), reduction(10);
+#define BWD_OFF(field) static_cast<int32_t>(offsetof(call_params_t, field))
+    auto load_row = [&]() {
+        ld(src, a0, BWD_OFF(src));
+        ld(dd, a0, BWD_OFF(diff_dst));
+        ld(len, a0, BWD_OFF(len));
+        if (scale_) ld(gamma, a0, BWD_OFF(scale));
+    };
+    flw(mean, a0, BWD_OFF(mean));
+    flw(inv, a0, BWD_OFF(inv_std));
+    flw(channels, a0, BWD_OFF(channels));
+    fmv_w_x(zero, x0);
+    if (stats_ || weights_) {
+        load_row();
+        if (weights_) {
+            ld(dg, a0, BWD_OFF(diff_scale));
+            ld(db, a0, BWD_OFF(diff_shift));
+        }
+        // Initialize all lanes, preserving inactive accumulator lanes in
+        // the final partial vector before reducing at VLMAX.
+        if (stats_) {
+            vsetvli(vl, x0, SEW::e32, LMUL::m1, VTA::tu, VMA::ma);
+            vmv_v_i(v_sum, 0);
+            vmv_v_i(v_sum_x, 0);
+        }
+        Label reduce_loop;
+        L(reduce_loop);
+        vsetvli(vl, len, SEW::e32, LMUL::m1, VTA::tu, VMA::ma);
+        vle32_v(x, src);
+        vle32_v(dy, dd);
+        vfsub_vf(x, x, mean);
+        if (weights_) {
+            vfmul_vv(tmp, x, dy);
+            vfmul_vf(tmp, tmp, inv);
+            vle32_v(acc, dg);
+            vfadd_vv(acc, acc, tmp);
+            vse32_v(acc, dg);
+            vle32_v(acc, db);
+            vfadd_vv(acc, acc, dy);
+            vse32_v(acc, db);
+        }
+        if (stats_) {
+            if (scale_) {
+                vle32_v(g, gamma);
+                vfmul_vv(u, dy, g);
+            } else {
+                vmv_v_v(u, dy);
+            }
+            vfadd_vv(v_sum, v_sum, u);
+            vfmul_vv(tmp, u, x);
+            vfadd_vv(v_sum_x, v_sum_x, tmp);
+        }
+        slli(bytes, vl, 2);
+        add(src, src, bytes);
+        add(dd, dd, bytes);
+        if (scale_ && stats_) add(gamma, gamma, bytes);
+        if (weights_) {
+            add(dg, dg, bytes);
+            add(db, db, bytes);
+        }
+        sub(len, len, vl);
+        bnez(len, reduce_loop);
+        if (stats_) {
+            vsetvli(vl, x0, SEW::e32, LMUL::m1, VTA::ta, VMA::ma);
+            vfmv_s_f(reduction, zero);
+            vfredusum_vs(reduction, v_sum, reduction);
+            vfmv_f_s(sum, reduction);
+            vfmv_s_f(reduction, zero);
+            vfredusum_vs(reduction, v_sum_x, reduction);
+            vfmv_f_s(sum_x, reduction);
+            fdiv_s(sum, sum, channels);
+            fmul_s(sum_x, sum_x, inv);
+        }
+    }
+    load_row();
+    ld(ds, a0, BWD_OFF(diff_src));
+    Label apply_loop;
+    L(apply_loop);
+    vsetvli(vl, len, SEW::e32, LMUL::m1, VTA::ta, VMA::ma);
+    vle32_v(dy, dd);
+    if (scale_) {
+        vle32_v(g, gamma);
+        vfmul_vv(dy, dy, g);
+    }
+    if (stats_) {
+        vle32_v(x, src);
+        vfsub_vf(x, x, mean);
+        vfmul_vf(x, x, sum_x);
+        vfmul_vf(x, x, inv);
+        vfdiv_vf(x, x, channels);
+        vfsub_vf(dy, dy, sum);
+        vfsub_vv(dy, dy, x);
+    }
+    vfmul_vf(dy, dy, inv);
+    vse32_v(dy, ds);
+    slli(bytes, vl, 2);
+    add(src, src, bytes);
+    add(dd, dd, bytes);
+    add(ds, ds, bytes);
+    if (scale_) add(gamma, gamma, bytes);
+    sub(len, len, vl);
+    bnez(len, apply_loop);
+#undef BWD_OFF
+#endif
+    ret();
+}
+
 } // namespace rv64
 } // namespace cpu
 } // namespace impl

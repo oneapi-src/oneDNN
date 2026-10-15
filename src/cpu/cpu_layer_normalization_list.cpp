@@ -28,7 +28,6 @@ using namespace dnnl::impl::cpu::x64;
 using namespace dnnl::impl::cpu::aarch64;
 #elif DNNL_RV64
 #include "cpu/rv64/rvv_layer_normalization.hpp"
-#include "cpu/rv64/rvv_layer_normalization_bwd.hpp"
 using namespace dnnl::impl::cpu::rv64;
 #endif
 

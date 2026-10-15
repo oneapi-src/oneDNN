@@ -112,6 +112,32 @@ private:
     const bool use_widening_sum_;
 };
 
+struct jit_rvv_layernorm_bwd_kernel_t : public jit_generator_t {
+    struct call_params_t {
+        const float *src;
+        const float *diff_dst;
+        float *diff_src;
+        const float *scale;
+        float *diff_scale;
+        float *diff_shift;
+        dim_t len;
+        float mean;
+        float inv_std;
+        float channels;
+    };
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_rvv_layernorm_bwd_kernel_t)
+    jit_rvv_layernorm_bwd_kernel_t(bool scale, bool stats, bool weights);
+    status_t status() const { return status_; }
+    void operator()(const call_params_t *p) const {
+        jit_generator_t::operator()(p);
+    }
+
+private:
+    bool scale_, stats_, weights_;
+    status_t status_ = status::runtime_error;
+    void generate() override;
+};
+
 } // namespace rv64
 } // namespace cpu
 } // namespace impl
