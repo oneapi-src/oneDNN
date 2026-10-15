@@ -109,7 +109,8 @@ CacheSettingsLSC getCaching(char l1, char l3)
     }
 }
 
-CacheSettingsLSC getCaching(char l1, char l2, char l3) {
+CacheSettingsLSC getCaching(char l1, char l2, char l3)
+{
     if (l3 == 'u' || l3 == 'i') return getCaching(l1, l2);
 
     if (l3 == 'c' || l3 == 'b') {

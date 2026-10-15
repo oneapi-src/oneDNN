@@ -93,7 +93,9 @@ public:
     constexpr bool isSubByteInt()     const { return isSubByte() && isInteger(); };
     constexpr bool isInt8()           const { return (val == Type::u8)  || (val == Type::s8);  }
     constexpr bool isInt16()          const { return (val == Type::u16) || (val == Type::s16); }
-    constexpr bool isF8()             const { return (val == Type::bf8) || (val == Type::hf8) || (val == Type::f8_e8m0); }
+    constexpr bool isF8()             const {
+        return (val == Type::bf8) || (val == Type::hf8) || (val == Type::f8_e8m0);
+    }
     constexpr bool isF4()             const { return bits() == 4 && isFP(); }
     constexpr bool isSigned()         const { return (uint32_t(val) & 0x3) != 0x0; }
     constexpr int blockSize()         const { return (uint32_t(val) >> 12) & 0xF; }

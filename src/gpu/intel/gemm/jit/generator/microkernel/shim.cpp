@@ -25,7 +25,6 @@
 #include <stdexcept>
 #include <unordered_set>
 
-
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
 

@@ -111,7 +111,6 @@ bool Generator<hw>::gemmMake2DQuantizationLayouts(bool isA, const GEMMProblem &p
 
     // K-elements processed per BDPAS pass.
     int bBlockK = state.useBDPAS ? bdpasBlockK(problem) : 0;
-
     if (isA) {
         bool slmA = strategy.slmA;
         rNoSLM = strategy.unroll[LoopM];

@@ -383,8 +383,7 @@ struct GEMMStrategy : public GEMMStrategyPOD
             return WGFixed;
         if (forceWGUpdate == WGShrinkable)
             return WGShrinkable;
-        else
-            return WGDynamic;
+        return WGDynamic;
     }
 
     bool fixedWG(const GEMMProblem &problem) const { return (getWGType(problem) == WGFixed); }

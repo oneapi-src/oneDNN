@@ -235,7 +235,6 @@ struct GEMMProblem : public CommonProblem {
     }
     bool binaryPostProcess() const { return postOps.cStochasticRound || hasCScale(); }
 
-
     bool beta0() const   { return (beta  ==  0); }
     bool beta1() const   { return (beta  ==  1); }
     bool alpha1() const  { return (alpha ==  1); }
@@ -384,8 +383,7 @@ void GEMMProblem::autoTypeConversions(bool systolicAvailable)
 
     if (Ta == Ta_ext.asSigned()) Ta = Ta_ext;
     if (Tb == Tb_ext.asSigned()) Tb = Tb_ext;
-    if (hw < HW::Xe3p || !systolicAvailable)
-    {
+    if (hw < HW::Xe3p || !systolicAvailable) {
         if (Ta.isF8()) Ta = Type::f16;
         if (Tb.isF8()) Tb = Type::f16;
     }

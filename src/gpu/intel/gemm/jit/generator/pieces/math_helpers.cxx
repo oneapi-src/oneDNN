@@ -101,9 +101,9 @@ void Generator<hw>::mulConstant(const InstructionModifier &mod, const RegData &d
         if (dst != src0) mov<DT>(mod, dst, src0);
     } else if (src1 == -1)
         mov<DT>(mod, dst, -src0);
-    else if (is_zero_or_pow2(src1))
+    else if (is_zero_or_pow2(src1)) {
         shl<DT>(mod, dst, src0, uint16_t(ilog2(src1)));
-    else if (src1 >= 0x10000)
+    } else if (src1 >= 0x10000)
         mul<DT>(mod, dst, src0, uint32_t(src1));
     else if (src1 < -0x8000)
         mul<DT>(mod, dst, src0, int32_t(src1));
@@ -185,8 +185,8 @@ void Generator<hw>::divDown(const ngen::Subregister &dst, const ngen::Subregiste
 }
 
 // Divide an unsigned value by a constant, rounding up.
-// Default algorithm: dst = (src / divisor) + (src % divisor > 0) 
-// Relax algorithm (can overflow): dst = (src + divisor - 1) / divisor 
+// Default algorithm: dst = (src / divisor) + (src % divisor > 0)
+// Relax algorithm (can overflow): dst = (src + divisor - 1) / divisor
 template <HW hw>
 template <typename DT>
 void Generator<hw>::divUp(const Subregister &dst, const Subregister &src, uint32_t divisor, const CommonStrategy &strategy, CommonState &state, bool relax)

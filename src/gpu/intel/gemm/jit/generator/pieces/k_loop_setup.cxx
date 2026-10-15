@@ -396,7 +396,6 @@ void Generator<hw>::kLoopTeardown(const GEMMProblem &problem, const GEMMStrategy
     gemmTeardownL3Prefetch(problem, strategy, state);
 }
 
-
 // Prepare for GEMM k loop with m/n masked A/B accesses. Returns true if ka_lda/kb_ldb need recalculating.
 template <HW hw>
 bool Generator<hw>::gemmPrepMaskedAB(const GEMMProblem &problem, GEMMStrategy &strategy, GEMMState &state)
@@ -453,7 +452,6 @@ bool Generator<hw>::gemmPrepMaskedAB(const GEMMProblem &problem, GEMMStrategy &s
     return recalc;
 }
 
-
 // Calculate kSLMA/kSLMB -- countdown variables for SLM copies.
 template <HW hw>
 void Generator<hw>::gemmCalcKSLM(const Subregister &kSLM, const Subregister &lid, int kgran, int kdiv, int krep,
@@ -461,9 +459,9 @@ void Generator<hw>::gemmCalcKSLM(const Subregister &kSLM, const Subregister &lid
 {
     if (kBase.isInvalid()) kBase = state.K;
 
-    if (kdiv == 1)
+    if (kdiv == 1) {
         mov(1, kSLM, kBase);
-    else {
+    } else {
         auto modLID = lid;
         if (krep > 1) {
             if (!is_zero_or_pow2(krep)) stub();

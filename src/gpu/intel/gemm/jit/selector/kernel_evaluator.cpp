@@ -319,7 +319,7 @@ double evaluateECore(const kcatalog::Entry &e, const DerivedEvaluateParams &dp, 
     auto xChunk = 64 / gcd(ldc, 64);
     auto xUnroll = e.driverInfo.unroll[isColMajor(cLayout) ? LoopM : LoopN];
     auto minCacheLinesPerXDim = div_up(xUnroll * Tc, 64);  // Assuming starting aligned to cache line
-    auto avgCacheLinesPerXDim = minCacheLinesPerXDim + float(xChunk-1) / xChunk;     // 1 row/col per chunk is aligned, other (xChunk-1) have an extra cache line load 
+    auto avgCacheLinesPerXDim = minCacheLinesPerXDim + float(xChunk-1) / xChunk;     // 1 row/col per chunk is aligned, other (xChunk-1) have an extra cache line load
     float cacheLineEffect = avgCacheLinesPerXDim / minCacheLinesPerXDim;
 
     double ctime = C0 + npartial * C1 + Mc * m * n * batch * cacheLineEffect;
