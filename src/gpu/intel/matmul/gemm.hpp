@@ -54,6 +54,8 @@ struct gemm_t : public primitive_t {
             gemm_attr.zero_points_ = attr()->zero_points_;
             gemm_attr.post_ops_ = attr()->post_ops_;
             gemm_attr.dropout_ = attr()->dropout_;
+            if (attr()->gpu_attr_)
+                gemm_attr.gpu_attr_ = attr()->gpu_attr_->clone();
 
             auto a_md = src_md(), b_md = weights_md(), c_md = dst_md(),
                  bias_md = weights_md(1);
