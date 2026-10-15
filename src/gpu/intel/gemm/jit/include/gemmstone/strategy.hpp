@@ -158,6 +158,8 @@ struct CommonStrategy {
     bool multitile = true;                      // Enable multitile (implicit scaling) support?
     bool wgInSS = false;                        // Pretend to use barriers so that each WG belongs to 1 SS/DSS.
     bool finalFence = false;                    // Issue global memory fence before EOT.
+    bool chainPrefetches = false;               // Chain prefetches in {Atomic} sequences to reuse tokens?
+                                    ZPAD(A, 3)
     int pauseCycles = 0x0100;                   // Number of cycles to pause when waiting in a spin-loop.
     bool simulation = false;                    // For use in simulator?
     bool systolicAvailable = false;             // True if systolic array present.
@@ -169,7 +171,7 @@ struct CommonStrategy {
     int activeThreads = 0;                      // # of active threads (0 = dynamic).
 
     ngen::EmulationStrategy emulate;
-                                    ZPAD(B, 2)
+                                    ZPAD(C, 2)
 
     CommonStrategy() = default;
     CommonStrategy(ngen::HW hw, int stepping = 0);

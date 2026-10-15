@@ -450,6 +450,7 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         {"st", [](ParserContext& ctx) { ctx.strategy.stallAfterLoad = true; }},
         {"dm", [](ParserContext& ctx) { ctx.strategy.doubleMasking = true; }},
         {"kd", [](ParserContext& ctx) { ctx.strategy.kDescRem = true; }},
+        {"cp", [](ParserContext& ctx) { ctx.strategy.chainPrefetches = true; }},
         {"dsl", [](ParserContext& ctx) { ctx.strategy.isDSLGenerator = true; }},
 
         /* SLM Settings */
@@ -1006,6 +1007,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.strictFence)               s << " sf";
     if (strategy.slmATrans)                 s << " ta";
     if (strategy.slmBTrans)                 s << " tb";
+    if (strategy.chainPrefetches)           s << " cp";
     if (!strategy.altCRemainder)            s << " sr";
     else if (!strategy.block2DCRemainder)   s << " ar";
     if (strategy.block2DCFull)              s << " bf";
