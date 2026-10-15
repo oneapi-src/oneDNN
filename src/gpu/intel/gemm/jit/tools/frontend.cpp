@@ -241,7 +241,6 @@ static inline const char *precision_str(Type T) {
         case Type::f64:  return "f64";
         case Type::u8:   return "u8";
         case Type::s8:   return "s8";
-        case Type::u16:  return "u16";
         case Type::s16:  return "s16";
         case Type::u32:  return "u32";
         case Type::s32:  return "s32";

@@ -81,7 +81,7 @@ endif()
 
 # Copy planner test target
 add_executable(test_copy_planner test_copy_planner.cpp)
-target_link_libraries(test_copy_planner generator gemmstone_dsl generator_dsl)
+target_link_libraries(test_copy_planner generator)
 
 add_subdirectory(benchstone)
 
