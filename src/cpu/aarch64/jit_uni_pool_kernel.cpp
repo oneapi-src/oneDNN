@@ -481,11 +481,8 @@ bool jit_uni_pool_kernel_t<isa>::post_ops_ok(jit_pool_conf_t &jpp,
         const primitive_attr_t &attr, const memory_desc_wrapper &dst_d) {
     const auto &post_ops = attr.post_ops_;
 
-    std::vector<injector::post_op_type> accepted_post_op_types {
-            injector::eltwise, injector::binary};
-
-    injector::post_ops_ok_args_t ok_args(isa, accepted_post_op_types, post_ops,
-            &dst_d,
+    injector::post_ops_ok_args_t ok_args(isa,
+            {injector::eltwise, injector::binary}, post_ops, &dst_d,
             /*sum_at_pos_0_only=*/true, /*sum_requires_scale_one=*/true, true,
             true, get_supported_bcast_strategies());
 
