@@ -614,20 +614,7 @@ void CopyPlan::copyThrough(CopyInstruction &i, DataType type, int stride, bool s
         // No space for in-place conversion -- create temporary.
         if (stride == 0)
             stride = std::max(1, ssize * sstride / isize);
-        int offset = 0;
-        auto tryOffset = [&](const CopyOperand &op) {
-            const auto osize = getBits(op.type);
-            if (osize * op.stride == isize * stride) {
-                auto bo = osize * op.offset;
-                if (bo < (GRF::bytes(hw) << 3) - stride * isize * (i.simd - 1))
-                    offset = bo / isize;
-            }
-        };
-        if (isize <= dsize) tryOffset(i1.dst);
-        if (isize <= ssize) tryOffset(i0.src0);
-        if (type == DataType::hf)
-            offset &= ~1;
-        i0.dst = newTemp(type, i.simd, stride, 0, offset);
+        i0.dst = newTemp(type, i.simd, stride);
         i1.src0 = i0.dst;
         i1.src0.overwriteStride = true;
 
