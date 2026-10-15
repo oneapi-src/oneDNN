@@ -646,8 +646,8 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         astrategy.newDP = strategy.C.newDP;
     }
 
-    bool surfaceAq = ((problem.quantized2DA() || problem.needsAGroupSums()) && !strategy.A.base.isStateless());
-    bool surfaceBq = ((problem.quantized2DB() || problem.needsBGroupSums()) && !strategy.B.base.isStateless());
+    bool surfaceAq = ((problem.quantized2DA() || problem.needsSeparateASums()) && !strategy.A.base.isStateless());
+    bool surfaceBq = ((problem.quantized2DB() || problem.needsSeparateBSums()) && !strategy.B.base.isStateless());
 
     bool surfaceAO = surfaceAq && problem.aOffset2D();
     bool surfaceBO = surfaceBq && problem.bOffset2D();
