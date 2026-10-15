@@ -150,15 +150,16 @@ public:
         uint32_t index = (uint32_t(val) >> 20) & 0xFF;
         using DT = ngen::DataType;
         auto none = DT::invalid;
+        auto dt7 = none, dt28 = none, dt31 = none;
         static const DT table[64] = {
             DT::hf,      DT::f,       DT::df,      none,
-            DT::e2m1,    DT::e3m0 ,   ngen_nf4(),  none,
+            DT::e2m1,    DT::e3m0 ,   ngen_nf4(),  dt7,
             ngen_e8m0(), none,        none,        none,
             DT::bf,      DT::tf32,    DT::bf8,     DT::hf8,
             DT::u2,      DT::s2,      DT::u4,      DT::s4,
             DT::ub,      DT::b,       DT::uw,      DT::w,
             DT::ud,      DT::d,       DT::uq,      DT::q,
-            none,        none,        none,        none,
+            dt28,        none,        none,        dt31,
             none,        none,        none,        none,
             none,        none,        none,        none,
             none,        none,        none,        none,

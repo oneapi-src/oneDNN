@@ -96,7 +96,7 @@ void Generator<hw>::adjustSubblockAddrs(const RegisterLayout &sublayout, const v
                 }
             }
             if (subaddr.isValid())
-                updateBlock2DSizes(subaddr[0], subblock, block, atype, astrategy.prefetch);
+                updateBlock2DSizes(GRF(subaddr[0].getBase()), subblock, block, atype, astrategy.prefetch);
         }
     }
 }
