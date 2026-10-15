@@ -17,6 +17,8 @@
 #ifndef GPU_INTEL_GEMM_JIT_GEN_KERNEL_HPP
 #define GPU_INTEL_GEMM_JIT_GEN_KERNEL_HPP
 
+#include <string>
+
 #include "common/c_types_map.hpp"
 #include "gemmstone/driver_info.hpp"
 #include "gemmstone/kernel_catalog.hpp"
@@ -121,6 +123,8 @@ protected:
     bool relaxed_acc_ = false;
 
     status_t finalize(const char *tags);
+    status_t apply_kernel_override(
+            const std::string &ovr_strategy, const char *tags);
     void update_driver_info();
 };
 

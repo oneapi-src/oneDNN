@@ -409,6 +409,8 @@ struct gen_t : public primitive_t {
                         break;
                     }
                 }
+                // Overrides do not depend on the entry.
+                if (!kernel_desc_.has_entry()) break;
             }
 
             VDISPATCH_GEMM(
