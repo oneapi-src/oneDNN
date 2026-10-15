@@ -311,6 +311,9 @@ struct GEMMProblem : public CommonProblem {
     bool needsAGroupSums() const { return (bOffset == ABOffset::Calc && quantized2DB() && !earlyDequantizableOffset(Tb_ext, Tbo, Tb)); }
     bool needsBGroupSums() const { return (aOffset == ABOffset::Calc && quantized2DA() && !earlyDequantizableOffset(Ta_ext, Tao, Ta)); }
 
+    bool needsSeparateASums() const { return needsAGroupSums() || (bOffset == ABOffset::Load && !isPacked(A.layout)); }
+    bool needsSeparateBSums() const { return needsBGroupSums() || (aOffset == ABOffset::Load && !isPacked(B.layout)); }
+
     bool usesCOPtr() const { return (hasCOffsetPtr() && cOffset != COffset::None) || sumA || sumB; }
     bool allowMatrixOffset() const { return (cOffset == COffset::Pre); }
 

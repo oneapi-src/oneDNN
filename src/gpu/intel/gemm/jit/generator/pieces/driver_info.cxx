@@ -80,8 +80,8 @@ CommonDriverInfo Generator<hw>::driverInfo(GEMMProblem problem, const GEMMStrate
     if (strategy.scramble[LoopM])                                 info.flags |= FlagScrambleM;
     if (strategy.scramble[LoopN])                                 info.flags |= FlagScrambleN;
     if (strategy.tlbWarmup)                                       info.flags |= FlagExtraWG;
-    if (problem.needsAGroupSums())                                info.flags |= FlagAGroupSums;
-    if (problem.needsBGroupSums())                                info.flags |= FlagBGroupSums;
+    if (problem.needsSeparateASums())                             info.flags |= FlagSeparateASums;
+    if (problem.needsSeparateBSums())                             info.flags |= FlagSeparateBSums;
     info.flags |= (strategy.fillGoal << FlagShiftFillGoal) & FlagMaskFillGoal;
     if (strategy.cInterleave)                                     info.flags |= FlagCInterleave;
     info.slm = int(gemmSLMSize(hw, problem, strategy));

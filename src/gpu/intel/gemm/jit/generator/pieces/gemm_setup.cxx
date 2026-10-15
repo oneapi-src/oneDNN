@@ -972,14 +972,14 @@ void Generator<hw>::gemmScaleInputs(const GEMMProblem &problem, const GEMMStrate
     if (problem.hasCMXScale()) {
         scale(problem.Tc_scale, inputs.ldcScale, ldcq);
     }
-    if (problem.needsAGroupSums()) {
+    if (problem.needsAGroupSums())
         scale(problem.Tag, inputs.ldag, ldaq);
-        scale(problem.Tag, inputs.offsetAg, inputs.offsetAq);
-    }
-    if (problem.needsBGroupSums()) {
+    if (problem.needsSeparateASums())
+        scale(problem.needsAGroupSums() ? problem.Tag : problem.Tc, inputs.offsetAg, inputs.offsetAq);
+    if (problem.needsBGroupSums())
         scale(problem.Tbg, inputs.ldbg, ldbq);
-        scale(problem.Tbg, inputs.offsetBg, inputs.offsetBq);
-    }
+    if (problem.needsSeparateBSums())
+        scale(problem.needsBGroupSums() ? problem.Tbg : problem.Tc, inputs.offsetBg, inputs.offsetBq);
 
     state.ldao = inputs.ldao;
     state.ldbo = inputs.ldbo;
@@ -2747,11 +2747,11 @@ void Generator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrategy &strate
         state.inputs.cScalePtr = interface.getArgumentIfExists("c_scale_ptr");
         state.inputs.surfaceCScale = interface.getArgumentSurfaceIfExists("c_scale_ptr");
     }
-    if (problem.needsAGroupSums()) {
+    if (problem.needsSeparateASums()) {
         state.inputs.agPtr = interface.getArgumentIfExists("ag_ptr");
         state.inputs.surfaceAg = interface.getArgumentSurfaceIfExists("ag_ptr");
     }
-    if (problem.needsBGroupSums()) {
+    if (problem.needsSeparateBSums()) {
         state.inputs.bgPtr = interface.getArgumentIfExists("bg_ptr");
         state.inputs.surfaceBg = interface.getArgumentSurfaceIfExists("bg_ptr");
     }
@@ -2994,12 +2994,12 @@ void Generator<hw>::gemmInitInterface(GEMMProblem &problem, GEMMStrategy &strate
         state.ra.claim(state.inputs.cScalePtr);
     }
 
-    if (problem.needsAGroupSums()) {
+    if (problem.needsSeparateASums()) {
         state.ra.claim(state.inputs.agPtr);
         claimIfValid(state.inputs.offsetAg);
     }
 
-    if (problem.needsBGroupSums()) {
+    if (problem.needsSeparateBSums()) {
         state.ra.claim(state.inputs.bgPtr);
         claimIfValid(state.inputs.offsetBg);
     }

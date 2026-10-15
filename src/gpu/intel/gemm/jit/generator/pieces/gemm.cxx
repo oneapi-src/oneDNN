@@ -130,12 +130,12 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
         mov(1, s, 0);
     };
 
-    if (!strategy.AO.base.isStateless() && problem.aOffset2D())       replace0(state.inputs.aoPtr);
-    if (!strategy.BO.base.isStateless() && problem.bOffset2D())       replace0(state.inputs.boPtr);
-    if (!strategy.A_scale.base.isStateless() && problem.aScale2D())   replace0(state.inputs.aScalePtr);
-    if (!strategy.B_scale.base.isStateless() && problem.bScale2D())   replace0(state.inputs.bScalePtr);
-    if (!strategy.Ag.base.isStateless() && problem.needsAGroupSums()) replace0(state.inputs.agPtr);
-    if (!strategy.Bg.base.isStateless() && problem.needsBGroupSums()) replace0(state.inputs.bgPtr);
+    if (!strategy.AO.base.isStateless() && problem.aOffset2D())          replace0(state.inputs.aoPtr);
+    if (!strategy.BO.base.isStateless() && problem.bOffset2D())          replace0(state.inputs.boPtr);
+    if (!strategy.A_scale.base.isStateless() && problem.aScale2D())      replace0(state.inputs.aScalePtr);
+    if (!strategy.B_scale.base.isStateless() && problem.bScale2D())      replace0(state.inputs.bScalePtr);
+    if (!strategy.Ag.base.isStateless() && problem.needsSeparateASums()) replace0(state.inputs.agPtr);
+    if (!strategy.Bg.base.isStateless() && problem.needsSeparateBSums()) replace0(state.inputs.bgPtr);
 
     // Scale LDs/offsets.
     gemmScaleInputs(problem, strategy, state);
@@ -276,10 +276,10 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
     state.ra.safeRelease(state.inputs.offsetAScale);
     state.ra.safeRelease(state.inputs.offsetBScale);
 
-    // Group sum address handling.
-    if (problem.needsAGroupSums() && state.inputs.offsetAg.isValid())
+    // Sum address handling.
+    if (problem.needsSeparateASums() && state.inputs.offsetAg.isValid())
         eadd(1, state.inputs.agPtr, state.inputs.agPtr, state.inputs.offsetAg, strategy, state);
-    if (problem.needsBGroupSums() && state.inputs.offsetBg.isValid())
+    if (problem.needsSeparateBSums() && state.inputs.offsetBg.isValid())
         eadd(1, state.inputs.bgPtr, state.inputs.bgPtr, state.inputs.offsetBg, strategy, state);
 
     state.ra.safeRelease(state.inputs.offsetAg);
@@ -581,6 +581,16 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
         if (checkB) cmp(2 | ge | f1[1], state.j0, state.inputs.n);
         if (checkA) emov(1 | f0[1], state.offsetA, 0, strategy, state);
         if (checkB) emov(1 | f1[1], state.offsetB, 0, strategy, state);
+    }
+
+    // Compute addresses for separate A/B row/column sums.
+    if (problem.bOffset == ABOffset::Load && !isPacked(problem.A.layout)) {
+        state.effAs = state.ra.allocSub(state.inputs.agPtr.getType());
+        emad(1, state.effAs, state.inputs.agPtr, state.i0, Tc.size(), strategy, state);
+    }
+    if (problem.aOffset == ABOffset::Load && !isPacked(problem.B.layout)) {
+        state.effBs = state.ra.allocSub(state.inputs.bgPtr.getType());
+        emad(1, state.effBs, state.inputs.bgPtr, state.j0, Tc.size(), strategy, state);
     }
 
     gemmSetupABC(problem, strategy, state);
