@@ -530,9 +530,13 @@ format_tag_t brgemm_matmul_conf_utils_t::get_gemv_B_tag(
         // changing the default strategy could affect performance.
         return is_m1 ? transposed_tensor_layout_tag : plain_tensor_layout_tag;
     } else {
-        // Explicit B format can be either plain or transposed.
-        if (!memory_desc_matches_one_of_tag(B_md, plain_tensor_layout_tag,
-                    transposed_tensor_layout_tag))
+        // Explicit B format can be either plain or transposed. When B is the
+        // matrix operand (M == 1, N > 1), a padded leading dimension is
+        // supported too, as GEMV takes LDA and B offsets from the strides.
+        const bool B_is_matrix = is_m1 && bgmmc.N > 1;
+        if (!memory_desc_matches_one_of_tag(
+                    B_md, plain_tensor_layout_tag, transposed_tensor_layout_tag)
+                && !(B_is_matrix && gemm_based::check_gemm_input_format(B_md)))
             return format_tag::undef;
 
         // For N == 1, B is the vector operand and its tag does not drive
