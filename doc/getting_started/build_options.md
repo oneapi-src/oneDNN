@@ -390,15 +390,25 @@ kernels tuned for AMD (Zen) CPUs. It is an opt-in CPU backend that engages at
 runtime only on AMD CPUs. The option is `OFF` by default.
 
 ~~~sh
-$ cmake -DONEDNN_X64_USE_ZEN=ON -DZENDNNROOT=<path/to/zendnnl/install> ..
+$ cmake -DONEDNN_X64_USE_ZEN=ON ..
 ~~~
 
-The build links against a user-provided, prebuilt ZenDNN install rather than
-building ZenDNN from source. The install is located through the `ZENDNNROOT`
-CMake variable or an environment variable of the same name; oneDNN consumes
-ZenDNN's own `zendnnl-config.cmake` package config from that location. If
-`ZENDNNROOT` is not set, CMake searches the default package paths; if no
-ZenDNN install is found, configuration fails with an error.
+When enabled, oneDNN builds ZenDNN from source and links the resulting static
+archive (`zendnnl::zendnnl_archive`). The source tree is `third_party/ZenDNN`.
+If that directory does not already contain ZenDNN, and
+`ONEDNN_ZENDNN_FETCH=ON` (the default), CMake downloads it during
+configuration from `ONEDNN_ZENDNN_FETCH_URL` at `ONEDNN_ZENDNN_FETCH_TAG`.
+The default URL is `https://github.com/amd/ZenDNN.git`, and the default
+`ONEDNN_ZENDNN_FETCH_TAG` is a pinned commit hash. Configuration fails if 
+no source is available.
+
+ZenDNN is compiled as an external project through
+`fwk/ZenDnnlFwkIntegrate.cmake` when oneDNN itself is built. oneDNN forces
+`ZENDNNL_DEPENDS_ONEDNN=OFF` for that build so ZenDNN does not bundle its own
+oneDNN. The first build in a build directory also downloads ZenDNN's own
+dependencies (AOCL-DLP, AOCL-Utils, and nlohmann-json), so it needs network
+access even when the ZenDNN source is already in place. Later builds in the
+same build directory reuse them.
 
 When `ONEDNN_X64_USE_ZEN=ON`, the following additional requirements apply
 (they do not affect the default `OFF` build):
@@ -406,14 +416,10 @@ When `ONEDNN_X64_USE_ZEN=ON`, the following additional requirements apply
 * Requires CMake 3.26 or later.
 * Requires GCC 11.2 or later, or Clang 14 or later; other compilers are
   rejected.
-* Requires ZenDNN version 6.0.0 or later. Both static (archive) and shared
-  ZenDNN builds are supported.
+* Requires ZenDNN version 6.1.0 or later. The version is read from the
+  `project()` declaration in the ZenDNN `CMakeLists.txt`.
 * Requires `ONEDNN_CPU_RUNTIME=OMP`; ZenDNN only supports the OpenMP threading
   runtime, and other runtimes are rejected at configure time.
-
-Refer to the [ZenDNN repository](https://github.com/amd/ZenDNN) for
-instructions on building the ZenDNN binary (build it with
-`ZENDNNL_DEPENDS_ONEDNN=OFF` so ZenDNN does not pull in its own oneDNN).
 
 [ZenDNN]: https://github.com/amd/ZenDNN
 
