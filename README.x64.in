@@ -30,7 +30,7 @@ The library is optimized for the following GPUs:
   * Intel Data Center GPU Max Series (formerly Ponte Vecchio)
   * Intel Arc B-Series Graphics and Intel Arc Pro B-Series Graphics
    (formerly Battlemage)
-  * future discrete GPUs based on Xe3p-XPC architecture (code name Crescent Island)
+  * Intel GPU D-Series (formerly Crescent Island)
 * Intel Graphics integrated with:
   * Intel Graphics for Intel Core Ultra Series 1 processors (formerly Meteor Lake)
   * Intel Graphics for Intel Core Ultra Series 2 processors (formerly Arrow Lake and Lunar Lake)

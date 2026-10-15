@@ -228,7 +228,7 @@ have specialized optimizations in the library:
  * Xe3p-LPG
    * Intel Graphics for future Intel Core Ultra processors (code name Nova Lake P)
  * Xe3p-XPC
-   * future discrete GPUs based on Xe3p-XPC architecture (code name Crescent Island)
+   * Intel GPU D-Series (formerly Crescent Island)
 
 The following table indicates the data types support for each uArch supported by oneDNN.
 
