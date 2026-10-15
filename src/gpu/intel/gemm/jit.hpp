@@ -312,15 +312,21 @@ struct gen_t : public primitive_t {
                     alpha(), beta(), m, n, d->k(), lda, ldb, d->ldc(),
                     d->batch());
 
-            for (auto &entry : entries) {
+            for (size_t entry_idx = 0; entry_idx < entries.size();
+                    entry_idx++) {
+                auto *entry = entries[entry_idx];
+                int g = (int)(entry - jit::catalog().entries);
+                auto skip = [&](const char *why) {
+                    gpu_debug() << "[" << lpad(g, 4) << "] skip " << entry_idx
+                                << "/" << entries.size() << " " << entry->str()
+                                << "," << why;
+                };
                 kernel_desc_.set_entry(entry);
                 kernel_desc_.set_problem(problem);
                 auto status = kernel_desc_.finalize();
                 // select_kernel can return a strategy that failed in the finalize call
                 bool valid = status == status::success;
-                if (!valid)
-                    gpu_debug() << "skipping:" << entry->str()
-                                << ",Strategy finalization failed.";
+                if (!valid) skip("Strategy finalization failed.");
                 // Global k-parallel kernels don't support post-ops or non-f32/s32
                 //   accumulation unless fusion is enabled.
                 if (kernel_desc_.driver_info()->kParallel()
@@ -328,9 +334,7 @@ struct gen_t : public primitive_t {
                     bool po_valid = !non_scale_po_
                             && !(with_sum_ && with_c_scales())
                             && utils::one_of(d->c_type(), f32, s32);
-                    if (!po_valid)
-                        gpu_debug() << "skipping:" << entry->str()
-                                    << ",Invalid post op.";
+                    if (!po_valid) skip("Invalid post op.");
                     valid &= po_valid;
                 }
                 // An in-place binary post-op reads C as its right-hand side,
@@ -341,9 +345,7 @@ struct gen_t : public primitive_t {
                 if (post_ops_.has_inplace_binary()) {
                     bool c_intact = !kernel_desc_.driver_info()->kParallel()
                             && !kernel_desc_.driver_info()->kParallelVariable();
-                    if (!c_intact)
-                        gpu_debug() << "skipping:" << entry->str()
-                                    << ",In-place post op over k-parallel C.";
+                    if (!c_intact) skip("In-place post op over k-parallel C.");
                     valid &= c_intact;
                 }
                 // Limited post-op support for low-precision accumulation.
@@ -351,18 +353,14 @@ struct gen_t : public primitive_t {
                     bool need_x32_acc = with_binary
                             || !IMPLICATION(with_sum_, sum_at_begin_);
                     valid &= !need_x32_acc;
-                    if (need_x32_acc)
-                        gpu_debug() << "skipping:" << entry->str()
-                                    << ",Invalid post op.";
+                    if (need_x32_acc) skip("Invalid post op.");
                 }
                 // Ensure kernel can be run deterministically if required.
                 if (attr()->deterministic_) {
                     bool deterministic
                             = !kernel_desc_.driver_info()->nondeterministic();
                     valid &= deterministic;
-                    if (!deterministic)
-                        gpu_debug() << "skipping:" << entry->str()
-                                    << ",Non deterministic kernel.";
+                    if (!deterministic) skip("Non deterministic kernel.");
                 }
 
                 if (valid) {
@@ -398,14 +396,13 @@ struct gen_t : public primitive_t {
                     status = try_create();
                     if (status == status::success) {
                         kernel_success = true;
-                        if (kernel_desc_.has_entry()) {
-                            gpu_info() << "catalog entry["
-                                       << (entry - jit::catalog().entries)
-                                       << "]:" << entry->str();
-                        } else {
-                            gpu_info() << "catalog entry[overridden]:"
-                                       << entry->str();
-                        }
+                        if (kernel_desc_.has_entry())
+                            gpu_info() << "[" << lpad(g, 4) << "] use "
+                                       << entry_idx << "/" << entries.size()
+                                       << " " << kernel_desc_.str();
+                        else
+                            gpu_info()
+                                    << "[override] use " << kernel_desc_.str();
                         break;
                     }
                 }

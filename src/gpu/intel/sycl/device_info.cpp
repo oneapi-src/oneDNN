@@ -125,6 +125,8 @@ status_t device_info_t::init_attributes(impl::engine_t *engine) {
     } else {
         eu_count_ = device.get_info<::sycl::info::device::max_compute_units>();
     }
+    max_clock_mhz_ = static_cast<int32_t>(
+            device.get_info<::sycl::info::device::max_clock_frequency>());
     max_wg_size_ = device.get_info<::sycl::info::device::max_work_group_size>();
     memory_size_ = device.get_info<::sycl::info::device::global_mem_size>();
     l3_cache_size_

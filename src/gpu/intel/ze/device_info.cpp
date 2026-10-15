@@ -104,6 +104,7 @@ status_t device_info_t::init_attributes(impl::engine_t *engine) {
     ZE_CHECK(xpu::ze::zeDeviceGetProperties(device, &device_properties));
 
     eu_count_ = eu_count_ext.numTotalEUs;
+    max_clock_mhz_ = static_cast<int32_t>(device_properties.coreClockRate);
 
     ze_device_compute_properties_t device_compute_properties = {};
     device_compute_properties.stype

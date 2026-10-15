@@ -50,9 +50,22 @@ using namespace gemmstone;
 using namespace intel::jit;
 
 namespace {
-void entryObserver(
-        const kcatalog::Entry *entry, double score, EvaluateAuxOutput aux) {
-    gpu_debug() << "consider:" << entry->str() << ",score:" << score;
+// score is ~EU-cycles.
+std::string ms_hint(double score, int eu_count, int freq_mhz) {
+    if (eu_count <= 0 || freq_mhz <= 0) return "";
+    char b[40];
+    snprintf(b, sizeof(b), " [%.3fms]", score / (eu_count * freq_mhz * 1e3));
+    return b;
+}
+
+SelectionObserver make_entry_observer(int eu_count, int freq_mhz) {
+    return [eu_count, freq_mhz](const kcatalog::Entry *entry, double score,
+                   EvaluateAuxOutput) {
+        gpu_debug() << "[" << lpad(entry - catalog().entries, 4)
+                    << "] consider score:" << score
+                    << ms_hint(score, eu_count, freq_mhz) << " "
+                    << entry->str();
+    };
 }
 } // anonymous namespace
 
@@ -612,7 +625,8 @@ gen_nocopy_desc_t::select_kernel(const compute::device_info_t &dev_info,
     eval_params_.deterministic = (mode & mode_deterministic);
     eval_params_.Tc_ext = problem.Tc_ext;
 
-    SelectionObserver observer = entryObserver;
+    SelectionObserver observer = make_entry_observer(
+            dev_info.eu_count(), dev_info.max_clock_mhz());
     tags_ = match_params[0].tags;
     Ts_ = problem.Ts;
     beta_ = problem.beta;
@@ -786,7 +800,8 @@ status_t gen_xe_systolic_kernel_desc_t::select_kernel(
     eval_params.batch = (batch_dims > 0);
     eval_params.Tc_ext = problem_.Tc_ext;
 
-    SelectionObserver observer = entryObserver;
+    SelectionObserver observer = make_entry_observer(
+            dev_info.eu_count(), dev_info.max_clock_mhz());
 
     auto entries = select(
             catalog(), match_params, eval_params, aux_params_, &observer);
@@ -1099,6 +1114,10 @@ status_t gen_kernel_t::get_kernel(
 #undef ARCH_DISPATCH
 
     return status::runtime_error;
+}
+
+std::string gen_desc_t::str() const {
+    return dump_kernel(hw_, problem_, strategy_);
 }
 
 void gen_kernel_t::maybe_print_verbose() {

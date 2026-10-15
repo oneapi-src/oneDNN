@@ -400,6 +400,7 @@ status_t device_info_t::init_serialized_device_info(
     serialized_device_info_.append(runtime_version_.build);
     serialized_device_info_.append(runtime_version_.revision);
     serialized_device_info_.append(eu_count_);
+    serialized_device_info_.append(max_clock_mhz_);
     serialized_device_info_.append(max_eus_per_wg_);
     serialized_device_info_.append(max_subgroup_size_);
     serialized_device_info_.append(max_exec_size_);
@@ -440,6 +441,7 @@ status_t device_info_t::init_from_cache_blob(
     d.pop(runtime_version_.build);
     d.pop(runtime_version_.revision);
     d.pop(eu_count_);
+    d.pop(max_clock_mhz_);
     d.pop(max_eus_per_wg_);
     d.pop(max_subgroup_size_);
     d.pop(max_exec_size_);
