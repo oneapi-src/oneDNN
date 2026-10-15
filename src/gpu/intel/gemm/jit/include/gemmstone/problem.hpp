@@ -351,6 +351,7 @@ struct GEMMProblem : public CommonProblem {
         s.append(A_scale, B_scale, C_scale);
         s.append(checkBeta0);
         s.append(bdpasEnabled);
+        s.append(cMXScale);
         s.append(aOffset, bOffset);
         s.append(aoPtrDims, boPtrDims, coPtrDims);
         s.append(asPtrDims, bsPtrDims, csPtrDims);
