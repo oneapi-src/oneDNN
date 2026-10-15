@@ -17,8 +17,6 @@
 #ifndef GEMMSTONE_INCLUDE_GEMMSTONE_GENERATOR_HPP
 #define GEMMSTONE_INCLUDE_GEMMSTONE_GENERATOR_HPP
 
-#define BINARY_OUTPUT
-
 #include <array>
 #include <bitset>
 #include <complex>
@@ -34,29 +32,36 @@
 #include "gemmstone/type.hpp"
 #include "gemmstone/problem.hpp"
 #include "gemmstone/strategy.hpp"
-#include "gemmstone/microkernel_selector.hpp"
-#include "generator/pieces/copy_plan.hpp"
-#include "generator/pieces/register_layout.hpp"
-#include "generator/pieces/state.hpp"
+#include "gemmstone/../../generator/pieces/copy_plan.hpp"
+#include "gemmstone/../../generator/pieces/register_layout.hpp"
+#include "gemmstone/../../generator/pieces/state.hpp"
 #include "ngen_emulation.hpp"
 
+#include "gemmstone/microkernel/package.hpp"
+#include "gemmstone/microkernel/protocol.hpp"
+
+#if defined(BINARY_OUTPUT) || defined(ZEBIN_OUTPUT) || defined(OPENCL_OUTPUT)
+#include "internal/ngen_elf_hw_list.hpp"
+#endif
 
 GEMMSTONE_NAMESPACE_START
 
 // Macro configuration
 #ifndef GENERATOR_BASE
 
+#if defined(OPENCL_OUTPUT)
 #define GENERATOR_SUPER(hw) ngen::OpenCLCodeGenerator<hw>
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL
-#define FORWARD(hw) NGEN_FORWARD_SYCL(hw)
-#endif
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 #define FORWARD(hw) NGEN_FORWARD_OPENCL(hw)
-#endif
-#if DNNL_GPU_RUNTIME == DNNL_RUNTIME_ZE
-#define FORWARD(hw) NGEN_FORWARD_LEVEL_ZERO(hw)
-#endif
 #define GENERATOR_DEBUGINFO {__FILE__, __LINE__}
+#elif defined(BINARY_OUTPUT)
+#define GENERATOR_SUPER(hw) ngen::BinaryCodeGenerator<hw>
+#define FORWARD(hw) NGEN_FORWARD(hw)
+#define GENERATOR_DEBUGINFO {}
+#elif defined(ZEBIN_OUTPUT)
+#define GENERATOR_SUPER(hw) ngen::ELFCodeGenerator<hw>
+#define FORWARD(hw) NGEN_FORWARD_ELF(hw)
+#define GENERATOR_DEBUGINFO {__FILE__, __LINE__}
+#endif
 
 #define GENERATOR_BASE(hw) GENERATOR_SUPER(hw)
 #endif
@@ -78,7 +83,11 @@ public:
     static CommonDriverInfo driverInfo(GEMMProblem problem, const GEMMStrategy &strategy);
 
 protected:
+#if defined(OPENCL_OUTPUT) || defined(ZEBIN_OUTPUT)
     ngen::InterfaceHandler &interface = super::interface_;
+#else
+    ngen::InterfaceHandler interface{hw};
+#endif
 
     std::exception_ptr lastException;
     GRFMultirange outputCRange;

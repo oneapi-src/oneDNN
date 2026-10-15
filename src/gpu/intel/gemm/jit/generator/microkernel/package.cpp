@@ -16,6 +16,7 @@
 
 #include "gemmstone/microkernel/package.hpp"
 #include "ngen_decoder.hpp"
+#include "npack/neo_packager.hpp"
 
 GEMMSTONE_NAMESPACE_START
 namespace microkernel {
