@@ -171,17 +171,6 @@ private:
 
     const data_type_t d_type_;
 
-    // if only the injector was inherited from jit_generator...
-    enum {
-        _cmp_eq_oq = jit_generator_t::_cmp_eq_oq,
-        _cmp_lt_os = jit_generator_t::_cmp_lt_os,
-        _cmp_le_os = jit_generator_t::_cmp_le_os,
-        _cmp_ge_os = jit_generator_t::_cmp_nlt_us,
-        _cmp_gt_os = jit_generator_t::_cmp_nle_us,
-        _op_floor = jit_generator_t::_op_floor,
-        _op_mxcsr = jit_generator_t::_op_mxcsr
-    };
-
     const size_t vlen = get_vec_len();
     static constexpr size_t preserved_vecs_max = 9;
     static constexpr size_t preserved_gprs_max = 4;
@@ -218,8 +207,8 @@ private:
     void store_preserved_vec(size_t slot, size_t vmm_idx);
     void load_preserved_vec(size_t slot, size_t vmm_idx);
     void set_coef_to_regs();
-    void compute_cmp_mask(
-            const TRegS &vmm_src, const TRegS &vmm_cmpare, int cmp_predicate);
+    void compute_cmp_mask(const TRegS &vmm_src, const TRegS &vmm_cmpare,
+            alg_kind_t cmp_predicate);
     void blend_with_mask(const TRegS &vmm_dst, const TRegS &src);
     void test_mask();
 

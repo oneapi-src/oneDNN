@@ -540,7 +540,8 @@ private:
 
     void compute_cmp_mask(const Xbyak_aarch64::PReg &cmp_dst,
             const Xbyak_aarch64::PReg &mask, const Xbyak_aarch64::ZReg &cmp_src,
-            const Xbyak_aarch64::ZReg &cmp_src2, const unsigned int uimm) const;
+            const Xbyak_aarch64::ZReg &cmp_src2,
+            alg_kind_t cmp_predicate) const;
 
     template <typename T>
     void fdiv(const Vmm &dst, const Xbyak_aarch64::PReg &mask, const Vmm &lhs,
@@ -549,8 +550,7 @@ private:
     void fdiv(const Vmm &dst, const Vmm &lhs, const T &rhs) const;
 
     void execute_cmp_binary(const Vmm &dst, const Xbyak_aarch64::PReg &mask,
-            const Vmm &lhs, const Vmm &rhs,
-            const unsigned int cmp_predicate) const;
+            const Vmm &lhs, const Vmm &rhs, alg_kind_t cmp_predicate) const;
     template <typename T>
     void execute_binary(alg_kind_t binary_alg, const Vmm &dst,
             const Xbyak_aarch64::PReg &mask, const Vmm &lhs,

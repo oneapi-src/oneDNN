@@ -1916,30 +1916,31 @@ template <cpu_isa_t isa>
 void jit_uni_binary_injector_t<isa>::compute_cmp_mask(
         const Xbyak_aarch64::PReg &cmp_dst, const Xbyak_aarch64::PReg &mask,
         const Xbyak_aarch64::ZReg &cmp_src, const Xbyak_aarch64::ZReg &cmp_src2,
-        const unsigned int cmp) const {
+        alg_kind_t cmp_predicate) const {
 
-    switch (cmp) {
-        case jit_generator_t::_cmp_nlt_us:
+    using namespace alg_kind;
+    switch (cmp_predicate) {
+        case binary_ge:
             host_->fcmge(cmp_dst.s, mask / Xbyak_aarch64::T_z, cmp_src.s,
                     cmp_src2.s);
             break;
-        case jit_generator_t::_cmp_nle_us:
+        case binary_gt:
             host_->fcmgt(cmp_dst.s, mask / Xbyak_aarch64::T_z, cmp_src.s,
                     cmp_src2.s);
             break;
-        case jit_generator_t::_cmp_le_os:
+        case binary_le:
             host_->fcmle(cmp_dst.s, mask / Xbyak_aarch64::T_z, cmp_src.s,
                     cmp_src2.s);
             break;
-        case jit_generator_t::_cmp_lt_os:
+        case binary_lt:
             host_->fcmlt(cmp_dst.s, mask / Xbyak_aarch64::T_z, cmp_src.s,
                     cmp_src2.s);
             break;
-        case jit_generator_t::_cmp_eq_oq:
+        case binary_eq:
             host_->fcmeq(cmp_dst.s, mask / Xbyak_aarch64::T_z, cmp_src.s,
                     cmp_src2.s);
             break;
-        case jit_generator_t::_cmp_neq_uq:
+        case binary_ne:
             host_->fcmne(cmp_dst.s, mask / Xbyak_aarch64::T_z, cmp_src.s,
                     cmp_src2.s);
             break;
@@ -1983,26 +1984,17 @@ template <>
 void jit_uni_binary_injector_t<asimd>::execute_cmp_binary(
         const Xbyak_aarch64::VReg &dst, const Xbyak_aarch64::PReg &mask,
         const Xbyak_aarch64::VReg &lhs, const Xbyak_aarch64::VReg &rhs,
-        const unsigned int cmp_predicate) const {
+        alg_kind_t cmp_predicate) const {
     UNUSED(mask);
 
+    using namespace alg_kind;
     switch (cmp_predicate) {
-        case jit_generator_t::_cmp_nlt_us:
-            host_->fcmge(dst.s, lhs.s, rhs.s);
-            break;
-        case jit_generator_t::_cmp_nle_us:
-            host_->fcmgt(dst.s, lhs.s, rhs.s);
-            break;
-        case jit_generator_t::_cmp_le_os:
-            host_->fcmge(dst.s, rhs.s, lhs.s);
-            break;
-        case jit_generator_t::_cmp_lt_os:
-            host_->fcmgt(dst.s, rhs.s, lhs.s);
-            break;
-        case jit_generator_t::_cmp_eq_oq:
-            host_->fcmeq(dst.s, lhs.s, rhs.s);
-            break;
-        case jit_generator_t::_cmp_neq_uq:
+        case binary_ge: host_->fcmge(dst.s, lhs.s, rhs.s); break;
+        case binary_gt: host_->fcmgt(dst.s, lhs.s, rhs.s); break;
+        case binary_le: host_->fcmge(dst.s, rhs.s, lhs.s); break;
+        case binary_lt: host_->fcmgt(dst.s, rhs.s, lhs.s); break;
+        case binary_eq: host_->fcmeq(dst.s, lhs.s, rhs.s); break;
+        case binary_ne:
             host_->fcmeq(dst.s, lhs.s, rhs.s);
             host_->not_(dst.b, dst.b);
             break;
@@ -2018,7 +2010,7 @@ void jit_uni_binary_injector_t<asimd>::execute_cmp_binary(
 template <cpu_isa_t isa>
 void jit_uni_binary_injector_t<isa>::execute_cmp_binary(const Vmm &dst,
         const Xbyak_aarch64::PReg &mask, const Vmm &lhs, const Vmm &rhs,
-        const unsigned int cmp_predicate) const {
+        alg_kind_t cmp_predicate) const {
     // For GreaterEqual op, replace 0xFFFFFFFF by 1
     // which was returned by vcmpps.
     const auto &cmp_mask = rhs_arg_static_params_.tail_opmask;
@@ -2091,28 +2083,12 @@ void jit_uni_binary_injector_t<asimd>::execute_binary(alg_kind_t binary_alg,
             host_->uni_fsub(dst.s, lhs.s, v_rhs.s);
             break;
         case alg_kind::binary_ge:
-            execute_cmp_binary(
-                    dst, mask, lhs, v_rhs, jit_generator_t::_cmp_nlt_us);
-            break;
         case alg_kind::binary_gt:
-            execute_cmp_binary(
-                    dst, mask, lhs, v_rhs, jit_generator_t::_cmp_nle_us);
-            break;
         case alg_kind::binary_le:
-            execute_cmp_binary(
-                    dst, mask, lhs, v_rhs, jit_generator_t::_cmp_le_os);
-            break;
         case alg_kind::binary_lt:
-            execute_cmp_binary(
-                    dst, mask, lhs, v_rhs, jit_generator_t::_cmp_lt_os);
-            break;
         case alg_kind::binary_eq:
-            execute_cmp_binary(
-                    dst, mask, lhs, v_rhs, jit_generator_t::_cmp_eq_oq);
-            break;
         case alg_kind::binary_ne:
-            execute_cmp_binary(
-                    dst, mask, lhs, v_rhs, jit_generator_t::_cmp_neq_uq);
+            execute_cmp_binary(dst, mask, lhs, v_rhs, binary_alg);
             break;
         default: assert(!"unsupported algorithm");
     }
@@ -2183,28 +2159,12 @@ void jit_uni_binary_injector_t<isa>::execute_binary(alg_kind_t binary_alg,
             host_->uni_fsub(dst.s, lhs.s, z_rhs.s);
             break;
         case alg_kind::binary_ge:
-            execute_cmp_binary(
-                    dst, mask, lhs, z_rhs, jit_generator_t::_cmp_nlt_us);
-            break;
         case alg_kind::binary_gt:
-            execute_cmp_binary(
-                    dst, mask, lhs, z_rhs, jit_generator_t::_cmp_nle_us);
-            break;
         case alg_kind::binary_le:
-            execute_cmp_binary(
-                    dst, mask, lhs, z_rhs, jit_generator_t::_cmp_le_os);
-            break;
         case alg_kind::binary_lt:
-            execute_cmp_binary(
-                    dst, mask, lhs, z_rhs, jit_generator_t::_cmp_lt_os);
-            break;
         case alg_kind::binary_eq:
-            execute_cmp_binary(
-                    dst, mask, lhs, z_rhs, jit_generator_t::_cmp_eq_oq);
-            break;
         case alg_kind::binary_ne:
-            execute_cmp_binary(
-                    dst, mask, lhs, z_rhs, jit_generator_t::_cmp_neq_uq);
+            execute_cmp_binary(dst, mask, lhs, z_rhs, binary_alg);
             break;
         default: assert(!"unsupported algorithm");
     }
