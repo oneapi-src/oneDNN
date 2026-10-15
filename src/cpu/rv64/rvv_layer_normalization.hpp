@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2025 Intel Corporation
 * Copyright 2026 SpacemiT Corporation
+* Copyright 2026 Institute of Software, Chinese Academy of Sciences
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -209,6 +210,28 @@ private:
     std::unique_ptr<jit_rvv_layernorm_fused_kernel_t> fused_kernel_;
     std::unique_ptr<jit_rvv_layernorm_data_kernel_t> data_kernel_;
     std::unique_ptr<jit_rvv_layernorm_f16_fused_kernel_t> f16_fused_kernel_;
+};
+
+struct jit_uni_layer_normalization_bwd_t : public primitive_t {
+    struct pd_t : public cpu_layer_normalization_bwd_pd_t {
+        using cpu_layer_normalization_bwd_pd_t::
+                cpu_layer_normalization_bwd_pd_t;
+        DECLARE_COMMON_PD_T(JIT_IMPL_NAME_HELPER("jit:", v, ""),
+                jit_uni_layer_normalization_bwd_t);
+        status_t init(const engine_t *engine);
+        int nthr_ = 1;
+        bool diff_weights_ = false;
+    };
+
+    explicit jit_uni_layer_normalization_bwd_t(const pd_t *apd);
+    status_t init(engine_t *engine) override;
+    status_t execute(const exec_ctx_t &ctx) const override;
+
+private:
+    const pd_t *pd() const {
+        return static_cast<const pd_t *>(primitive_t::pd().get());
+    }
+    const jit_rvv_layernorm_bwd_kernel_t *kernel_ = nullptr;
 };
 
 } // namespace rv64
