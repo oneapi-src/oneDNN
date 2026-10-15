@@ -83,6 +83,7 @@ protected:
     // `v` already contains more than one element, it is left untouched.
     // TODO: make `n_inputs` a `prb_t` method and drop it from the signature.
     template <typename T>
+    // NOLINTNEXTLINE(performance-unnecessary-value-param)
     void broadcast_vector(std::vector<T> &v, const T val, const int n_inputs) {
         // If it's not a single element in vector, nothing to broadcast.
         if (v.size() != 1) return;
