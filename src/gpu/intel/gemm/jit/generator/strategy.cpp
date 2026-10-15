@@ -484,6 +484,12 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         }
     }
 
+    /* Quantization groups must not straddle k blocks */
+    int kqGroup = 1;
+    if (problem.quantized2DA() && problem.aqGroupK > 1) kqGroup = lcm(kqGroup, problem.aqGroupK);
+    if (problem.quantized2DB() && problem.bqGroupK > 1) kqGroup = lcm(kqGroup, problem.bqGroupK);
+    blocking[LoopK] = align_up(blocking[LoopK], kqGroup);
+
     auto defaultBlockAltK = blocking[LoopK];
     if (hw == HW::XeHP) defaultBlockAltK = std::min(defaultBlockAltK, 1024);
 
