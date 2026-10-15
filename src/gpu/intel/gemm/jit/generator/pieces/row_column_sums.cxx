@@ -226,6 +226,12 @@ void Generator<hw>::setupTeardownAccumulateSumSystolic(bool setup, Type T, const
                 mov(ne, sysSumAll1s.uw(), uint16_t(0x3C00));
             else if (T == Type::bf16)
                 mov(ne, sysSumAll1s.uw(), uint16_t(0x3F80));
+            else if (T == Type::bf8)
+                mov(ne / 4, sysSumAll1s.ud(), uint32_t(0x3C3C3C3C));
+            else if (T == Type::hf8)
+                mov(ne / 4, sysSumAll1s.ud(), uint32_t(0x38383838));
+            else if (T == Type::f4_e2m1)
+                mov(ne / 8, sysSumAll1s.ud(), uint32_t(0x22222222));
             else
                 mov(ne, sysSumAll1s.retype(T.arithmetic().ngen()), cast(T.arithmetic(), 1.0));
         }

@@ -79,7 +79,7 @@ private:
     _Type val;
 
 public:
-    constexpr Type() : Type(f32) {}
+    constexpr Type() : Type(invalid) {}
     constexpr Type(_Type val_) : val(val_) {}
     constexpr operator _Type() const { return val; }
 
@@ -147,6 +147,7 @@ public:
 
     ngen::DataType ngen() const
     {
+        if (val == invalid) return ngen::DataType::invalid;
         uint32_t index = (uint32_t(val) >> 20) & 0xFF;
         using DT = ngen::DataType;
         auto none = DT::invalid;
@@ -181,6 +182,7 @@ public:
     bool isSubsetOf(Type T) const
     {
         if (*this == T) return true;
+        if (val == invalid || T == invalid) return false;
         return (real().bits() < T.real().bits());
     }
 

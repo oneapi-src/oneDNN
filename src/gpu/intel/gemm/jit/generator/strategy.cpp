@@ -289,9 +289,16 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     spf &= !C.atomic;
     spf &= !doubleMasking;
 
+    // 64-bit strength reduction handling.
     checkAdd32 &= !emulate.emulate64_add32;
     checkAdd32 &= (A.base.isStateless() || B.base.isStateless() || problem.quantized2DA() || problem.quantized2DB());
     checkAdd32 &= !(A.address2D && B.address2D && (!prefetchA || A_prefetch.address2D) && (!prefetchB || B_prefetch.address2D));
+
+    // Dot product handling.
+    if (dotVL) {
+        dotVL = align_up(dotVL, elementsPerGRF(hw, Tc));
+        forceCopyC = doubleMasking = true;
+    }
 
     int opCount = outerProductCount(problem, *this);
     int minOPCount = minOuterProductCount(problem, *this);
@@ -341,11 +348,8 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         dotVL = 0;
     }
 
-    // Dot product handling.
-    if (dotVL) {
-        dotVL = align_up(dotVL, elementsPerGRF(hw, Tc));
-        forceCopyC = doubleMasking = true;
-    }
+    // Repack C if using sub-DWord atomics.
+    forceCopyC |= (C.atomic && Tc.real().size() < 4);
 
     // Prefetch handling.
     cooperativePF &= (prefetchA || prefetchB);

@@ -180,6 +180,7 @@ void Generator<hw>::setupAddr(Type T, const RegisterRange &addr, const BO &ptr, 
                 for (int r = 0; r < addr.getLen(); r += 2) {
                     int nr = std::min(2, addr.getLen() - r);
                     int simd = nr * ne;
+                    simd = std::min(32, simd);
                     auto ld0 = findLDMultiple(ldMultiples, a64, r * ne / consecutive, strategy, state);
                     auto ldStride = (ldMultiples.a64 && !a64) ? 2 : 1;
                     auto ldR = ld0(ldStride, consecutive, 0);
