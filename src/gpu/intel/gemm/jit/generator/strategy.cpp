@@ -55,7 +55,7 @@ bool GEMMStrategy::needsUnnamedBarrier(const GEMMProblem &problem) const
 {
     if (needsKLoopBarrier() && (!namedBarriers[LoopM] || !namedBarriers[LoopN]))
         return true;
-    if (slmBuffers > 0) {
+    if (std::max(slmBuffersA, slmBuffersB) > 0) {
         if (persistentLoop()) return true;
         if (problem.needsASums() || problem.needsBSums()) return true;
     }
@@ -173,8 +173,8 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     if (!(kParallelVariable || (kParallel && altFusedBeta)))
         kPadding = 0;
 
-    slmA &= (slmBuffers > 0);
-    slmB &= (slmBuffers > 0);
+    slmA &= (slmBuffersA > 0);
+    slmB &= (slmBuffersB > 0);
 
     A.preflight(hw); A_prefetch.preflight(hw); AO.preflight(hw);
     B.preflight(hw); B_prefetch.preflight(hw); BO.preflight(hw);
@@ -234,7 +234,7 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         bool doubleM = (wg[LoopM] == 8);
 
         slmCopies = (slmCopies == 3) ? 3 : 1;
-        slmBuffers = (splitCopy || doubleM) ? 4 : 3;
+        slmBuffersA = slmBuffersB = (splitCopy || doubleM) ? 4 : 3;
         slmA = slmB = true;
         GRFs = 256;
         altCRemainder = false;
@@ -308,8 +308,8 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
         moveR0 = MoveR0::None;
 
     // SLM copy logic.
-    int slmVersions = std::max(1, lcm(slmCopies, slmBuffers));
-    if (slmBuffers > 0) {
+    int slmVersions = std::max(1, lcm(slmCopies, std::max(slmBuffersA, slmBuffersB)));
+    if (std::max(slmBuffersA, slmBuffersB) > 0) {
         moveR0 = MoveR0::None;
         barrierFreq = 0;
         if (wg[LoopM] <= 0 || wg[LoopN] <= 0)
@@ -607,7 +607,7 @@ int GEMMStrategy::kAlign(const GEMMProblem &problem) const
 {
     int align = lcm(ka_load, kb_load);
     align = lcm(align, extraKAlign);
-    if (slmBuffers > 0) align = lcm(align, unrollKSLM);
+    if (std::max(slmBuffersA, slmBuffersB) > 0) align = lcm(align, unrollKSLM);
 
     if (kParallelLocal && kInterleave) {
         /* Ensure k0 is aligned to prefetch strides */

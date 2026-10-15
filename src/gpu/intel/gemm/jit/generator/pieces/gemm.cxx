@@ -496,7 +496,8 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
         min_(1, state.inputs.k, state.inputs.k, state.inputs.k0);
 
         bool keepK0 = false;
-        keepK0 |= strategy.kParallelLocal && (strategy.barrierFreq > 0 || strategy.slmBuffers > 0);
+        keepK0 |= strategy.kParallelLocal && (strategy.barrierFreq > 0 ||
+                std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0);
         keepK0 |= strategy.persistentLoop();
 
         if (keepK0)
@@ -610,7 +611,7 @@ void Generator<hw>::gemm(GEMMProblem &problem, GEMMStrategy &strategy, GEMMState
         auto persistentRestore = [&] {
             gemmRestoreOffsets(problem, strategy, state);
 
-            if (strategy.slmBuffers > 0) {
+            if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0) {
                 temp = state.ra.alloc();
                 useR0(state, doBarrier);
                 state.ra.safeRelease(temp);

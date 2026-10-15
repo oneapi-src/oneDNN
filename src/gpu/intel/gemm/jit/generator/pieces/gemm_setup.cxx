@@ -1246,7 +1246,7 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
     gemmABPrefetchAddrSetup(problem, strategy, state);
 
     // Prepare layouts and starting addresses for SLM copies and adjust problem.
-    if (strategy.slmBuffers > 0) {
+    if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0) {
         int A_slmCP, B_slmCP;
         int A_tileR, A_tileC, B_tileR, B_tileC;
         std::tie(A_slmCP, B_slmCP) = targetSLMCrosspack(problem, strategy);
@@ -1369,7 +1369,7 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
                 default: stub();
             }
 
-            int32_t A_slmStride = strategy.slmABufBlockSize(problem) * strategy.slmBuffers;
+            int32_t A_slmStride = strategy.slmABufBlockSize(problem) * strategy.slmBuffersA;
 
             if (tileSplit > 1) {
                 if (!is_zero_or_pow2(tileSplit)) stub();
@@ -1512,7 +1512,7 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
                 default: stub();
             }
 
-            int32_t B_slmStride = strategy.slmBBufBlockSize(problem) * strategy.slmBuffers;
+            int32_t B_slmStride = strategy.slmBBufBlockSize(problem) * strategy.slmBuffersB;
 
             if (tileSplit > 1) {
                 if (!is_zero_or_pow2(tileSplit)) stub();
@@ -1536,7 +1536,7 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
                 eadd(1, state.effBi, state.effBi, temp2, strategy, state);
             if (strategy.slmABufSize(problem) > 0) {
                 if (strategy.kParallelLocal) {
-                    int32_t A_perKSLM = strategy.slmABufBlockSize(problem) * strategy.wg[LoopM] * strategy.slmBuffers;
+                    int32_t A_perKSLM = strategy.slmABufBlockSize(problem) * strategy.wg[LoopM] * strategy.slmBuffersA;
                     emad(1, state.effB, state.effB, state.lszK, A_perKSLM, strategy, state);
                 } else
                     add(1, state.effB, state.effB, strategy.slmABufSize(problem));

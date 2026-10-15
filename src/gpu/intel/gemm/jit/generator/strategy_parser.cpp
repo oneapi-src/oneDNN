@@ -587,19 +587,46 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
                 case 'c': {
                     mod.erase(0, 1);
                     if (mod[0] == 'a') {
+                        bool cab_case = false;
                         mod.erase(0, 1);
+                        if (mod[0] == 'b') {
+                            mod.erase(0, 1);
+                            cab_case = true;
+                        }
+                        std::stringstream ms(mod);
                         strategy.slmA = true;
+                        ms.imbue(std::locale::classic());
+                        ms >> strategy.slmBuffersA;
+                        if (cab_case) {
+                            strategy.slmBuffersB = strategy.slmBuffersA;
+                            strategy.slmB = true;
+                        }
+                        ms >> eat;
+                        if (!ms.eof())
+                            ms >> strategy.slmCopies; // TODO: split to A/B copies
                     }
                     if (mod[0] == 'b') {
+                        bool cba_case = false;
                         mod.erase(0, 1);
+                        if (mod[0] == 'a') {
+                            mod.erase(0, 1);
+                            cba_case = true;
+                        }
+                        std::stringstream ms(mod);
                         strategy.slmB = true;
+                        ms.imbue(std::locale::classic());
+                        ms >> strategy.slmBuffersB;
+                        if (cba_case) {
+                            strategy.slmBuffersA = strategy.slmBuffersB;
+                            strategy.slmA = true;
+                        }
+                        ms >> eat;
+                        if (!ms.eof())
+                            ms >> strategy.slmCopies; // TODO: split to A/B copies
                     }
-                    std::stringstream ms(mod);
-                    ms.imbue(std::locale::classic());
-                    ms >> strategy.slmBuffers;
-                    ms >> eat;
-                    if (!ms.eof())
-                        ms >> strategy.slmCopies;
+                    if (strategy.slmA && strategy.slmB && strategy.slmBuffersB != strategy.slmBuffersA)
+                        stub("SLM buffer counts for A and B must match.");
+
                     break;
                 }
                 case 'k': {
@@ -887,7 +914,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
         s << " c";
         if (strategy.slmA) s << 'a';
         if (strategy.slmB) s << 'b';
-        s << strategy.slmBuffers;
+        s << std::max(strategy.slmBuffersA, strategy.slmBuffersB);
         if (strategy.slmCopies > 1)
             s << 'x' << strategy.slmCopies;
 

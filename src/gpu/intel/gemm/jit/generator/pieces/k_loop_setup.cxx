@@ -556,10 +556,11 @@ void Generator<hw>::gemmCalcKLoopBarrierCount(Subregister &count, const Subregis
             maySkipSplitBarrier ? add(1 | state.flagAP, count, count, 1)
                                 : add(1,                count, count, 1);
         }
-    } else if (strategy.slmBuffers > 0) {
+    } else if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0) {
+        // TODO: Check if this needs to change for different slmBuffer sizes.
         if (!is_zero_or_pow2(unrollKSLM)) stub();
 
-        if (strategy.slmBuffers == 1) {
+        if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) == 1) {
             add(1 | sat, count, k, unrollKSLM - 1);
             if (unrollKSLM == 2)
                 and_(1, count, count, ~uint32_t(1));

@@ -504,7 +504,7 @@ bool Generator<hw>::gemmFusedPostOpsFinalize(Label &labelLateExit, GEMMProblem &
 
     broadcastToWG(f0[0], kDone, modStrategy, modState, 4);
 
-    if (strategy.slmBuffers > 0 || strategy.kParallelLocal) {
+    if (std::max(strategy.slmBuffersA, strategy.slmBuffersB) > 0 || strategy.kParallelLocal) {
         useTempAndR0(modState, [&](GRF temp, GRF r0_info) {
             slmBarrier(temp, r0_info, strategy);
         });

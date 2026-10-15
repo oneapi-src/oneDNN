@@ -2359,7 +2359,7 @@ void Generator<hw>::gemmKReduce(const GEMMProblem &problem, const GEMMStrategy &
 
     GRF r0_info = state.r0InfoGRF();
 
-    bool initialBarrier = (strategy.slmBuffers > 0 || strategy.persistentLoop());
+    bool initialBarrier = (std::max(strategy.slmBuffersA, strategy.slmBuffersB) || strategy.persistentLoop());
     MOCK_BARRIERS if (initialBarrier)
         activeThreadBarrierSignal(barrierTemp, r0_info, strategy);
 
