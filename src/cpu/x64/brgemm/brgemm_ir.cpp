@@ -27,11 +27,14 @@
 #include <vector>
 
 #include "common/c_types_map.hpp"
+#include "common/memory_desc_wrapper.hpp"
+#include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 
 #include "cpu/x64/brgemm/brgemm_ir.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
+#include "cpu/x64/injectors/jit_uni_postops_injector.hpp"
 #include "cpu/x64/ir/codegen.hpp"
 #include "cpu/x64/ir/ir.hpp"
 #include "cpu/x64/jit_generator.hpp"
@@ -103,6 +106,18 @@ struct out_block_t {
 //   ldb_bias_off - byte offset to advance the bias between N blocks
 //   bdb_a_off    - byte offset to advance A between M blocks
 //   bdb_c_off    - byte offset to advance C between M blocks
+//   with_injector_postops - whether attribute post-ops (eltwise, binary, sum)
+//                  are requested
+//   with_src_scales - whether a common source scale multiplies the output
+//   with_wei_scales - whether a weights scale multiplies the output
+//   per_n_wei_scales - whether the weights scale has one value per output
+//                  column. Otherwise it is one common value
+//   with_dst_scales - whether a common destination scale multiplies the output
+//   dt_src_scales / dt_wei_scales - element data type of each scale
+//   dt_sz_wei_scales - element size in bytes of a per-N weights scale, 0 for a
+//                  common one, which is never indexed
+//   ldb_wei_scale_off - byte offset to advance the weights scale between N
+//                  blocks
 struct brgemm_ir_conf_t {
     brgemm_ir_conf_t(const brgemm_desc_t &brg)
         : lda(brg.LDA)
@@ -139,7 +154,19 @@ struct brgemm_ir_conf_t {
         , ldb_c_off(dt_sz_c * ldb_ld_elems)
         , ldb_bias_off(dt_sz_bias * ldb_ld_elems)
         , bdb_a_off(dt_sz_a * bd_block * lda)
-        , bdb_c_off(dt_sz_c * bd_block * ldc) {}
+        , bdb_c_off(dt_sz_c * bd_block * ldc)
+        , with_injector_postops(
+                  brg.with_eltwise || brg.with_binary || brg.with_sum)
+        , with_src_scales(brg.with_src_scales)
+        , with_wei_scales(brg.with_wei_scales)
+        , per_n_wei_scales(brg.with_wei_scales && !brg.is_single_wei_scale)
+        , with_dst_scales(brg.with_dst_scales)
+        , dt_src_scales(brg.dt_src_scales)
+        , dt_wei_scales(brg.dt_wei_scales)
+        , dt_sz_wei_scales(per_n_wei_scales
+                          ? (int)types::data_type_size(dt_wei_scales)
+                          : 0)
+        , ldb_wei_scale_off(dt_sz_wei_scales * ldb_ld_elems) {}
 
     const dim_t lda, ldb, ldc;
     const dim_t max_bs;
@@ -156,6 +183,12 @@ struct brgemm_ir_conf_t {
     const dim_t rdb_a_off, rdb_b_off;
     const dim_t ldb_b_off, ldb_c_off, ldb_bias_off;
     const dim_t bdb_a_off, bdb_c_off;
+    const bool with_injector_postops;
+    const bool with_src_scales, with_wei_scales, per_n_wei_scales;
+    const bool with_dst_scales;
+    const data_type_t dt_src_scales, dt_wei_scales;
+    const int dt_sz_wei_scales;
+    const dim_t ldb_wei_scale_off;
 
     // Displacements of one element of A, one vector of B, and one accumulator
     // of C from the start of the current block.
@@ -187,6 +220,11 @@ struct brgemm_ir_conf_t {
         return dt_sz_bias * ld_pos(blk, ld);
     }
 
+    // A per-N weights scale is indexed like the bias.
+    dim_t wei_scale_off(const out_block_t &blk, int ld) const {
+        return dt_sz_wei_scales * ld_pos(blk, ld);
+    }
+
     // Load-dimension element the vector `ld` of the block starts at, counted
     // from where the B and C pointers stand. B and C differ only in the
     // element size they scale it by.
@@ -200,6 +238,9 @@ struct brgemm_ir_conf_t {
     dim_t ldb_loop_ld_adv() const { return ldb2 > 1 ? ldb2 * ldb_ld_elems : 0; }
     dim_t ldb_loop_c_adv() const { return dt_sz_c * ldb_loop_ld_adv(); }
     dim_t ldb_loop_bias_adv() const { return dt_sz_bias * ldb_loop_ld_adv(); }
+    dim_t ldb_loop_wei_scale_adv() const {
+        return dt_sz_wei_scales * ldb_loop_ld_adv();
+    }
 
     // First load-dimension element of each N tail block, counted from where
     // the N loop left the pointers.
@@ -216,8 +257,12 @@ struct brgemm_ir_conf_t {
         return ldb2_tail_ld_start() + (dim_t)ldb2_tail * ld_block;
     }
 
-    // True if the kernel has a post-op to apply. Bias is the only one so far.
-    bool has_post_ops() const { return with_bias; }
+    // True if the kernel has anything to apply on a post-ops call: the bias, a
+    // scale, or an attribute post-op.
+    bool has_post_ops() const {
+        return with_bias || with_injector_postops || with_src_scales
+                || with_wei_scales || with_dst_scales;
+    }
 };
 
 // M-loop input register classification
@@ -261,6 +306,10 @@ struct advancing_regs_t {
     // block.
     // `none` unless `with_bias`.
     ir::vreg_t bias_ptr = ir::vreg_t::none;
+    // Current weights-scale pointer. A per-N scale advances and rewinds like
+    // `bias_ptr`, a common one stays at its only element.
+    // `none` unless `with_wei_scales`.
+    ir::vreg_t wei_scale_ptr = ir::vreg_t::none;
 };
 
 // Registers that hold the same value for the entire M loop.
@@ -277,6 +326,10 @@ struct invariant_regs_t {
     // The `do_post_ops` kernel argument. Non-zero applies the post-ops and
     // stores to D, zero stores to C. `none` when the kernel has no post-op.
     ir::vreg_t do_post_ops = ir::vreg_t::none;
+    // Common source and destination scale pointers.
+    // `none` unless `with_src_scales` and `with_dst_scales` respectively.
+    ir::vreg_t src_scale_ptr = ir::vreg_t::none;
+    ir::vreg_t dst_scale_ptr = ir::vreg_t::none;
 };
 
 // Complete input register set for the M loop, partitioned by whether values
@@ -321,6 +374,21 @@ m_loop_input_regs_t init_m_loop_input_regs(
     if (cfg.with_bias) {
         regs.advancing.bias_ptr = ir.new_gpr();
         ir.load_param(regs.advancing.bias_ptr, GET_OFF(ptr_bias));
+    }
+
+    if (cfg.with_src_scales) {
+        regs.invariant.src_scale_ptr = ir.new_gpr();
+        ir.load_param(regs.invariant.src_scale_ptr, GET_OFF(ptr_src_scales));
+    }
+
+    if (cfg.with_wei_scales) {
+        regs.advancing.wei_scale_ptr = ir.new_gpr();
+        ir.load_param(regs.advancing.wei_scale_ptr, GET_OFF(ptr_wei_scales));
+    }
+
+    if (cfg.with_dst_scales) {
+        regs.invariant.dst_scale_ptr = ir.new_gpr();
+        ir.load_param(regs.invariant.dst_scale_ptr, GET_OFF(ptr_dst_scales));
     }
 
     // The block goes to `ptr_D` when `do_post_ops` is set, and to `ptr_C`
@@ -501,8 +569,46 @@ void emit_n_block(ir::ir_t &ir, const brgemm_ir_conf_t &cfg,
         ir::emit_loop_imm(ir, 1, bs_body);
 
     if (cfg.has_post_ops()) {
+        // The order is the one oneDNN defines and the classic kernel follows:
+        //   src scale -> weights scale -> bias -> post-ops -> dst scale.
+        // The scales are applied one at a time, as in the classic kernel, so
+        // the result rounds the same way.
         const int if_post_ops
                 = ir.if_begin(regs.invariant.do_post_ops, ir::cmp_t::ne, 0);
+
+        if (cfg.with_src_scales) {
+            const ir::vreg_t sc = ir.new_vec(cfg.dt_src_scales);
+            ir.vload_bcast(
+                    sc, regs.invariant.src_scale_ptr, 0, cfg.dt_src_scales);
+            for (const ir::vreg_t &v : acc)
+                ir.vmul(v, sc);
+        }
+
+        if (cfg.with_wei_scales && !cfg.per_n_wei_scales) {
+            const ir::vreg_t sc = ir.new_vec(cfg.dt_wei_scales);
+            ir.vload_bcast(
+                    sc, regs.advancing.wei_scale_ptr, 0, cfg.dt_wei_scales);
+            for (const ir::vreg_t &v : acc)
+                ir.vmul(v, sc);
+        }
+
+        if (cfg.per_n_wei_scales) {
+            // One scale vector per N register, shared by every M row of the
+            // block.
+            for (int ld = 0; ld < blk.ld_block2; ld++) {
+                const ir::vreg_t sc = ir.new_vec(cfg.dt_wei_scales);
+                if (blk.ld_tail_mask == ir::vreg_t::none)
+                    ir.vload(sc, regs.advancing.wei_scale_ptr,
+                            cfg.wei_scale_off(blk, ld), cfg.dt_wei_scales);
+                else
+                    ir.vload_masked(sc, regs.advancing.wei_scale_ptr,
+                            cfg.wei_scale_off(blk, ld), blk.ld_tail_mask,
+                            cfg.dt_wei_scales);
+
+                for (int bd = 0; bd < blk.bd_block; bd++)
+                    ir.vmul(acc[bd * blk.ld_block2 + ld], sc);
+            }
+        }
 
         if (cfg.with_bias) {
             // One bias vector per N register, shared by every M row of the
@@ -520,6 +626,35 @@ void emit_n_block(ir::ir_t &ir, const brgemm_ir_conf_t &cfg,
                 for (int bd = 0; bd < blk.bd_block; bd++)
                     ir.vadd(acc[bd * blk.ld_block2 + ld], bias);
             }
+        }
+
+        if (cfg.with_injector_postops) {
+            // The output offset of each accumulator is its store displacement
+            // below. A binary post-op finds its right-hand-side element through
+            // it, and a sum post-op reads the previous value from where the
+            // result is written. A block is either all full registers or the
+            // one masked register of the N tail, which holds `ldb_tail`
+            // elements.
+            std::vector<dim_t> out_byte_off(acc.size());
+            for (int bd = 0; bd < blk.bd_block; bd++)
+                for (int ld = 0; ld < blk.ld_block2; ld++)
+                    out_byte_off[bd * blk.ld_block2 + ld]
+                            = cfg.c_off(blk, bd, ld);
+
+            const int n_elems = blk.ld_tail_mask != ir::vreg_t::none
+                    ? cfg.ldb_tail
+                    : cfg.ld_block;
+            ir.inject_postops(
+                    acc, regs.advancing.store_ptr, out_byte_off, n_elems);
+        }
+
+        if (cfg.with_dst_scales) {
+            // The caller passes the inverted f32 destination scale, so it is a
+            // multiply.
+            const ir::vreg_t sc = ir.new_vec(data_type::f32);
+            ir.vload_bcast(sc, regs.invariant.dst_scale_ptr, 0, data_type::f32);
+            for (const ir::vreg_t &v : acc)
+                ir.vmul(v, sc);
         }
 
         ir.if_end(if_post_ops);
@@ -560,6 +695,8 @@ void emit_m_block(ir::ir_t &ir, const brgemm_ir_conf_t &cfg,
             ir.add_imm(regs.advancing.store_ptr, cfg.ldb_c_off);
         if (cfg.with_bias)
             ir.add_imm(regs.advancing.bias_ptr, cfg.ldb_bias_off);
+        if (cfg.per_n_wei_scales)
+            ir.add_imm(regs.advancing.wei_scale_ptr, cfg.ldb_wei_scale_off);
     };
     const out_block_t full {bd_block, cfg.ld_block2, 0, ir::vreg_t::none};
     ir::emit_loop_imm(ir, cfg.ldb2,
@@ -586,8 +723,10 @@ void emit_m_block(ir::ir_t &ir, const brgemm_ir_conf_t &cfg,
 //   C[i][j] = beta * C[i][j] + sum_bs sum_k A[i][k] * B[k][j]
 //   (m = brg.bcast_dim, n = brg.load_dim, k = brg.reduce_dim)
 //
-// A call that asks for post-ops adds the bias and stores to D instead of C:
-//   D[i][j] = C[i][j] + bias[j]
+// A call that asks for post-ops applies the scales, bias and attribute
+// post-ops, and stores to D instead of C:
+//   D[i][j] = post_ops(C[i][j] * src_scale * wei_scale[j] + bias[j])
+//             * dst_scale
 //
 // The output is partitioned into M blocks of `bd_block` rows, each split into
 // N blocks of `ld_block2 * ld_block` columns. Each block keeps its result in
@@ -606,8 +745,9 @@ void build_brgemm(const brgemm_desc_t &brg, ir::ir_t &ir) {
     }
 
     // `store_ptr` is a separate register only when `beta == 1` and the kernel
-    // has a post-op, so it needs its own advance only then. The bias does not
-    // depend on M, so it only rewinds what the N loop added.
+    // has a post-op, so it needs its own advance only then. The bias and a
+    // per-N weights scale do not depend on M, so they only rewind what the N
+    // loop added.
     auto advance_ptrs = [&]() {
         ir.add_imm(regs.advancing.a_off, cfg.bdb_a_off);
         ir.add_imm(regs.advancing.c_ptr, cfg.bdb_c_off - cfg.ldb_loop_c_adv());
@@ -616,6 +756,9 @@ void build_brgemm(const brgemm_desc_t &brg, ir::ir_t &ir) {
                     cfg.bdb_c_off - cfg.ldb_loop_c_adv());
         if (cfg.with_bias && cfg.ldb_loop_bias_adv() != 0)
             ir.add_imm(regs.advancing.bias_ptr, -cfg.ldb_loop_bias_adv());
+        if (cfg.per_n_wei_scales && cfg.ldb_loop_wei_scale_adv() != 0)
+            ir.add_imm(regs.advancing.wei_scale_ptr,
+                    -cfg.ldb_loop_wei_scale_adv());
         if (cfg.ldb_loop_ld_adv() != 0) ir.mov_imm(regs.advancing.b_off, 0);
     };
     ir::emit_loop_imm(ir, cfg.bdb, [&]() {
@@ -641,7 +784,16 @@ struct jit_brgemm_ir_kernel_t : public brgemm_kernel_t {
     void generate() override {
         ir::ir_t ir;
         build_brgemm(brg_, ir);
-        ir::generate_kernel(*this, ir);
+
+        ir::postops_config_t postops;
+        if (brg_.with_eltwise || brg_.with_binary || brg_.with_sum) {
+            postops.post_ops = &brg_.attr()->post_ops_;
+            postops.dst_md = brg_.dst_md();
+            postops.rhs_arg_offset = GET_OFF(post_ops_binary_rhs_arg_vec);
+            postops.dst_orig_off = GET_OFF(data_C_ptr_);
+        }
+
+        ir::generate_kernel(*this, ir, postops);
     }
 
 private:
@@ -686,21 +838,47 @@ status_t brgemm_ir_supported(const brgemm_desc_t &brg) {
     VCONDCHECK_BRGEMM_IR(brg.beta == 0.0f || brg.beta == 1.0f,
             VERBOSE_UNSUPPORTED_FEATURE, "beta != 0 && beta != 1");
 
-    VCONDCHECK_BRGEMM_IR(
-            everyone_is(false, brg.with_eltwise, brg.with_binary, brg.with_sum,
-                    brg.req_s8s8_compensation, brg.with_src_scales,
-                    brg.with_wei_scales, brg.with_dst_scales,
-                    brg.brgattr.use_intermediate_c_buffer),
-            VERBOSE_UNSUPPORTED_POSTOP);
+    VCONDCHECK_BRGEMM_IR(!brg.req_s8s8_compensation,
+            VERBOSE_UNSUPPORTED_FEATURE, "s8s8 compensation");
+    VCONDCHECK_BRGEMM_IR(!brg.brgattr.use_intermediate_c_buffer,
+            VERBOSE_UNSUPPORTED_FEATURE, "intermediate C buffer");
     VCONDCHECK_BRGEMM_IR(everyone_is(brgemm_broadcast_t::none, brg.zp_type_a,
                                  brg.zp_type_b, brg.zp_type_c),
-            VERBOSE_UNSUPPORTED_POSTOP);
+            VERBOSE_UNSUPPORTED_ZP_CFG);
+
+    // Post-ops go through the JIT injector. Accept eltwise, binary and sum, and
+    // only binary arguments the injector can handle on this ISA.
+    if (brg.attr()) {
+        const memory_desc_wrapper dst_d(brg.dst_md());
+        const std::vector<injector::post_op_type> accepted
+                = {injector::eltwise, injector::binary, injector::sum};
+        VCONDCHECK_BRGEMM_IR(
+                injector::post_ops_ok({brg.isa_impl, accepted,
+                        brg.attr()->post_ops_, &dst_d,
+                        /*sum_at_pos_0_only=*/false,
+                        /*sum_requires_scale_one=*/false,
+                        /*sum_requires_zp_zero=*/false,
+                        /*sum_requires_same_params=*/false,
+                        binary_injector::
+                                get_all_strategies_supported_by_injector()}),
+                VERBOSE_UNSUPPORTED_POSTOP);
+    }
+
+    // Scales are f32 values the kernel broadcasts or loads per N register:
+    // src and dst scales are common, the weights scale common or per-N.
+    VCONDCHECK_BRGEMM_IR(
+            !brg.has_per_k_scales(), VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VCONDCHECK_BRGEMM_IR(
+            IMPLICATION(brg.with_src_scales, brg.dt_src_scales == f32),
+            VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VCONDCHECK_BRGEMM_IR(
+            IMPLICATION(brg.with_wei_scales, brg.dt_wei_scales == f32),
+            VERBOSE_UNSUPPORTED_SCALES_CFG);
+    VCONDCHECK_BRGEMM_IR(!brg.with_weights_scale_adjust,
+            VERBOSE_UNSUPPORTED_FEATURE, "weights scale adjust");
 
     VCONDCHECK_BRGEMM_IR(IMPLICATION(brg.with_bias, brg.dt_bias == f32),
             VERBOSE_UNSUPPORTED_BIAS_CFG);
-
-    VCONDCHECK_BRGEMM_IR(IMPLICATION(brg.with_bias, brg.LDC == brg.LDD),
-            VERBOSE_UNSUPPORTED_FEATURE, "LDC != LDD");
 
     VCONDCHECK_BRGEMM_IR(brg.brgattr.hint_prefetchw == brgemm_prfw_default,
             VERBOSE_UNSUPPORTED_FEATURE, "store prefetch hint");
@@ -719,6 +897,10 @@ status_t brgemm_ir_supported(const brgemm_desc_t &brg) {
             "embedded broadcast microkernel");
 
     const brgemm_ir_conf_t cfg(brg);
+
+    // A post-ops call stores to D through the C displacements.
+    VCONDCHECK_BRGEMM_IR(IMPLICATION(cfg.has_post_ops(), brg.LDC == brg.LDD),
+            VERBOSE_UNSUPPORTED_FEATURE, "LDC != LDD");
 
     // Every address the builder emits is a base register plus a build-time
     // displacement encoded in the instruction, so each displacement has to fit
@@ -741,13 +923,20 @@ status_t brgemm_ir_supported(const brgemm_desc_t &brg) {
             VERBOSE_UNSUPPORTED_FEATURE, "C displacement overflows int32");
     VCONDCHECK_BRGEMM_IR(fits(cfg.bias_off(last_col, 0)),
             VERBOSE_UNSUPPORTED_FEATURE, "bias displacement overflows int32");
+    VCONDCHECK_BRGEMM_IR(fits(cfg.wei_scale_off(last_col, 0)),
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "weights scale displacement overflows int32");
     VCONDCHECK_BRGEMM_IR(fits(cfg.bdb_c_off - cfg.ldb_loop_c_adv()),
             VERBOSE_UNSUPPORTED_FEATURE, "C rewind overflows int32");
     VCONDCHECK_BRGEMM_IR(fits(cfg.ldb_loop_bias_adv()),
             VERBOSE_UNSUPPORTED_FEATURE, "bias rewind overflows int32");
+    VCONDCHECK_BRGEMM_IR(fits(cfg.ldb_loop_wei_scale_adv()),
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "weights scale rewind overflows int32");
     VCONDCHECK_BRGEMM_IR(fits(cfg.bdb_a_off) && fits(cfg.rdb_a_off)
                     && fits(cfg.rdb_b_off) && fits(cfg.ldb_b_off)
-                    && fits(cfg.ldb_c_off) && fits(cfg.ldb_bias_off),
+                    && fits(cfg.ldb_c_off) && fits(cfg.ldb_bias_off)
+                    && fits(cfg.ldb_wei_scale_off),
             VERBOSE_UNSUPPORTED_FEATURE, "pointer advance overflows int32");
 
     return status::success;
