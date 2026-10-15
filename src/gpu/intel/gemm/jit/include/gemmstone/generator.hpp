@@ -460,7 +460,7 @@ protected:
     ngen::InstructionModifier registerBlockMasking(const RegisterBlock &block, CommonState &state, ngen::FlagRegister *outFlag = nullptr);
     void finishRegisterBlockMasking(CommonState &state);
 
-    void loadMatrixBlock(const ngen::Register &dest, const RegisterBlock &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, const ngen::RegisterRange &addr, const CommonStrategy &strategy, CommonState &state, bool readCheck = false, bool series = false);
+    void loadMatrixBlock(const ngen::Register &dest, const RegisterBlock &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, const ngen::RegisterRange &addr, const CommonStrategy &strategy, CommonState &state, ngen::DataType T, bool readCheck = false, bool series = false, bool chain = false);
     void loadMatrix(const GRFMultirange &dest, const RegisterLayout &layout, const std::vector<ngen::RegisterRange> &addrs, const CommonStrategy &strategy, CommonState &state, bool readCheck = false);
     void prefetchMatrix(const RegisterLayout &layout, const std::vector<ngen::RegisterRange> &addrs, const CommonStrategy &strategy, CommonState &state);
     void storeMatrixBlock(const ngen::GRF &src, const RegisterBlock &layout, const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy, const ngen::RegisterRange &addr, const CommonStrategy &strategy, CommonState &state, bool series = false);
