@@ -34,6 +34,7 @@
 #include "gpu/intel/gemm/primitive.hpp"
 #include "gpu/intel/gemm/utils.hpp"
 #include "gpu/intel/logging.hpp"
+#include "gpu/intel/primitive_attr.hpp"
 
 namespace dnnl {
 namespace impl {
@@ -115,8 +116,14 @@ struct gen_t : public primitive_t {
                     | smask_t::scales | smask_t::scales_data_type
                     | smask_t::scales_groups | smask_t::precomputed_reductions
                     | smask_t::zero_points | smask_t::zero_points_data_type
-                    | smask_t::zero_points_groups | smask_t::post_ops_inplace;
+                    | smask_t::zero_points_groups | smask_t::post_ops_inplace
+                    | smask_t::gpu_attr;
             VDISPATCH_GEMM(attr()->has_default_values(attr_skip_mask),
+                    VERBOSE_UNSUPPORTED_ATTR);
+            VDISPATCH_GEMM(!attr()->gpu_attr_
+                            || utils::downcast<const gpu_primitive_attr_t *>(
+                                    attr()->gpu_attr_.get())
+                                       ->has_only_kernel_override(),
                     VERBOSE_UNSUPPORTED_ATTR);
             VDISPATCH_GEMM(
                     !utils::one_of(DNNL_RUNTIME_DIM_VAL, d->m(), d->n(), d->k(),
@@ -305,6 +312,11 @@ struct gen_t : public primitive_t {
                 kernel_desc_.set_efficient_64b(dev_info_->is_efficient_64bit());
 
             bool kernel_success = false;
+            if (is_dev_mode() && attr()->gpu_attr_) {
+                auto *gpu_attr = utils::downcast<gpu_primitive_attr_t *>(
+                        attr()->gpu_attr_.get());
+                kernel_desc_.set_kernel_override(gpu_attr->kernel_override());
+            }
             auto lda = ld(DNNL_ARG_A);
             auto ldb = ld(DNNL_ARG_B);
             if (swap_ab_) std::swap(lda, ldb);
