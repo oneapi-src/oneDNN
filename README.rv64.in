@@ -1,7 +1,7 @@
 This distribution of oneDNN supports systems based on
 @DNNL_ARCH_NAME@ architecture.
 
-The library is optimized for RISC-V 64-bit (RV64) architecture based processors
+The library is optimized for RISC-V 64-bit (RV64) architecture-based processors
 with the following ISA extensions:
 * RISC-V Vector (RVV) extension, version 1.0
 * Zvfh (FP16 vector) and Zvfbfwma (BF16 vector)
