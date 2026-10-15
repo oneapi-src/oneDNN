@@ -454,6 +454,20 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
     const auto prelu_ind = post_ops.find(primitive_kind::prelu);
     brg->with_binary = !everyone_is(-1, binary_ind, prelu_ind);
 
+    // 2D BRGeMM only supports broadcasting along the column (N) dimension.
+    bcast_set_t bcast_strategies
+            = {broadcasting_strategy_t::scalar, broadcasting_strategy_t::per_oc,
+                    broadcasting_strategy_t::no_broadcast};
+    if (dst_md && dst_md->ndims > 2) {
+        bcast_strategies.insert({broadcasting_strategy_t::per_oc_d,
+                broadcasting_strategy_t::per_mb,
+                broadcasting_strategy_t::per_mb_spatial,
+                broadcasting_strategy_t::per_mb_w,
+                broadcasting_strategy_t::per_w, broadcasting_strategy_t::per_hw,
+                broadcasting_strategy_t::batch,
+                broadcasting_strategy_t::spatial});
+    }
+
     // NOTE: Using brg->isa_impl here is a bit dangerous as it can change before
     //       kernel creation, so there is no gaurantee that the isa checked here
     //       matches the isa used at kernel creation time. For now this can only
@@ -462,23 +476,12 @@ status_t brgemm_desc_set_postops(brgemm_desc_t *brg,
     //       that the behavior of `post_ops_ok` is identical for those two isas,
     //       but there is no guarantee that will always be the case.
     if ((brg->with_binary && !dst_md)
-            || !injector::post_ops_ok(
-                    post_ops_ok_args_t(brg->isa_impl, {sum, eltwise, binary},
-                            post_ops, &dst_d, false /*sum_at_pos_0_only*/,
-                            false /*sum_requires_scale_one*/,
-                            false /*sum_requires_zp_zero*/,
-                            true /*sum_requires_same_params*/,
-                            {broadcasting_strategy_t::per_oc,
-                                    broadcasting_strategy_t::per_oc_d,
-                                    broadcasting_strategy_t::scalar,
-                                    broadcasting_strategy_t::per_mb,
-                                    broadcasting_strategy_t::per_mb_spatial,
-                                    broadcasting_strategy_t::per_mb_w,
-                                    broadcasting_strategy_t::per_w,
-                                    broadcasting_strategy_t::per_hw,
-                                    broadcasting_strategy_t::batch,
-                                    broadcasting_strategy_t::spatial,
-                                    broadcasting_strategy_t::no_broadcast})))
+            || !injector::post_ops_ok(post_ops_ok_args_t(brg->isa_impl,
+                    {sum, eltwise, binary}, post_ops, &dst_d,
+                    false /*sum_at_pos_0_only*/,
+                    false /*sum_requires_scale_one*/,
+                    false /*sum_requires_zp_zero*/,
+                    true /*sum_requires_same_params*/, bcast_strategies)))
         return status::unimplemented;
 
     const auto sum_idx = post_ops.find(primitive_kind::sum);
