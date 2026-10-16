@@ -136,22 +136,34 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
     }
 
     if (!channels_dense && pd()->spatial_dense(data_d)) {
-        // abx data tag with contiguous spatial dims: vectorize over the whole
-        // D*H*W row of each (n, c) so small spatial maps fill the vector
+        // abx data tag with contiguous spatial dims: vectorize over the D*H*W
+        // row of each (n, c) so small spatial maps fill the vector. When there
+        // are few rows, split each row into chunks so that every thread gets
+        // work; chunks stay long enough to keep the vector unit busy.
         const dim_t SP = D * H * W;
-        parallel_nd(N, C, [&](dim_t n, dim_t c) {
+        const dim_t min_chunk = 1024;
+        const dim_t rows = N * C;
+        const dim_t nchunks = nstl::max(dim_t(1),
+                nstl::min(
+                        utils::div_up(dim_t(4) * dnnl_get_max_threads(), rows),
+                        SP / min_chunk));
+        const dim_t chunk = utils::div_up(SP, nchunks);
+        parallel_nd(N, C, nchunks, [&](dim_t n, dim_t c, dim_t k) {
+            const dim_t sp_start = k * chunk;
+            const dim_t len = nstl::min(chunk, SP - sp_start);
+            if (len <= 0) return;
             const float inv_std = 1.0f / sqrtf(var[c] + eps);
             const float vscale = scale ? scale[c] : 1.0f;
             const float vshift = shift ? shift[c] : 0.0f;
             const float mean_b[1] = {mean[c]};
             const float sm_b[1] = {vscale * inv_std};
             const float sv_b[1] = {vshift};
-            const size_t base_off = off(n, c, 0, 0, 0);
+            const size_t base_off = off(n, c, 0, 0, 0) + sp_start;
             const void *s_ptr = reinterpret_cast<const void *>(
                     reinterpret_cast<const char *>(src) + base_off * data_size);
             void *d_ptr = reinterpret_cast<void *>(
                     reinterpret_cast<char *>(dst) + base_off * data_size);
-            bn_fwd_kernel(s_ptr, d_ptr, static_cast<size_t>(SP), mean_b, sm_b,
+            bn_fwd_kernel(s_ptr, d_ptr, static_cast<size_t>(len), mean_b, sm_b,
                     sv_b, dtsrc, /*per_elem_params=*/false, with_relu);
         });
     } else if (!channels_dense) {
