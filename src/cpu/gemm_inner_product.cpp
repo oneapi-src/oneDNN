@@ -63,7 +63,7 @@ status_t gemm_inner_product_fwd_t<data_type>::execute_forward(
             ? pd()->attr()->post_ops_.entry_[sum_idx].sum.scale
             : 0.f;
 
-    float alpha = 1.;
+    float alpha = 1.f;
     status_t st = extended_sgemm(wei_tr ? "T" : "N", src_tr ? "T" : "N", &OC,
             &MB, &IC, &alpha, weights, wei_tr ? &IC : &OC, src,
             src_tr ? &MB : &IC, &beta, acc, &OC,
@@ -105,7 +105,7 @@ status_t gemm_inner_product_bwd_data_t<data_type>::execute_backward_data(
     // check if MB is the leading dimension
     bool dsrc_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
-    float alpha = 1.0, beta = 0.0;
+    float alpha = 1.0f, beta = 0.0f;
     status_t st = status::success;
     if (dsrc_tr)
         st = extended_sgemm(wei_tr ? "T" : "N", "N", &OC, &IC, &MB, &alpha,
@@ -142,7 +142,7 @@ status_t gemm_inner_product_bwd_weights_t<data_type>::execute_backward_weights(
     // check if MB is the leading dimension
     bool src_tr = smd.format_desc.blocking.strides[0] == 1 && IC > 1;
 
-    float alpha = 1.0, beta = 0.0;
+    float alpha = 1.0f, beta = 0.0f;
     status_t st = status::success;
     if (wei_tr)
         st = extended_sgemm("N", src_tr ? "N" : "T", &OC, &IC, &MB, &alpha,

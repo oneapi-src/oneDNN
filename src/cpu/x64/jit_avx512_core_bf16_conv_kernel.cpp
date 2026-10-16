@@ -1831,7 +1831,7 @@ status_t jit_avx512_core_bf16_bwd_data_kernel_t::init_conf(jit_conv_conf_t &jcp,
         float iw_block_eff = block_eff * work_eff;
 
         const int iw_thread_min_size = 16 * 128;
-        const float iw_block_cost = 20.0;
+        const float iw_block_cost = 20.0f;
         float block_overhead
                 = nstl::max(0.0f, 1.0f - iw_block_cost / (float)iw_block);
 

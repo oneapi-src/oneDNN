@@ -369,8 +369,8 @@ status_t simple_layer_normalization_bwd_t::execute_backward(
 
         PRAGMA_OMP_SIMD()
         for (dim_t c = 0; c < C; c++) {
-            my_diff_gamma[c] = 0.;
-            my_diff_beta[c] = 0.;
+            my_diff_gamma[c] = 0.f;
+            my_diff_beta[c] = 0.f;
         }
 
         for (size_t offset = 0; offset < block_size; offset++) {

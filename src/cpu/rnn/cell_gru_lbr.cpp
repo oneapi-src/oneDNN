@@ -46,8 +46,8 @@ rnn_cell_execution_sig((ref_rnn_fwd_t<src_type, weights_type,
                     src_layer_, scratch_gates_));
         } else {
             CHECK((this->*gemm_layer_func)('N', 'N', rnn.n_gates * rnn.dhc,
-                    rnn.mb, rnn.slc, 1.0, w_layer_[0], rnn.weights_layer_ld,
-                    src_layer_, src_layer_ld, 0.0, scratch_gates_,
+                    rnn.mb, rnn.slc, 1.0f, w_layer_[0], rnn.weights_layer_ld,
+                    src_layer_, src_layer_ld, 0.0f, scratch_gates_,
                     rnn.scratch_gates_ld));
         }
     }
@@ -56,8 +56,8 @@ rnn_cell_execution_sig((ref_rnn_fwd_t<src_type, weights_type,
                 w_iter_[0], src_iter_, scratch_cell_));
     } else {
         CHECK((this->*gemm_iter_func)('N', 'N', rnn.n_gates * rnn.dhc, rnn.mb,
-                rnn.sic, 1.0, w_iter_[0], rnn.weights_iter_ld, src_iter_,
-                src_iter_ld, 0.0, scratch_cell_, rnn.scratch_gates_ld));
+                rnn.sic, 1.0f, w_iter_[0], rnn.weights_iter_ld, src_iter_,
+                src_iter_ld, 0.0f, scratch_cell_, rnn.scratch_gates_ld));
     }
     this->rnn_postgemm_->execute(rnn, cell_position, ws_gates_, scratch_gates_,
             augru_attention_, dst_layer_, dst_iter_c_, src_iter_, src_iter_c_,

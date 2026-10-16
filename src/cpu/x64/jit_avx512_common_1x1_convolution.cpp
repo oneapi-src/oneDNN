@@ -948,7 +948,7 @@ void jit_avx512_common_1x1_convolution_bwd_weights_t::execute_backward_weights(
                         ocb * jcp.oc_block, jcp.oc, jcp.oc_block);
                 if (img == img_start)
                     for (int o = 0; o < 16; ++o)
-                        d_bias[o] = 0.;
+                        d_bias[o] = 0.f;
 
                 for (dim_t os = 0; os < jcp.os; ++os) {
                     PRAGMA_OMP_SIMD()

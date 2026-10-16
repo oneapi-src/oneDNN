@@ -2159,7 +2159,7 @@ status_t jit_avx512_common_conv_bwd_data_kernel_f32_t::init_conf(
 
     auto get_thr_eff = [&](int nb_ic_blocking, dim_t iw_block, int nthr) {
         // Cost heuristic for threading overhead. Determined using OMP.
-        const float iw_block_cost = 32.0;
+        const float iw_block_cost = 32.0f;
 
         const dim_t nb_iw = div_up(jcp.iw, iw_block);
         const dim_t nb_ic_chunks = div_up(jcp.nb_ic, nb_ic_blocking);

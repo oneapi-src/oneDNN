@@ -582,7 +582,7 @@ status_t init_brgemm_kernel(x64::brgemm_desc_t *desc, x64::cpu_isa_t isa,
     bool transB = false;
     x64::brgemm_layout_t layout = x64::brgemm_row_major;
     CHECK(brgemm_desc_init(desc, isa, x64::brgemm_addr, src_type, weights_type,
-            transA, transB, layout, 1.0, beta, LDA, LDB, LDC, M, N, K));
+            transA, transB, layout, 1.0f, beta, LDA, LDB, LDC, M, N, K));
 
     x64::brgemm_attr_t brgattr;
 
@@ -646,41 +646,41 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
         if (rnn.merge_gemm_layer) {
             CHECK(init_brgemm(&desc_layermerged_b0_[i], rnn.brgemm_isa,
                     kernel_layermerged_b0_[i], rnn.mlayermerged_block, brgemm_n,
-                    rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
+                    rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0f,
                     rnn.KB1_blocks));
         } else {
             CHECK(init_brgemm(&desc_layer_b0_[i], rnn.brgemm_isa,
                     kernel_layer_b0_[i], rnn.m_block, brgemm_n, rnn.k1_block,
-                    rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
+                    rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0f,
                     max_bs_factor * rnn.KB1_blocks));
         }
 
         CHECK(init_brgemm(&desc_iter_b0_[i], rnn.brgemm_isa, kernel_iter_b0_[i],
                 rnn.m_block, brgemm_n, rnn.k2_block, rnn.LDA2[i], rnn.LDB2,
-                rnn.LDC, 0.0, rnn.KB2_blocks));
+                rnn.LDC, 0.0f, rnn.KB2_blocks));
         CHECK(init_brgemm(&desc_iter_b1_[i], rnn.brgemm_isa, kernel_iter_b1_[i],
                 rnn.m_block, brgemm_n, rnn.k2_block, rnn.LDA2[i], rnn.LDB2,
-                rnn.LDC, 1.0, rnn.KB2_blocks));
+                rnn.LDC, 1.0f, rnn.KB2_blocks));
         if (rnn.n_tail) {
             if (rnn.merge_gemm_layer) {
                 CHECK(init_brgemm(&desc_layermerged_N_tail_b0_[i],
                         rnn.brgemm_isa, kernel_layermerged_N_tail_b0_[i],
                         rnn.mlayermerged_block, brgemm_n_tail, rnn.k1_block,
-                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0, rnn.KB1_blocks));
+                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0f, rnn.KB1_blocks));
             } else {
                 CHECK(init_brgemm(&desc_layer_N_tail_b0_[i], rnn.brgemm_isa,
                         kernel_layer_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
-                        rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0,
+                        rnn.k1_block, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 0.0f,
                         max_bs_factor * rnn.KB1_blocks));
             }
 
             CHECK(init_brgemm(&desc_iter_N_tail_b0_[i], rnn.brgemm_isa,
                     kernel_iter_N_tail_b0_[i], rnn.m_block, brgemm_n_tail,
-                    rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 0.0,
+                    rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 0.0f,
                     rnn.KB2_blocks));
             CHECK(init_brgemm(&desc_iter_N_tail_b1_[i], rnn.brgemm_isa,
                     kernel_iter_N_tail_b1_[i], rnn.m_block, brgemm_n_tail,
-                    rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0,
+                    rnn.k2_block, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0f,
                     rnn.KB2_blocks));
         }
         if (rnn.k1_tail) {
@@ -688,55 +688,56 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
                 CHECK(init_brgemm(&desc_layermerged_K1_tail_b1_[i],
                         rnn.brgemm_isa, kernel_layermerged_K1_tail_b1_[i],
                         rnn.mlayermerged_block, brgemm_n, rnn.k1_tail,
-                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0, 1));
+                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0f, 1));
             } else {
                 CHECK(init_brgemm(&desc_layer_K1_tail_b1_[i], rnn.brgemm_isa,
                         kernel_layer_K1_tail_b1_[i], rnn.m_block, brgemm_n,
-                        rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0,
+                        rnn.k1_tail, rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0f,
                         max_bs_factor * 1));
             }
         }
         if (rnn.k2_tail)
             CHECK(init_brgemm(&desc_iter_K2_tail_b1_[i], rnn.brgemm_isa,
                     kernel_iter_K2_tail_b1_[i], rnn.m_block, brgemm_n,
-                    rnn.k2_tail, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0, 1));
+                    rnn.k2_tail, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0f, 1));
         if (rnn.k1_tail && rnn.n_tail) {
             if (rnn.merge_gemm_layer) {
                 CHECK(init_brgemm(&desc_layermerged_NK1_tail_b1_[i],
                         rnn.brgemm_isa, kernel_layermerged_NK1_tail_b1_[i],
                         rnn.mlayermerged_block, brgemm_n_tail, rnn.k1_tail,
-                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0, 1));
+                        rnn.LDA1[i], rnn.LDB1, rnn.LDC, 1.0f, 1));
             } else {
                 CHECK(init_brgemm(&desc_layer_NK1_tail_b1_[i], rnn.brgemm_isa,
                         kernel_layer_NK1_tail_b1_[i], rnn.m_block,
                         brgemm_n_tail, rnn.k1_tail, rnn.LDA1[i], rnn.LDB1,
-                        rnn.LDC, 1.0, max_bs_factor * 1));
+                        rnn.LDC, 1.0f, max_bs_factor * 1));
             }
         }
         if (rnn.k2_tail && rnn.n_tail)
             CHECK(init_brgemm(&desc_iter_NK2_tail_b1_[i], rnn.brgemm_isa,
                     kernel_iter_NK2_tail_b1_[i], rnn.m_block, brgemm_n_tail,
-                    rnn.k2_tail, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0, 1));
+                    rnn.k2_tail, rnn.LDA2[i], rnn.LDB2, rnn.LDC, 1.0f, 1));
     }
     if (rnn.is_orig_gru) {
         for (int i = 0; i < num_vanilla_gru_iter_part2_kernels_; i++) {
             CHECK(init_brgemm(&desc_iter_p2_b1_[i], rnn.brgemm_isa,
                     kernel_iter_p2_b1_[i], rnn.m_block, brgemm_n, rnn.k2_block,
-                    rnn.LDA2_2[i], rnn.LDB2, rnn.LDC, 1.0, rnn.KB2_blocks));
+                    rnn.LDA2_2[i], rnn.LDB2, rnn.LDC, 1.0f, rnn.KB2_blocks));
             if (rnn.n_tail)
                 CHECK(init_brgemm(&desc_iter_p2_N_tail_b1_[i], rnn.brgemm_isa,
                         kernel_iter_p2_N_tail_b1_[i], rnn.m_block,
                         brgemm_n_tail, rnn.k2_block, rnn.LDA2_2[i], rnn.LDB2,
-                        rnn.LDC, 1.0, rnn.KB2_blocks));
+                        rnn.LDC, 1.0f, rnn.KB2_blocks));
             if (rnn.k2_tail)
                 CHECK(init_brgemm(&desc_iter_p2_K2_tail_b1_[i], rnn.brgemm_isa,
                         kernel_iter_p2_K2_tail_b1_[i], rnn.m_block, brgemm_n,
-                        rnn.k2_tail, rnn.LDA2_2[i], rnn.LDB2, rnn.LDC, 1.0, 1));
+                        rnn.k2_tail, rnn.LDA2_2[i], rnn.LDB2, rnn.LDC, 1.0f,
+                        1));
             if (rnn.k2_tail && rnn.n_tail)
                 CHECK(init_brgemm(&desc_iter_p2_NK2_tail_b1_[i], rnn.brgemm_isa,
                         kernel_iter_p2_NK2_tail_b1_[i], rnn.m_block,
                         brgemm_n_tail, rnn.k2_tail, rnn.LDA2_2[i], rnn.LDB2,
-                        rnn.LDC, 1.0, 1));
+                        rnn.LDC, 1.0f, 1));
         }
     }
     if (rnn.is_lstm_projection) {
@@ -748,29 +749,29 @@ status_t rnn_brgemm_t<prop_kind::forward>::init_kernels(
         for (int i = 0; i < n_kernel; i++) {
             CHECK(init_brgemm(&desc_proj_b0_[i], rnn.brgemm_isa,
                     kernel_proj_b0_[i], rnn.m_block, brgemm_np, rnn.kproj_block,
-                    rnn.LDAproj, rnn.LDBproj, rnn.LDCproj[i], 0.0,
+                    rnn.LDAproj, rnn.LDBproj, rnn.LDCproj[i], 0.0f,
                     rnn.KBproj_blocks));
             if (rnn.nproj_tail) {
                 CHECK(init_brgemm(&desc_proj_N_tail_b0_[i], rnn.brgemm_isa,
                         kernel_proj_N_tail_b0_[i], rnn.m_block, brgemm_np_tail,
                         rnn.kproj_block, rnn.LDAproj, rnn.LDBproj,
-                        rnn.LDCproj[i], 0.0, rnn.KBproj_blocks));
+                        rnn.LDCproj[i], 0.0f, rnn.KBproj_blocks));
                 CHECK(init_brgemm(&desc_proj_N_tail_b1_[i], rnn.brgemm_isa,
                         kernel_proj_N_tail_b1_[i], rnn.m_block, brgemm_np_tail,
                         rnn.kproj_block, rnn.LDAproj, rnn.LDBproj,
-                        rnn.LDCproj[i], 1.0, rnn.KBproj_blocks));
+                        rnn.LDCproj[i], 1.0f, rnn.KBproj_blocks));
             }
             if (rnn.is_cell_int8_amx() || rnn.is_cell_xf16_amx()) {
                 if (rnn.kproj_tail)
                     CHECK(init_brgemm(&desc_proj_K_tail_b1_[i], rnn.brgemm_isa,
                             kernel_proj_K_tail_b1_[i], rnn.m_block, brgemm_np,
                             rnn.kproj_tail, rnn.LDAproj, rnn.LDBproj,
-                            rnn.LDCproj[i], 1.0, 1));
+                            rnn.LDCproj[i], 1.0f, 1));
                 if (rnn.kproj_tail && rnn.nproj_tail)
                     CHECK(init_brgemm(&desc_proj_NK_tail_b1_[i], rnn.brgemm_isa,
                             kernel_proj_NK_tail_b1_[i], rnn.m_block,
                             brgemm_np_tail, rnn.kproj_tail, rnn.LDAproj,
-                            rnn.LDBproj, rnn.LDCproj[i], 1.0, 1));
+                            rnn.LDBproj, rnn.LDCproj[i], 1.0f, 1));
             }
         }
     }
@@ -1152,13 +1153,13 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
     CHECK(init_brgemm_diff_src(&diff_src.desc_iter_layer_beta0_,
             diff_src_conf.isa, diff_src.kernel_iter_layer_beta0_,
             diff_src_conf.m_block, n_diff_src, diff_src_conf.k_block,
-            diff_src_conf.LDA, diff_src_conf.LDB, diff_src_conf.LDC, 0.0,
+            diff_src_conf.LDA, diff_src_conf.LDB, diff_src_conf.LDC, 0.0f,
             K_batch_size));
     if (split_gates_computation)
         CHECK(init_brgemm_diff_src(&diff_src.desc_iter_layer_beta1_,
                 diff_src_conf.isa, diff_src.kernel_iter_layer_beta1_,
                 diff_src_conf.m_block, n_diff_src, diff_src_conf.k_block,
-                diff_src_conf.LDA, diff_src_conf.LDB, diff_src_conf.LDC, 1.0,
+                diff_src_conf.LDA, diff_src_conf.LDB, diff_src_conf.LDC, 1.0f,
                 K_batch_size));
 
     if (n_diff_src_layer_tail) {
@@ -1166,13 +1167,13 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
                 diff_src_conf.isa, diff_src.kernel_layer_N_tail_beta0_,
                 diff_src_conf.m_block, n_diff_src_layer_tail,
                 diff_src_conf.k_block, diff_src_conf.LDA, diff_src_conf.LDB,
-                diff_src_conf.LDC, 0.0, K_batch_size));
+                diff_src_conf.LDC, 0.0f, K_batch_size));
         if (split_gates_computation)
             CHECK(init_brgemm_diff_src(&diff_src.desc_layer_N_tail_beta1_,
                     diff_src_conf.isa, diff_src.kernel_layer_N_tail_beta1_,
                     diff_src_conf.m_block, n_diff_src_layer_tail,
                     diff_src_conf.k_block, diff_src_conf.LDA, diff_src_conf.LDB,
-                    diff_src_conf.LDC, 1.0, K_batch_size));
+                    diff_src_conf.LDC, 1.0f, K_batch_size));
     }
 
     if (n_diff_src_iter_tail) {
@@ -1180,20 +1181,20 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
                 diff_src_conf.isa, diff_src.kernel_iter_N_tail_beta0_,
                 diff_src_conf.m_block, n_diff_src_iter_tail,
                 diff_src_conf.k_block, diff_src_conf.LDA, diff_src_conf.LDB,
-                diff_src_conf.LDC, 0.0, K_batch_size));
+                diff_src_conf.LDC, 0.0f, K_batch_size));
         if (split_gates_computation)
             CHECK(init_brgemm_diff_src(&diff_src.desc_iter_N_tail_beta1_,
                     diff_src_conf.isa, diff_src.kernel_iter_N_tail_beta1_,
                     diff_src_conf.m_block, n_diff_src_iter_tail,
                     diff_src_conf.k_block, diff_src_conf.LDA, diff_src_conf.LDB,
-                    diff_src_conf.LDC, 1.0, K_batch_size));
+                    diff_src_conf.LDC, 1.0f, K_batch_size));
     }
 
     if (diff_src_conf.k_tail) {
         CHECK(init_brgemm_diff_src(&diff_src.desc_iter_layer_K_tail_beta1_,
                 diff_src_conf.isa, diff_src.kernel_iter_layer_K_tail_beta1_,
                 diff_src_conf.m_block, n_diff_src, diff_src_conf.k_tail,
-                diff_src_conf.LDA, diff_src_conf.LDB, diff_src_conf.LDC, 1.0,
+                diff_src_conf.LDA, diff_src_conf.LDB, diff_src_conf.LDC, 1.0f,
                 rnn.n_gates));
 
         if (n_diff_src_layer_tail) {
@@ -1201,7 +1202,7 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
                     diff_src_conf.isa, diff_src.kernel_layer_NK_tail_beta1_,
                     diff_src_conf.m_block, n_diff_src_layer_tail,
                     diff_src_conf.k_tail, diff_src_conf.LDA, diff_src_conf.LDB,
-                    diff_src_conf.LDC, 1.0, rnn.n_gates));
+                    diff_src_conf.LDC, 1.0f, rnn.n_gates));
         }
 
         if (n_diff_src_iter_tail) {
@@ -1209,7 +1210,7 @@ static status_t init_kernels_diff_src(rnn_diff_src_brgemm_t &diff_src,
                     diff_src_conf.isa, diff_src.kernel_iter_NK_tail_beta1_,
                     diff_src_conf.m_block, n_diff_src_iter_tail,
                     diff_src_conf.k_tail, diff_src_conf.LDA, diff_src_conf.LDB,
-                    diff_src_conf.LDC, 1.0, rnn.n_gates));
+                    diff_src_conf.LDC, 1.0f, rnn.n_gates));
         }
     }
 
@@ -1276,35 +1277,35 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
     init_brgemm_diff_wei(&diff_wei.desc_iter_beta1_, diff_wei_conf.isa,
             diff_wei.kernel_iter_beta1_, m_block_iter, n_diff_wei,
             diff_wei_conf.k_block, diff_wei_conf.LDA_iter, diff_wei_conf.LDB,
-            diff_wei_conf.LDC_iter, 1.0, diff_wei_conf.K_blocks);
+            diff_wei_conf.LDC_iter, 1.0f, diff_wei_conf.K_blocks);
     init_brgemm_diff_wei(&diff_wei.desc_layer_beta1_, diff_wei_conf.isa,
             diff_wei.kernel_layer_beta1_, m_block_layer, n_diff_wei,
             diff_wei_conf.k_block, diff_wei_conf.LDA_layer, diff_wei_conf.LDB,
-            diff_wei_conf.LDC_layer, 1.0, diff_wei_conf.K_blocks);
+            diff_wei_conf.LDC_layer, 1.0f, diff_wei_conf.K_blocks);
 
     if (n_diff_wei_tail) {
         init_brgemm_diff_wei(&diff_wei.desc_iter_N_tail_beta1_,
                 diff_wei_conf.isa, diff_wei.kernel_iter_N_tail_beta1_,
                 m_block_iter, n_diff_wei_tail, diff_wei_conf.k_block,
                 diff_wei_conf.LDA_iter, diff_wei_conf.LDB,
-                diff_wei_conf.LDC_iter, 1.0, diff_wei_conf.K_blocks);
+                diff_wei_conf.LDC_iter, 1.0f, diff_wei_conf.K_blocks);
         init_brgemm_diff_wei(&diff_wei.desc_layer_N_tail_beta1_,
                 diff_wei_conf.isa, diff_wei.kernel_layer_N_tail_beta1_,
                 m_block_layer, n_diff_wei_tail, diff_wei_conf.k_block,
                 diff_wei_conf.LDA_layer, diff_wei_conf.LDB,
-                diff_wei_conf.LDC_layer, 1.0, diff_wei_conf.K_blocks);
+                diff_wei_conf.LDC_layer, 1.0f, diff_wei_conf.K_blocks);
 
         if (diff_wei_conf.k_tail) {
             init_brgemm_diff_wei(&diff_wei.desc_iter_NK_tail_beta1_,
                     diff_wei_conf.isa, diff_wei.kernel_iter_NK_tail_beta1_,
                     m_block_iter, n_diff_wei_tail, diff_wei_conf.k_tail,
                     diff_wei_conf.LDA_iter, diff_wei_conf.LDB,
-                    diff_wei_conf.LDC_iter, 1.0, 1);
+                    diff_wei_conf.LDC_iter, 1.0f, 1);
             init_brgemm_diff_wei(&diff_wei.desc_layer_NK_tail_beta1_,
                     diff_wei_conf.isa, diff_wei.kernel_layer_NK_tail_beta1_,
                     m_block_layer, n_diff_wei_tail, diff_wei_conf.k_tail,
                     diff_wei_conf.LDA_layer, diff_wei_conf.LDB,
-                    diff_wei_conf.LDC_layer, 1.0, 1);
+                    diff_wei_conf.LDC_layer, 1.0f, 1);
         }
     }
 
@@ -1313,12 +1314,12 @@ static status_t init_kernels_diff_wei(rnn_diff_wei_brgemm_t &diff_wei,
                 diff_wei_conf.isa, diff_wei.kernel_iter_K_tail_beta1_,
                 m_block_iter, n_diff_wei, diff_wei_conf.k_tail,
                 diff_wei_conf.LDA_iter, diff_wei_conf.LDB,
-                diff_wei_conf.LDC_iter, 1.0, 1);
+                diff_wei_conf.LDC_iter, 1.0f, 1);
         init_brgemm_diff_wei(&diff_wei.desc_layer_K_tail_beta1_,
                 diff_wei_conf.isa, diff_wei.kernel_layer_K_tail_beta1_,
                 m_block_layer, n_diff_wei, diff_wei_conf.k_tail,
                 diff_wei_conf.LDA_layer, diff_wei_conf.LDB,
-                diff_wei_conf.LDC_layer, 1.0, 1);
+                diff_wei_conf.LDC_layer, 1.0f, 1);
     }
 
     const bool is_xf16_amx_wei = rnn.is_cell_dt_xf16()

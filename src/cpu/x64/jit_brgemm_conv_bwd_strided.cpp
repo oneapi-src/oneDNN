@@ -305,8 +305,8 @@ status_t brgemm_convolution_bwd_strided_t<isa>::pd_t::add_brg_descriptor(
 
     if (do_init && is_K_tail && jcp_.K > 0) return status::success;
 
-    const float alpha = 1.0;
-    const float beta = 1.0;
+    const float alpha = 1.0f;
+    const float beta = 1.0f;
 
     auto vbeta = do_init ? 0 : beta;
     auto vN = is_N_tail ? jcp_.N_tail : jcp_.N;
