@@ -45,12 +45,12 @@ static cpu_isa_t get_supported_isa() {
     return isa_undef;
 }
 
-cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16, bool has_bf16) {
-    // re-using avx512_core instantiation for xf16
+cpu_isa_t get_io_isa(cpu_isa_t isa, bool has_f16, bool has_bf16, bool has_f8) {
+    // re-using avx512_core instantiation for xf16 and fp8
     // re-using avx2 instantiation for xf16
-    if (has_f16 || has_bf16)
+    if (has_f16 || has_bf16 || has_f8)
         return is_superset(isa, avx512_core)
-                ? (has_f16                                    ? avx512_core_fp16
+                ? ((has_f16 || has_f8)                        ? avx512_core_fp16
                                   : mayiuse(avx512_core_bf16) ? avx512_core_bf16
                                                               : avx512_core)
                 : avx2_vnni_2;
@@ -140,15 +140,25 @@ struct jit_stat_and_data_base_kernel_t : stat_and_data_kernel_t,
         io::io_emu_bf16_conf_t io_bf16_conf(bf16_emu_zmm_1_idx,
                 bf16_emu_zmm_2_idx, bf16_emu_zmm_3_idx, reg_tmp,
                 bf16_emu_zmm_4_idx);
+        const utils::optional_t<io::io_emu_fp8_conf_t> io_fp8_conf
+                = is_superset(isa, avx512_core)
+                ? utils::optional_t<io::io_emu_fp8_conf_t>(
+                          io::io_emu_fp8_conf_t(fp8_emu_zmm_1_idx,
+                                  fp8_emu_zmm_2_idx, fp8_emu_zmm_3_idx,
+                                  fp8_emu_zmm_4_idx, fp8_emu_zmm_5_idx,
+                                  fp8_emu_kmask_idx, reg_tmp))
+                : utils::nullopt;
         io::io_saturation_conf_t io_saturation_conf(
                 vmm_zero.getIdx(), vmm_saturation_ubound.getIdx(), reg_tmp);
         const auto io_isa = get_io_isa(isa,
                 utils::one_of(f16, src_d_.data_type(), dst_d_.data_type()),
-                utils::one_of(bf16, src_d_.data_type(), dst_d_.data_type()));
+                utils::one_of(bf16, src_d_.data_type(), dst_d_.data_type()),
+                utils::one_of(dst_d_.data_type(), f8_e4m3, f8_e5m2));
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, io_isa,
                 {src_d_.data_type(), dst_d_.data_type(), f32 /* stats */},
                 io_conf, io_tail_conf, io_bf16_conf,
-                {{dst_d_.data_type(), io_saturation_conf}});
+                {{dst_d_.data_type(), io_saturation_conf}},
+                utils::nullopt /* gather_conf */, io_fp8_conf);
     }
 
 protected:
@@ -230,6 +240,13 @@ protected:
     const int bf16_emu_zmm_4_idx = 31;
     const int tail_opmask_idx = 1;
     Opmask tail_opmask = Opmask(tail_opmask_idx);
+
+    const int fp8_emu_zmm_1_idx = 23;
+    const int fp8_emu_zmm_2_idx = 24;
+    const int fp8_emu_zmm_3_idx = 25;
+    const int fp8_emu_zmm_4_idx = 26;
+    const int fp8_emu_zmm_5_idx = 27;
+    const int fp8_emu_kmask_idx = 3;
 
     const int elt_inj_opmask_idx = 2;
     const Xbyak::Reg64 reg_po_injector_helper_ = r14;
@@ -644,6 +661,8 @@ protected:
 
         if (with_eltwise_ && postops_injector_)
             postops_injector_->prepare_table(/* generate = */ true);
+
+        io_.prepare_table_fp8();
     }
 };
 
@@ -749,7 +768,8 @@ struct jit_diff_ss_kernel_t : diff_ss_kernel_t, public jit_generator_t {
                 bf16_emu_zmm_4_idx);
         const auto io_isa = get_io_isa(isa,
                 utils::one_of(f16, src_d_.data_type(), d_dst_d_.data_type()),
-                utils::one_of(bf16, src_d_.data_type(), d_dst_d_.data_type()));
+                utils::one_of(bf16, src_d_.data_type(), d_dst_d_.data_type()),
+                false /* has_f8 */);
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, io_isa,
                 {src_d_.data_type(), d_dst_d_.data_type(), f32 /* stats */},
                 io_conf, io_tail_conf, io_bf16_conf);
@@ -951,7 +971,8 @@ struct jit_diff_data_base_kernel_t : diff_data_kernel_t,
                 utils::one_of(f16, src_d_.data_type(), d_dst_d_.data_type(),
                         d_src_d_.data_type()),
                 utils::one_of(bf16, src_d_.data_type(), d_dst_d_.data_type(),
-                        d_src_d_.data_type()));
+                        d_src_d_.data_type()),
+                false /* has_f8 */);
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, io_isa,
                 {src_d_.data_type(), d_dst_d_.data_type(), d_src_d_.data_type(),
                         f32 /* stats */},
@@ -1204,7 +1225,8 @@ status_t jit_uni_layer_normalization_fwd_t::pd_t::init(const engine_t *engine) {
     VDISPATCH_LNORM(!has_zero_dim_memory(), VERBOSE_EMPTY_TENSOR, "src");
     VDISPATCH_LNORM(utils::one_of(src_md()->data_type, f32, bf16, f16, s8, u8),
             VERBOSE_UNSUPPORTED_DT);
-    VDISPATCH_LNORM(utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8),
+    VDISPATCH_LNORM(utils::one_of(dst_md()->data_type, f32, bf16, f16, s8, u8,
+                            f8_e4m3, f8_e5m2),
             VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_LNORM(IMPLICATION(utils::one_of(bf16, src_md()->data_type,
                                         dst_md()->data_type),
@@ -1213,6 +1235,10 @@ status_t jit_uni_layer_normalization_fwd_t::pd_t::init(const engine_t *engine) {
     VDISPATCH_LNORM(IMPLICATION(utils::one_of(f16, src_md()->data_type,
                                         dst_md()->data_type),
                             mayiuse(avx512_core_fp16) || mayiuse(avx2_vnni_2)),
+            VERBOSE_ISA_DT_MISMATCH);
+    VDISPATCH_LNORM(
+            IMPLICATION(utils::one_of(dst_md()->data_type, f8_e4m3, f8_e5m2),
+                    mayiuse(avx512_core_fp16)),
             VERBOSE_ISA_DT_MISMATCH);
     VDISPATCH_LNORM(stat_md()->data_type == f32, VERBOSE_UNSUPPORTED_DT);
     VDISPATCH_LNORM(check_scale_shift_data_type(), VERBOSE_UNSUPPORTED_FEATURE,
