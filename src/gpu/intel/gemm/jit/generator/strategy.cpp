@@ -129,6 +129,17 @@ void GEMMStrategy::preflight(HW hw, const GEMMProblem &problem)
     if (kParallelVariable && lateScaleHazard)
         C.atomic = CO.atomic = kParallelVariable = kParallelLocal = false;
 
+    // Only A/B sums computed in the outer product (systolic, or dp4a with C repacking) are
+    // scaled by late 2D scales; other sums are accumulated unscaled, which is wrong when
+    // scales vary across k groups.
+    bool cColMajor = isRegisterColMajor(problem.Tc_ext, problem.C, C);
+    bool opSums = systolic || (!dotVL && problem.isIGEMM() && problem.Tc != problem.Tc_compute());
+    bool opSumA = opSums && cColMajor, opSumB = opSums && !cColMajor;
+    if (aLateScale && problem.needsASums() && !opSumA)
+        stub("Late A scales unsupported with these A sums");
+    if (bLateScale && problem.needsBSums() && !opSumB)
+        stub("Late B scales unsupported with these B sums");
+
     C.atomic |= useAutoAtomic(hw, problem, *this);
 
     if (C.atomic && !C.base.isStateless() && !C.newDP)

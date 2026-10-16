@@ -468,7 +468,7 @@ protected:
     void outerProductFMA(int h, int ha, int hb, int opCount, bool rem, const RegisterLayout &A_layout, const RegisterLayout &B_layout, const GRFMultirange &A_regs, const GRFMultirange &B_regs, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void outerProductSystolic(int h, int ha, int hb, int opCount, bool rem, const RegisterLayout &A_layout, const RegisterLayout &B_layout, const GRFMultirange &A_regs, const GRFMultirange &B_regs, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void outerProduct(int h, int ha, int hb, int opCount, bool rem, const RegisterLayout &A_layout, const RegisterLayout &B_layout, const GRFMultirange &A_regs, const GRFMultirange &B_regs, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
-    void setupTeardownAccumulateSumSystolic(bool setup, Type Tother, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
+    void setupTeardownAccumulateSum(bool setup, Type Tother, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void outerProductRepackC(int x0, int xr0, int nx, int h, bool rem, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state);
     void applyLateABOffset(bool isA, int h, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state, int x0 = 0, int xr0 = 0, int nx = -1);
 

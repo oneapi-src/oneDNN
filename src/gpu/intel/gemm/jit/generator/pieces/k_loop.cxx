@@ -1119,7 +1119,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
 
         // Must run before outerProduct(): its internal repack fold for this h
         // needs Asr/Bsr already updated with h's own contribution, not stale data.
-        if (calcASums && !slmASums && !state.systolicSumA) {
+        if (calcASums && !slmASums && !state.systolicSumA && !state.fmaSumA) {
             int ka_sum = (curPhase == LoopSequencer::PhaseMainLoop) ? ka_sumMain : oc;
             int ha = h % ka;
             if (problem.backward()) {
@@ -1130,7 +1130,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
                 accumulateSumPeriodic(true, regsA, layoutA, h, ha0, ha0 + ka_sum);
         }
 
-        if (calcBSums && !slmBSums && !state.systolicSumB) {
+        if (calcBSums && !slmBSums && !state.systolicSumB && !state.fmaSumB) {
             int kb_sum = (curPhase == LoopSequencer::PhaseMainLoop) ? kb_sumMain : oc;
             int hb = h % kb;
             if (problem.backward()) {

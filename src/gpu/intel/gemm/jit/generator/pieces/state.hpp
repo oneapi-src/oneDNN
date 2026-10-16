@@ -346,6 +346,7 @@ struct GEMMState : public CommonState {
     ngen::GRF tmpCScales;                                   // Internal storage of dynamic scales
     ngen::Subregister statusFlagAddr;                        // uq
     bool systolicSumA = false, systolicSumB = false;
+    bool fmaSumA = false, fmaSumB = false;                  // dp4a A/B sums computed in outerProductFMA
     bool useBDPAS = false;
     bool lateKLoopCheck = false;
     bool splitBarrierAlways = false;

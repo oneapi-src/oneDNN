@@ -1735,39 +1735,43 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
     }
 
     // Prepare layouts for row/column sum calculation.
+    //  With C repacking, dp4a kernels compute sums in outerProductFMA, like systolic kernels do.
+    bool fmaSums = !strategy.systolic && !strategy.dotVL && problem.isIGEMM() && !state.Cr_layout.empty() && (Tc != Tc_compute);
     if (problem.needsASums()) {
         state.systolicSumA = strategy.systolic && globalCM;
-        state.slmASums = slmA && !state.systolicSumA && !usesLateScale(problem, strategy, true);
+        state.fmaSumA = fmaSums && globalCM;
+        state.slmASums = slmA && !state.systolicSumA && !state.fmaSumA && !usesLateScale(problem, strategy, true);
 
         if (!state.slmASums && !globalCM && strategy.dpasw) stub();  /* don't have full A data */
 
         auto As_srcLayout = state.slmASums ? state.Ao_layout :
                              state.repackA ? state.Ar_layout :
                                              state.A_layout;
-        makeSumLayout(false, As_srcLayout, Tc_compute, state.As_layout, strategy, state, state.systolicSumA);
+        makeSumLayout(false, As_srcLayout, Tc_compute, state.As_layout, strategy, state, state.systolicSumA || state.fmaSumA);
         if (Tc != Tc_compute) {
             std::swap(state.Asr_layout, state.As_layout);   /* TODO: trim down */
             state.As_layout = RegisterLayout(hw, Tc, unrollM, 1, true, 1);
         }
-        if (state.systolicSumA)
-            setupTeardownAccumulateSumSystolic(true, Tb, problem, strategy, state);
+        if (state.systolicSumA || state.fmaSumA)
+            setupTeardownAccumulateSum(true, Tb, problem, strategy, state);
     }
     if (problem.needsBSums()) {
         state.systolicSumB = strategy.systolic && !globalCM;
-        state.slmBSums = slmB && !state.systolicSumB && !usesLateScale(problem, strategy, false);
+        state.fmaSumB = fmaSums && !globalCM;
+        state.slmBSums = slmB && !state.systolicSumB && !state.fmaSumB && !usesLateScale(problem, strategy, false);
 
         if (!state.slmBSums && globalCM && strategy.dpasw) stub();
 
         auto Bs_srcLayout = state.slmBSums ? state.Bo_layout :
                              state.repackB ? state.Br_layout :
                                              state.B_layout;
-        makeSumLayout(true, Bs_srcLayout, Tc_compute, state.Bs_layout, strategy, state, state.systolicSumB);
+        makeSumLayout(true, Bs_srcLayout, Tc_compute, state.Bs_layout, strategy, state, state.systolicSumB || state.fmaSumB);
         if (Tc != Tc_compute) {
             std::swap(state.Bsr_layout, state.Bs_layout);
             state.Bs_layout = RegisterLayout(hw, Tc, 1, unrollN, false, 1);
         }
-        if (state.systolicSumB)
-            setupTeardownAccumulateSumSystolic(true, Ta, problem, strategy, state);
+        if (state.systolicSumB || state.fmaSumB)
+            setupTeardownAccumulateSum(true, Ta, problem, strategy, state);
     }
 
     // Prepare strategies and layouts for 2D A/B grouped quantization parameters (offsets and scales).
@@ -2347,8 +2351,8 @@ void Generator<hw>::gemmAccumulateCTeardown(GEMMProblem &problem, GEMMStrategy &
     state.Ag_layout.clear();
     state.Bg_layout.clear();
 
-    if (state.systolicSumA || state.systolicSumB)
-        setupTeardownAccumulateSumSystolic(false, Type::invalid, problem, strategy, state);
+    if (state.systolicSumA || state.systolicSumB || state.fmaSumA || state.fmaSumB)
+        setupTeardownAccumulateSum(false, Type::invalid, problem, strategy, state);
 
     // Restore effA/B if needed.
     bool restoreEffAB = false;

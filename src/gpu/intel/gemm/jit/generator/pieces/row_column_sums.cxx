@@ -216,7 +216,7 @@ void Generator<hw>::accumulateSum(bool column,
 }
 
 template <HW hw>
-void Generator<hw>::setupTeardownAccumulateSumSystolic(bool setup, Type T, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+void Generator<hw>::setupTeardownAccumulateSum(bool setup, Type T, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
     auto &sysSumAll1s = state.sysSumAll1s;
 
