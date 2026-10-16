@@ -703,10 +703,10 @@ void Generator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h, bool rem
                 Cr = Cr_layout.find(ir, jr, Cr_regs, &ner, &Cr_block);
             } else if (doASum) {
                 C  =  state.As_layout.find(x,  0, state.As_regs,  &ne,  &C_block);
-                Cr = state.Asr_layout.find(xr, 0, state.Asr_regs, &ner, &Cr_block);
+                Cr = state.Asr_layout.find(state.systolicSumA ? xr : x, 0, state.Asr_regs, &ner, &Cr_block);
             } else if (doBSum) {
                 C  =  state.Bs_layout.find(0, x,  state.Bs_regs,  &ne,  &C_block);
-                Cr = state.Bsr_layout.find(0, xr, state.Bsr_regs, &ner, &Cr_block);
+                Cr = state.Bsr_layout.find(0, state.systolicSumB ? xr : x, state.Bsr_regs, &ner, &Cr_block);
             } else stub();
 
             ne = std::min({ne, ner, xchunk});
