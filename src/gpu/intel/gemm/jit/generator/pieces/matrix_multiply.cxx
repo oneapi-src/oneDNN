@@ -297,6 +297,31 @@ void Generator<hw>::outerProductFMA(int h, int ha_period, int hb_period, int opC
         } /* ocomp */
         } /* ovcomp */
 
+        // A/B sums: dp4a against all 1s into Asr/Bsr, which are repacked alongside C.
+        if (globalCM ? state.fmaSumA : state.fmaSumB) {
+            auto &Xsr_layout = globalCM ? state.Asr_layout : state.Bsr_layout;
+            auto &Xsr_regs   = globalCM ? state.Asr_regs   : state.Bsr_regs;
+            auto all1s = state.sysSumAll1s.ud(0);
+            for (int hh = 0; hh < opCount; hh += minOPCount) {
+                for (int x1 = 0; x1 < nx1 && (x0 + x1) < nx;) {
+                    int x = x0 + x1, xr = x % Cr_unrollX, nsrc, nsum;
+                    const RegisterBlock *block;
+                    auto src = globalCM ? A_layout.find(x, ha + hh, A_regs, &nsrc, &block)
+                                        : B_layout.find(hb + hh, x, B_regs, &nsrc, &block);
+                    if (block->colMajor != globalCM || block->crosspack != minOPCount) stub();
+                    auto sum = globalCM ? Xsr_layout.find(xr, 0, Xsr_regs, &nsum)
+                                        : Xsr_layout.find(0, xr, Xsr_regs, &nsum);
+                    int simd = rounddown_pow2(std::min({fmaSIMD, nsrc, nsum, nx1 - x1, Cr_unrollX - xr}));
+                    auto srcD = src.reinterpret(0, isSigned(src.getType()) ? DataType::d : DataType::ud);
+                    if (startRepackC && hh == 0)
+                        dp4a(simd, sum(1), 0, srcD(1), all1s(0));
+                    else
+                        dp4a(simd, sum(1), sum(1), srcD(1), all1s(0));
+                    x1 += simd;
+                }
+            }
+        }
+
         if (endRepackC) {
             int xr = x0 - Cr_unrollX + nx1;
             if (xr >= 0)
@@ -625,8 +650,9 @@ void Generator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h, bool rem
 
     // Folds raw sums (from systolic or non-systolic accumulateSum) in Asr/Bsr into
     // As/Bs, using the same k-group scale/indexing as the A*B product above.
-    bool sumA = problem.needsASums();
-    bool sumB = problem.needsBSums();
+    // Only systolic/FMA sums are accumulated in Asr/Bsr; others go directly to As/Bs.
+    bool sumA = state.systolicSumA || state.fmaSumA;
+    bool sumB = state.systolicSumB || state.fmaSumB;
     if (globalCM ? sumB : sumA) stub();
 
     if (Tc.size() != Tc_compute.size()) stub();
