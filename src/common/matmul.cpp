@@ -347,6 +347,7 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     if (!attr->scales_.has_default_values()) {
         const auto &sc = attr->scales_;
 
+        dim_t src_scale_group_m = 1;
         dim_t src_scale_group_k = 1;
         if (!sc.has_default_values(DNNL_ARG_SRC)) {
             const int mask_src = sc.get_mask(DNNL_ARG_SRC);
@@ -366,9 +367,16 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
             }
 
             if (!sc.get(DNNL_ARG_SRC).has_default_groups()) {
+                if (mask_src & src_qmask_M)
+                    src_scale_group_m = sc.get_group(DNNL_ARG_SRC, 0);
                 if (mask_src & src_qmask_K)
                     src_scale_group_k = sc.get_group(DNNL_ARG_SRC, 1);
             }
+
+            // Src M-group would apply the same scale to multiple tokens, which
+            // is not how current models work.
+            VCHECK_MATMUL_UNIMPL(
+                    src_scale_group_m == 1, VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             // A group size must divide the corresponding dimension, otherwise
             // the quantization is ill-defined.
@@ -495,6 +503,7 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
     if (!attr->zero_points_.has_default_values()) {
         const auto &zp = attr->zero_points_;
 
+        dim_t src_zp_group_m = 1;
         dim_t src_zp_group_k = 1;
         if (!zp.has_default_values(DNNL_ARG_SRC)) {
             // Zero points are a quantization property and are only meaningful
@@ -523,7 +532,14 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
             if (!zp.get(DNNL_ARG_SRC).has_default_groups()) {
                 if (mask_src & src_qmask_K)
                     src_zp_group_k = zp.get_group(DNNL_ARG_SRC, -1);
+                if (mask_src & src_qmask_M)
+                    src_zp_group_m = zp.get_group(DNNL_ARG_SRC, -2);
             }
+
+            // Src M-group would apply the same zero point to multiple tokens,
+            // which is not how current models work.
+            VCHECK_MATMUL_UNIMPL(
+                    src_zp_group_m == 1, VERBOSE_UNSUPPORTED_ZP_CFG);
 
             // A group size must divide the corresponding dimension, otherwise
             // the quantization is ill-defined.
