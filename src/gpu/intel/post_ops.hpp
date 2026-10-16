@@ -250,7 +250,7 @@ struct relative_md_t {
         for (int i = 0; i < ndims; i++) {
             if (ndim_normalizer.dim(i, md) > 1
                     && ndim_normalizer.stride(i, md) <= min_stride) {
-                rmd.inner_dim = from_md_idx(i, ndims, ndim_normalizer);
+                rmd.inner_dim = from_md_idx(i, ndims, ndim_normalizer_t());
                 min_stride = ndim_normalizer.stride(i, md);
             }
         }
