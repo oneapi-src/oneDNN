@@ -743,8 +743,8 @@ void jit_uni_dw_conv_bwd_weights_kernel_t<isa, kernel_dt>::partition_nthr_nxc(
      * Additionally, try to reduce work imbalance across threads
      * (i.e. 'total_imbalance').
      */
-    float best_thr_eff = 0.; // maximinze
-    float best_imbalance = 1.; // minimize
+    float best_thr_eff = 0.f; // maximinze
+    float best_imbalance = 1.f; // minimize
 
     // Performance-tuning variables - enable through 'getenv_int()'
     // if necessary

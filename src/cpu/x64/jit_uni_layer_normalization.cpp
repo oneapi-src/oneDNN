@@ -1392,8 +1392,8 @@ status_t jit_uni_layer_normalization_bwd_t::execute_backward(
         float *my_diff_gamma = reduce + C * ithr;
         float *my_diff_beta = reduce + C * nthr + C * ithr;
         for (dim_t c = 0; c < C; c++) {
-            my_diff_gamma[c] = 0.;
-            my_diff_beta[c] = 0.;
+            my_diff_gamma[c] = 0.f;
+            my_diff_beta[c] = 0.f;
         }
         const float *mean_ptr = skip_mean ? nullptr : &mean[N_start];
         (*diff_ss_kernel_)(src_ptr, diff_dst_ptr, my_diff_gamma, my_diff_beta,

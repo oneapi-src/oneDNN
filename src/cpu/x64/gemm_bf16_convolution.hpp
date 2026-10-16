@@ -105,7 +105,7 @@ struct gemm_bf16_convolution_fwd_t : public primitive_t {
 
     status_t init(engine_t *engine) override {
         const auto &post_ops = pd()->attr()->post_ops_;
-        const acc_data_t one = 1.0, zero = 0.0;
+        const acc_data_t one = 1.0f, zero = 0.0f;
         beta_ = dst_data_type == data_type::f32
                         && post_ops.find(primitive_kind::sum) >= 0
                 ? one

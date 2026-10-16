@@ -1259,7 +1259,7 @@ rnn_grid_execution_sig((ref_rnn_common_t<aprop, src_type, weights_type,
             niter_merge_gemm_iter = rnn.n_iter - rnn.skip_src_iter_copy();
             if (niter_merge_gemm_iter > 0) {
                 CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic,
-                        rnn.mb * niter_merge_gemm_iter, 1.0,
+                        rnn.mb * niter_merge_gemm_iter, 1.0f,
                         (weights_t *)scratch_gates_
                                 + rnn.skip_src_iter_copy()
                                         * rnn.scratch_gates_nld
@@ -1274,7 +1274,7 @@ rnn_grid_execution_sig((ref_rnn_common_t<aprop, src_type, weights_type,
                 states_iter = src_iter_ + src_iter_mdw.off(lay, dir, 0, 0);
                 states_iter_ld = rnn.src_iter_ld_;
                 CHECK(gemm('N', 'T', rnn.n_gates * rnn.dhc, rnn.sic, rnn.mb,
-                        1.0, (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
+                        1.0f, (weights_t *)scratch_gates_, rnn.scratch_gates_ld,
                         states_iter, states_iter_ld,
                         rnn.diff_weights_beta(niter_merge_gemm_iter
                                         ? cell_position_t::middle_cell

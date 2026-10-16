@@ -66,7 +66,7 @@ status_t gemm_bf16_inner_product_fwd_t<dst_data_type>::execute_forward(
             : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                       key_iprod_int_dat_in_acc_dt);
 
-    float alpha = 1.0;
+    float alpha = 1.0f;
     status_t st = gemm_bf16bf16f32(wei_tr ? "T" : "N", src_tr ? "T" : "N", &M,
             &N, &K, &alpha, weights, wei_tr ? &K : &M, src, src_tr ? &N : &K,
             &beta_, acc, &M);
@@ -113,7 +113,7 @@ gemm_bf16_inner_product_bwd_data_t<diff_src_data_type>::execute_backward_data(
             : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                       key_iprod_int_dat_in_acc_dt);
 
-    float alpha = 1.0, beta = 0.0;
+    float alpha = 1.0f, beta = 0.0f;
     status_t st = status::success;
     if (dsrc_tr)
         st = gemm_bf16bf16f32(wei_tr ? "T" : "N", "N", &K, &M, &N, &alpha,
@@ -162,7 +162,7 @@ status_t gemm_bf16_inner_product_bwd_weights_t<diff_wei_data_type>::
             : ctx.get_scratchpad_grantor().template get<acc_data_t>(
                       key_iprod_int_dat_in_acc_dt);
 
-    float alpha = 1.0, beta = 0.0;
+    float alpha = 1.0f, beta = 0.0f;
     status_t st = status::success;
     if (wei_tr)
         st = gemm_bf16bf16f32("N", src_tr ? "N" : "T", &OC, &IC, &MB, &alpha,

@@ -109,7 +109,7 @@ struct gemm_convolution_fwd_t : public primitive_t {
         : primitive_t(apd), post_ops_(nullptr) {}
 
     status_t init(engine_t *engine) override {
-        const data_t one = 1.0, zero = 0.0;
+        const data_t one = 1.0f, zero = 0.0f;
         const auto &jcp = pd()->jcp_;
         beta_ = jcp.with_sum ? one : zero;
 

@@ -456,7 +456,7 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
             if (ithr != 0) {
                 y_eff = ybuf + m * (ithr - 1);
                 incy_eff = 1;
-                beta_eff = 0.0;
+                beta_eff = 0.0f;
             } else {
                 // Set number of used buffers for perform reduction later.
                 nbufs_used = nthr_eff - 1;

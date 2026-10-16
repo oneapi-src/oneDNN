@@ -349,7 +349,7 @@ float rnn_utils::to_float(const void *data, const data_type_t dt) {
         return float(*static_cast<const bfloat16_t *>(data));
     else if (dt == data_type::f16)
         return float(*static_cast<const float16_t *>(data));
-    return 0.0;
+    return 0.0f;
 }
 
 const void *rnn_utils::inc_ptr(

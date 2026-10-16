@@ -580,7 +580,7 @@ status_t gemm_bf16_convolution_fwd_t<dst_data_type>::execute_forward_ncsp(
             }
         }
 
-        const acc_data_t one = 1.0;
+        const acc_data_t one = 1.0f;
         const dim_t N = oc_block;
         const dim_t K = ic_block * jcp.ks;
         const dim_t m = os_block;
@@ -832,7 +832,7 @@ status_t gemm_bf16_convolution_bwd_data_t<diff_src_data_type>::
                         = nstl::min((dim_t)jcp.os_block, jcp.os - os_nb * m);
                 const dim_t LDC = jcp.im2col_sz ? os_block : M;
 
-                const acc_data_t zero = 0.0, one = 1.0;
+                const acc_data_t zero = 0.0f, one = 1.0f;
                 status_t st_thr = gemm_bf16bf16f32("N", "T", &os_block, &N, &K,
                         &one, _diff_dst, &M, _weights, &N, &zero,
                         jcp.im2col_sz ? _col : acc + out_off, &LDC);
@@ -1251,7 +1251,7 @@ status_t gemm_bf16_convolution_bwd_weights_t<diff_wei_data_type>::
                         }
 
                         const dim_t LDA = jcp.im2col_sz ? os_block : K;
-                        const acc_data_t zero = 0.0, one = 1.0;
+                        const acc_data_t zero = 0.0f, one = 1.0f;
                         status_t st_thr = gemm_bf16bf16f32("T", "N", &M, &N,
                                 &os_block, &one,
                                 jcp.im2col_sz ? _col : _src + out_off, &LDA,

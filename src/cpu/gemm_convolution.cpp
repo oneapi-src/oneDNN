@@ -286,7 +286,7 @@ status_t gemm_convolution_fwd_t::execute_forward_ncsp(
                     jit_gemm_convolution_utils::im2col_3d<float>(
                             jcp, _src, _col, curr.od, 0, jcp.os);
             }
-            const data_t one = 1.0;
+            const data_t one = 1.0f;
 
             const dim_t M = jcp.os * jcp.od;
             const dim_t m = step.sp;
@@ -582,7 +582,7 @@ status_t gemm_convolution_bwd_data_t::execute_backward_data_ncsp(
                         = nstl::min((dim_t)jcp.os_block, jcp.os - os_nb * m);
                 const dim_t LDC = jcp.im2col_sz ? os_block : M;
 
-                const data_t zero = 0.0, one = 1.0;
+                const data_t zero = 0.0f, one = 1.0f;
                 status_t st_thr = extended_sgemm("N", "T", &os_block, &N, &K,
                         &one, _diff_dst, &M, _weights, &N, &zero,
                         jcp.im2col_sz ? _col : _diff_src + out_off, &LDC);
@@ -865,7 +865,7 @@ status_t gemm_convolution_bwd_weights_t::execute_backward_weights_ncsp(
                                         os_nb * jcp.os_block, os_block);
                         }
                         const dim_t LDA = jcp.im2col_sz ? os_block : K;
-                        const data_t zero = 0.0, one = 1.0;
+                        const data_t zero = 0.0f, one = 1.0f;
                         status_t st_thr = extended_sgemm("T", "N", &M, &N,
                                 &os_block, &one,
                                 jcp.im2col_sz ? _col : _src + out_off, &LDA,

@@ -2132,7 +2132,7 @@ dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
         if (beta[0] == 0.) {
             for (j = 0; j < n; j++)
                 for (i = 0; i < m; i++)
-                    c[i + j * ldc] = 0.0;
+                    c[i + j * ldc] = 0.0f;
         } else if (beta[0] != 1.) {
             for (j = 0; j < n; j++)
                 for (i = 0; i < m; i++)
@@ -2147,8 +2147,8 @@ dnnl_status_t sgemm_nocopy_driver(const char *transa, const char *transb,
     // XXX: this happens on every thread...
     bool hasBias = (bias != nullptr);
     auto ker_bn = get_xbyak_gemm(isTransA, isTransB, *beta, hasBias);
-    auto ker_b1 = get_xbyak_gemm(isTransA, isTransB, 1.0, false);
-    auto ker_b0 = get_xbyak_gemm(isTransA, isTransB, 0.0, false);
+    auto ker_b1 = get_xbyak_gemm(isTransA, isTransB, 1.0f, false);
+    auto ker_b0 = get_xbyak_gemm(isTransA, isTransB, 0.0f, false);
     if (utils::any_null(ker_bn, ker_b1, ker_b0)) return dnnl_runtime_error;
 
     dim_t BM = 4032;
@@ -2373,7 +2373,7 @@ dnnl_status_t jit_avx_gemm_f32(int nthrs, const char *transa,
                     if (bias) myBias = &(bias[m_from]);
                 } else {
                     myC = c_buffers + MB * NB * (cbase + ithr_k - 1);
-                    myBeta = 0.0;
+                    myBeta = 0.0f;
                     ld = MB;
                     myBias = nullptr;
                 }

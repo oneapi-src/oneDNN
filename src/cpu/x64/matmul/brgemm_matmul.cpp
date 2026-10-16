@@ -364,9 +364,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
                 "per-mn-comp jit kernel not applicable");
     }
 
-    const float alpha = 1.0;
-    const float beta = 1.0;
-    const float beta_init = 0.0;
+    const float alpha = 1.0f;
+    const float beta = 1.0f;
+    const float beta_init = 0.0f;
 
     const int max_m_ker_idx
             = bgmmc_.is_runtime_M ? max_num_dynamic_m_tails + 1 : 2;
