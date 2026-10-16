@@ -526,6 +526,10 @@ int skip_unimplemented_partitions(const std::vector<partition> &partitions,
     const bool partition_num_mismatch = (prb->expected_n_partition > 0
             && partitions.size() != prb->expected_n_partition);
 
+    // If there are multiple partitions, check all of them for skip conditions
+    // before reporting a failure, as an unsupported data type in any partition
+    // may cause the mismatch.
+    int first_unsupported = -1;
     for (size_t i = 0; i < partitions.size(); ++i) {
         // Skip the partition contains op with unimplemented accumulation_mode
         skip_unimplemented_accumulation_mode(partitions[i], dg, res);
@@ -533,7 +537,10 @@ int skip_unimplemented_partitions(const std::vector<partition> &partitions,
 
         // If the partition number mismatches the requirement, check whether
         // there are unsupported data types.
-        if (partitions[i].is_supported() && !partition_num_mismatch) continue;
+        const bool is_supported = partitions[i].is_supported();
+        if (is_supported && !partition_num_mismatch) continue;
+        if (!is_supported && first_unsupported < 0)
+            first_unsupported = static_cast<int>(i);
 
         skip_unimplemented_ops(partitions[i], dg, res);
         if (res->state == SKIPPED) return OK;
@@ -584,8 +591,11 @@ int skip_unimplemented_partitions(const std::vector<partition> &partitions,
         if (in_out_dt.empty()) continue;
         skip_unimplemented_data_type(in_out_dt, dir, res);
         if (res->state == SKIPPED) return OK;
+    }
 
-        BENCHDNN_PRINT(3, "[INFO]: partition #%zd is unsupported!\n", i);
+    if (first_unsupported >= 0) {
+        BENCHDNN_PRINT(3, "[INFO]: partition #%d is unsupported!\n",
+                first_unsupported);
         return res->state = UNIMPLEMENTED, FAIL;
     }
 
