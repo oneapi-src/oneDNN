@@ -644,6 +644,7 @@ void CopyPlan::copyThrough(CopyInstruction &i, DataType type, int stride, bool s
     auto setNullDstRegioning = [](CopyOperand &dst, const CopyOperand &src) {
         if (!dst.isNull()) return;
         dst.stride = src.width == 1 ? src.vs : src.stride;
+        dst.offset = src.offset;
         dst.width = dst.vs = 0;
         dst.type = src.type;
     };
@@ -714,6 +715,7 @@ void CopyPlan::repositionSrc(CopyInstruction &i, int n, int stride, int offset)
 
     if (!i1.dst) {
         i1.dst.stride = i1.src0.width == 1 ? i1.src0.vs : i1.src0.stride;
+        i1.dst.offset = i1.src0.offset;
         i1.dst.width = i1.dst.vs = 0;
         i1.dst.type = i1.src0.type;
     }
@@ -2447,6 +2449,7 @@ void CopyPlan::planEmulatedHFToHF8(CopyInstruction &i)
     ie[3]->dst = CopyOperand();
     ie[3]->dst.type = DataType::hf;
     ie[3]->dst.stride = x.stride;
+    ie[3]->dst.offset = x.offset;
     ie[3]->src0 = abs(x);
     ie[3]->src1 = Immediate::hf(0x5FC0);
     ie[3]->cmod = ConditionModifier::lt;
