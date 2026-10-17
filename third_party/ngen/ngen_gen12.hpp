@@ -1251,6 +1251,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             unsigned rcount = 1 + dpas.rcount;
             unsigned len;
             TernaryOperand12 o;
+            o.bits = 0;
             unsigned regNum8 = 0;
 
             switch (opNum) {
@@ -1294,6 +1295,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                     reg |= bdpas.src3Reg1_2 << 1;
                     reg |= bdpas.src3Reg3_6 << 3;
                     reg |= bdpas.src3Reg7_8 << 7;
+                    o.direct.regFile = bdpas.src3RegFile;
                     o.direct.regNum = reg;      // low 8 bits
                     regNum8 = reg >> 8;         // bit 8 routed separately
                     len = 1;
@@ -1303,6 +1305,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                     if (op != Opcode::bdpas) return false;
                     unsigned reg = bdpas.src4Reg0_3;
                     reg |= bdpas.src4Reg4_8 << 4;
+                    o.direct.regFile = bdpas.src4RegFile;
                     o.direct.regNum = reg;      // low 8 bits
                     regNum8 = reg >> 8;         // bit 8 routed separately
                     len = 1;
@@ -1310,6 +1313,8 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 }
                 default: return false;
             }
+
+            if (o.direct.regFile == RegFileARF) return false;    // null operand
 
             unsigned regNum = o.direct.regNum;
             if (xe3p) regNum |= (regNum8 << 8);
