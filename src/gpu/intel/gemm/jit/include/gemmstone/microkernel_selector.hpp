@@ -62,6 +62,59 @@ struct GEMMOptions {
 
 /* Main entrypoint for microkernel auto-selection */
 using StrategyAdjuster = std::function<void(GEMMStrategy&)>;
+
+/* A microkernel configuration ready for code generation: a catalog or heuristic
+   strategy, adjusted, sized for a GRF mode, and preflighted. Each candidate owns
+   its problem, as building a candidate updates it. */
+struct GEMMCandidate {
+    GEMMProblem problem;
+    GEMMStrategy strategy;
+
+    /* Serialization for kernel cache. */
+    void serialize(SerializationStream &s) const
+    {
+        s.append(problem, strategy);
+    }
+};
+
+/* Ranked microkernel candidates for one request, built without generating code.
+   The problem's C must be column-major. */
+class GEMMSelector {
+public:
+    GEMMSelector(const GEMMOptions &options, HostPayload host, HWInformation hwInfo, SizeParams sizes,
+                 const GEMMProblem &problem,
+                 const std::vector<StrategyRequirement> &reqs = std::vector<StrategyRequirement>(),
+                 StrategyAdjuster strategyAdjuster = {});
+
+    /* Builds the next candidate that passes preflight, in order of preference.
+       Returns false once the candidates are exhausted. */
+    bool next(GEMMCandidate &candidate);
+
+private:
+    bool prepare(const kcatalog::Entry *entry, GEMMCandidate &candidate) const;
+    bool finish(const kcatalog::Entry *entry, GEMMCandidate &candidate) const;
+
+    GEMMOptions options;
+    HostPayload host;
+    HWInformation hwInfo;
+    SizeParams sizes;
+    GEMMProblem baseProblem;
+    std::vector<StrategyRequirement> reqs;
+    StrategyAdjuster strategyAdjuster;
+    ngen::HW hw = ngen::HW::Unknown;
+    int stepping = 0;
+    EvaluateAuxOutput auxParams;
+    std::vector<const kcatalog::Entry *> entries;
+    size_t nextEntry = 0;
+    bool pendingLargeGRF = false;
+    const kcatalog::Entry *largeGRFEntry = nullptr;
+    GEMMCandidate largeGRFCandidate;
+};
+
+/* Generates the microkernel for a candidate. Throws on failure. */
+Package generateGEMM(const GEMMOptions &options, HostPayload host, HWInformation hwInfo,
+                     const GEMMCandidate &candidate);
+
 Package selectGEMM(const GEMMOptions &options, HostPayload host, HWInformation hwInfo, SizeParams sizes,
                                      const GEMMProblem &problem,
                                      const std::vector<StrategyRequirement> &reqs = std::vector<StrategyRequirement>(),
