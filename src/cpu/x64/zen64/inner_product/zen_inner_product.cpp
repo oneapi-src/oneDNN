@@ -16,6 +16,7 @@
 
 #include "cpu/x64/zen64/inner_product/zen_inner_product.hpp"
 
+#include <cstring>
 #include <string>
 
 #include "common/primitive_exec_types.hpp"
@@ -125,8 +126,8 @@ status_t zen_inner_product_fwd_t::pd_t::init_matmul_params(
     const auto src_dt = src_md(0)->data_type;
     const auto wei_dt = weights_md(0)->data_type;
 
-    // Prepack (zen_packed) needs inference weights, either open (we advertise,
-    // framework reorders once) or already packed from a prior query.
+    // zen_packed is advertised only for open inference weights (framework
+    // reorders once); already-packed weights run as-is for either fwd prop_kind.
     const bool inference = desc()->prop_kind == prop_kind::forward_inference;
     const bool wei_format_any = memory_desc_wrapper(weights_md(0)).format_any();
     const bool wei_already_packed = zen::is_zen_packed(*weights_md(0));
@@ -160,18 +161,23 @@ status_t zen_inner_product_fwd_t::pd_t::init_matmul_params(
             init_matmul_md(mm_dst_md, *dst_md(), ab), VERBOSE_UNSUPPORTED_TAG);
 
     const bool use_zen_packed
-            = inference && (wei_format_any || wei_already_packed);
+            = (inference && wei_format_any) || wei_already_packed;
     if (use_zen_packed) {
-        // matmul weights = zen_packed [IC, OC]. The packed bytes are normalized
-        // [K=IC, N=OC], so this md is identical whether advertised or pre-packed.
+        // matmul weights = [IC, OC]; the packed bytes are normalized
+        // [K=IC, N=OC]. Already-packed weights are handed over as zen_packed.
+        // Open weights stay open so that zen_matmul picks the same packed
+        // layout itself and, as for any non-prepacked weights, declines
+        // post-ops it cannot fuse.
         dims_t wei_2d = {K, N};
         VDISPATCH_INNER_PRODUCT_SC(
-                memory_desc_init_by_tag(mm_wei_md, 2, wei_2d, wei_dt, ab),
+                memory_desc_init_by_tag(mm_wei_md, 2, wei_2d, wei_dt,
+                        wei_already_packed ? ab : format_tag::any),
                 VERBOSE_UNSUPPORTED_TAG);
-        VDISPATCH_INNER_PRODUCT_SC(
-                zen::init_zen_packed_md(mm_wei_md, src_dt, K, N, /*batch=*/1,
-                        /*weights_transposed=*/false),
-                VERBOSE_UNSUPPORTED_TAG);
+        if (wei_already_packed)
+            VDISPATCH_INNER_PRODUCT_SC(
+                    zen::init_zen_packed_md(mm_wei_md, src_dt, K, N,
+                            /*batch=*/1, /*weights_transposed=*/false),
+                    VERBOSE_UNSUPPORTED_TAG);
         // Advertise zen_packed [OC, IC] only for open weights, so the framework
         // reorders once. A pre-packed md is kept as-is (no second reorder).
         if (wei_format_any) {
@@ -220,8 +226,22 @@ status_t zen_inner_product_fwd_t::pd_t::init_matmul_params(
             VERBOSE_PRIMITIVE_CREATION_FAIL, "matmul");
     VDISPATCH_INNER_PRODUCT(
             matmul_pd_ != nullptr, VERBOSE_PRIMITIVE_CREATION_FAIL, "matmul");
+    // The IP weights advertised above must match the packed layout the nested
+    // matmul chose for open weights.
+    VDISPATCH_INNER_PRODUCT(
+            !use_zen_packed || zen::is_zen_packed(*matmul_pd_->weights_md(0)),
+            VERBOSE_UNSUPPORTED_TAG_S, "weights");
 
     return status::success;
+}
+
+const char *zen_inner_product_fwd_t::pd_t::impl_name() const {
+    const char *matmul_name = matmul_pd_ ? matmul_pd_->name() : "";
+    if (std::strstr(matmul_name, "+pp_kernel"))
+        return "zen:ip:f32|bf16|f16:amd+pp_kernel";
+    if (std::strstr(matmul_name, "+post_ops_fallback"))
+        return "zen:ip:f32|bf16|f16:amd+post_ops_fallback";
+    return "zen:ip:f32|bf16|f16:amd";
 }
 
 status_t zen_inner_product_fwd_t::execute(const exec_ctx_t &ctx) const {
