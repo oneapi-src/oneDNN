@@ -22,6 +22,7 @@
 #include "gemm_grouped.h"
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define DIV_UP(x, y) (((x) + (y) - 1) / (y))
 
 #define DST_TILE_DATA_T NATIVE_LAYOUT_TYPE(DST_DATA_T)
 #define BIA_TILE_DATA_T NATIVE_LAYOUT_TYPE(BIA_DATA_T)
@@ -118,14 +119,16 @@ DECLARE_2D_TILE_HREDUCE(c_tile_type_float, SUBGROUP_SIZE,
 #endif
 
 #if WITH_SPARSE_GROUPS
+// Every subgroup reads offsets_tile_nbr blocks of SUBGROUP_SIZE offsets per
+// search pass, so that a pass of the work-group covers SPARSE_GROUPS_PER_PASS
+// groups. More groups take additional passes.
 #define sparse_sg_per_wg \
     (ugemm_grouped_sg_per_wg_m * ugemm_grouped_sg_per_wg_n \
             * ugemm_grouped_sg_per_wg_k)
 #define offsets_tile_br SUBGROUP_SIZE
 #define offsets_tile_bc 1
 #define offsets_tile_nbr \
-    ((NUM_GROUPS + sparse_sg_per_wg * SUBGROUP_SIZE - 1) \
-            / (sparse_sg_per_wg * SUBGROUP_SIZE))
+    DIV_UP(SPARSE_GROUPS_PER_PASS, (sparse_sg_per_wg * SUBGROUP_SIZE))
 #define offsets_tile_nbc 1
 DECLARE_2D_TILE(offsets_tile_type, int, SUBGROUP_SIZE, offsets_tile_br,
         offsets_tile_bc, offsets_tile_nbr, offsets_tile_nbc)
@@ -137,7 +140,8 @@ DECLARE_2D_TILE(offsets_tile_type, int, SUBGROUP_SIZE, offsets_tile_br,
     slm_src_offsets_size + slm_batch_size + slm_sg_last_size
 
 void find_sparse_batch(off_t *batch, int2 *src_range,
-        const global int *src_offsets, off_t flat_token, local char *slm) {
+        const global int *src_offsets, long num_groups, off_t flat_token,
+        local char *slm) {
     local off_t *slm_src_offset = (local off_t *)slm;
     local off_t *slm_batch = slm_src_offset + 2;
     local int *slm_sg_last = (local int *)(slm_batch + 1);
@@ -145,35 +149,45 @@ void find_sparse_batch(off_t *batch, int2 *src_range,
     offsets_tile_type offsets_tile;
     off_t sg_ij0 = sub_group_broadcast(get_local_linear_id(), 0);
     int sg_idx = get_sub_group_id();
-    off_t sg_batch0 = sg_ij0 * offsets_tile_nbr;
+    const off_t pass_size = sparse_sg_per_wg * SUBGROUP_SIZE * offsets_tile_nbr;
 
-    tile_load(&offsets_tile, src_offsets, NUM_GROUPS, 1, 0, sg_batch0, 0);
+    // The offsets are cumulative, so the search stops after the pass ending
+    // past the current token. pass_carry is the offset ending the previous pass.
+    int pass_carry = 0;
+    for (off_t pass0 = 0; pass0 < num_groups && flat_token >= pass_carry;
+            pass0 += pass_size) {
+        off_t sg_batch0 = pass0 + sg_ij0 * offsets_tile_nbr;
 
-    // Share each subgroup's last tile value for cross-subgroup carry
-    if (get_sub_group_local_id() == SUBGROUP_SIZE - 1)
-        slm_sg_last[sg_idx] = offsets_tile.x[offsets_tile_nbr - 1][0];
-    work_group_barrier(CLK_LOCAL_MEM_FENCE);
+        tile_load(&offsets_tile, src_offsets, num_groups, 1, 0, sg_batch0, 0);
 
-    int sg_carry = (sg_idx > 0) ? slm_sg_last[sg_idx - 1] : 0;
+        // Share each subgroup's last tile value for cross-subgroup carry
+        if (get_sub_group_local_id() == SUBGROUP_SIZE - 1)
+            slm_sg_last[sg_idx] = offsets_tile.x[offsets_tile_nbr - 1][0];
+        work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    // Find the tile containing the current batch, use shuffle_up to
-    // query the next src_offset.
-    int carry_b = sg_carry;
+        int sg_carry = (sg_idx > 0) ? slm_sg_last[sg_idx - 1] : pass_carry;
+
+        // Find the tile containing the current batch, use shuffle_up to
+        // query the next src_offset.
+        int carry_b = sg_carry;
 #pragma unroll
-    for (int b = 0, idx = sg_batch0 + get_sub_group_local_id();
-            b < offsets_tile_nbr; b++, idx += SUBGROUP_SIZE) {
-        off_t curr = offsets_tile.x[b][0];
-        off_t prev = intel_sub_group_shuffle_up(carry_b, curr, 1);
+        for (int b = 0, idx = sg_batch0 + get_sub_group_local_id();
+                b < offsets_tile_nbr; b++, idx += SUBGROUP_SIZE) {
+            off_t curr = offsets_tile.x[b][0];
+            off_t prev = intel_sub_group_shuffle_up(carry_b, curr, 1);
 
-        // Only one work-item should satisfy this condition
-        if (curr > flat_token && prev <= flat_token && idx < NUM_GROUPS) {
-            slm_src_offset[0] = prev;
-            slm_src_offset[1] = curr;
-            *slm_batch = idx;
+            // Only one work-item should satisfy this condition
+            if (curr > flat_token && prev <= flat_token && idx < num_groups) {
+                slm_src_offset[0] = prev;
+                slm_src_offset[1] = curr;
+                *slm_batch = idx;
+            }
+            carry_b = sub_group_broadcast(curr, SUBGROUP_SIZE - 1);
         }
-        carry_b = sub_group_broadcast(curr, SUBGROUP_SIZE - 1);
+        pass_carry = slm_sg_last[sparse_sg_per_wg - 1];
+        // slm_sg_last is rewritten by the next pass
+        work_group_barrier(CLK_LOCAL_MEM_FENCE);
     }
-    work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
     *batch = *slm_batch;
     *src_range = (int2)(slm_src_offset[0], slm_src_offset[1]);
@@ -306,7 +320,8 @@ grouped_micro_gemm_m_axis(const global SRC_DATA_T *src, long ldsrc,
         const global SRC_ZP_DATA_T *src_attr_zp, const long ldsrcq,
         const global WEI_SCALES_DATA_T *wei_attr_scales,
         const global WEI_ZP_DATA_T *wei_attr_zp, const long ldweiq,
-        const long n, const long k, const global BIA_DATA_T *bias,
+        const long n, const long k, const long num_groups,
+        const global BIA_DATA_T *bias,
         const global binary_scale_grouped_tile_data_t *binary_grouped_scale,
         const global binary_scale_dense_tile_data_t *binary_dense_scale,
         const global float *binary_nvfp4_scale) {
@@ -335,7 +350,8 @@ grouped_micro_gemm_m_axis(const global SRC_DATA_T *src, long ldsrc,
 #if WITH_SPARSE_GROUPS
     off_t flat_token = get_group_id(2);
     int2 src_range;
-    find_sparse_batch(&batch, &src_range, src_offsets, flat_token, slm);
+    find_sparse_batch(
+            &batch, &src_range, src_offsets, num_groups, flat_token, slm);
     m = (src_range.y - src_range.x);
     src_offset = src_range.x;
     wg_j0 = flat_token - src_range.x;

@@ -45,6 +45,10 @@ namespace {
 // grouped_micro_gemm cross-thread argument bytes, plus headroom.
 constexpr int host_argument_bytes = 256;
 
+// Groups the sparse (gemv) dispatch searches per pass for a token's group.
+// Fixing it keeps the group count out of the kernel cache key.
+constexpr int sparse_groups_per_pass = 128;
+
 // Adjusts every candidate strategy, replacing it with the GRPGEMM_USTRATEGY
 // override when set.
 gemmstone::microkernel::StrategyAdjuster get_strategy_adjuster(
@@ -218,7 +222,7 @@ void init_kernel_ctx_m_axis(
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
     kernel_ctx.define_int("K_PARALLEL_LOCAL", conf.is_gemv);
     kernel_ctx.define_int("WITH_SPARSE_GROUPS", conf.is_gemv);
-    kernel_ctx.define_int("NUM_GROUPS", conf.ngroups);
+    kernel_ctx.define_int("SPARSE_GROUPS_PER_PASS", sparse_groups_per_pass);
     kernel_ctx.define_int("WITH_POST_OP", conf.with_post_op);
     kernel_ctx.define_int("WITH_BINARY_GROUPED_SCALE",
             with_po(po_kind_t::binary_grouped_scale));
@@ -695,8 +699,6 @@ status_t grouped_micro_gemm_t::pd_t::init_conf() {
 
     switch (conf_.axis) {
         case grouped_axis_t::m_axis: {
-            conf_.ngroups = ngroups();
-
             conf_.with_src_scale = src_quant_.with_scale();
             conf_.with_src_zp = src_quant_.with_zp();
             conf_.with_wei_scale = wei_quant_.with_scale();
@@ -1016,6 +1018,7 @@ status_t grouped_micro_gemm_t::execute_m_axis(const exec_ctx_t &ctx) const {
     arg_list.append(ldweiq);
     arg_list.append(n);
     arg_list.append(k);
+    arg_list.append(pd()->ngroups());
     arg_list.append(bias_data);
 
     const memory_storage_t *grouped_scale = &memory_storage_t::empty_storage();
