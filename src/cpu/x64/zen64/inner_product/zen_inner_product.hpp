@@ -39,8 +39,10 @@ namespace inner_product {
 //   - forward_inference w/ open weights: advertise the opaque zen_packed format
 //     so the framework prepacks [OC,IC] weights once into [K=IC, N=OC]; matmul
 //     reads [IC,OC]. Constant weights => packed only once.
-//   - otherwise (training, or pre-resolved plain weights): hand matmul the plain
-//     [OC,IC] weights as an [IC,OC] view (same bytes); zen_matmul packs each call.
+//   - already zen_packed weights (either fwd prop_kind): consumed as-is.
+//   - otherwise (training w/ open weights, or plain weights): hand matmul the
+//     plain [OC,IC] weights as an [IC,OC] view (same bytes); zen_matmul packs
+//     each call.
 struct zen_inner_product_fwd_t : public primitive_t {
     using primitive_t::primitive_t;
 
@@ -48,13 +50,17 @@ struct zen_inner_product_fwd_t : public primitive_t {
         using ::dnnl::impl::cpu::cpu_inner_product_fwd_pd_t::
                 cpu_inner_product_fwd_pd_t;
 
-        DECLARE_COMMON_PD_T("zen:ip:f32|bf16|f16:amd", zen_inner_product_fwd_t);
+        DECLARE_COMMON_PD_T(impl_name(), zen_inner_product_fwd_t);
 
         status_t init(const engine_t *engine);
 
         std::shared_ptr<primitive_desc_t> matmul_pd_;
 
     private:
+        // Carries the nested matmul's suffix for post-ops that run after the
+        // Zen kernel.
+        const char *impl_name() const;
+
         // Reshape the IP problem to 2D, advertise zen_packed weights, and
         // create the nested zen_matmul pd (mirrors matmul_inner_product).
         status_t init_matmul_params(const engine_t *engine);
