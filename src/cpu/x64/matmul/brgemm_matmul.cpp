@@ -493,9 +493,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
         brgattr.hint_prefetchw = bgmmc_.hint_prefetchw;
         if (is_superset(kernel_isa, avx512_core_amx)
                 || is_superset(kernel_isa, avx10_2_ace)) {
-            // For ACE the kernel flavor comes from a single policy helper.
-            brgattr.use_uker = IMPLICATION(
-                    bgmmc_.is_ace, brgemm_utils::ace_prefer_uker());
+            // ACE prefers the unrolled kernel; finalize() below drops
+            // back to the base one if the blocking is too large.
+            brgattr.use_uker = true;
             brgattr.use_ace = bgmmc_.is_ace;
             brgattr.use_interleave_stores = !bgmmc_.is_ace;
             brgattr.max_bs = bs;

@@ -2619,7 +2619,8 @@ status_t init_1x1_conf(jit_brgemm_conv_conf_t &jcp, cpu_isa_t isa,
         // The blocking search below dispatches on both flags, so for ACE they
         // have to be set before the search rather than after it.
         if (jcp.is_ace) {
-            jcp.use_uker = brgemm_utils::ace_prefer_uker();
+            // ACE defaults to the unrolled kernel; finalize() may drop it.
+            jcp.use_uker = true;
             // The unrolled kernel already disables interleaved stores on ACE,
             // setting it here keeps the blocking search on the same value.
             jcp.use_interleave_stores = false;

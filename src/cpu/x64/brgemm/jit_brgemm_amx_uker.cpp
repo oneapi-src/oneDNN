@@ -953,6 +953,10 @@ jit_brgemm_amx_uker_t::roll_loops_t jit_brgemm_amx_uker_t::roll_loops(
     return res;
 }
 
+bool ace_uker_small_enough(const brgemm_desc_t &brg) {
+    return jit_brgemm_amx_uker_t::roll_loops(brg, {}).small_enough;
+}
+
 bool jit_brgemm_amx_uker_t::bi_shift_output(
         brgemm_iteration_t &bi, int shift, brgemm_iteration_t &res_bi) {
     res_bi = bi;
