@@ -61,6 +61,9 @@ struct zen_lowp_scale_info_t {
 //     apply_to_int and prepacked weights; wei scale per-channel-N or grouped
 //     along K; s8 wei zp required for u4, rejected for s4.
 //   bias (both): f32/bf16, 1xN.
+// Weights must be passed in a plain ab/ba layout (abc/acb with a batch):
+// format_any and prepacked (zen_packed) weights are declined, so WOQ declines
+// to the next implementation.
 struct zen_lowp_matmul_t : public primitive_t {
     struct pd_t : public ::dnnl::impl::cpu::matmul::cpu_matmul_pd_t {
         using ::dnnl::impl::cpu::matmul::cpu_matmul_pd_t::cpu_matmul_pd_t;
