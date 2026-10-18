@@ -19,16 +19,18 @@
 #include <assert.h>
 #include <limits>
 
+#include "common/dnnl_thread.hpp"
 #include "common/memory_desc_wrapper.hpp"
+#include "common/memory_tracking.hpp"
 #include "common/primitive_attr.hpp"
 #include "common/primitive_exec_types.hpp"
 #include "common/utils.hpp"
 #include "common/verbose.hpp"
 
+#include "cpu/binary_injector_utils.hpp"
 #include "cpu/matmul/gemm_based_common.hpp"
 #include "cpu/matmul/matmul_utils.hpp"
 #include "cpu/x64/cpu_isa_traits.hpp"
-#include "cpu/x64/injectors/jit_uni_binary_injector.hpp"
 #include "cpu/x64/zen64/common/zen_format_tag.hpp"
 
 #if DNNL_X64_USE_ZEN
@@ -92,6 +94,83 @@ inline zen_bmm_params_t compute_zen_bmm_params(const memory_desc_wrapper &src_d,
         p.stride_wei = static_cast<size_t>(helper.get_b_stride(0));
     }
     return p;
+}
+
+// Whether the Zen backend can read the src1 operand of a binary post-op: a
+// plain row-major dense tensor (ab for 2D, abc for 3D) whose channel (last/N)
+// dim is full-size. Supported broadcast patterns:
+//   2D:  * per_tensor  : dims == dst (M, N)
+//        * per_channel : M broadcast (1, N) -- applied via the non-batched
+//                        path, which honors a 1-row operand.
+//   3D:  * per_tensor  : dims == dst (batch, M, N)
+//        * batch bcast : (1, M, N) -- reused across batches.
+//        M must be full on the BMM path: the Zen looper applies a fixed
+//        per-row (m_start*N) and per-batch (M*N) offset, so a row-broadcast
+//        operand would be read out of bounds.
+bool zen_binary_src1_ok(
+        const memory_desc_t &src1_desc, const memory_desc_t &dst_md) {
+    if (src1_desc.ndims != dst_md.ndims) return false;
+    const int nd = src1_desc.ndims;
+    for (int d = 0; d < nd; d++) {
+        const bool full = src1_desc.dims[d] == dst_md.dims[d];
+        const bool bcast = src1_desc.dims[d] == 1;
+        if (!(full || bcast)) return false;
+        if (d == nd - 1 && !full) return false;
+    }
+    if (nd == 3 && src1_desc.dims[nd - 2] != dst_md.dims[nd - 2]) return false;
+
+    // Last dim contiguous, row stride == N, and (3D, batch full) batch
+    // stride == M*N.
+    const memory_desc_wrapper src1_mdw(src1_desc);
+    if (!src1_mdw.is_plain()) return false;
+    const auto &strides = src1_mdw.blocking_desc().strides;
+    if (strides[nd - 1] != 1) return false;
+    if (strides[nd - 2] != src1_desc.dims[nd - 1]) return false;
+    if (nd == 3 && src1_desc.dims[0] != 1) {
+        // Compute M*N in size_t with an overflow guard: an oversized product
+        // would wrap in signed dim_t and invoke UB even though such a case is
+        // rejected later by the INT_MAX guard.
+        const size_t m = static_cast<size_t>(src1_desc.dims[1]);
+        const size_t n = static_cast<size_t>(src1_desc.dims[2]);
+        if (n != 0 && m > std::numeric_limits<size_t>::max() / n) return false;
+        if (static_cast<size_t>(strides[0]) != m * n) return false;
+    }
+    return true;
+}
+
+// Whether the Zen backend can fuse post-op `idx`: sum, eltwise (relu,
+// gelu_tanh, gelu_erf, tanh, sigmoid/logistic, swish) or binary (add, mul).
+// Binary src1 descriptors must already be resolved.
+bool zen_fuses_post_op(
+        const post_ops_t &po, int idx, const memory_desc_t &dst_md) {
+    using namespace alg_kind;
+    const auto &e = po.entry_[idx];
+    if (e.is_sum(/*require_scale_one=*/false, /*require_zp_zero=*/true)) {
+        // Sum maps to plain beta accumulation, which Zen applies before any
+        // other post-op and which reads the destination in its native dtype:
+        // it must be the first entry with a default or matching sum.dt.
+        return idx == 0
+                && utils::one_of(e.sum.dt, data_type::undef, dst_md.data_type);
+    }
+    if (e.is_eltwise()) {
+        if (e.eltwise.scale != 1.f) return false;
+        // Zen maps eltwise_relu to a plain ReLU (slope 0); it cannot honor a
+        // leaky-relu negative slope.
+        if (e.eltwise.alg == eltwise_relu) return e.eltwise.alpha == 0.f;
+        return utils::one_of(e.eltwise.alg, eltwise_gelu_tanh, eltwise_gelu_erf,
+                eltwise_tanh, eltwise_logistic, eltwise_swish);
+    }
+    if (e.is_binary()) {
+        if (!utils::one_of(e.binary.alg, binary_add, binary_mul)) return false;
+        const auto src1_dt = e.binary.src1_desc.data_type;
+        if (!utils::one_of(src1_dt, f32, bf16, f16)) return false;
+        // F16 binary operands require AVX512-FP16 (Zen5+); without it the
+        // runtime cannot allocate/process f16 post-op buffers even when the
+        // matmul itself is f32/bf16.
+        if (src1_dt == f16 && !mayiuse(avx512_core_fp16)) return false;
+        return zen_binary_src1_ok(e.binary.src1_desc, dst_md);
+    }
+    return false;
 }
 
 } // namespace
@@ -214,12 +293,15 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
     VDISPATCH_MATMUL(check_bias(), VERBOSE_UNSUPPORTED_BIAS_CFG);
 
     // ---- Attribute validation ----
-    // For f32/bf16/f16: post-ops (eltwise + binary + sum) are supported;
-    // fpmath_mode, scales and zero-points must be default. accumulation_mode
-    // is validated explicitly above (f16 configs require acc-mode f16 or any).
+    // For f32/bf16/f16: with prepacked weights, supported post-op chains
+    // (sum, eltwise, binary including in-place, prelu) are accepted;
+    // init_post_ops() splits them between the Zen kernel, pp_kernel_t and
+    // post_ops_fallback_t. fpmath_mode, scales and zero-points must be
+    // default. accumulation_mode is validated explicitly above (f16 configs
+    // require acc-mode f16 or any).
     VDISPATCH_MATMUL(
-            attr()->has_default_values(smask_t::post_ops | smask_t::sum_dt
-                            | smask_t::accumulation_mode,
+            attr()->has_default_values(smask_t::post_ops_inplace
+                            | smask_t::sum_dt | smask_t::accumulation_mode,
                     dst_dt),
             VERBOSE_UNSUPPORTED_ATTR);
 
@@ -227,65 +309,6 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
     VDISPATCH_MATMUL(
             attr()->post_ops_.check_sum_consistency(dst_dt, /*is_int8=*/false),
             VERBOSE_UNSUPPORTED_POSTOP);
-
-    // ---- Post-ops validation ----
-    // Zen supports: sum, eltwise (relu, gelu_tanh, gelu_erf, tanh,
-    // sigmoid/logistic, swish), binary (add, mul).
-    auto check_postops = [&]() -> bool {
-        const auto &po = attr()->post_ops_;
-        for (int i = 0; i < po.len(); i++) {
-            const auto &entry = po.entry_[i];
-            if (entry.is_sum(/*require_scale_one=*/false,
-                        /*require_zp_zero=*/true)) {
-                // Sum maps to plain beta accumulation and must be the very
-                // first post-op; at any later position Zen has already
-                // consumed the destination, so it cannot be honored.
-                if (i != 0) return false;
-                // Sum maps to plain beta accumulation, which reads the
-                // destination in its native dtype. A sum.dt that differs
-                // from dst_dt asks the destination bytes to be
-                // reinterpreted as that dtype before accumulation (e.g.
-                // f32 dst read as s32); Zen cannot honor that, so only
-                // accept a default sum.dt or one matching dst_dt.
-                if (!utils::one_of(entry.sum.dt, data_type::undef, dst_dt))
-                    return false;
-                continue;
-            } else if (entry.is_eltwise()) {
-                if (entry.eltwise.scale != 1.f) return false;
-                using namespace alg_kind;
-                if (!utils::one_of(entry.eltwise.alg, eltwise_relu,
-                            eltwise_gelu_tanh, eltwise_gelu_erf, eltwise_tanh,
-                            eltwise_logistic, eltwise_swish))
-                    return false;
-                // Zen maps eltwise_relu to a plain ReLU (slope 0); it cannot
-                // honor a leaky-relu negative slope, so reject alpha != 0.
-                if (entry.eltwise.alg == eltwise_relu
-                        && entry.eltwise.alpha != 0.f)
-                    return false;
-            } else if (entry.is_binary()) {
-                using namespace alg_kind;
-                // Binary post-ops are supported on both the 2D and 3D (BMM)
-                // paths. On BMM the Zen backend advances the src1 buffer per
-                // batch by a dense M*N stride and per row by N, so the operand
-                // must be a dense row-major tensor that is full in M and N;
-                // the shape/stride contract is enforced in
-                // check_binary_postop_formats() below.
-                if (!utils::one_of(entry.binary.alg, binary_add, binary_mul))
-                    return false;
-                const auto src1_dt = entry.binary.src1_desc.data_type;
-                if (!utils::one_of(src1_dt, f32, bf16, f16)) return false;
-                // F16 binary operands require AVX512-FP16 (Zen5+); without it
-                // the runtime cannot allocate/process f16 post-op buffers even
-                // when the matmul itself is f32/bf16.
-                if (src1_dt == f16 && !mayiuse(avx512_core_fp16)) return false;
-            } else {
-                // Unsupported post-op kind.
-                return false;
-            }
-        }
-        return true;
-    };
-    VDISPATCH_MATMUL(check_postops(), VERBOSE_UNSUPPORTED_POSTOP);
 
     // ---- Scales / zero-points validation ----
     // f32/bf16/f16 path does not support scales or zero-points.
@@ -391,75 +414,9 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
                     batch_is_outermost(weights_md(0)), VERBOSE_UNSUPPORTED_TAG);
     }
 
-    VDISPATCH_MATMUL(!::dnnl::impl::cpu::x64::binary_injector::
-                             any_binary_postop_rhs_with_ternary_scalar_bcast(
-                                     attr()->post_ops_, dst_d),
-            VERBOSE_UNSUPPORTED_POSTOP);
-
     // Resolve format_tag::any on binary post-op src1 memory descriptors.
     VDISPATCH_MATMUL(attr_.set_default_formats(dst_md(0)) == status::success,
             VERBOSE_UNSUPPORTED_POSTOP);
-
-    // ---- Binary post-op shape/format validation ----
-    // The src1 operand must be a plain row-major dense tensor (ab for 2D, abc
-    // for 3D); the Zen backend does not support arbitrary strides. The channel
-    // (last/N) dim must always be full-size. Supported broadcast patterns:
-    //   2D:  * per_tensor  : dims == dst (M, N)
-    //        * per_channel : M broadcast (1, N) -- applied via the non-batched
-    //                        path, which honors a 1-row operand.
-    //   3D:  * per_tensor  : dims == dst (batch, M, N)
-    //        * batch bcast : (1, M, N) -- reused across batches.
-    //        M must be full on the BMM path: the Zen looper applies a fixed
-    //        per-row (m_start*N) and per-batch (M*N) offset, so a row-broadcast
-    //        operand would be read out of bounds. The batch dim may be full or
-    //        broadcast (1).
-    auto check_binary_postop_formats = [&]() -> bool {
-        const auto &po = attr()->post_ops_;
-        for (int i = 0; i < po.len(); i++) {
-            const auto &entry = po.entry_[i];
-            if (!entry.is_binary()) continue;
-
-            const auto &src1_desc = entry.binary.src1_desc;
-            const auto *dst = dst_md(0);
-
-            if (src1_desc.ndims != dst->ndims) return false;
-            const int nd = src1_desc.ndims;
-            const int channel_dim = nd - 1; // N
-            for (int d = 0; d < nd; d++) {
-                const bool full = src1_desc.dims[d] == dst->dims[d];
-                const bool bcast = src1_desc.dims[d] == 1;
-                if (!(full || bcast)) return false;
-                if (d == channel_dim && !full) return false;
-            }
-            // On the BMM (3D) path the M dim (nd-2) must be full; the Zen looper
-            // offsets the operand by m_start*N rows, so a 1-row (M-broadcast)
-            // operand cannot be supported there.
-            if (nd == 3 && src1_desc.dims[nd - 2] != dst->dims[nd - 2])
-                return false;
-
-            // Plain row-major dense: last dim contiguous, row stride == N, and
-            // (3D, batch full) batch stride == M*N.
-            const memory_desc_wrapper src1_mdw(src1_desc);
-            if (!src1_mdw.is_plain()) return false;
-            const auto &strides = src1_mdw.blocking_desc().strides;
-            if (strides[nd - 1] != 1) return false;
-            if (strides[nd - 2] != src1_desc.dims[nd - 1]) return false;
-            if (nd == 3 && src1_desc.dims[0] != 1) {
-                // Compute M*N in size_t with an overflow guard: an oversized
-                // product would wrap in signed dim_t and invoke UB even though
-                // such a case is rejected later by the INT_MAX guard.
-                const size_t m = static_cast<size_t>(src1_desc.dims[1]);
-                const size_t n = static_cast<size_t>(src1_desc.dims[2]);
-                if (n != 0 && m > std::numeric_limits<size_t>::max() / n)
-                    return false;
-                const size_t batch_stride = m * n;
-                if (static_cast<size_t>(strides[0]) != batch_stride)
-                    return false;
-            }
-        }
-        return true;
-    };
-    VDISPATCH_MATMUL(check_binary_postop_formats(), VERBOSE_UNSUPPORTED_POSTOP);
 
     // Zen matmul_direct uses int for M/N/K and leading dimensions.
     // Reject descriptors whose dimensions or strides exceed INT_MAX.
@@ -509,31 +466,136 @@ status_t zen_matmul_t::pd_t::init(const engine_t *engine) {
     VDISPATCH_MATMUL(fits_zen_int_api, VERBOSE_UNSUPPORTED_FEATURE,
             "dimension/stride > INT_MAX is not supported");
 
+    CHECK(init_post_ops(engine, wei_already_packed));
+
     return status::success;
 #endif // DNNL_X64_USE_ZEN
+}
+
+status_t zen_matmul_t::pd_t::init_post_ops(
+        const engine_t *engine, bool wei_already_packed) {
+#if !DNNL_X64_USE_ZEN
+    MAYBE_UNUSED(engine);
+    MAYBE_UNUSED(wei_already_packed);
+    return status::unimplemented;
+#else
+    const auto &po = attr()->post_ops_;
+    zen_post_ops_len_ = 0;
+    while (zen_post_ops_len_ < po.len()
+            && zen_fuses_post_op(po, zen_post_ops_len_, *dst_md(0)))
+        zen_post_ops_len_++;
+    // Post-ops must apply in order, so the first entry Zen cannot fuse and
+    // everything after it run on the kernel output.
+    if (zen_post_ops_len_ == po.len()) return status::success;
+
+    // Running post-ops after the kernel is slower than the next
+    // implementation's native fusion, so only prepacked weights, which no
+    // other implementation can read, take this path.
+    VDISPATCH_MATMUL(wei_already_packed, VERBOSE_UNSUPPORTED_FEATURE,
+            "post-ops the Zen kernel cannot fuse need prepacked weights");
+
+    // The kernel writes a dense f32 accumulator instead of dst when dst is
+    // bf16/f16, so dst is rounded once, or when a remaining entry reads the
+    // original dst (sum, in-place binary). Zen's sum (beta) would then read
+    // the accumulator instead of dst, so a leading sum leaves the prefix.
+    bool reads_dst = false;
+    for (int i = zen_post_ops_len_; i < po.len(); i++)
+        reads_dst = reads_dst || po.entry_[i].is_sum(false, false)
+                || po.entry_[i].is_inplace_binary();
+    use_acc_ = dst_md(0)->data_type != data_type::f32 || reads_dst;
+    if (use_acc_ && po.contain(primitive_kind::sum, 0)) zen_post_ops_len_ = 0;
+
+    auto scratchpad = scratchpad_registry().registrar();
+    memory_desc_t acc_md;
+    CHECK(memory_desc_init_by_tag(acc_md, ndims(), dst_md(0)->dims,
+            data_type::f32, ndims() == 2 ? format_tag::ab : format_tag::abc));
+    if (use_acc_)
+        scratchpad.book(memory_tracking::names::key_matmul_dst_in_acc_dt,
+                memory_desc_wrapper(acc_md).size(), /*data_size=*/1,
+                /*alignment=*/64);
+
+    post_ops_t rest;
+    rest.entry_.assign(po.entry_.begin() + zen_post_ops_len_, po.entry_.end());
+    use_pp_kernel_ = pp_kernel_ok(rest);
+    if (use_pp_kernel_) {
+        pp_attr_.post_ops_.entry_ = rest.entry_;
+        return status::success;
+    }
+
+    VDISPATCH_MATMUL_SC(
+            post_ops_fallback_.init(engine, po, *dst_md(0), zen_post_ops_len_,
+                    use_acc_ ? &acc_md : nullptr),
+            VERBOSE_UNSUPPORTED_POSTOP);
+    post_ops_fallback_.init_scratchpad(scratchpad);
+    return status::success;
+#endif // DNNL_X64_USE_ZEN
+}
+
+// Whether inner_product_utils::pp_kernel_t can apply `post_ops` in one pass
+// over the kernel output. Its JIT code has no f16 load/store, is not used for
+// ternary or in-place binary (as in the gemm-based matmuls), takes a sum only
+// as its first entry, and walks the output as dense rows of N: binary
+// operands must use the same plain layout, and the batch of a 3D dst is
+// processed as extra rows, which per-channel (dim 1) and per-mb-spatial
+// broadcasts of binary and prelu operands do not index correctly.
+bool zen_matmul_t::pd_t::pp_kernel_ok(const post_ops_t &post_ops) const {
+    using namespace format_tag;
+    const memory_desc_wrapper dst_d(dst_md(0));
+    const format_tag_t plain_tag = ndims() == 2 ? ab : abc;
+    if (!utils::one_of(dst_d.data_type(), f32, bf16)
+            || !dst_d.matches_tag(plain_tag))
+        return false;
+    for (const auto &e : post_ops.entry_) {
+        if (e.is_sum(false, false)
+                && !utils::one_of(
+                        e.sum.dt, data_type::undef, dst_d.data_type()))
+            return false;
+        if (e.is_binary()
+                && (e.is_binary_with_ternary_op() || e.is_inplace_binary()
+                        || !memory_desc_wrapper(e.binary.src1_desc)
+                                    .matches_tag(plain_tag)))
+            return false;
+    }
+
+    using bs_t = broadcasting_strategy_t;
+    static const bcast_set_t bcast_strategies {bs_t::scalar, bs_t::per_oc,
+            bs_t::per_oc_spatial, bs_t::per_mb_spatial, bs_t::per_mb_w,
+            bs_t::per_w, bs_t::no_broadcast};
+    if (!::dnnl::impl::cpu::inner_product_utils::post_ops_ok(
+                post_ops, dst_md(0), bcast_strategies))
+        return false;
+
+    bool with_per_oc = false, with_per_oc_sp = false, with_per_mb_sp = false;
+    std::tie(with_per_oc, with_per_oc_sp, with_per_mb_sp) = ::dnnl::impl::cpu::
+            binary_injector_utils::bcast_strategies_present_tup(post_ops.entry_,
+                    dst_d, bs_t::per_oc, bs_t::per_oc_spatial,
+                    bs_t::per_mb_spatial);
+    return IMPLICATION(
+            ndims() == 3, !(with_per_oc || with_per_oc_sp || with_per_mb_sp));
 }
 
 status_t zen_matmul_t::init(engine_t *engine) {
     MAYBE_UNUSED(engine);
 #if DNNL_X64_USE_ZEN
-    // Build Zen matmul_post_op chain directly from oneDNN attributes.
-    // Static parts (type, alpha, beta, dtype, dims) are set here; only
-    // binary buffer pointers are patched at execute() time.
+    // Build Zen matmul_post_op chain from the fused prefix of the oneDNN
+    // post-ops. Static parts (type, alpha, beta, dtype, dims) are set here;
+    // only binary buffer pointers are patched at execute() time.
     //
     // The chain is owned by the primitive (not pd_t) so that pd_t remains
     // cheaply-copyable by the framework's primitive cache, matching the
     // brgemm_matmul_t convention.
     const auto &po = pd()->attr()->post_ops_;
+    const int zen_po_len = pd()->zen_post_ops_len();
     zen_postop_.clear();
-    zen_postop_.reserve(po.len());
+    zen_postop_.reserve(zen_po_len);
     postop_indices_.clear();
-    postop_indices_.reserve(po.len());
+    postop_indices_.reserve(zen_po_len);
     beta_ = 0.f;
 
     using pot = zendnnl::ops::post_op_type_t;
     using zd = zendnnl::common::data_type_t;
 
-    for (int i = 0; i < po.len(); i++) {
+    for (int i = 0; i < zen_po_len; i++) {
         const auto &entry = po.entry_[i];
         if (entry.is_sum(/*require_scale_one=*/false,
                     /*require_zp_zero=*/true)) {
@@ -577,6 +639,19 @@ status_t zen_matmul_t::init(engine_t *engine) {
         zen_postop_.push_back(lpo);
         postop_indices_.push_back(i);
     }
+
+    // Zen already applied the bias, so the pp kernel gets none; it reads the
+    // dense f32 accumulator or, in place, the dense dst.
+    if (pd()->use_pp_kernel()) {
+        CHECK(safe_ptr_assign(pp_kernel_,
+                ::dnnl::impl::cpu::inner_product_utils::pp_kernel_t::create(
+                        pd()->N(), pd()->batch() * pd()->M(), pd()->N(),
+                        &pd()->pp_attr(), data_type::undef, data_type::f32,
+                        pd()->dst_md(), /*skip_sum=*/false)));
+        CHECK(pp_kernel_->create_kernel());
+    }
+    post_ops_fallback_ = pd()->post_ops_fallback();
+    CHECK(post_ops_fallback_.init_primitives(engine));
 #endif // DNNL_X64_USE_ZEN
     return status::success;
 }
@@ -752,25 +827,63 @@ status_t zen_matmul_t::execute_body(const exec_ctx_t &ctx) const {
     VDEBUGINFO(2, primitive, matmul,
             "zen matmul: M=%ld N=%ld K=%ld transA=%c transB=%c lda=%ld "
             "ldb=%ld ldc=%ld src_dt=%d wei_dt=%d dst_dt=%d Batch_A=%d "
-            "Batch_B=%d",
+            "Batch_B=%d zen_post_ops=%d/%d pp_kernel=%d f32_acc=%d",
             (long)M, (long)N, (long)K, transA, transB, (long)lda, (long)ldb,
-            (long)ldc, (int)src_dt, (int)wei_dt, (int)dst_dt, Batch_A, Batch_B);
+            (long)ldc, (int)src_dt, (int)wei_dt, (int)dst_dt, Batch_A, Batch_B,
+            pd()->zen_post_ops_len(), pd()->attr()->post_ops_.len(),
+            (int)pd()->use_pp_kernel(), (int)pd()->use_acc());
 
     // Extract raw pointers.
     const void *A = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
     const void *B = CTX_IN_MEM(const void *, DNNL_ARG_WEIGHTS);
-    void *C = CTX_OUT_MEM(void *, DNNL_ARG_DST);
+    void *dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
     const void *bias = pd()->with_bias()
             ? CTX_IN_MEM(const void *, DNNL_ARG_BIAS)
             : nullptr;
 
+    // With an accumulator the kernel writes dense f32 rows to the scratchpad
+    // instead of dst.
+    const bool use_acc = pd()->use_acc();
+    void *C = dst;
+    if (use_acc) {
+        C = ctx.get_scratchpad_grantor().get<void>(
+                memory_tracking::names::key_matmul_dst_in_acc_dt);
+        if (C == nullptr) return status::out_of_memory;
+    }
+    const dim_t kernel_ldc = use_acc ? N : ldc;
+    const size_t kernel_batch_stride_dst = use_acc && pd()->ndims() == 3
+            ? static_cast<size_t>(M * N)
+            : batch_stride_dst;
+
     // Dispatch to Zen with per-tensor data types and layout info.
     // Post-ops were pre-built at primitive init(); only binary buffer
     // pointers are patched here from the execution context.
-    return zen_matmul_direct(src_dt, wei_dt, dst_dt, bia_dt, A, B, C, bias, M,
-            N, K, lda, ldb, ldc, transA, transB, mem_format_b, Batch_A, Batch_B,
-            batch_stride_src, batch_stride_wei, batch_stride_dst, zen_postop_,
-            postop_indices_, beta_, ctx);
+    CHECK(zen_matmul_direct(src_dt, wei_dt, use_acc ? f32 : dst_dt, bia_dt, A,
+            B, C, bias, M, N, K, lda, ldb, kernel_ldc, transA, transB,
+            mem_format_b, Batch_A, Batch_B, batch_stride_src, batch_stride_wei,
+            kernel_batch_stride_dst, zen_postop_, postop_indices_, beta_, ctx));
+
+    if (pp_kernel_) {
+        // Binary operands of the remaining post-ops keep their original
+        // post-op indices in the execution context.
+        const auto binary_rhs
+                = ::dnnl::impl::cpu::binary_injector_utils::prepare_binary_args(
+                        pd()->pp_attr().post_ops_, ctx,
+                        pd()->zen_post_ops_len());
+        const size_t work = static_cast<size_t>(dst_d.nelems());
+        const float unit_scale = 1.f;
+        parallel(pp_kernel_->sequential_kernel() ? 1 : 0,
+                [&](int ithr, int nthr) {
+            size_t start = 0, end = 0;
+            balance211(work, nthr, ithr, start, end);
+            (*pp_kernel_)(dst, C, nullptr, &unit_scale, 1.f, start, start,
+                    start % N, end, N, N, nullptr, binary_rhs.data(), dst, 0,
+                    ctx, *pd()->dst_md());
+        });
+        return status::success;
+    }
+    if (post_ops_fallback_.empty()) return status::success;
+    return post_ops_fallback_.execute(ctx, C);
 #endif // DNNL_X64_USE_ZEN
 }
 

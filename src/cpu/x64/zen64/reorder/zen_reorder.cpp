@@ -58,15 +58,15 @@ namespace {
 using zd = zendnnl::common::data_type_t;
 using zendnnl::ops::matmul_algo_t;
 
-// Zen weight prepack via reorder_direct (is_prepack=true); see
-// ZenDNN/zendnnl/src/lowoha_operators/reorder/lowoha_reorder.hpp.
-// src_dt is the matmul source dtype: for f32/bf16/f16 it equals wei_dt, but for
-// int8 configs it may differ (e.g. u8 source with s8 weights), and the AOCL-DLP
-// blocked layout can depend on it, so it is passed explicitly.
-status_t zen_weight_prepack(const void *src, void *dst, zd wei_dt, zd src_dt,
-        int64_t K, int64_t N, int64_t ldb, bool transposed) {
+// One (K, N) slice through reorder_direct. `unpack` selects unreorder;
+// otherwise this is the prepack. src_dt is the matmul source dtype: it equals
+// wei_dt for f32/bf16/f16, and may differ for int8 (u8 source, s8 weights).
+status_t zen_weight_reorder(const void *src, void *dst, zd wei_dt, zd src_dt,
+        int64_t K, int64_t N, int64_t ldb, bool transposed,
+        bool unpack = false) {
     zendnnl::lowoha::reorder::reorder_params_t rp;
-    rp.is_prepack = true;
+    rp.is_prepack = !unpack;
+    rp.is_unreorder = unpack;
     rp.prepack.algo = matmul_algo_t::aocl_dlp_blocked;
     rp.prepack.wei_dtype = wei_dt;
     rp.prepack.src_dtype = src_dt;
@@ -77,6 +77,42 @@ status_t zen_weight_prepack(const void *src, void *dst, zd wei_dt, zd src_dt,
 
     return to_dnnl_status(
             zendnnl::lowoha::reorder::reorder_direct(src, dst, rp));
+}
+
+// Dense plain destination of exactly K*N elements per slice: row-major
+// (`ab`/`abc`) or column-major (`ba`/`acb`).
+struct unpack_dst_layout_t {
+    bool transposed = false;
+    int64_t ldb = 0;
+    int64_t batch_stride = 0;
+};
+
+bool get_unpack_dst_layout(const memory_desc_wrapper &od, int kdim, int ndim,
+        unpack_dst_layout_t &l) {
+    if (!od.is_plain() || od.extra().flags != memory_extra_flags::none)
+        return false;
+    for (int d = 0; d < od.ndims(); d++)
+        if (od.padded_dims()[d] != od.dims()[d]) return false;
+
+    const auto &strides = od.blocking_desc().strides;
+    const dim_t K = od.dims()[kdim];
+    const dim_t N = od.dims()[ndim];
+    if (strides[ndim] == 1 && (K == 1 || strides[kdim] == N)) {
+        l.transposed = false;
+        l.ldb = N;
+    } else if (strides[kdim] == 1 && (N == 1 || strides[ndim] == K)) {
+        l.transposed = true;
+        l.ldb = K;
+    } else {
+        return false;
+    }
+
+    l.batch_stride = 0;
+    if (od.ndims() == 3 && od.dims()[0] > 1) {
+        if (strides[0] != K * N) return false;
+        l.batch_stride = strides[0];
+    }
+    return true;
 }
 
 // Plain f32 -> bf16 element conversion (standard reorder_direct path).
@@ -208,6 +244,9 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
     // prepack additionally requires avx512_core_fp16 (AVX512-FP16, Zen5+).
     VDISPATCH_REORDER(mayiuse(avx512_core), VERBOSE_UNSUPPORTED_ISA);
 
+    // zen_packed src is the unpack direction; below is prepack into zen_packed.
+    if (is_zen_packed(src_md_)) return init_unpack(engine);
+
     const memory_desc_wrapper id(src_md_), od(dst_md_);
 
     // 2D weight slice, or 3D batched weights (one (K, N) slice per batch).
@@ -327,7 +366,7 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
     VDISPATCH_REORDER(
             K != 1 || src_strides[ndim] == 1, VERBOSE_UNSUPPORTED_TAG_S, "src");
 
-    // zen_weight_prepack takes int64_t K/N/ldb but the matmul that consumes the
+    // zen_weight_reorder takes int64_t K/N/ldb but the matmul that consumes the
     // packed buffer drives them through the int Zen API; reject oversized slices
     // up front so packing and matmul agree on what is representable.
     const dim_t int_max = std::numeric_limits<int>::max();
@@ -385,10 +424,90 @@ status_t zen_reorder_t::pd_t::init(const engine_t *engine,
 #endif
 }
 
+status_t zen_reorder_t::pd_t::init_unpack(const engine_t *engine) {
+#if !DNNL_X64_USE_ZEN
+    MAYBE_UNUSED(engine);
+    return status::unimplemented;
+#else
+    const memory_desc_wrapper id(src_md_), od(dst_md_);
+
+    // Dense plain destination only (`ab`/`ba`, `abc`/`acb`, no padding).
+    // Blocked tags such as BA16a64b, a padded leading dim, and s4/u4 stay
+    // unimplemented.
+    VDISPATCH_REORDER(
+            od.is_blocking_desc(), VERBOSE_UNSUPPORTED_TENSOR_LAYOUT, "dst");
+
+    VDISPATCH_REORDER(
+            utils::one_of(id.ndims(), 2, 3) && id.ndims() == od.ndims(),
+            VERBOSE_BAD_NDIMS, "src/dst", id.ndims());
+
+    const int ndims = id.ndims();
+    const bool batched = ndims == 3;
+
+    // Same dtype. s8 covers both int8 packs; gemm_src_dt selects s8s8 vs u8s8.
+    const auto type_i = id.data_type();
+    const auto type_o = od.data_type();
+    VDISPATCH_REORDER(type_i == type_o
+                    && utils::one_of(type_i, data_type::f32, data_type::bf16,
+                            data_type::f16, data_type::s8),
+            VERBOSE_UNSUPPORTED_DT);
+    VDISPATCH_REORDER(
+            IMPLICATION(type_i == data_type::f16, mayiuse(avx512_core_fp16)),
+            VERBOSE_UNSUPPORTED_ISA);
+
+    VDISPATCH_REORDER(attr()->has_default_values(), VERBOSE_UNSUPPORTED_ATTR);
+
+    VDISPATCH_REORDER(!id.has_runtime_dims_or_strides()
+                    && !od.has_runtime_dims_or_strides(),
+            VERBOSE_RUNTIMEDIM_UNSUPPORTED);
+
+    VDISPATCH_REORDER(!id.has_zero_dim() && !od.has_zero_dim(), VERBOSE_BAD_DIM,
+            "src/dst", 0);
+
+    for (int i = 0; i < ndims; i++)
+        VDISPATCH_REORDER(id.dims()[i] == od.dims()[i],
+                VERBOSE_INCONSISTENT_DIM, "src", i, "dst", i);
+
+    const auto &zpd = id.zen_packed_desc();
+    const bool nk = zpd.weights_transposed;
+    const int kdim = nk ? ndims - 1 : ndims - 2;
+    const int ndim = nk ? ndims - 2 : ndims - 1;
+    const dim_t K = id.dims()[kdim];
+    const dim_t N = id.dims()[ndim];
+    const dim_t batch = batched ? id.dims()[0] : 1;
+
+    const dim_t int_max = std::numeric_limits<int>::max();
+    VDISPATCH_REORDER(K <= int_max && N <= int_max && batch <= int_max,
+            VERBOSE_UNSUPPORTED_FEATURE,
+            "dimension > INT_MAX is not supported");
+
+    const dim_t expected_per_slice
+            = zen_prepack_size(type_i, zpd.gemm_src_dt, K, N);
+    VDISPATCH_REORDER(expected_per_slice > 0
+                    && zpd.per_slice_size
+                            == static_cast<size_t>(expected_per_slice),
+            VERBOSE_INCONSISTENT_MDS, "src", "packed-slice-size");
+    const size_t batch_sz = static_cast<size_t>(batch);
+    VDISPATCH_REORDER(zpd.per_slice_size <= SIZE_MAX / batch_sz,
+            VERBOSE_INCONSISTENT_MDS, "src", "packed-size-overflow");
+    VDISPATCH_REORDER(
+            zpd.size == zpd.per_slice_size * batch_sz && id.size() == zpd.size,
+            VERBOSE_INCONSISTENT_MDS, "src", "packed-size");
+
+    unpack_dst_layout_t layout;
+    VDISPATCH_REORDER(get_unpack_dst_layout(od, kdim, ndim, layout),
+            VERBOSE_UNSUPPORTED_TAG);
+
+    return status::success;
+#endif
+}
+
 status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
 #if !DNNL_X64_USE_ZEN
     return status::unimplemented;
 #else
+    if (is_zen_packed(*pd()->src_md())) return execute_unpack(ctx);
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
 
@@ -468,27 +587,27 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
     // Pack one (K, N) slice from `src` into `dst`.
     auto prepack_slice = [&](const void *src, void *dst) -> status_t {
         if (src_dt == data_type::bf16 && dst_dt == data_type::bf16)
-            return zen_weight_prepack(
+            return zen_weight_reorder(
                     src, dst, zd::bf16, zd::bf16, K, N, ldb, transposed);
 
         if (src_dt == data_type::f16 && dst_dt == data_type::f16)
-            return zen_weight_prepack(
+            return zen_weight_reorder(
                     src, dst, zd::f16, zd::f16, K, N, ldb, transposed);
 
         if (src_dt == data_type::f32 && dst_dt == data_type::f32)
-            return zen_weight_prepack(
+            return zen_weight_reorder(
                     src, dst, zd::f32, zd::f32, K, N, ldb, transposed);
 
         if (src_dt == data_type::s8 && dst_dt == data_type::s8)
             // int8 static-quant weight prepack.
-            return zen_weight_prepack(
+            return zen_weight_reorder(
                     src, dst, zd::s8, gemm_src, K, N, ldb, transposed);
 
         if ((src_dt == data_type::s4 && dst_dt == data_type::s4)
                 || (src_dt == data_type::u4 && dst_dt == data_type::u4))
             // WOQ 4-bit weight prepack; the gemm source (bf16) is recorded in
             // the packed descriptor and forwarded to the packer.
-            return zen_weight_prepack(src, dst, to_zen_dt(src_dt), gemm_src, K,
+            return zen_weight_reorder(src, dst, to_zen_dt(src_dt), gemm_src, K,
                     N, ldb, transposed);
 
         if (src_dt == data_type::f32 && dst_dt == data_type::bf16) {
@@ -497,7 +616,7 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
             // backend's f32->bf16 fringe-N bug (see header note).
             status_t st = f32_to_bf16_plain(src, conv, K, N, ldb, src_is_ab);
             if (st == success)
-                st = zen_weight_prepack(conv, dst, zd::bf16, zd::bf16, K, N,
+                st = zen_weight_reorder(conv, dst, zd::bf16, zd::bf16, K, N,
                         /*ldb=*/N, /*transposed=*/false);
             return st;
         }
@@ -508,7 +627,7 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
             // f32->bf16).
             status_t st = f32_to_f16_plain(src, conv, K, N, ldb, src_is_ab);
             if (st == success)
-                st = zen_weight_prepack(conv, dst, zd::f16, zd::f16, K, N,
+                st = zen_weight_reorder(conv, dst, zd::f16, zd::f16, K, N,
                         /*ldb=*/N, /*transposed=*/false);
             return st;
         }
@@ -519,7 +638,7 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
             // blocked layout.
             status_t st = f32_to_s8_plain(src, conv, K, N, ldb, src_is_ab);
             if (st == success)
-                st = zen_weight_prepack(conv, dst, zd::s8, gemm_src, K, N,
+                st = zen_weight_reorder(conv, dst, zd::s8, gemm_src, K, N,
                         /*ldb=*/N, /*transposed=*/false);
             return st;
         }
@@ -531,7 +650,7 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
             status_t st = f32_to_int4_plain(
                     src, conv, K, N, ldb, src_is_ab, dst_dt);
             if (st == success)
-                st = zen_weight_prepack(conv, dst, to_zen_dt(dst_dt), gemm_src,
+                st = zen_weight_reorder(conv, dst, to_zen_dt(dst_dt), gemm_src,
                         K, N, /*ldb=*/N, /*transposed=*/false);
             return st;
         }
@@ -546,6 +665,51 @@ status_t zen_reorder_t::execute(const exec_ctx_t &ctx) const {
         CHECK(prepack_slice(src_slice, dst_slice));
     }
 
+    return status::success;
+#endif
+}
+
+status_t zen_reorder_t::execute_unpack(const exec_ctx_t &ctx) const {
+#if !DNNL_X64_USE_ZEN
+    MAYBE_UNUSED(ctx);
+    return status::unimplemented;
+#else
+    const memory_desc_wrapper src_d(pd()->src_md());
+    const memory_desc_wrapper dst_d(pd()->dst_md());
+
+    const int ndims = src_d.ndims();
+    const bool batched = ndims == 3;
+    const auto &zpd = src_d.zen_packed_desc();
+    const bool nk = zpd.weights_transposed;
+    const int kdim = nk ? ndims - 1 : ndims - 2;
+    const int ndim = nk ? ndims - 2 : ndims - 1;
+    const int64_t K = src_d.dims()[kdim];
+    const int64_t N = src_d.dims()[ndim];
+    const int64_t batch = batched ? src_d.dims()[0] : 1;
+
+    unpack_dst_layout_t l;
+    if (!get_unpack_dst_layout(dst_d, kdim, ndim, l))
+        return status::runtime_error;
+
+    // f32/bf16/f16 pack with src == wei; s8 uses the recorded gemm source
+    // (s8 or u8) to pick the s8s8 or u8s8 layout.
+    const zd wei = to_zen_dt(src_d.data_type());
+    const zd gemm_src = src_d.data_type() == data_type::s8
+            ? to_zen_dt(zpd.gemm_src_dt)
+            : wei;
+
+    const auto *src_base = CTX_IN_MEM(const uint8_t *, DNNL_ARG_FROM);
+    const size_t elem = dst_d.data_type_size();
+    auto *dst_base = CTX_OUT_MEM(uint8_t *, DNNL_ARG_TO)
+            + static_cast<size_t>(dst_d.offset0()) * elem;
+    const size_t dst_slice_bytes = static_cast<size_t>(l.batch_stride) * elem;
+
+    for (int64_t b = 0; b < batch; b++) {
+        CHECK(zen_weight_reorder(
+                src_base + static_cast<size_t>(b) * zpd.per_slice_size,
+                dst_base + static_cast<size_t>(b) * dst_slice_bytes, wei,
+                gemm_src, K, N, l.ldb, l.transposed, /*unpack=*/true));
+    }
     return status::success;
 #endif
 }
