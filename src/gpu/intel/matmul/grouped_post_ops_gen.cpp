@@ -15,6 +15,7 @@
 *******************************************************************************/
 
 #include "gpu/intel/matmul/grouped_post_ops_gen.hpp"
+#include "common/bit_cast.hpp"
 #include "common/matmul_pd.hpp"
 #include "common/verbose.hpp"
 
@@ -174,7 +175,7 @@ static std::string to_ocl_float(float v) {
 }
 
 std::string generate_post_ops_microgemm_header(
-        const primitive_attr_t &attr, const po_kind_t *po_chain) {
+        const grouped_po_desc_t *po, int po_len) {
     std::string s = R"(
 inline void apply_post_ops_chain(c_tile_type_float *c_tile, long n, long m, long lddst,
     off_t sg_i0, off_t sg_j0, off_t src_offset, off_t batch,
@@ -182,21 +183,21 @@ inline void apply_post_ops_chain(c_tile_type_float *c_tile, long n, long m, long
     const global binary_scale_dense_tile_data_t *dense_scale,
     const global float *nvfp4_scale) {
 )";
-    const auto &po = attr.post_ops_;
-    for (int i = 0; i < po.len(); ++i) {
-        const auto &e = po.entry_[i];
-        if (e.is_eltwise()) {
+    for (int i = 0; i < po_len; ++i) {
+        const auto &e = po[i];
+        if (e.kind == po_kind_t::eltwise) {
             s += utils::format(R"(
 #define eltwise_apply_%d(v) fwd_eltwise_common(%d, v, %s, %s, %s)
     tile_elementwise((*c_tile), eltwise_apply_%d);
 #undef eltwise_apply_%d
                      )",
-                    i, static_cast<int>(e.eltwise.alg),
-                    to_ocl_float(e.eltwise.alpha).c_str(),
-                    to_ocl_float(e.eltwise.beta).c_str(),
-                    to_ocl_float(e.eltwise.scale).c_str(), i, i);
-        } else if (e.is_binary()) {
-            if (po_chain[i] == po_kind_t::binary_grouped_scale) {
+                    i, static_cast<int>(e.alg),
+                    to_ocl_float(utils::bit_cast<float>(e.alpha)).c_str(),
+                    to_ocl_float(utils::bit_cast<float>(e.beta)).c_str(),
+                    to_ocl_float(utils::bit_cast<float>(e.scale)).c_str(), i,
+                    i);
+        } else {
+            if (e.kind == po_kind_t::binary_grouped_scale) {
                 s += R"(
     {
         const global binary_scale_grouped_tile_data_t *group_scale_ptr
@@ -226,7 +227,7 @@ inline void apply_post_ops_chain(c_tile_type_float *c_tile, long n, long m, long
 #undef GRP_NBC
     }
                          )";
-            } else if (po_chain[i] == po_kind_t::binary_dense_scale) {
+            } else if (e.kind == po_kind_t::binary_dense_scale) {
                 s += utils::format(
                         R"(
 #define CONCAT_I(var) var##_%d
@@ -243,7 +244,7 @@ inline void apply_post_ops_chain(c_tile_type_float *c_tile, long n, long m, long
 #undef CONCAT_I
 )",
                         i);
-            } else if (po_chain[i] == po_kind_t::binary_nvfp4_scale) {
+            } else if (e.kind == po_kind_t::binary_nvfp4_scale) {
                 s += utils::format(
                         R"(
     float gs_%d = nvfp4_scale[batch];
