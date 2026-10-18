@@ -142,6 +142,21 @@ struct jit_brgemm_amx_uker_t : public brgemm_kernel_t {
 
     brgemm_desc_t brg;
 
+    /* Which of the unrolled kernel loops are emitted as a run time loop;
+     * small_enough reports whether the size estimate fits the budget. */
+    struct roll_loops_t {
+        bool bd = false;
+        bool ld = false;
+        bool bs = false;
+        bool rd = false;
+        bool small_enough = false;
+    };
+
+    /* Chooses the rolled loops; the defaults give the smallest kernel, for
+     * callers that only need to know how small it could get. */
+    static roll_loops_t roll_loops(const brgemm_desc_t &brg,
+            bool apply_post_ops = true, bool skip_accumulation = false);
+
     /* How the unrolled kernel stores its accumulators, exposed here so the
      * roll decision and the code generator do not drift apart. */
     static bool may_load_accumulators(const brgemm_desc_t &brg);
@@ -730,6 +745,22 @@ private:
             jit_brgemm_amx_uker_t::reg64_t &reg_src_stride, bool use_memadvice);
 };
 
+// Unrolled kernel size in micro-kernel bodies. TODO: weight the terms, the
+// rd and bs bodies are smaller than the bd and ld ones.
+static dim_t ker_size_est(const brgemm_desc_t &brg) {
+    return static_cast<dim_t>(brg.bdb2) * brg.ldb2 * brg.brgattr.max_bs
+            * (brg.rdb ? brg.rdb : 1);
+}
+
+// Size that jit_brgemm_amx_uker_t::roll_loops() rolls the ACE kernel down
+// to, calibrated against measured unrolled ACE kernel sizes (bf16 and int8
+// brgemm shapes) to keep them under ~128KB.
+constexpr dim_t ker_size_threshold = 48;
+
+// Plain AMX uker bd roll threshold, calibrated on conv shapes to keep the
+// kernel under ~128KB; its body differs from ACE, hence not ker_size_threshold.
+constexpr dim_t amx_uker_roll_bd_loop_threshold = 800;
+
 bool jit_brgemm_amx_uker_t::may_load_accumulators(const brgemm_desc_t &brg) {
     // Tile-load accumulators from C instead of add-on-store, when beta == 1
     // and dt_c == f32; excluded for ACE (no tileloadd) and per-K/per-mn.
@@ -766,6 +797,127 @@ bool jit_brgemm_amx_uker_t::actual_ils(
         const brgemm_desc_t &brg, bool apply_post_ops, bool skip_accumulation) {
     return use_ils(brg) && store_by_vectors(brg, apply_post_ops)
             && !skip_accumulation;
+}
+
+jit_brgemm_amx_uker_t::roll_loops_t jit_brgemm_amx_uker_t::roll_loops(
+        const brgemm_desc_t &brg, bool apply_post_ops, bool skip_accumulation) {
+    roll_loops_t res;
+
+    const bool use_ils_ = use_ils(brg);
+    const bool actual_ils_ = actual_ils(brg, apply_post_ops, skip_accumulation);
+    const bool store_by_vectors_ = store_by_vectors(brg, apply_post_ops);
+
+    // With enable_size_driven_roll, roll while the size estimate exceeds the
+    // threshold: any loop for ACE, only bd for the plain AMX uker.
+    dim_t est = ker_size_est(brg);
+    const bool size_driven_roll = brg.brgattr.enable_size_driven_roll;
+
+    // A down-conversion descriptor's JIT-time-keyed transform cache would be
+    // reused incorrectly by a rolled loop, so none of them may roll.
+    const bool may_roll = !brg.is_input_convert();
+
+    // A rolled bd loop needs the ld loop innermost, or a single ld block,
+    // so the shared body covers the whole ld range per bd iteration.
+    const bool bd_is_outer
+            = brg.innermost_loop == brgemm_ld_loop_innermost || brg.ldb2 == 1;
+
+    // A rolled bd loop shifts reg_C before the interleaved tile stores of
+    // the previous bd block are emitted, so those must go through the buffer.
+    const auto bdb2_to_unroll
+            = nstl::max<dim_t>(0, brg.bdb2 - (actual_ils_ ? 1 : 0));
+    // The M-indexed operands below are addressed by the JIT-time bd position
+    // and are not advanced by a rolled bd loop.
+    const bool bd_can_roll = may_roll && bd_is_outer && bdb2_to_unroll > 1
+            && (store_by_vectors_ || !brg.interleave_tilestores_)
+            && !brg.with_per_mn_compensation && !brg.is_per_k_src_scales
+            && brg.zp_type_b == brgemm_broadcast_t::none;
+
+    // Mirror fill_imap() and find_similar(): the first, the interleaved and
+    // an irregular last bd iteration stay separate bodies.
+    const bool bd_last_differs = brg.bdb % brg.bd_block2 != 0
+            || brg.bdb_tail != 0 || brg.amx_wary_k_tail();
+    const dim_t bdb2_rolled = nstl::min<dim_t>(
+            brg.bdb2, (actual_ils_ ? 3 : 2) + (bd_last_differs ? 1 : 0));
+
+    // Mirror ldb_loop(): all ld iterations, less the separate first and
+    // last ones that it emits outside the shared body.
+    const bool ld_separate_first = actual_ils_ || brg.save_transform_A();
+    const bool ld_separate_last = brg.ldb_tail != 0 || brg.ldb2_tail != 0;
+    const auto ldb2_all = brg.ldb2 + (brg.ldb2_tail != 0 ? 1 : 0);
+    const auto ldb2_to_unroll = nstl::max<dim_t>(0,
+            ldb2_all - (ld_separate_first ? 1 : 0)
+                    - (ld_separate_last ? 1 : 0));
+    // A rolled ld loop advances B and C by the step between the first two
+    // ld iterations, which LDB2 and LDC2_N panels may break.
+    const auto ld_step_is_const = [&]() {
+        const auto B_off = [&](dim_t ldb) {
+            const auto elem = ldb * brg.ld_block;
+            return (elem / brg.LDB) * brg.brgattr.LDB2
+                    + (elem % brg.LDB) * brg.rd_step;
+        };
+        const auto C_off = [&](dim_t ldb) {
+            const auto elem = ldb * brg.ld_block;
+            return (elem / brg.LDC) * brg.LDC2_N + elem % brg.LDC;
+        };
+        const dim_t step = brg.ld_block2;
+        const dim_t B_inc = B_off(step) - B_off(0);
+        const dim_t C_inc = C_off(step) - C_off(0);
+        const dim_t first = ld_separate_first ? 1 : 0;
+        for (dim_t i = 0; i < ldb2_to_unroll; i++)
+            for (dim_t b = 0; b < step; b++) {
+                const auto ldb0 = first * step + b;
+                const auto ldb = ldb0 + i * step;
+                if (ldb >= brg.ldb) break;
+                if (B_off(ldb) - B_off(ldb0) != i * B_inc
+                        || C_off(ldb) - C_off(ldb0) != i * C_inc)
+                    return false;
+            }
+        return true;
+    };
+    // The N-indexed operands below are addressed by the JIT-time ld position
+    // and are not advanced by a rolled ld loop.
+    const bool ld_can_roll = may_roll && !use_ils_ && ldb2_to_unroll > 1
+            && brg.zp_type_a == brgemm_broadcast_t::none
+            && brg.zp_type_c != brgemm_broadcast_t::per_n
+            && !brg.with_per_mn_compensation && ld_step_is_const();
+    const dim_t ldb2_rolled = ldb2_all - ldb2_to_unroll + 1;
+
+    // Only one of the two can roll; prefer the one removing more bodies.
+    const bool bd_first
+            = !ld_can_roll || bdb2_rolled * brg.ldb2 < ldb2_rolled * brg.bdb2;
+
+    const bool bd_wanted = brg.brgattr.hint_roll_bd_loop
+            || (size_driven_roll && brg.is_ace() && est > ker_size_threshold
+                    && bd_first && bdb2_rolled < brg.bdb2)
+            || (size_driven_roll && !brg.is_ace()
+                    && est > amx_uker_roll_bd_loop_threshold);
+    res.bd = bd_can_roll && bd_wanted;
+    if (res.bd) est = est * bdb2_rolled / brg.bdb2;
+
+    const bool ld_wanted = brg.brgattr.hint_roll_ld_loop
+            || (size_driven_roll && brg.is_ace() && est > ker_size_threshold);
+    res.ld = ld_can_roll && !res.bd && ld_wanted;
+    if (res.ld) est = est * ldb2_rolled / brg.ldb2;
+
+    // Fused copy A picks its workspace slot at JIT time, so it cannot share
+    // a rolled bs body; ACE advances reg_buf for its transformed A instead.
+    const bool bs_wanted = brg.brgattr.hint_roll_bs_loop
+            || (size_driven_roll && brg.is_ace() && est > ker_size_threshold);
+    res.bs = may_roll && !use_ils_ && bs_wanted && brg.brgattr.max_bs > 1
+            && one_of(brg.type, brgemm_addr, brgemm_offs)
+            && !brg.interleave_tilestores_ && !brg.fused_copy_a;
+    est /= res.bs ? brg.brgattr.max_bs : 1;
+
+    // rdb_loop() emits the rd tail separately. Fused copy A is indexed at
+    // JIT time, only the ACE transformed A buffer advances at run time.
+    const bool rd_wanted = brg.brgattr.hint_roll_rd_loop
+            || (size_driven_roll && brg.is_ace() && est > ker_size_threshold);
+    res.rd = may_roll && !use_ils_ && rd_wanted && brg.rdb > 1
+            && !brg.fused_copy_a;
+    est /= res.rd && brg.rdb ? brg.rdb : 1;
+
+    res.small_enough = est <= ker_size_threshold;
+    return res;
 }
 
 bool jit_brgemm_amx_uker_t::bi_shift_output(
@@ -3416,16 +3568,14 @@ void jit_brgemm_amx_uker_t::fill_imap() {
 
 void jit_brgemm_amx_uker_t::init(brgemm_iteration_t &bi) {
     was_prev_bi_ = false;
-    const auto bdb2_to_unroll = nstl::max<dim_t>(0,
-            brg.bdb2
-                    - (actual_ils(bi.apply_postops, bi.skip_accumulation) ? 1
-                                                                          : 0));
-    roll_bd_loop = brg.brgattr.hint_roll_bd_loop && bdb2_to_unroll > 1
-            && (brg.innermost_loop == brgemm_ld_loop_innermost || brg.ldb2 == 1)
-            && get_store_by_vectors(bi.apply_postops)
+
+    const auto roll = jit_brgemm_amx_uker_t::roll_loops(
+            brg, bi.apply_postops, bi.skip_accumulation);
+    roll_bd_loop = roll.bd
             && IMPLICATION(!bi.skip_accumulation,
                     (brg.brgattr.max_bs == 1 || brg.type == brgemm_static_offs)
                             && !brg.brgattr.var_bs);
+
     if (brg.type == brgemm_static_offs && !bi.skip_accumulation) {
         reg_A.restore();
         reg_B.restore();

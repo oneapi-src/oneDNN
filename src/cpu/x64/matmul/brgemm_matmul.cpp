@@ -501,6 +501,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
             brgattr.max_bs = bs;
             brgattr.wary_A_k_tail_read = bgmmc_.extendable_k;
             brgattr.extendable_k = bgmmc_.extendable_k;
+            brgattr.enable_size_driven_roll = true;
             // TODO: change expected sizes to local chunks wrt L2 blocking
             brgattr.hint_expected_A_size = vM * vK * bs;
             brgattr.hint_expected_B_size = vN * vK * bs;

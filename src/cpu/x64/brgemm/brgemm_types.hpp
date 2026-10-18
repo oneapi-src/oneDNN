@@ -232,6 +232,12 @@ struct DNNL_API brgemm_attr_t {
     int hint_bd_block2 {0};
     int hint_ld_block2 {0};
     bool hint_roll_bd_loop {false};
+    bool hint_roll_ld_loop {false};
+    bool hint_roll_bs_loop {false};
+    bool hint_roll_rd_loop {false};
+    // Lets roll_loops() pick the loops to roll by the kernel size; set by
+    // conv and matmul before brgemm_desc_finalize().
+    bool enable_size_driven_roll {false};
 
     brgemm_kernel_hint_mem_advice_t mem_advice {brgemm_hint_mem_advice_undef};
 
