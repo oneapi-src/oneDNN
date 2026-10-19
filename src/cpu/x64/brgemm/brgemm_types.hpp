@@ -599,7 +599,10 @@ struct brgemm_desc_t {
     }
 
     bool save_transform_A() const noexcept {
-        return can_reuse_input_transform() && ldb2 > 1;
+        // The cache holds A of one bd_block2 only, so with the bd loop
+        // innermost it is valid only if there is a single bd_block2.
+        return can_reuse_input_transform() && ldb2 > 1
+                && (innermost_loop == brgemm_ld_loop_innermost || bdb2 == 1);
     }
 
     bool save_transform_B() const noexcept {
