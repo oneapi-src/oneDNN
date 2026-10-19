@@ -378,7 +378,7 @@ struct GEMMStrategy : public GEMMStrategyPOD
     bool persistentLoop()     const { return persistent || kParallelVariable; }
 
     bool needsMNLocalIDs()    const { return xParallel || (std::max(slmBuffersA, slmBuffersB) > 0) || cooperativePF || kParallelLocal || persistentLoop()
-                                                       || namedBarriers[LoopM] || namedBarriers[LoopN] || (dpasw && !fixedSystolic); }
+                                                       || namedBarriers[LoopM] || namedBarriers[LoopN] || (dpasw && !fixedSystolic) || (l3PrefetchA || l3PrefetchB); }
     bool needsKLocalIDs()     const { return kParallelLocal || persistentLoop(); }
     bool needsKLoopBarrier()  const { return (barrierFreq > 0) || (std::max(slmBuffersA, slmBuffersB) > 0); }
     bool needsBarrier()       const { return needsKLoopBarrier() || xParallel || kParallelLocal || fuseBeta || fusePostOps; }

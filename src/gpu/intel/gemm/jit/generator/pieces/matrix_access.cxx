@@ -45,7 +45,7 @@ void Generator<hw>::prefetchMatrix(const RegisterLayout &layout, const vector<Re
             auto &cur = layout[l], &next = layout[l + 1];
             chain &= next.isLoadBlock() && (cur.rowMask == next.rowMask) && (cur.colMask == next.colMask);
         }
-        loadMatrixBlock(null, layout[l], layout.addressing(), layout.addressingStrategy(), addrs[l], strategy, state, layout.type().real().ngen(), false, true);
+        loadMatrixBlock(null, layout[l], layout.addressing(), layout.addressingStrategy(), addrs[l], strategy, state, layout.type().real().ngen(), false, true, chain);
     }
 
     finishRegisterBlockMasking(state);

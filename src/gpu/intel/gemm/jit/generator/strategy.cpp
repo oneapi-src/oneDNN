@@ -620,7 +620,13 @@ int GEMMStrategy::repackPeriod(bool isA, const GEMMProblem &problem) const
     if (k_repack > 0 && k_repack % opCount == 0 && k_load % k_repack == 0)
         return k_repack;
     int repackMin = std::min(std::max(4 / (isA ? problem.Ta_ext : problem.Tb_ext), 1), k_load);
-    return gcd(k_load, align_up(std::max(std::min(ka_load, kb_load), repackMin), opCount));
+    int period = gcd(k_load, align_up(std::max(std::min(ka_load, kb_load), repackMin), opCount));
+    // Do not let repack chunks span quantization groups.
+    bool q2D = isA ? problem.quantized2DA() : problem.quantized2DB();
+    int qGroupK = isA ? problem.aqGroupK : problem.bqGroupK;
+    if (q2D && qGroupK > 0 && qGroupK % period != 0 && period % qGroupK != 0)
+        period = gcd(qGroupK, period);
+    return period;
 }
 
 // Return preferred k alignment for this kernel (avoiding remainder loads).
