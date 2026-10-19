@@ -83,6 +83,9 @@ protected:
     // stream destruction
     void cleanup();
 
+    // allows execution time-tracking for different component kinds
+    void log_profile(const prim_profile_data_t &prof_data, double duration_ms);
+
 private:
     void wait_for_pending_primitives() override;
 

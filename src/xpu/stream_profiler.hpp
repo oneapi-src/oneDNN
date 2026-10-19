@@ -220,6 +220,9 @@ protected:
     // stream destruction
     void cleanup();
 
+    // allows execution time-tracking for different component kinds
+    void log_profile(const prim_profile_data_t &prof_data, double duration_ms);
+
 private:
     // This is invoked during profiler destruction to account for any
     // pending primitives that have not yet been logged.
