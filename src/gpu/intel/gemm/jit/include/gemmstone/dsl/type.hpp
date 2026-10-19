@@ -77,6 +77,9 @@ public:
         return type_t(kind_t::_bool, elems, attr);
     }
 
+    static type_t u2(int elems = elems_default, attr_t attr = attr_t::undef) {
+        return type_t(kind_t::u2, elems, attr);
+    }
     static type_t u4(int elems = elems_default, attr_t attr = attr_t::undef) {
         return type_t(kind_t::u4, elems, attr);
     }
@@ -112,6 +115,7 @@ public:
     static type_t u(
             int bits, int elems = elems_default, attr_t attr = attr_t::undef) {
         switch (bits) {
+            case 2: return u2(elems, attr);
             case 4: return u4(elems, attr);
             case 8: return u8(elems, attr);
             case 16: return u16(elems, attr);
@@ -198,6 +202,7 @@ public:
     template <typename T>
     T max() const {
         switch (kind()) {
+            case kind_t::u2:
             case kind_t::u4:
             case kind_t::s4:
             case kind_t::u8:
@@ -221,6 +226,7 @@ public:
     template <typename T>
     T min() const {
         switch (kind()) {
+            case kind_t::u2:
             case kind_t::u4:
             case kind_t::s4:
             case kind_t::u8:
@@ -295,8 +301,12 @@ public:
     bool is_e8m0() const { return kind() == kind_t::e8m0; }
 
     bool is_int() const {
-        return is_x4() || is_x8() || is_x16() || is_x32() || is_x64();
+        return is_x2() || is_x4() || is_x8() || is_x16() || is_x32()
+                || is_x64();
     }
+
+    bool is_u2() const { return kind() == kind_t::u2; }
+    bool is_x2() const { return is_u2(); }
 
     bool is_s4() const { return kind() == kind_t::s4; }
     bool is_u4() const { return kind() == kind_t::u4; }
@@ -331,7 +341,8 @@ public:
 
     bool is_unsigned(int req_elems = -1) const {
         if (req_elems != -1 && elems() != req_elems) return false;
-        return is_u4() || is_u8() || is_u16() || is_u32() || is_u64();
+        return is_u2() || is_u4() || is_u8() || is_u16() || is_u32()
+                || is_u64();
     }
 
     bool is_scalar() const { return *this == scalar(); }
@@ -434,6 +445,7 @@ protected:
         _bool,
 
         // Integer types.
+        u2,
         u4,
         s4,
         u8,
