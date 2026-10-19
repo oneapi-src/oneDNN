@@ -111,10 +111,10 @@ std::vector<Protocol::Argument> arguments(const GEMMOptions &o) {
     if (o.kParallelLocal) argsV.push_back({"local_id_k", In, s32});
     if (o.slmPtr) argsV.push_back({"slm", In, LocalPointer});
     if (o.scaleA) argsV.push_back({"a_scale", In, GlobalPointer});
-    if (o.offsetA) argsV.push_back({"a_offset", In, GlobalPointer});
+    if (o.offsetA) argsV.push_back({"a_offset", In, o.offsetAHostScalar ? StructuredType(StructuredType::s16) : StructuredType(GlobalPointer)});
     if (o.offsetA || o.scaleA) argsV.push_back({"ldaq", In, s32});
     if (o.scaleB) argsV.push_back({"b_scale", In, GlobalPointer});
-    if (o.offsetB) argsV.push_back({"b_offset", In, GlobalPointer});
+    if (o.offsetB) argsV.push_back({"b_offset", In, o.offsetBHostScalar ? StructuredType(StructuredType::s16) : StructuredType(GlobalPointer)});
     if (o.offsetB || o.scaleB) { argsV.push_back({"ldbq", In, s32}); }
 
     return argsV;
@@ -170,10 +170,16 @@ InterfaceHandler GEMMOptions::generateInterface(HW hw, HostPayload host) const {
     if (kParallelLocal)    interface.newArgument("local_id_k", DataType::d);
     if (slmPtr)            interface.newArgument("slm_base", ExternalArgumentType::LocalPtr);
     if (scaleA)            interface.newArgument("a_scale_ptr", ExternalArgumentType::GlobalPtr);
-    if (offsetA)           interface.newArgument("ao_ptr", ExternalArgumentType::GlobalPtr);
+    if (offsetA) {
+        if (offsetAHostScalar) interface.newArgument("ao", DataType::w);
+        else                  interface.newArgument("ao_ptr", ExternalArgumentType::GlobalPtr);
+    }
     if (scaleA || offsetA) interface.newArgument("ldaq", DataType::d);
     if (scaleB)            interface.newArgument("b_scale_ptr", ExternalArgumentType::GlobalPtr);
-    if (offsetB)           interface.newArgument("bo_ptr", ExternalArgumentType::GlobalPtr);
+    if (offsetB) {
+        if (offsetBHostScalar) interface.newArgument("bo", DataType::w);
+        else                  interface.newArgument("bo_ptr", ExternalArgumentType::GlobalPtr);
+    }
     if (scaleB || offsetB) interface.newArgument("ldbq", DataType::d);
     return interface;
 }
@@ -183,6 +189,7 @@ GEMMOptions GEMMOptions::transpose() const {
     std::swap(ret.localA, ret.localB);
     std::swap(ret.scaleA, ret.scaleB);
     std::swap(ret.offsetA, ret.offsetB);
+    std::swap(ret.offsetAHostScalar, ret.offsetBHostScalar);
     return ret;
 }
 
@@ -232,7 +239,10 @@ Package selectGEMM(const GEMMOptions &options, HostPayload host, HWInformation h
 
     if (scaleA != problem.aScale2D() || scaleB != problem.bScale2D())
         stub("Protocol scales do not match problem description");
-    if (offsetA != (problem.aoPtrDims >= 0) || offsetB != (problem.boPtrDims >= 0))
+    if (offsetA != (problem.hasAOffsetPtr() || problem.aOffsetHostScalar())
+            || offsetB != (problem.hasBOffsetPtr() || problem.bOffsetHostScalar())
+            || effOptions.offsetAHostScalar != problem.aOffsetHostScalar()
+            || effOptions.offsetBHostScalar != problem.bOffsetHostScalar())
         stub("Protocol offsets do not match problem description");
 
     /* Get hardware information */
