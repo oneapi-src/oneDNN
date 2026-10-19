@@ -2534,7 +2534,7 @@ void jit_brgemm_amx_uker_t::maybe_pre_process_data(brgemm_iteration_t &bi,
     auto &transform_buf = is_A ? transform_buf_map_A_ : transform_buf_map_B_;
 
     const auto transform_offset
-            = use_ils_ ? brg.get_num_C_tiles() * brgemm_desc_t::tilesize : 0;
+            = brg.get_num_C_tiles() * brgemm_desc_t::tilesize;
     const auto max_bdb2 = tloop.bdis[0].block2();
     const auto max_rdb = tloop.rdis.size();
     const auto matrix_a_offset = transform_offset;
