@@ -1223,7 +1223,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
         case Opcode::directive:
             switch (opNum) {
                 case -1: {
-                    BinaryOperand12 o;
+                    BinaryOperand12 o{0};
                     o.bits = binary.dst;
                     unsigned regNum = o.direct.regNum;
                     if (xe3p) regNum |= (binaryXe3p.dstReg8 << 8);
@@ -1231,7 +1231,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                     return true;
                 }
                 case 0: {
-                    BinaryOperand12 o0, o1;
+                    BinaryOperand12 o0{0}, o1{0};
                     o0.bits = binary.src0;
                     o1.bits = binary.src1;
                     unsigned rn0 = o0.direct.regNum, rn1 = o1.direct.regNum;
@@ -1250,8 +1250,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             unsigned sdepth = 1 << dpas.sdepth;
             unsigned rcount = 1 + dpas.rcount;
             unsigned len;
-            TernaryOperand12 o;
-            o.bits = 0;
+            TernaryOperand12 o{0};
             unsigned regNum8 = 0;
 
             switch (opNum) {
@@ -1459,7 +1458,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
         case Opcode::dnscl:
         case Opcode::mad:
         case Opcode::madm: {  // ternary
-            TernaryOperand12 o;
+            TernaryOperand12 o{0};
             unsigned dt = 0, vs = 0;
             unsigned regNum8 = 0;
             switch (opNum) {
@@ -1503,7 +1502,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 hs = 0;
                 if (!ternaryXe3p.src1Scalar) {
                     auto dbytes = getBytes(decodeRegTypecode12((ternary.execType << 3) | ternary.dstType));
-                    TernaryOperand12 odst;
+                    TernaryOperand12 odst{0};
                     odst.bits = ternary.dst;
                     hs = std::max(1, (dbytes << odst.direct.hs) / base.getBytes());
                 }
@@ -1538,7 +1537,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
             unaryXe3p = true;
             /* fall through */
         default: {    // unary/binary
-            BinaryOperand12 o;
+            BinaryOperand12 o{0};
             unsigned dt;
             unsigned regNum8 = 0;
 
@@ -1589,7 +1588,7 @@ bool Instruction12::getOperandRegion(autoswsb::DependencyRegion &region, int opN
                 hs = 0;
                 if (!binaryXe3p.src1Scalar) {
                     auto dbytes = getBytes(decodeRegTypecode12(binary.dstType));
-                    BinaryOperand12 odst;
+                    BinaryOperand12 odst{0};
                     odst.bits = binary.dst;
                     hs = std::max(1, (dbytes << (odst.direct.hs - 1)) / base.getBytes());
                 }
@@ -1757,7 +1756,7 @@ bool Instruction12::getARFType(ARFType &arfType, int opNum, HW hw) const
         case Opcode::dpasw:
             return false;
         default: {
-            BinaryOperand12 o;
+            BinaryOperand12 o{0};
             switch (opNum) {
                 case -1:
                     o.bits = binary.dst;
