@@ -641,7 +641,7 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
                         }
                         ms >> eat;
                         if (!ms.eof())
-                            ms >> strategy.slmCopies; //TODO, split to A/B copies
+                            ms >> strategy.slmCopies; // TODO: split to A/B copies
                     }
                     if (mod[0] == 'b') {
                         bool cba_case = false;

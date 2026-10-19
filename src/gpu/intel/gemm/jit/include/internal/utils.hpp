@@ -419,12 +419,12 @@ struct generic_t {
         return &as<T>();
     }
 
-     size_t index() const { return index_; }
+    size_t index() const { return index_; }
 
 private:
     template <typename T>
     static constexpr size_t index_of() {
-       return 1;
+        return 1;
     }
 
     template <typename T, typename First, typename ... Rest>

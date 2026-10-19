@@ -962,7 +962,6 @@ void Generator<hw>::updateCLayout(const RegisterLayout &layoutExt, const Registe
                     layout[lend].subAddrOffset(initOA, is2D);
             }
             auto naddr = blockExt.addrGRFs(problem.C, strategy.C);
-            // TODO: This code should be reviewed.
             RegFile allocaterf = RegFileGRF;
             FOR_EACH_C C_addrs[q].push_back(origin ? C_addr0[q] :
                                             (blockExt.offsetAddr == 0) ? tryAlloc(naddr, allocaterf)

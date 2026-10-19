@@ -697,7 +697,6 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         int kIncSLMStoreB = (slmBufferB(h) == slmBuffersB - 1) ? -(slmBuffersB - 1) : +1;
         kIncSLMStoreA *= unrollKSLM;
         kIncSLMStoreB *= unrollKSLM;
-        // TODO: Should be reviewed.
         if (slmA)
             gemmAIncrement(state.Ao_layout, state.Ao_addrs, kIncSLMStoreA, problem, strategy, state);
         if (slmB)
