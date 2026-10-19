@@ -9,3 +9,9 @@
 --grouped=0:256:balanced,0:256:hot
 8192x2048:256x2048x512
 8192x512:256x512x2048
+
+# Common (mask 0) wei zero point
+--attr-scales=wei:7:f16:64x1,wei:5:f16
+--attr-zero-points=wei:common:4:u8,wei:common:4,wei:host_scalar:4:u8
+--grouped=0:16:balanced,0:16:hot
+512x256:16x256x128
