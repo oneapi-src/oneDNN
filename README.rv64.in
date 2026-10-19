@@ -11,7 +11,5 @@ just-in-time (JIT) code generation to deploy the code optimized
 for the latest supported ISA.
 
 Validated on:
-* SG2044 (VLEN=128) and Spacemit K3 (RVA23) with RISC-V GNU Toolchain 14.x
-
-Note: RV64 support is currently experimental. It is covered by dedicated
-continuous integration (QEMU, VLEN=128/256) and validated on silicon.
+* Sophgo SG2044 (T-Head C920v2, RVV 1.0, VLEN=128) with RISC-V GNU Toolchain 14.2
+* Spacemit(R) X100 (RVA23, VLEN=256) with RISC-V GNU Toolchain 15.2

@@ -29,7 +29,7 @@ PyTorch, TensorFlow, OpenVINO, and many other AI frameworks.
 The library is optimized for Intel 64/AMD64 architecture-based processors,
 Arm(R) 64-bit Architecture (AArch64)-based processors, and Intel Graphics.
 oneDNN has experimental support for the following architectures: NVIDIA\* GPU,
-AMD\* GPU, OpenPOWER\* Power ISA (PPC64), IBMz\* (s390x), and RISC-V.
+AMD\* GPU, OpenPOWER\* Power ISA (PPC64), and IBMz\* (s390x).
 
 The oneDNN project is part of the [UXL Foundation].
 
@@ -142,8 +142,8 @@ oneDNN supports platforms based on the following architectures:
 
 > **WARNING**
 >
-> Power ISA (PPC64), IBMz (s390x), and RISC-V (RV64) support is
-> **experimental** with limited validation.
+> Power ISA (PPC64) and IBMz (s390x) support is **experimental** with limited
+> validation.
 
 The library is optimized for the following CPUs:
 * Intel 64/AMD64 architecture
