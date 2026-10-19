@@ -27,6 +27,19 @@
 --grouped=0:16:balanced,0:16:hot
 512x256:16x256x128
 
+# Common weight zero point across groups with K-blocked per-expert scales
+--reset
+--allow-enum-tags-only=0
+--dt=f16:u3:f16
+--wtag=acb
+--attr-scales=wei:7:f16:64x1
+--attr-zero-points=wei:common:1:u8,wei:host_scalar:1:u8,wei:host_scalar:1:s8
+--attr-fpmath=f16:true
+--grouped=0:4:balanced
+16x128:4x128x64
+--grouped=0:4:decode
+1x128:4x128x64
+
 # MoE decode: 8 active experts of 256, group 128 scales and s8 zero-points
 --reset
 --allow-enum-tags-only=0
