@@ -19,7 +19,6 @@
 
 #if DNNL_EXPERIMENTAL_GROUPED_MEMORY
 
-#include "common/bit_cast.hpp"
 #include "gemmstone/microkernel/shim.hpp"
 #include "gemmstone/microkernel_selector.hpp"
 #include "gemmstone/strategy_parser.hpp"
@@ -214,9 +213,7 @@ void init_kernel_ctx_m_axis(
     }
 
     auto with_po = [&](po_kind_t kind) {
-        for (int i = 0; i < conf.po_len; ++i)
-            if (conf.po[i].kind == kind) return true;
-        return false;
+        return find_po_in_chain(conf.po_chain.data(), kind) != -1;
     };
     def_data_type(kernel_ctx, conf.bia_dt, "BIA");
     kernel_ctx.define_int("WITH_BIAS", conf.with_bias);
@@ -231,9 +228,16 @@ void init_kernel_ctx_m_axis(
     kernel_ctx.define_int(
             "WITH_BINARY_NVFP4_SCALE", with_po(po_kind_t::binary_nvfp4_scale));
     kernel_ctx.add_custom_header("grouped_post_ops.h",
-            generate_post_ops_microgemm_header(conf.po, conf.po_len));
-    def_data_type(kernel_ctx, conf.binary_scale_dts[0], "BINARY_SCALE_GROUPED");
-    def_data_type(kernel_ctx, conf.binary_scale_dts[1], "BINARY_SCALE_DENSE");
+            generate_post_ops_microgemm_header(
+                    conf.post_ops, conf.po_chain.data()));
+    def_data_type(kernel_ctx,
+            binary_scale_dt(conf.post_ops, conf.po_chain.data(),
+                    po_kind_t::binary_grouped_scale),
+            "BINARY_SCALE_GROUPED");
+    def_data_type(kernel_ctx,
+            binary_scale_dt(conf.post_ops, conf.po_chain.data(),
+                    po_kind_t::binary_dense_scale),
+            "BINARY_SCALE_DENSE");
 }
 
 } // namespace
@@ -406,7 +410,10 @@ status_t grouped_micro_gemm_t::pd_t::init_m_axis(const impl::engine_t *engine) {
     conf_.with_post_op = !attr()->post_ops_.has_default_values();
     if (conf_.with_post_op) {
         CHECK(check_post_op_chain(
-                *attr(), dst_d, ngroups(), po_chain_, conf_.binary_scale_dts));
+                *attr(), dst_d, ngroups(), conf_.po_chain.data()));
+        VDISPATCH_MATMUL_SC(
+                gpu_post_ops_t::make(conf_.post_ops, attr()->post_ops_, dst_d),
+                VERBOSE_UNSUPPORTED_POSTOP);
     }
 
     VDISPATCH_MATMUL(utils::one_of(src_dt, f32, f16, bf16, u8, s8, f8_e5m2,
@@ -723,19 +730,6 @@ status_t grouped_micro_gemm_t::pd_t::init_conf() {
 
             conf_.with_bias = with_bias();
             conf_.bia_dt = weights_md(1)->data_type;
-
-            const auto &po = attr()->post_ops_;
-            conf_.po_len = po.len();
-            for (int i = 0; i < po.len(); ++i) {
-                auto &po_desc = conf_.po[i];
-                po_desc.kind = po_chain_[i];
-                if (!po.entry_[i].is_eltwise()) continue;
-                const auto &e = po.entry_[i].eltwise;
-                po_desc.alg = e.alg;
-                po_desc.alpha = utils::bit_cast<uint32_t>(e.alpha);
-                po_desc.beta = utils::bit_cast<uint32_t>(e.beta);
-                po_desc.scale = utils::bit_cast<uint32_t>(e.scale);
-            }
         } break;
         case grouped_axis_t::k_axis: conf_.transc = transc(); break;
         default: return status::unimplemented;
@@ -1025,7 +1019,7 @@ status_t grouped_micro_gemm_t::execute_m_axis(const exec_ctx_t &ctx) const {
     const memory_storage_t *dense_scale = &memory_storage_t::empty_storage();
     const memory_storage_t *nvfp4_scale = &memory_storage_t::empty_storage();
     if (pd()->conf_.with_post_op) {
-        const auto &po_chain = pd()->po_chain_;
+        const auto &po_chain = pd()->conf_.po_chain;
         for (int i = 0; i < pd()->attr()->post_ops_.len(); ++i) {
             auto &e = pd()->attr()->post_ops_.entry_[i];
             if (!e.is_binary()) continue;

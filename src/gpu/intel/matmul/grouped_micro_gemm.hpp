@@ -28,6 +28,7 @@
 #include "gpu/intel/kernel_cache.hpp"
 #include "gpu/intel/matmul/config.hpp"
 #include "gpu/intel/matmul/grouped_post_ops_gen.hpp"
+#include "gpu/intel/post_ops.hpp"
 #include "gpu/intel/primitive.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
@@ -61,13 +62,13 @@ struct grouped_ocl_params_t : trivially_serializable_t<grouped_ocl_params_t> {
     data_type_t src_zp_dt = data_type::undef;
     data_type_t wei_scale_dt = data_type::undef;
     data_type_t wei_zp_dt = data_type::undef;
-    data_type_t binary_scale_dts[2] = {data_type::undef, data_type::undef};
 
     int src_group_k = 0;
     int wei_group_k = 0, wei_group_n = 0;
 
-    int po_len = 0;
-    grouped_po_desc_t po[3];
+    // Classification of each post-op entry
+    std::array<po_kind_t, 3> po_chain
+            = {{po_kind_t::none, po_kind_t::none, po_kind_t::none}};
 
     bool transc = false;
     bool is_gemv = false;
@@ -98,8 +99,10 @@ struct grouped_micro_params_t : grouped_ocl_params_t {
 
     serialization_stream_t serialize() const {
         const grouped_ocl_params_t &ocl = *this;
-        return serialization_stream_t(ocl, ukernel);
+        return serialization_stream_t(ocl, post_ops, ukernel);
     }
+
+    gpu_post_ops_t post_ops;
 
     // Microkernel selected by the pd. Its options and host payload follow from
     // the device and the problem, so they are not part of the key.
@@ -141,10 +144,6 @@ struct grouped_micro_gemm_t : public primitive_t {
 
         // Group sizes of the src quantization along m and k
         std::array<int, 2> src_group_sizes() const;
-
-        // Classification of each post-op entry
-        po_kind_t po_chain_[3]
-                = {po_kind_t::none, po_kind_t::none, po_kind_t::none};
 
         int sg_size_ = 0;
         quantization_t src_quant_;
