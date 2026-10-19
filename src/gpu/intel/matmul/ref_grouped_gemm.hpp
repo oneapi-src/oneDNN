@@ -170,6 +170,7 @@ struct ref_grouped_t : public primitive_t {
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
 
             // Zero-points: src (int src), wei (int wei); row/col-wise or K-grouped
+            // and common wei zero-points for u3 wei
             const auto &attr_zps = attr()->zero_points_;
             VDISPATCH_MATMUL(attr_zps.has_default_values(DNNL_ARG_DST),
                     VERBOSE_UNSUPPORTED_ZP_CFG);
@@ -198,8 +199,10 @@ struct ref_grouped_t : public primitive_t {
                                 u8, s8, u4, s4, s32),
                         VERBOSE_UNSUPPORTED_ZP_CFG);
                 const int zp_mask = attr_zps.get_mask(DNNL_ARG_WEIGHTS);
+                const bool common_ok = zp_mask == 0 && wei_type == u3;
                 VDISPATCH_MATMUL(zp_mask == wei_qmask_N()
-                                || zp_mask == (wei_qmask_K() | wei_qmask_N()),
+                                || zp_mask == (wei_qmask_K() | wei_qmask_N())
+                                || common_ok,
                         VERBOSE_UNSUPPORTED_ZP_CFG);
                 if (!attr_zps.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
                     const auto gK = attr_zps.get_group(DNNL_ARG_WEIGHTS, -2);
@@ -210,9 +213,7 @@ struct ref_grouped_t : public primitive_t {
                 }
             }
             // For K grouping, src/wei scale group sizes must be multiples
-            if (!attr_scales.has_default_values(DNNL_ARG_SRC)
-                    && !attr_scales.get(DNNL_ARG_SRC).has_default_groups()
-                    && !attr_scales.has_default_values(DNNL_ARG_WEIGHTS)
+            if (!attr_scales.get(DNNL_ARG_SRC).has_default_groups()
                     && !attr_scales.get(DNNL_ARG_WEIGHTS)
                                 .has_default_groups()) {
                 const auto src_gK = attr_scales.get_group(DNNL_ARG_SRC, -1);
@@ -222,7 +223,7 @@ struct ref_grouped_t : public primitive_t {
             }
             // Weight scales and ZPs K-groups must match
             if (!attr_scales.has_default_values(DNNL_ARG_WEIGHTS)
-                    && !attr_zps.has_default_values(DNNL_ARG_WEIGHTS)) {
+                    && !attr_zps.get(DNNL_ARG_WEIGHTS).has_default_groups()) {
                 const auto scale_gK
                         = attr_scales.get_group(DNNL_ARG_WEIGHTS, -2);
                 const auto zp_gK = attr_zps.get_group(DNNL_ARG_WEIGHTS, -2);
