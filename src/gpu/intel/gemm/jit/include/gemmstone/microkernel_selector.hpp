@@ -51,6 +51,8 @@ struct GEMMOptions {
     bool slmPtr = false;
     bool offsetA = false;
     bool offsetB = false;
+    bool offsetAHostScalar = false;
+    bool offsetBHostScalar = false;
     bool scaleA = false;
     bool scaleB = false;
     bool kParallelLocal = false;

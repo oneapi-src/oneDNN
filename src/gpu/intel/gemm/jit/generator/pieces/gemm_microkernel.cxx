@@ -264,8 +264,8 @@ microkernel::Package Generator<hw>::gemmMicrokernelPackage(const GEMMProblem &pr
         if (iname == "a")             iname = "A";
         else if (iname == "b")        iname = "B";
         else if (iname == "slm")      iname = "slm_base";
-        else if (iname == "a_offset") iname = "ao_ptr";
-        else if (iname == "b_offset") iname = "bo_ptr";
+        else if (iname == "a_offset") iname = problem.aOffsetHostScalar() ? "ao" : "ao_ptr";
+        else if (iname == "b_offset") iname = problem.bOffsetHostScalar() ? "bo" : "bo_ptr";
         else if (iname == "a_scale")  iname = "a_scale_ptr";
         else if (iname == "b_scale")  iname = "b_scale_ptr";
 
