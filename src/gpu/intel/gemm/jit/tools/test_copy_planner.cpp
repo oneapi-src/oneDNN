@@ -109,7 +109,7 @@ int main(int argc, char **argv)
     if (getenv("SAT") && atoi(getenv("SAT")))
         mod |= InstructionModifier::createSaturate();
 
-    CopyPlan plan{hw, sys};
+    CopyPlan plan{genericProductFamily(hw), sys};
 
     for (int o = 0; o < interleaves; o++) {
         if (istride == 0)
