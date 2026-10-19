@@ -153,7 +153,7 @@ void jit_avx512_core_amx_gemm_kern_t::generate() {
 
     /* K needs to be multiple of 4 */
     add(K, UNROLL_K - 1);
-    and_(K, -UNROLL_K);
+    and_(K, static_cast<uint32_t>(-UNROLL_K));
 
     mov(N, Bn);
     mov(A, rcx);
@@ -162,14 +162,14 @@ void jit_avx512_core_amx_gemm_kern_t::generate() {
 
     /* Calculating last value for M loop */
     lea(T0, ptr[Bm - 1]);
-    and_(T0, -UNROLL_MM);
+    and_(T0, static_cast<uint32_t>(-UNROLL_MM));
     lea(T1, ptr[Bm - UNROLL_MM]);
     sub(T1, T0);
     mov(FinalM, T1);
 
     /* Calculating last value for N loop */
     lea(T0, ptr[Bn - 1]);
-    and_(T0, -UNROLL_NN);
+    and_(T0, static_cast<uint32_t>(-UNROLL_NN));
     lea(T1, ptr[Bn - UNROLL_NN]);
     sub(T1, T0);
     mov(FinalN, T1);
@@ -425,7 +425,7 @@ void jit_avx512_core_amx_gemm_kern_t::generate() {
 
     /* Updating for next A */
     lea(T0, ptr[K + UNROLL_KK - 1]);
-    and_(T0, -UNROLL_KK);
+    and_(T0, static_cast<uint32_t>(-UNROLL_KK));
     sal(T0, SHIFT_UNROLL_MM + SHIFT_A);
     add(A, T0);
 
