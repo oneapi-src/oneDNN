@@ -1762,8 +1762,9 @@ status_t compute_blocking_heuristic_amx(brgemm_matmul_conf_t &bgmmc,
     // Not write-once: the bypass-viability retry below may toggle it.
     const bool is_relaxed_acc = utils::one_of(
             attr.acc_mode_, accumulation_mode::relaxed, accumulation_mode::any);
-    const bool dst_dt_eligible
-            = utils::one_of(bgmmc.dst_dt, data_type::bf16, data_type::f16);
+    // The uker accumulates int8 in s32 but stores a narrow dt_c as f32.
+    const bool dst_dt_eligible = !bm_conf_utils.is_int8()
+            && utils::one_of(bgmmc.dst_dt, data_type::bf16, data_type::f16);
     // Narrow dt_c is an AMX uker feature, but runtime M falls back to a
     // non-AMX ISA for the smallest M tail and runtime N leaves LDC/LDD as
     // runtime values; either way can_dispatch_uker() picks the generic kernel.
