@@ -43,6 +43,8 @@ namespace zen {
 // entry runs in place on that buffer: a sum adds scale * dst and an in-place
 // binary multiplies by dst, both reading the untouched destination. A final
 // reorder then rounds the result into dst once, as a fused chain would.
+// PReLU does not support in-place execution, so it reads a scratchpad copy
+// of the buffer and writes the buffer.
 //
 // The pd owns an instance after init() / init_scratchpad(); the primitive
 // keeps a copy and calls init_primitives() once.
@@ -78,6 +80,9 @@ private:
     post_ops_t post_ops_;
     int start_index_ = 0;
     bool uses_acc_ = false;
+    // Bytes of the kernel output buffer from its base pointer through its
+    // last addressed element, when the chain has a prelu entry.
+    size_t prelu_copy_size_ = 0;
     // One entry per post-op in [start_index, len), then the accumulator
     // reorder when uses_acc().
     std::vector<std::shared_ptr<primitive_desc_t>> pds_;
