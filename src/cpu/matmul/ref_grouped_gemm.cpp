@@ -137,11 +137,20 @@ status_t ref_grouped_t::execute(const exec_ctx_t &ctx) const {
 
     const bool with_wei_zps = !attr_zps.has_default_values(DNNL_ARG_WEIGHTS);
     const auto wei_zp_dt = attr_zps.get_data_type(DNNL_ARG_WEIGHTS);
+    // Wei zp is dense [G, K/gK, N/gN], dims not in the mask have size 1
+    const int wei_zp_mask = attr_zps.get_mask(DNNL_ARG_WEIGHTS);
     const auto wei_zp_group_k = attr_zps.get_group(DNNL_ARG_WEIGHTS, -2);
     const dim_t wei_zp_ngroups_k
-            = wei_zp_group_k > 1 ? K_fixed / wei_zp_group_k : 1;
+            = (wei_zp_mask & (1 << 1)) ? K_fixed / wei_zp_group_k : 1;
     const auto wei_zp_group_n = attr_zps.get_group(DNNL_ARG_WEIGHTS, -1);
-    const dim_t wei_zp_ngroups_n = N / wei_zp_group_n;
+    const dim_t wei_zp_ngroups_n
+            = (wei_zp_mask & (1 << 2)) ? N / wei_zp_group_n : 1;
+    const dim_t wei_zp_stride_g = (wei_zp_mask & (1 << 0))
+            ? wei_zp_ngroups_k * wei_zp_ngroups_n
+            : 0;
+    const dim_t wei_zp_stride_k
+            = (wei_zp_mask & (1 << 1)) ? wei_zp_ngroups_n : 0;
+    const dim_t wei_zp_stride_n = (wei_zp_mask & (1 << 2)) ? 1 : 0;
     const void *wei_zps = CTX_IN_MEM(
             const void *, DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS);
 
@@ -294,10 +303,9 @@ status_t ref_grouped_t::execute(const exec_ctx_t &ctx) const {
                     if (with_wei_zps) {
                         const dim_t wei_k_group
                                 = i_group * wei_zp_ngroups_k / n_k_groups;
-                        const dim_t idx
-                                = (group_id * wei_zp_ngroups_k + wei_k_group)
-                                        * wei_zp_ngroups_n
-                                + n / wei_zp_group_n;
+                        const dim_t idx = group_id * wei_zp_stride_g
+                                + wei_k_group * wei_zp_stride_k
+                                + n / wei_zp_group_n * wei_zp_stride_n;
                         wei_zp_val
                                 = io::load_int_value(wei_zp_dt, wei_zps, idx);
                     }
