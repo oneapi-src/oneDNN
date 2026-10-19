@@ -14,14 +14,6 @@
 # limitations under the License.
 #===============================================================================
 
-# Standalone gemmstone build; oneDNN sets ONEDNN_GEMMSTONE_DIR.
-if(NOT DEFINED ONEDNN_GEMMSTONE_DIR)
-    cmake_minimum_required(VERSION 3.18)
-    project(gemmstone)
-    include(cmake/standalone.cmake)
-    return()
-endif()
-
 # TODO: Extend conversion warning support to GEMM code
 if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "(Apple)?[Cc]lang")
     append(CMAKE_CXX_FLAGS " -Wno-implicit-int-conversion")
@@ -98,6 +90,6 @@ include_directories_with_host_compiler_before(${OBJ_LIB} ${ONEDNN_GEMMSTONE_DIR}
 
 if(CMAKE_COMPILER_IS_GNUCC)
     # Workaround for LTO bug in GCC 10, 11, 12 (possibly other versions)
-    set_source_files_properties(generator/pieces/loop_sequencer.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
-    set_source_files_properties(generator/generator.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
+    set_source_files_properties(${ONEDNN_GEMMSTONE_DIR}/generator/pieces/loop_sequencer.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
+    set_source_files_properties(${ONEDNN_GEMMSTONE_DIR}/generator/generator.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
 endif()
