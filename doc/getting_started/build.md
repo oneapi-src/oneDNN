@@ -211,11 +211,12 @@ You can build the library on Linux, macOS, or Windows using the compiler of your
 
 #### Use GCC or Clang with ZenDNN on AMD64 (x86_64) host
 
-This opt-in path builds [ZenDNN](https://github.com/amd/ZenDNN) from source and
-links oneDNN against it to enable AMD (Zen) CPU-tuned kernels. It is `OFF` by
+This opt-in path links oneDNN against [ZenDNN](https://github.com/amd/ZenDNN)
+to enable AMD (Zen) CPU-tuned kernels. It uses an installed ZenDNN package or
+builds ZenDNN from source. It is `OFF` by
 default; see [ONEDNN_X64_USE_ZEN](@ref opt_x64_use_zen) for the full list of
 requirements (Linux on x86_64, CMake >= 3.26, GCC >= 11.2 or Clang >= 14,
-`ONEDNN_CPU_RUNTIME=OMP`, and ZenDNN source >= 6.1.0; Windows builds are
+`ONEDNN_CPU_RUNTIME=OMP`, and ZenDNN >= 6.1.1; Windows builds are
 rejected at configure time).
 
 1. Set up the environment for the compiler
@@ -229,16 +230,15 @@ rejected at configure time).
    mkdir -p build ; cd build
    cmake .. -DONEDNN_X64_USE_ZEN=ON
    ~~~
-   @note CMake uses a ZenDNN source tree at `third_party/ZenDNN` when one is
-   already there. Otherwise, with `ONEDNN_ZENDNN_FETCH=ON` (the default), it
-   clones [ZenDNN](https://github.com/amd/ZenDNN) at a pinned commit into that
-   directory during configuration. Override the remote with
+   @note CMake uses an installed ZenDNN package if one is found through
+   `ZENDNNROOT` or the default package search paths. Otherwise it builds from
+   `ZENDNN_SOURCE_DIR` if set, or clones
+   [ZenDNN](https://github.com/amd/ZenDNN) at a release tag into the build
+   directory. Override the remote with
    `-DONEDNN_ZENDNN_FETCH_URL=<url>` and
-   `-DONEDNN_ZENDNN_FETCH_TAG=<commit>`. To skip the download,
-   place the source at `third_party/ZenDNN` before configuring. Set
-   `-DONEDNN_ZENDNN_FETCH=OFF` to make configuration fail instead of
-   downloading when that tree is missing. Configuration also fails if the
-   version in ZenDNN's `CMakeLists.txt` is older than 6.1.0.
+   `-DONEDNN_ZENDNN_FETCH_TAG=<tag or commit>`. To skip the download, set
+   `ZENDNNROOT` or `-DZENDNN_SOURCE_DIR=<path>`. Configuration also fails
+   if the version is older than 6.1.1.
 
 3. Build the library
    ~~~sh
