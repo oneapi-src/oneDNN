@@ -164,8 +164,7 @@ private:
     const reg64_savable_t reg_iter_labels_list {regscratchpad_, rax, r16};
 
     const reg64_t reg_addr_batch = r13;
-    const reg64_savable_t reg_aux1_batch {
-            regscratchpad_, rbx, rbp, may_use_rbp()};
+    const reg64_savable_t reg_aux1_batch {regscratchpad_, rbx};
     const reg64_savable_t reg_A {regscratchpad_, r11};
     const reg64_savable_t reg_B {regscratchpad_, r10};
     const reg64_t reg_stride_lda = r14;
@@ -174,7 +173,6 @@ private:
     const reg64_savable_t reg_D {regscratchpad_, r12};
 
     const reg64_savable_t reg_buf {regscratchpad_, r8};
-    const reg64_t reg_BS = rbx;
     const reg64_t reg_BS_loop = r9;
     const reg64_savable_t reg_bias {regscratchpad_, rbx};
     const reg64_savable_t reg_bias_backup {regscratchpad_, rbx};
@@ -1040,8 +1038,6 @@ void jit_brgemm_amx_uker_t::cvt2ps(data_type_t type_in,
 
 void jit_brgemm_amx_uker_t::read_params() {
     Label label_done;
-
-    mov(reg_BS, ptr[param1 + GET_OFF(BS)]);
 
     mov(reg_addr_batch, ptr[param1 + GET_OFF(batch)]);
 
@@ -2813,10 +2809,6 @@ void jit_brgemm_amx_uker_t::ace_load_B(
     const auto start_rdstep = (rdstep == -1) ? 0 : rdstep;
     const auto finish_rdstep
             = (rdstep == -1) ? ace_rd_steps(bi.rdi->block(0)) : rdstep + 1;
-    // EVEX_compress_addr uses rbp (= reg_aux1_batch) as a scale multiplier
-    // for offsets >= 0x200. Since rbp holds a live batch pointer during the
-    // microkernel, we must not let it be used as an address component.
-    // Pre-add the base offset to reg_tmp_gpr and use small per-rds offsets.
     const dim_t rds_stride = brg.rd_step * LDB_size_;
     // When called with a specific rdstep (n_bcast_1_load=true path), the
     // caller passes B_offset for the ldb block but does not advance for the
@@ -2824,8 +2816,6 @@ void jit_brgemm_amx_uker_t::ace_load_B(
     // the correct row of B (not always row 0).
     const dim_t effective_offset
             = offset + (rdstep == -1 ? 0 : rdstep * rds_stride);
-    const bool needs_base_fixup = (effective_offset >= EVEX_max_8b_offt);
-    if (needs_base_fixup) { lea(reg_tmp_gpr, ptr[reg_B + effective_offset]); }
     for (int rds = start_rdstep; rds < finish_rdstep; rds++) {
         // if rdstep != -1 , then (rds - start_rdstep) should be 0
         auto zmm = ace_zmm_B(ldb, rds - start_rdstep);
@@ -2835,13 +2825,8 @@ void jit_brgemm_amx_uker_t::ace_load_B(
         // the B register, and ld_tail_mask has one bit per element. A
         // qword-granular load would fetch twice the tail bytes and can read
         // past the end of B.
-        if (needs_base_fixup) {
-            vmovups(zmm | k_mask | T_z,
-                    EVEX_compress_addr(reg_tmp_gpr, rds_off));
-        } else {
-            vmovups(zmm | k_mask | T_z,
-                    EVEX_compress_addr(reg_B, effective_offset + rds_off));
-        }
+        vmovups(zmm | k_mask | T_z,
+                EVEX_compress_addr(reg_B, effective_offset + rds_off));
     }
 }
 
@@ -3025,7 +3010,7 @@ void jit_brgemm_amx_uker_t::bs_loop(brgemm_iteration_t &bi) {
             Label BS_loop_label, end_BS_loop_label, first_BS_loop_label,
                     last_BS_loop_label;
 
-            mov(reg_BS_loop, reg_BS);
+            mov(reg_BS_loop, ptr[param1 + GET_OFF(BS)]);
             cmp(reg_BS_loop, 0);
             jz(end_BS_loop_label, T_NEAR);
 
