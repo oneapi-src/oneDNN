@@ -46,12 +46,16 @@ namespace reorder {
 //
 // Prepack (dst is zen_packed): bytes come from the Zen backend
 // `reorder_direct` (prepack mode). The matmul backend consumes the buffer
-// with mem_format_b='r'.
+// with mem_format_b='r'. A dtype change is applied to a plain copy of each
+// slice before packing.
 //
 // Unpack (src is zen_packed): out-of-place inverse into a caller-provided
 // dense plain buffer of K*N elements per slice (`ab`/`ba`, `abc`/`acb`),
 // via `reorder_direct` in unreorder mode. f32, bf16, f16 and s8 (s8s8 and
-// u8s8) only.
+// u8s8) only; a conversion between f32 and bf16/f16 is applied after
+// unpacking.
+//
+// Packed to an identical packed descriptor is a byte copy.
 struct zen_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;

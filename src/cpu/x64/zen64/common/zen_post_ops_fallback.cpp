@@ -16,6 +16,9 @@
 
 #include "cpu/x64/zen64/common/zen_post_ops_fallback.hpp"
 
+#include <cstring>
+
+#include "common/dnnl_thread.hpp"
 #include "common/eltwise_pd.hpp"
 #include "common/memory.hpp"
 #include "common/memory_desc_wrapper.hpp"
@@ -65,6 +68,7 @@ status_t post_ops_fallback_t::init(const engine_t *engine,
     post_ops_.entry_ = post_ops.entry_;
     start_index_ = start_index;
     uses_acc_ = acc_md != nullptr;
+    prelu_copy_size_ = 0;
     pds_.clear();
     primitives_.clear();
 
@@ -144,6 +148,18 @@ status_t post_ops_fallback_t::init(const engine_t *engine,
             prd.weights_desc = wei_md;
             prd.dst_desc = out_md;
             CHECK(create_pd(engine, &prd, default_attr, pd));
+            // The copy is read through out_md, so it runs from the base
+            // pointer through the last element out_md addresses, offset0
+            // included. size() would also count the stride gap after that
+            // element, which can lie outside the caller's allocation.
+            const memory_desc_wrapper out_d(out_md);
+            dims_t last_pos;
+            for (int d = 0; d < out_d.ndims(); d++)
+                last_pos[d] = out_d.padded_dims()[d] - 1;
+            const dim_t last_off
+                    = out_d.off_v(last_pos, /*is_pos_padded=*/true);
+            prelu_copy_size_ = static_cast<size_t>(last_off + 1)
+                    * out_d.data_type_size();
         } else {
             VDISPATCH_ZEN_POST_OPS_FALLBACK(false, VERBOSE_UNSUPPORTED_POSTOP);
         }
@@ -174,6 +190,9 @@ void post_ops_fallback_t::init_scratchpad(
     for (size_t i = 0; i < pds_.size(); i++)
         scratchpad.book(memory_tracking::names::key_nested_multiple + (int)i,
                 pds_[i]->scratchpad_registry());
+    if (prelu_copy_size_ > 0)
+        scratchpad.book(memory_tracking::names::key_eltwise_src,
+                prelu_copy_size_, /*data_size=*/1, /*alignment=*/64);
 }
 
 status_t post_ops_fallback_t::execute(
@@ -267,9 +286,21 @@ status_t post_ops_fallback_t::execute_eltwise(
 status_t post_ops_fallback_t::execute_prelu(
         const exec_ctx_t &ctx, int i, const void *weights, void *data) const {
     if (weights == nullptr) return status::invalid_arguments;
+
+    // PReLU does not support in-place execution, so it reads a copy.
+    auto *src = ctx.get_scratchpad_grantor().get<uint8_t>(
+            memory_tracking::names::key_eltwise_src);
+    if (src == nullptr) return status::out_of_memory;
+    const auto *in = static_cast<const uint8_t *>(data);
+    parallel(0, [&](int ithr, int nthr) {
+        size_t start = 0, end = 0;
+        balance211(prelu_copy_size_, nthr, ithr, start, end);
+        if (end > start) std::memcpy(src + start, in + start, end - start);
+    });
+
     const primitive_desc_t *pd = primitives_[i]->pd().get();
     engine_t *engine = ctx.stream()->engine();
-    memory_ptr_t src_mem = wrap_memory(engine, pd->arg_md(DNNL_ARG_SRC), data);
+    memory_ptr_t src_mem = wrap_memory(engine, pd->arg_md(DNNL_ARG_SRC), src);
     memory_ptr_t wei_mem
             = wrap_memory(engine, pd->arg_md(DNNL_ARG_WEIGHTS), weights);
     memory_ptr_t dst_mem = wrap_memory(engine, pd->arg_md(DNNL_ARG_DST), data);
