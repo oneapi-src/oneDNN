@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIOPT_EXTRACTOR_HPP
+#define GEMMSTONE_TOOLS_MULTIOPT_EXTRACTOR_HPP
 
 #include "data.hpp"
 #include "serialization.hpp"
@@ -38,3 +39,5 @@ protected:
 };
 
 } /* namespace multiopt */
+
+#endif

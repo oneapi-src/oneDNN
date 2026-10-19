@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_DERBY_UTILS_HPP
+#define GEMMSTONE_TOOLS_DERBY_UTILS_HPP
 
 #include "device_utils.hpp"
 
@@ -50,3 +51,5 @@ static inline std::string lowercase(std::string s)
         c = std::tolower(c);
     return s;
 }
+
+#endif

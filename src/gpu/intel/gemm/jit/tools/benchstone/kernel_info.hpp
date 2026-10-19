@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_BENCHSTONE_KERNEL_INFO_HPP
+#define GEMMSTONE_TOOLS_BENCHSTONE_KERNEL_INFO_HPP
 
 #include <array>
 #include <cmath>
@@ -242,3 +243,5 @@ struct KernelInfo
     int  grfCount()                        const { return isCopy() ? copy[0].grfCount  : l3[0].grfCount; }
     bool isBatched()                       const { return isL3() && l3[0].batch; }
 };
+
+#endif

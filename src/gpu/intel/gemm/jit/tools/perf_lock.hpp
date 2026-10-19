@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_PERF_LOCK_HPP
+#define GEMMSTONE_TOOLS_PERF_LOCK_HPP
 
 // RAII file system lock, used to serialize GPU perf-sensitive work across
 // otherwise unsynchronized processes running concurrently on the same
@@ -34,3 +35,5 @@ private:
     int fd_ = -1;
 #endif
 };
+
+#endif

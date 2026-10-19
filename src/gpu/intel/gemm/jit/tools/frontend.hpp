@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_FRONTEND_HPP
+#define GEMMSTONE_TOOLS_FRONTEND_HPP
 
 #include <chrono>
 #include <cstdint>
@@ -91,3 +92,5 @@ private:
 } /* namespace async */
 
 } /* namespace frontend */
+
+#endif

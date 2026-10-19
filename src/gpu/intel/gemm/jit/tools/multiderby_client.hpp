@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIDERBY_CLIENT_HPP
+#define GEMMSTONE_TOOLS_MULTIDERBY_CLIENT_HPP
 
 #include "multiderby_common.hpp"
 #include "multiopt/client.hpp"
@@ -149,3 +150,5 @@ protected:
 
     bool benchSeriesActive = false;
 };
+
+#endif

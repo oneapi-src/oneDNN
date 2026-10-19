@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIOPT_AGENT_HPP
+#define GEMMSTONE_TOOLS_MULTIOPT_AGENT_HPP
 
 #include <unordered_set>
 #include <vector>
@@ -169,3 +170,5 @@ protected:
 };
 
 } /* namespace multiopt */
+
+#endif

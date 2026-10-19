@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMMSTONE_GUARD_PRINT_HELPERS_HPP
-#define GEMMSTONE_GUARD_PRINT_HELPERS_HPP
+#ifndef GEMMSTONE_TOOLS_PRINT_HELPERS_HPP
+#define GEMMSTONE_TOOLS_PRINT_HELPERS_HPP
 
 #include <cstdint>
 

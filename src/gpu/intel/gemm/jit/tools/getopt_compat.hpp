@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GETOPT_COMPAT_HPP
-#define GETOPT_COMPAT_HPP
+#ifndef GEMMSTONE_TOOLS_GETOPT_COMPAT_HPP
+#define GEMMSTONE_TOOLS_GETOPT_COMPAT_HPP
 
 // Cross-platform drop-in replacement for <getopt.h>.
 // On POSIX systems, defers to the system header.
@@ -188,4 +188,4 @@ inline int getopt_long(int argc, char *const argv[], const char *optstring,
 
 #endif // _WIN32
 
-#endif // GETOPT_COMPAT_HPP
+#endif // GEMMSTONE_TOOLS_GETOPT_COMPAT_HPP

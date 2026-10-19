@@ -10,7 +10,8 @@ SPDX-License-Identifier: MIT
 
 //     Abstract:   Interface for metrics discovery DLL
 
-#pragma once
+#ifndef GEMMSTONE_THIRD_PARTY_MDAPI_METRICS_DISCOVERY_API_H
+#define GEMMSTONE_THIRD_PARTY_MDAPI_METRICS_DISCOVERY_API_H
 
 #include <stdint.h>
 
@@ -2424,3 +2425,5 @@ namespace MetricsDiscovery
 #endif
 
 }; // namespace MetricsDiscovery
+
+#endif

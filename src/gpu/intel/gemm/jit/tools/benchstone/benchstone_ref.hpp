@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_BENCHSTONE_BENCHSTONE_REF_HPP
+#define GEMMSTONE_TOOLS_BENCHSTONE_BENCHSTONE_REF_HPP
 
 #include "benchstone_matrix.hpp"
 
@@ -26,3 +27,5 @@ void gemm(superscalar alpha, const Matrix &A, const Matrix &B, superscalar beta,
 void trsm(bool left, bool lower, bool unit, superscalar alpha, const Matrix &A, Matrix &B);
 
 } /* namespace ref */
+
+#endif

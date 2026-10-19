@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIDERBY_COMMON_HPP
+#define GEMMSTONE_TOOLS_MULTIDERBY_COMMON_HPP
 
 #include <cstdint>
 #include <cstring>
@@ -162,3 +163,5 @@ struct MultiderbyOptions {
     std::optional<bool> slmA;   // Allow SLM-buffered copies (ca/cab) for A when set; default follows layout.
     std::optional<bool> slmB;   // Allow SLM-buffered copies (cb/cab) for B when set; default follows layout.
 };
+
+#endif

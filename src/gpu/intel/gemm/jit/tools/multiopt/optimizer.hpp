@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIOPT_OPTIMIZER_HPP
+#define GEMMSTONE_TOOLS_MULTIOPT_OPTIMIZER_HPP
 
 #include <deque>
 #include <vector>
@@ -112,3 +113,5 @@ protected:
 };
 
 } /* namespace multiopt */
+
+#endif

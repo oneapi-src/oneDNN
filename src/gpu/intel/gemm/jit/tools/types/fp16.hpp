@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMMSTONE_INCLUDE_INTERNAL_FP16_HPP
-#define GEMMSTONE_INCLUDE_INTERNAL_FP16_HPP
+#ifndef GEMMSTONE_TOOLS_TYPES_FP16_HPP
+#define GEMMSTONE_TOOLS_TYPES_FP16_HPP
 
 #include <cmath>
 #include <cstdint>

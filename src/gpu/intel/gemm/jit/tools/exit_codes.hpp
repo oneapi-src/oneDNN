@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMMSTONE_GUARD_EXIT_CODES_HPP
-#define GEMMSTONE_GUARD_EXIT_CODES_HPP
+#ifndef GEMMSTONE_TOOLS_EXIT_CODES_HPP
+#define GEMMSTONE_TOOLS_EXIT_CODES_HPP
 
 // Exit codes shared between tools.
 enum {

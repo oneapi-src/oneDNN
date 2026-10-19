@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMMSTONE_GUARD_RECIPES_HPP
-#define GEMMSTONE_GUARD_RECIPES_HPP
+#ifndef GEMMSTONE_TOOLS_RECIPES_HPP
+#define GEMMSTONE_TOOLS_RECIPES_HPP
 
 #include "../ngen/ngen.hpp"
 

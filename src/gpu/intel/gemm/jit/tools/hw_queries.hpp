@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_HW_QUERIES_HPP
+#define GEMMSTONE_TOOLS_HW_QUERIES_HPP
 
 #include "gemmstone/type.hpp"
 
@@ -95,3 +96,5 @@ inline double peakFlops(const ngen::Product &product, double euCount, double clo
 
     return flops;
 }
+
+#endif

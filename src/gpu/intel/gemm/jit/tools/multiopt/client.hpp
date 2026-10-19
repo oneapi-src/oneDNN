@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIOPT_CLIENT_HPP
+#define GEMMSTONE_TOOLS_MULTIOPT_CLIENT_HPP
 
 #include <vector>
 
@@ -89,3 +90,5 @@ SV Client<PV, SV>::randomSV(const PV &pv)
 }
 
 } /* namespace multiopt */
+
+#endif

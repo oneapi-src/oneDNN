@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIOPT_UTILS_HPP
+#define GEMMSTONE_TOOLS_MULTIOPT_UTILS_HPP
 
 #include <cmath>
 #include <cstdint>
@@ -61,3 +62,5 @@ inline float randFloat(float min, float max)
 }
 
 } /* namespace multiopt */
+
+#endif

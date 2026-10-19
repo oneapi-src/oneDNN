@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMMSTONE_GUARD_DEVICE_UTILS_HPP
-#define GEMMSTONE_GUARD_DEVICE_UTILS_HPP
+#ifndef GEMMSTONE_TOOLS_DEVICE_UTILS_HPP
+#define GEMMSTONE_TOOLS_DEVICE_UTILS_HPP
 
 #include "internal/ngen_includes.hpp"
 #include "ngen_opencl.hpp"

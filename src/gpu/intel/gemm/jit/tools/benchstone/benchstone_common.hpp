@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_BENCHSTONE_BENCHSTONE_COMMON_HPP
+#define GEMMSTONE_TOOLS_BENCHSTONE_BENCHSTONE_COMMON_HPP
 
 #include <algorithm>
 #include <cmath>
@@ -1328,3 +1329,5 @@ inline void adjustWSUniform(ngen::HW hw, int dims, size_t *localWS, size_t *glob
         globalWS[d] = align_up(globalWS[d], localWS[d]);
     }
 }
+
+#endif

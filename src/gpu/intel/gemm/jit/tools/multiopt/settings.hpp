@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIOPT_SETTINGS_HPP
+#define GEMMSTONE_TOOLS_MULTIOPT_SETTINGS_HPP
 
 namespace multiopt {
 
@@ -53,3 +54,5 @@ struct Settings {
 };
 
 } /* namespace multiopt */
+
+#endif

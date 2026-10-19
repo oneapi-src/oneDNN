@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIOPT_DATA_HPP
+#define GEMMSTONE_TOOLS_MULTIOPT_DATA_HPP
 
 #include <stdexcept>
 #include <unordered_map>
@@ -259,3 +260,5 @@ protected:
 };
 
 } /* namespace multiopt */
+
+#endif

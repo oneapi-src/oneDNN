@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_UTILS_HPP
+#define GEMMSTONE_TOOLS_UTILS_HPP
 
 #include <cerrno>
 #include <cstdio>
@@ -99,3 +100,5 @@ inline int strcasecmp(const char* a, const char* b) {
 
     
 } // namespace utils
+
+#endif

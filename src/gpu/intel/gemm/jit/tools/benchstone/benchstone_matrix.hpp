@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_BENCHSTONE_BENCHSTONE_MATRIX_HPP
+#define GEMMSTONE_TOOLS_BENCHSTONE_BENCHSTONE_MATRIX_HPP
 
 #include "benchstone_common.hpp"
 
@@ -239,3 +240,5 @@ void batchify(F f, Args&&... args)
         std::apply(f, margs);
     }
 }
+
+#endif

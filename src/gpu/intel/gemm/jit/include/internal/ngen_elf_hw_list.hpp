@@ -17,8 +17,8 @@
 // Shared list of nGEN base-class instantiations: explicitly instantiated by
 // ngen_elf.cpp, declared extern template elsewhere (default).
 
-#ifndef GEMMSTONE_GENERATOR_PIECES_NGEN_ELF_HW_LIST_HPP
-#define GEMMSTONE_GENERATOR_PIECES_NGEN_ELF_HW_LIST_HPP
+#ifndef GEMMSTONE_INCLUDE_INTERNAL_NGEN_ELF_HW_LIST_HPP
+#define GEMMSTONE_INCLUDE_INTERNAL_NGEN_ELF_HW_LIST_HPP
 
 #include "ngen_elf.hpp"
 

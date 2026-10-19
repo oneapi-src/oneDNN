@@ -13,7 +13,9 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 *******************************************************************************/
-#pragma once
+
+#ifndef GEMMSTONE_TOOLS_BENCHSTONE_BENCHSTONE_HPP
+#define GEMMSTONE_TOOLS_BENCHSTONE_BENCHSTONE_HPP
 
 #include "benchstone_common.hpp"
 #include "kernel_info.hpp"
@@ -149,3 +151,5 @@ namespace benchstone {
     void registerDriverFactory(RuntimeBackend runtime, DriverFactory factory);
     std::unique_ptr<Driver> createDriver(RuntimeBackend runtime);
 }
+
+#endif

@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_VT100_CODES_HPP
+#define GEMMSTONE_TOOLS_VT100_CODES_HPP
 
 #define VT_RESET        "\x1B[0m"
 #define VT_BOLD         "\x1B[1m"
@@ -31,3 +32,5 @@
 #define VT_CLEAR_TABS   "\x1B[3g"
 #define VT_ALT_SCREEN_ON  "\x1B[?1049h"
 #define VT_ALT_SCREEN_OFF "\x1B[?1049l"
+
+#endif

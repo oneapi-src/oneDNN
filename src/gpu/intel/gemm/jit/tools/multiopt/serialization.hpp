@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIOPT_SERIALIZATION_HPP
+#define GEMMSTONE_TOOLS_MULTIOPT_SERIALIZATION_HPP
 
 #include <cstdint>
 #include <cstring>
@@ -163,3 +164,5 @@ std::vector<std::byte> serialize(const T &t) {
 }
 
 } /* namespace multiopt */
+
+#endif

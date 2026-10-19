@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMMSTONE_GUARD_MINI_MKL_HPP
-#define GEMMSTONE_GUARD_MINI_MKL_HPP
+#ifndef GEMMSTONE_TOOLS_MINI_MKL_HPP
+#define GEMMSTONE_TOOLS_MINI_MKL_HPP
 
 #include <stdbool.h>
 #include <stdint.h>

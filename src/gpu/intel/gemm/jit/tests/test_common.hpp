@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef TEST_COMMON_HPP
-#define TEST_COMMON_HPP
+#ifndef GEMMSTONE_TESTS_TEST_COMMON_HPP
+#define GEMMSTONE_TESTS_TEST_COMMON_HPP
 
 #include <cstdio>
 #include <string>

@@ -14,8 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef GEMMSTONE_INCLUDE_GEMMSTONE_DSL_DSL_IMPL_HPP
-#define GEMMSTONE_INCLUDE_GEMMSTONE_DSL_DSL_IMPL_HPP
+#ifndef GEMMSTONE_DSL_DSL_IMPL_HPP
+#define GEMMSTONE_DSL_DSL_IMPL_HPP
 
 #include "gemmstone/dsl/decl.hpp"
 #include "gemmstone/dsl/dsl.hpp"

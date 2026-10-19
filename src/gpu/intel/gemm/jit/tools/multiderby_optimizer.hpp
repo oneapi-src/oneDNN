@@ -14,7 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#pragma once
+#ifndef GEMMSTONE_TOOLS_MULTIDERBY_OPTIMIZER_HPP
+#define GEMMSTONE_TOOLS_MULTIDERBY_OPTIMIZER_HPP
 
 #include "multiopt/data.hpp"
 #include "multiopt/optimizer.hpp"
@@ -61,3 +62,5 @@ protected:
     void svStatus(std::stringstream &s, int maxDisplayed = 15) const;
     void topKernelStatus(std::stringstream &s, int maxDisplayed = 15) const;
 };
+
+#endif
