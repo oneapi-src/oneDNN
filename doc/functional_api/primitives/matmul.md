@@ -520,9 +520,10 @@ The following are supported:
     | Tensor data type           | Scale data type           |
     |:---------------------------|:--------------------------|
     | f8_e5m2, f8_e4m3, f4_e2m1  | f32, e8m0, f8_e4m3        |
-    | u8, s8, s4, u4             | f32, bf16, f16            |
+    | u8, s8, s4, u4, u3         | f32, bf16, f16            |
 - Zero points attribute for source and weights tensors:
-  - The masks must match the scales mask
+  - The masks must match the scales mask. The exception is a common weights
+    zero point (`mask = 0`), which is supported for `u3` weights only.
   - Source zero points data types include `u8`, `s8`, `s32`
   - Weights zero points data types include `u8`, `s8`, `u4`, `s4`, `s32`
 - Post-ops: eltwise and binary multiplication post-ops are supported. Binary post-op
@@ -548,13 +549,13 @@ The following are supported:
 
 The following combinations of data types for source, destination, weights, and bias tensors are supported.
 
-| Source           | Weights            | Destination    | Bias           |
-|:-----------------|:-------------------|:---------------|:---------------|
-| f32, bf16, f16   | f32, bf16, f16     | f32, bf16, f16 | f32, bf16, f16 |
-| f8_e5m2, f8_e4m3 | f8_e5m2, f8_e4m3   | f32, bf16, f16 |                |
-| f4_e2m1          | f4_e2m1            | f32, bf16, f16 |                |
-| f32, bf16, f16   | u8, s8, s4, u4 (1) | f32, bf16, f16 | f32, bf16, f16 |
-| u8, s8           | u8, s8, s4, u4     | f32, bf16, f16 | f32, bf16, f16 |
+| Source           | Weights                | Destination    | Bias           |
+|:-----------------|:-----------------------|:---------------|:---------------|
+| f32, bf16, f16   | f32, bf16, f16         | f32, bf16, f16 | f32, bf16, f16 |
+| f8_e5m2, f8_e4m3 | f8_e5m2, f8_e4m3       | f32, bf16, f16 |                |
+| f4_e2m1          | f4_e2m1                | f32, bf16, f16 |                |
+| f32, bf16, f16   | u8, s8, s4, u4, u3 (1) | f32, bf16, f16 | f32, bf16, f16 |
+| u8, s8           | u8, s8, s4, u4         | f32, bf16, f16 | f32, bf16, f16 |
 
 Footnotes:
 1. Weight-Only Quantization (WOQ): floating-point source with integer weights
