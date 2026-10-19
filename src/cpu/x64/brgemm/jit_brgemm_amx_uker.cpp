@@ -238,7 +238,6 @@ private:
     dim_t ldb_tail_B_size_ = 0;
     dim_t ldb_tail_C_size_ = 0;
     dim_t ldb_tail_D_size_ = 0;
-    dim_t ldb_tail_zp_size_ = 0;
 
     enum matrix_kind_t { matrix_A, matrix_B, matrix_C, matrix_D };
 
@@ -969,8 +968,7 @@ dim_t jit_brgemm_amx_uker_t::zp_comp_b_offset(dim_t bd) const noexcept {
 dim_t jit_brgemm_amx_uker_t::zp_c_values_offset(
         brgemm_iteration_t &bi, int ldb) const noexcept {
     if (brg.zp_type_c == brgemm_broadcast_t::per_n) {
-        return (bi.ldi->is_tail(ldb)) ? ldb_tail_zp_size_
-                                      : bi.ldi->pos(ldb) * ld_block_zp_size_;
+        return bi.ldi->pos(ldb) * ld_block_zp_size_;
     }
 
     return 0;
@@ -3533,7 +3531,6 @@ void jit_brgemm_amx_uker_t::generate() {
     ldb_tail_B_size_ = static_cast<dim_t>(brg.typesize_B) * brg.ldb_tail;
     ldb_tail_C_size_ = static_cast<dim_t>(brg.typesize_C) * brg.ldb_tail;
     ldb_tail_D_size_ = static_cast<dim_t>(brg.typesize_D) * brg.ldb_tail;
-    ldb_tail_zp_size_ = static_cast<dim_t>(sizeof(int32_t)) * brg.ldb_tail;
 
     // if beta == 1 and C datatype is f32 it is better to perform addition by
     // reading tiles directly from C instead of by reading/writing by vectors
