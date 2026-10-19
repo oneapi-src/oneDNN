@@ -15,14 +15,14 @@
 *******************************************************************************/
 
 
-#include "gemmstone/generator.hpp"
+#include "state.hpp"
 
 GEMMSTONE_NAMESPACE_START
 
 using namespace ngen;
 
 
-#ifdef ASM_OUTPUT
+#ifdef STANDALONE
 // Debug output of nGEN objects.
 std::ostream &operator<<(std::ostream &str, const Register &reg)
 {
@@ -97,6 +97,6 @@ void GEMMState::dump(std::ostream &s)
     s << "  C regs       " << C_regs << '\n';
     s << "----------------------------------\n";
 }
-#endif /* ASM_OUTPUT */
+#endif /* STANDALONE */
 
 GEMMSTONE_NAMESPACE_END

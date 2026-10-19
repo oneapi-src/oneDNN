@@ -474,7 +474,7 @@ struct GEMMState : public CommonState {
     ngen::GRF r0InfoGRF() const;
     void setTacc(Type T);
 
-#ifdef ASM_OUTPUT
+#ifdef STANDALONE
     void dump(std::ostream &s);
 #endif
 };

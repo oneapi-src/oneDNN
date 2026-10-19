@@ -28,9 +28,6 @@
 #       include "ngen.hpp"
 #       include "ngen_interface.hpp"
 #   else
-#       ifndef ASM_OUTPUT
-#           define ASM_OUTPUT
-#       endif
 #       include "ngen_asm.hpp"
 #       include "ngen_interface.hpp"
 #   endif

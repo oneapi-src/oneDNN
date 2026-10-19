@@ -49,6 +49,10 @@ GEMMSTONE_NAMESPACE_START
 // Macro configuration
 #ifndef GENERATOR_BASE
 
+#if defined(STANDALONE) && (defined(ASM_OUTPUT) + defined(BINARY_OUTPUT) + defined(OPENCL_OUTPUT) + defined(ZEBIN_OUTPUT) != 1)
+#error "Exactly one *_OUTPUT format must be defined"
+#endif
+
 #if defined(OPENCL_OUTPUT)
 #define GENERATOR_SUPER(hw) ngen::OpenCLCodeGenerator<hw>
 #define FORWARD(hw) NGEN_FORWARD_OPENCL(hw)

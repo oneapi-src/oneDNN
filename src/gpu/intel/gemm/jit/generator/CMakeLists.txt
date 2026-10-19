@@ -26,8 +26,9 @@ add_library(generator STATIC ${GENERATOR_SOURCES})
 target_link_libraries(generator PRIVATE selector_mutable)
 target_link_libraries(generator PRIVATE microkernel)
 
-# Forces BINARY_OUTPUT: bin generator only.
+# Binary output only: linked into the bin generator.
 add_library(microkernel_selector OBJECT microkernel_selector.cpp)
+target_compile_definitions(microkernel_selector PRIVATE FORMAT_ABBREV_b)
 
 foreach(GPU ${GPUS})
     set(NGEN_ELF_LIB ngen_elf_${GPU})
