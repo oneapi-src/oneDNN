@@ -1406,12 +1406,14 @@ private:
         error::wrap_c_api(
                 dnnl_graph_compiled_partition_create(&cpartitions, get()),
                 "could not create compiled_partition");
-        error::wrap_c_api(dnnl_graph_partition_compile(get(), cpartitions,
+        // Take ownership right away so the handle is released if compile throws.
+        compiled_partition cp(cpartitions);
+        error::wrap_c_api(dnnl_graph_partition_compile(get(), cp.get(),
                                   c_inputs.size(), c_inputs.data(),
                                   c_outputs.size(), c_outputs.data(), e.get()),
                 "partition compile failed");
 
-        return compiled_partition(cpartitions);
+        return cp;
     }
 };
 
