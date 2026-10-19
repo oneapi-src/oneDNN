@@ -304,8 +304,13 @@ grouped_micro_gemm_m_axis(const global SRC_DATA_T *src, long ldsrc,
         const global SRC_SCALES_DATA_T *src_attr_scales,
         const global SRC_ZP_DATA_T *src_attr_zp, const long ldsrcq,
         const global WEI_SCALES_DATA_T *wei_attr_scales,
-        const global WEI_ZP_DATA_T *wei_attr_zp, const long ldweiq,
-        const long n, const long k, const global BIA_DATA_T *bias,
+#if WEI_ZP_HOST_SCALAR
+        const short wei_attr_zp,
+#else
+        const global WEI_ZP_DATA_T *wei_attr_zp,
+#endif
+        const long ldweiq, const long n, const long k,
+        const global BIA_DATA_T *bias,
         const global binary_scale_grouped_tile_data_t *binary_grouped_scale,
         const global binary_scale_dense_tile_data_t *binary_dense_scale,
         const global float *binary_nvfp4_scale) {
@@ -371,7 +376,7 @@ grouped_micro_gemm_m_axis(const global SRC_DATA_T *src, long ldsrc,
 #if WITH_WEI_SCALES
     wei_attr_scales += batch * (n / WEI_N_GROUP_SIZE) * (k / WEI_K_GROUP_SIZE);
 #endif
-#if WITH_WEI_ZP
+#if WITH_WEI_ZP && !WEI_ZP_COMMON
     wei_attr_zp += batch * (n / WEI_N_GROUP_SIZE) * (k / WEI_K_GROUP_SIZE)
             / WEI_ZP_ELEMS_PER_BYTE;
 #endif
