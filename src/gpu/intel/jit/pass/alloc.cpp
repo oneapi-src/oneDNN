@@ -14,6 +14,8 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <numeric>
+
 #include "gpu/intel/jit/pass/alloc.hpp"
 
 #include "gemmstone/../../dsl/ir/pass/trace.hpp"
