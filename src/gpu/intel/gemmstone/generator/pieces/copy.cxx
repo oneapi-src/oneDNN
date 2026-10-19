@@ -89,7 +89,6 @@ void Generator<hw>::copyRegisters(Type Ts, Type Td, const RegisterLayout &layout
                                   bool conjugate, const CommonStrategy &strategy, CommonState &state, bool preserveSrc, bool s4Shift)
 {
     auto ned = elementsPerGRF(hw, Td.real());
-    const int dcomp = 0;
 
     // Special s4 upconversion path for pre-shifted data.
     bool preshiftedS4 = (Ts == Type::s4 && !s4Shift);
@@ -133,7 +132,7 @@ void Generator<hw>::copyRegisters(Type Ts, Type Td, const RegisterLayout &layout
 
         // Locate source and destination registers.
         CopyOperand sOp = sblock.findRegion(Ts,                 eoffR,                          eoffC,         src, &ns,          cxComp, 0,     true);
-        CopyOperand dOp = layoutDst.findRegion(sblock.offsetR + eoffR + dOffR, sblock.offsetC + eoffC + dOffC, dst, &nd, &dblock, cxComp, dcomp, true);
+        CopyOperand dOp = layoutDst.findRegion(sblock.offsetR + eoffR + dOffR, sblock.offsetC + eoffC + dOffC, dst, &nd, &dblock, cxComp, 0,     true);
         dOp.type = Td.real().ngen();
         int n = std::min(ns, nd);
 
