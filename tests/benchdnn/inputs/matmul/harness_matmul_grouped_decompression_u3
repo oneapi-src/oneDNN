@@ -22,8 +22,13 @@
 1024x512:16x512x2048
 
 # Common (mask 0) wei zero point
+--reset
+--allow-enum-tags-only=0
+--dt=f16:u3:f16
+--wtag=acb
 --attr-scales=wei:7:f16:64x1,wei:5:f16
 --attr-zero-points=wei:common:4:u8,wei:common:4,wei:host_scalar:4:u8
+--attr-fpmath=f16:true
 --grouped=0:16:balanced,0:16:hot
 512x256:16x256x128
 
