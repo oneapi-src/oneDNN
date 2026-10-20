@@ -142,6 +142,7 @@ dnnl_status_t brgemm_attr_init(
         // why `bd_mask_level` has to stay `0` for now until it's enabled.
         // PROCESS_KEY_VAL(bd_mask_level);
         PROCESS_KEY_VAL(use_uker);
+        PROCESS_KEY_VAL(var_bs);
         PROCESS_KEY_VAL(use_interleave_stores);
 #if defined(brg_x64)
         // ACE is an x64-only compute path.

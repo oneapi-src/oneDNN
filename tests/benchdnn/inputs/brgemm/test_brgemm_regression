@@ -8,3 +8,9 @@
 --brgemm-attr=use_uker:0+extendable_k:1+wary_A_k_tail_read:1
 64x33:33x64 48x65:65x80 16x97:97x64 32x129:129x48
 
+# uker var_bs: rbp kept the batch pointer during result stores, and rbx
+# with the batch count was overwritten before the next output block.
+--reset --dt=bf16:bf16:f32,bf16:bf16:bf16 --bs=1,2
+--brgemm-attr=use_uker:1+var_bs:1
+64x64:64x64
+
