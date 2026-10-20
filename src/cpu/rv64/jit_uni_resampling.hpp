@@ -18,6 +18,7 @@
 #define CPU_RV64_JIT_UNI_RESAMPLING_HPP
 
 #include <memory>
+#include <vector>
 
 #include "common/memory_desc_wrapper.hpp"
 #include "common/memory_tracking.hpp"
@@ -166,6 +167,10 @@ private:
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 
     std::unique_ptr<jit_uni_resampling_kernel_t<isa, d_type>> kernel_;
+    // conf_.w_vec: per-OW source column byte offsets and 1D linear weights
+    // (index 0 left, 1 right), shared by every output row.
+    std::vector<int32_t> w_idx_[2];
+    std::vector<float> w_wei_[2];
 };
 
 } // namespace rv64

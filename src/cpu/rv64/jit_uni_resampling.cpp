@@ -43,6 +43,28 @@ status_t jit_uni_resampling_fwd_t<isa>::init(engine_t *engine) {
     UNUSED(engine);
     CHECK(safe_ptr_assign(kernel_,
             new jit_uni_resampling_kernel_t<isa, d_type>(pd()->conf_)));
+    const auto &conf = pd()->conf_;
+    if (conf.w_vec) {
+        // Column tables of the OW-vectorized path; the same index and weight
+        // math (resampling_utils) as the per-point path below.
+        const bool linear = conf.alg == alg_kind::resampling_linear;
+        for (int k = 0; k < (linear ? 2 : 1); k++) {
+            w_idx_[k].resize(conf.ow);
+            if (linear) w_wei_[k].resize(conf.ow);
+        }
+        for (dim_t ow = 0; ow < conf.ow; ow++) {
+            if (!linear) {
+                w_idx_[0][ow] = (int32_t)(nearest_idx(ow, conf.ow, conf.iw)
+                        * conf.dt_size);
+                continue;
+            }
+            const linear_coeffs_t wc(ow, conf.ow, conf.iw);
+            for (int k = 0; k < 2; k++) {
+                w_idx_[k][ow] = (int32_t)(wc.idx[k] * conf.dt_size);
+                w_wei_[k][ow] = wc.wei[k];
+            }
+        }
+    }
     return status::success;
 }
 
@@ -99,6 +121,59 @@ status_t jit_uni_resampling_fwd_t<isa>::execute_forward(
         return id * conf.src_d_stride + ih * conf.src_h_stride
                 + iw * conf.src_w_stride;
     };
+
+    if (conf.w_vec) {
+        // Plain ncsp: one call per output row, vectorized along OW. A row
+        // reads w_rows source rows (D then H corners, in the per-point
+        // corner order) with weight d_w * h_w; columns come from the tables.
+        parallel_nd(MB, C, OD, OH, [&](dim_t mb, dim_t c, dim_t od, dim_t oh) {
+            jit_resampling_args_t args = {};
+            args.channels = OW;
+            args.dst = dst0 + mb * conf.dst_mb_stride + c * conf.dst_c_stride
+                    + od * conf.dst_d_stride + oh * conf.dst_h_stride;
+            for (int k = 0; k < 2; k++) {
+                args.w_idx[k] = w_idx_[k].data();
+                args.w_wei[k] = w_wei_[k].data();
+            }
+            const data_t *src_base
+                    = src0 + mb * conf.src_mb_stride + c * conf.src_c_stride;
+            if (alg == alg_kind::resampling_nearest) {
+                const dim_t id = ndims >= 5 ? nearest_idx(od, OD, ID) : 0;
+                const dim_t ih = ndims >= 4 ? nearest_idx(oh, OH, IH) : 0;
+                args.src[0] = src_base + src_sp_off(id, ih, 0);
+            } else {
+                dim_t d_idx[2] = {0, 0}, h_idx[2] = {0, 0};
+                float d_w[2] = {1.f, 0.f}, h_w[2] = {1.f, 0.f};
+                int dn = 1, hn = 1;
+                if (ndims >= 4) {
+                    const linear_coeffs_t hc(oh, OH, IH);
+                    h_idx[0] = hc.idx[0];
+                    h_idx[1] = hc.idx[1];
+                    h_w[0] = hc.wei[0];
+                    h_w[1] = hc.wei[1];
+                    hn = 2;
+                }
+                if (ndims >= 5) {
+                    const linear_coeffs_t dc(od, OD, ID);
+                    d_idx[0] = dc.idx[0];
+                    d_idx[1] = dc.idx[1];
+                    d_w[0] = dc.wei[0];
+                    d_w[1] = dc.wei[1];
+                    dn = 2;
+                }
+                int r = 0;
+                for (int i = 0; i < dn; i++)
+                    for (int j = 0; j < hn; j++) {
+                        args.src[r]
+                                = src_base + src_sp_off(d_idx[i], h_idx[j], 0);
+                        args.weights[r] = d_w[i] * h_w[j];
+                        r++;
+                    }
+            }
+            (*kernel_)(&args);
+        });
+        return status::success;
+    }
 
     parallel_nd(MB, Cb, OD, OH, OW,
             [&](dim_t mb, dim_t cb, dim_t od, dim_t oh, dim_t ow) {

@@ -50,6 +50,8 @@ protected:
 
 private:
     void generate_f32();
+    // Plain ncsp f32: one output row per call, vectorized along OW.
+    void generate_f32_w();
     // f16 (Zvfh) and bf16 (Zvfbfmin) share one widen-compute-narrow body; only
     // the convert mnemonics differ.
     void generate_xf16();

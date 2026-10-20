@@ -154,6 +154,16 @@ status_t jit_uni_resampling_kernel_t<isa, d_type>::init_conf(
         if (!conf.fuse_eltwise && !conf.fuse_binary && !conf.fuse_sum)
             return status::unimplemented;
     }
+
+    // Plain ncsp keeps channels a whole plane apart, so a vector along C turns
+    // every lane into its own cache line. Vectorize along OW instead when W is
+    // contiguous in both tensors (f32, no binary: its rhs is positioned along
+    // C by the host).
+    conf.w_vec = d_type == data_type::f32 && conf.block == 1
+            && conf.src_w_stride == 1 && conf.dst_w_stride == 1
+            && conf.src_c_stride != 1 && conf.dst_c_stride != 1
+            && !conf.fuse_binary;
+    conf.w_rows = alg == alg_kind::resampling_nearest ? 1 : (1 << (ndims - 3));
     return status::success;
 }
 
@@ -161,6 +171,8 @@ template <cpu_isa_t isa, data_type_t d_type>
 void jit_uni_resampling_kernel_t<isa, d_type>::generate() {
     if (utils::one_of(d_type, data_type::f16, data_type::bf16))
         generate_xf16();
+    else if (conf_.w_vec)
+        generate_f32_w();
     else
         generate_f32();
 }
@@ -375,6 +387,146 @@ void jit_uni_resampling_kernel_t<isa, d_type>::generate_f32() {
     ld(s9, sp, 64);
     ld(s10, sp, 72);
     ld(s11, sp, 80);
+    addi(sp, sp, stack_size);
+    ret();
+#else
+    ret();
+#endif
+}
+
+// Plain ncsp f32, vectorized along OW. One call produces one output row: the
+// lanes are output columns, gathered (vluxei32) from conf_.w_rows source rows
+// through per-OW byte-offset tables built once by the primitive. For linear,
+// each row contributes left/right columns weighted by row_weight * w_k, the
+// same products and the same accumulation order as the per-point kernel, so
+// both paths give identical results.
+template <cpu_isa_t isa, data_type_t d_type>
+void jit_uni_resampling_kernel_t<isa, d_type>::generate_f32_w() {
+#if defined(XBYAK_RISCV_V) && XBYAK_RISCV_V == 1
+    const Reg reg_param = a0;
+    const VReg v_idx0(1), v_idx1(2), v_wei0(3), v_acc(4), v_wei1(5), v_lane(6),
+            v_src(8);
+    const bool linear = conf_.alg == alg_kind::resampling_linear;
+    const int nr = conf_.w_rows;
+    // A binary post-op never reaches this path (see init_conf).
+    const bool po = conf_.fuse_eltwise;
+
+    const Reg row_reg[4] = {s1, s2, s3, s4};
+    const FReg row_wei[4] = {fa0, fa1, fa2, fa3};
+
+    const int stack_size = 80;
+    addi(sp, sp, -stack_size);
+    sd(s1, sp, 0);
+    sd(s2, sp, 8);
+    sd(s3, sp, 16);
+    sd(s4, sp, 24);
+    sd(s5, sp, 32);
+    sd(s6, sp, 40);
+    sd(s7, sp, 48);
+    sd(s8, sp, 56);
+    sd(s9, sp, 64);
+    sd(s10, sp, 72);
+
+    using p_t = jit_resampling_args_t;
+    for (int r = 0; r < nr; r++) {
+        ld(row_reg[r], reg_param,
+                static_cast<int>(offsetof(p_t, src) + r * sizeof(void *)));
+        if (linear)
+            flw(row_wei[r], reg_param,
+                    static_cast<int>(
+                            offsetof(p_t, weights) + r * sizeof(float)));
+    }
+    ld(s5, reg_param, static_cast<int>(offsetof(p_t, w_idx)));
+    if (linear) {
+        ld(s6, reg_param,
+                static_cast<int>(offsetof(p_t, w_idx) + sizeof(void *)));
+        ld(s7, reg_param, static_cast<int>(offsetof(p_t, w_wei)));
+        ld(s8, reg_param,
+                static_cast<int>(offsetof(p_t, w_wei) + sizeof(void *)));
+    }
+    ld(s9, reg_param, static_cast<int>(offsetof(p_t, dst)));
+    ld(s10, reg_param, static_cast<int>(offsetof(p_t, channels))); // OW
+
+    // Eltwise chain and sum only, as in the xf16 kernel: the binary static
+    // params are never consumed.
+    injector::jit_uni_postops_injector_t<isa> *po_inj = nullptr;
+    eltwise_injector::static_params_t esp(VReg(12), VReg(16), VReg(20),
+            VReg(24), VReg(24), ft0, ft1, t3, /*is_fwd=*/true);
+    binary_injector::rhs_arg_static_params_t rhs_arg_bsp(VReg(24).getIdx(), x0,
+            x0, x0, false /*preserve gpr*/, false /*preserve vmm*/,
+            0 /*abi_param_offset*/, memory_desc_wrapper(nullptr));
+    rhs_arg_bsp.rhs_dt_helper_freg = ft2;
+    const binary_injector::static_params_t bsp(x0, rhs_arg_bsp);
+    injector::lambda_jit_injectors_t lambda_jit_injectors;
+    if (conf_.fuse_sum)
+        lambda_jit_injectors.emplace(primitive_kind::sum, [&]() {
+            vle32_v(v_src, s9); // dst row is contiguous
+            if (conf_.sum_scale == 1.f)
+                vfadd_vv(v_acc, v_acc, v_src);
+            else {
+                li(t4, (int32_t)utils::bit_cast<uint32_t>(conf_.sum_scale));
+                fmv_w_x(ft3, t4);
+                vfmacc_vf(v_acc, ft3, v_src);
+            }
+        });
+    injector::jit_uni_postops_injector_t<isa> po_inj_obj(
+            this, conf_.post_ops, bsp, esp, lambda_jit_injectors);
+    if (po || conf_.fuse_sum) po_inj = &po_inj_obj;
+    binary_injector::rhs_arg_dynamic_params_t rhs_dyn;
+
+    Label ow_loop, ow_done;
+    L(ow_loop);
+    beqz(s10, ow_done);
+    vsetvli(t0, s10, SEW::e32, LMUL::m1, VTA::ta, VMA::ma);
+
+    vle32_v(v_idx0, s5);
+    if (!linear) {
+        vluxei32_v(v_acc, s1, v_idx0);
+    } else {
+        vle32_v(v_idx1, s6);
+        vle32_v(v_wei0, s7);
+        vle32_v(v_wei1, s8);
+        for (int r = 0; r < nr; r++) {
+            // Corner weight = (row weight) * (column weight), as on the host.
+            vfmul_vf(v_lane, v_wei0, row_wei[r]);
+            vluxei32_v(v_src, row_reg[r], v_idx0);
+            if (r == 0)
+                vfmul_vv(v_acc, v_src, v_lane);
+            else
+                vfmacc_vv(v_acc, v_lane, v_src);
+            vfmul_vf(v_lane, v_wei1, row_wei[r]);
+            vluxei32_v(v_src, row_reg[r], v_idx1);
+            vfmacc_vv(v_acc, v_lane, v_src);
+        }
+    }
+
+    if (po || conf_.fuse_sum)
+        po_inj->compute_vector(v_acc.getIdx(), rhs_dyn, 1 /*group_stride*/);
+
+    vse32_v(v_acc, s9);
+
+    slli(t1, t0, 2); // vl * sizeof(f32), also the int32 table step
+    add(s5, s5, t1);
+    if (linear) {
+        add(s6, s6, t1);
+        add(s7, s7, t1);
+        add(s8, s8, t1);
+    }
+    add(s9, s9, t1);
+    sub(s10, s10, t0);
+    j_(ow_loop);
+    L(ow_done);
+
+    ld(s1, sp, 0);
+    ld(s2, sp, 8);
+    ld(s3, sp, 16);
+    ld(s4, sp, 24);
+    ld(s5, sp, 32);
+    ld(s6, sp, 40);
+    ld(s7, sp, 48);
+    ld(s8, sp, 56);
+    ld(s9, sp, 64);
+    ld(s10, sp, 72);
     addi(sp, sp, stack_size);
     ret();
 #else
