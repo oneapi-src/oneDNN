@@ -1707,6 +1707,7 @@ status_t compute_blocking_heuristic_amx(brgemm_matmul_conf_t &bgmmc,
             attr.acc_mode_, accumulation_mode::relaxed, accumulation_mode::any);
     // The uker accumulates int8 in s32 but stores a narrow dt_c as f32.
     const bool dst_dt_eligible = !bm_conf_utils.is_int8()
+            && !bm_conf_utils.with_int8_grouped_quantization()
             && utils::one_of(bgmmc.dst_dt, data_type::bf16, data_type::f16);
     // Narrow dt_c is an AMX uker feature, but runtime M falls back to a
     // non-AMX ISA for the smallest M tail and runtime N leaves LDC/LDD as
