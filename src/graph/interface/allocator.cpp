@@ -37,7 +37,7 @@
 
 using namespace dnnl::impl::graph;
 
-status_t DNNL_API dnnl_graph_allocator_create(allocator_t **allocator,
+status_t dnnl_graph_allocator_create(allocator_t **allocator,
         host_allocate_f host_malloc, host_deallocate_f host_free) {
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL
     UNUSED(allocator);
@@ -54,9 +54,8 @@ status_t DNNL_API dnnl_graph_allocator_create(allocator_t **allocator,
 #endif
 }
 
-status_t DNNL_API dnnl_graph_sycl_interop_allocator_create(
-        allocator_t **allocator, sycl_allocate_f sycl_malloc,
-        sycl_deallocate_f sycl_free) {
+status_t dnnl_graph_sycl_interop_allocator_create(allocator_t **allocator,
+        sycl_allocate_f sycl_malloc, sycl_deallocate_f sycl_free) {
 #ifdef DNNL_WITH_SYCL
     if (utils::any_null(sycl_malloc, sycl_free)) {
         *allocator = new dnnl_graph_allocator();
@@ -72,13 +71,13 @@ status_t DNNL_API dnnl_graph_sycl_interop_allocator_create(
 #endif
 }
 
-status_t DNNL_API dnnl_graph_allocator_destroy(allocator_t *allocator) {
+status_t dnnl_graph_allocator_destroy(allocator_t *allocator) {
     if (allocator == nullptr) return status::invalid_arguments;
     delete allocator;
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_make_engine_with_allocator(engine_t **engine,
+status_t dnnl_graph_make_engine_with_allocator(engine_t **engine,
         engine_kind_t kind, size_t index, const allocator_t *alloc) {
     auto ret = dnnl_engine_create(engine, kind, index);
     if (ret != status::success) return ret;
@@ -87,9 +86,8 @@ status_t DNNL_API dnnl_graph_make_engine_with_allocator(engine_t **engine,
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_sycl_interop_make_engine_with_allocator(
-        engine_t **engine, const void *device, const void *context,
-        const allocator_t *alloc) {
+status_t dnnl_graph_sycl_interop_make_engine_with_allocator(engine_t **engine,
+        const void *device, const void *context, const allocator_t *alloc) {
 #ifdef DNNL_WITH_SYCL
     auto ret = dnnl_sycl_interop_engine_create(engine, device, context);
     if (ret != status::success) return ret;
@@ -106,9 +104,8 @@ status_t DNNL_API dnnl_graph_sycl_interop_make_engine_with_allocator(
 }
 
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
-status_t DNNL_API dnnl_graph_ocl_interop_allocator_create(
-        allocator_t **allocator, ocl_allocate_f ocl_malloc,
-        ocl_deallocate_f ocl_free) {
+status_t dnnl_graph_ocl_interop_allocator_create(allocator_t **allocator,
+        ocl_allocate_f ocl_malloc, ocl_deallocate_f ocl_free) {
     if (utils::any_null(ocl_malloc, ocl_free)) {
         *allocator = new dnnl_graph_allocator();
     } else {
@@ -117,9 +114,8 @@ status_t DNNL_API dnnl_graph_ocl_interop_allocator_create(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_ocl_interop_make_engine_with_allocator(
-        engine_t **engine, cl_device_id device, cl_context context,
-        const allocator_t *alloc) {
+status_t dnnl_graph_ocl_interop_make_engine_with_allocator(engine_t **engine,
+        cl_device_id device, cl_context context, const allocator_t *alloc) {
     auto ret = dnnl_ocl_interop_engine_create(engine, device, context);
     if (ret != status::success) return ret;
 
@@ -127,8 +123,7 @@ status_t DNNL_API dnnl_graph_ocl_interop_make_engine_with_allocator(
     return status::success;
 }
 
-status_t DNNL_API
-dnnl_graph_ocl_interop_make_engine_from_cache_blob_with_allocator(
+status_t dnnl_graph_ocl_interop_make_engine_from_cache_blob_with_allocator(
         engine_t **engine, cl_device_id device, cl_context context,
         const allocator_t *alloc, size_t size, const uint8_t *cache_blob) {
     auto ret = dnnl_ocl_interop_engine_create_from_cache_blob(

@@ -139,7 +139,7 @@ dnnl_graph_tensor::dnnl_graph_tensor(
     }
 }
 
-status_t DNNL_API dnnl_graph_tensor_create(tensor_t **tensor,
+status_t dnnl_graph_tensor_create(tensor_t **tensor,
         const logical_tensor_t *logical_tensor, engine_t *eng, void *handle) {
     if (utils::any_null(tensor, logical_tensor, eng))
         return status::invalid_arguments;
@@ -158,7 +158,7 @@ status_t DNNL_API dnnl_graph_tensor_create(tensor_t **tensor,
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_tensor_create_scalar(tensor_t **tensor,
+status_t dnnl_graph_tensor_create_scalar(tensor_t **tensor,
         const logical_tensor_t *logical_tensor, void *handle) {
     if (utils::any_null(tensor, logical_tensor))
         return status::invalid_arguments;
@@ -177,12 +177,12 @@ status_t DNNL_API dnnl_graph_tensor_create_scalar(tensor_t **tensor,
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_tensor_destroy(tensor_t *tensor) {
+status_t dnnl_graph_tensor_destroy(tensor_t *tensor) {
     delete tensor;
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_tensor_get_data_handle(
+status_t dnnl_graph_tensor_get_data_handle(
         const tensor_t *tensor, void **handle) {
     if (utils::any_null(tensor, handle)) return status::invalid_arguments;
 
@@ -195,8 +195,7 @@ status_t DNNL_API dnnl_graph_tensor_get_data_handle(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_tensor_set_data_handle(
-        tensor_t *tensor, void *handle) {
+status_t dnnl_graph_tensor_set_data_handle(tensor_t *tensor, void *handle) {
     if (tensor == nullptr) return status::invalid_arguments;
 
     const auto ltw = logical_tensor_wrapper_t(tensor->get_logical_tensor());
@@ -206,7 +205,7 @@ status_t DNNL_API dnnl_graph_tensor_set_data_handle(
     return ret;
 }
 
-status_t DNNL_API dnnl_graph_tensor_get_engine(
+status_t dnnl_graph_tensor_get_engine(
         const tensor_t *tensor, engine_t **engine) {
     if (utils::any_null(tensor, engine)) return status::invalid_arguments;
 
@@ -220,7 +219,7 @@ status_t DNNL_API dnnl_graph_tensor_get_engine(
     return status::success;
 }
 
-dnnl_status_t DNNL_API dnnl_graph_tensor_get_logical_tensor(
+dnnl_status_t dnnl_graph_tensor_get_logical_tensor(
         const tensor_t *tensor, logical_tensor_t *logical_tensor) {
     if (utils::any_null(tensor, logical_tensor))
         return status::invalid_arguments;
