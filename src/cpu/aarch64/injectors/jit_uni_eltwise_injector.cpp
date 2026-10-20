@@ -251,10 +251,19 @@ void jit_uni_eltwise_injector_t<isa>::set_coef_to_regs() {
             case eltwise_exp_use_dst_for_bwd:
             case eltwise_exp:
             case eltwise_gelu_tanh:
-            case eltwise_swish:
             case eltwise_log:
             case eltwise_gelu_erf:
             case eltwise_round: break;
+            case eltwise_swish:
+                table_val(swish_alpha_log2e, vmm_aux3);
+                if (isa == sve) {
+                    table_val(swish_fexpa_shift, vmm_aux4);
+                    table_val(swish_polynomial_exp_c1, vmm_aux5);
+                    table_val(swish_polynomial_exp_c2, vmm_aux6);
+                } else {
+                    table_val(exponent_bias, vmm_aux4);
+                }
+                break;
             default: assert(!"unsupported eltwise algorithm");
         }
     } else {
@@ -911,17 +920,53 @@ void jit_uni_eltwise_injector_t<isa>::logistic_compute_vector_fwd(
     blend_with_mask(vmm_src, vmm_aux0);
 }
 
+// Swish is evaluated as x * 2^k / (2^k + 2^(-r)), where
+// alpha*x*log2(e) = k + r. FEXPA computes the grid-rounded 2^k term,
+// and a quadratic polynomial approximates the small residual 2^(-r).
 template <cpu_isa_t isa>
 void jit_uni_eltwise_injector_t<isa>::swish_compute_vector_fwd(
         const TRegS &vmm_src) {
-    // IMPORTANT: we use vmm_aux2 to save src as logistic does not use it.
-    h->mov(ZRegD(vmm_aux2.getIdx()), ZRegD(IDX(vmm_src)));
-    // x*alpha
-    if (alpha_ != 1.f) { h->fmul(vmm_src, vmm_src, table_val(alpha, z_tmp)); }
-    // sigmoid(x*alpha)
-    logistic_compute_vector_fwd(vmm_src);
-    // x*sigmoid(alpha*x)
-    h->fmul(vmm_src, vmm_src, vmm_aux2);
+    // FEXPA produces the 2^k term directly.
+    // SHIFT rounds k to FEXPA's grid, leaving only a small residual for
+    // the quadratic approximation of 2^(-r).
+    // Convert exp(alpha*x) to base 2. For a=alpha*x*log2(e)=k+r:
+    //   swish(x) = x*2^k / (2^k + 2^(-r)).
+    const auto &v_scale = z_tmp;
+    const auto &v_neg_r = vmm_aux0;
+    const auto &v_poly = vmm_aux1;
+    const auto &v_tmp = vmm_aux2;
+    const auto &v_alpha_log2e = vmm_aux3;
+    const auto &v_shift = vmm_aux4;
+    const auto &v_c1 = vmm_aux5;
+    const auto &v_c2 = vmm_aux6;
+
+    // a = x*(alpha*log2(e)); the combined constant is generated as FP32.
+    h->movprfx(v_neg_r, p_all, vmm_src);
+    h->fmul(v_neg_r, p_all / T_m, v_alpha_log2e);
+    // Clamp a to log2(e)*[-32,32]. This bounds the exponential argument
+    // while keeping the encoded exponent in a safe range.
+    h->fmaxnm(v_neg_r, p_all / T_m, table_val(swish_polynomial_exp_min, v_tmp));
+    h->fminnm(v_neg_r, p_all / T_m, table_val(swish_polynomial_exp_max, v_tmp));
+
+    h->movprfx(v_scale, p_all, v_shift);
+    h->fadd(v_scale, p_all / T_m, v_neg_r);
+    // k = (SHIFT+a)-SHIFT and -r = k-a.
+    h->fsub(v_poly, v_scale, v_shift);
+    // FEXPA consumes the encoded bits of SHIFT+a and returns 2^k.
+    h->fexpa(v_scale, v_scale);
+    h->fsub(v_neg_r, v_poly, v_neg_r);
+
+    // Form the numerator x*2^k while the scale is available.
+    h->fmul(vmm_src, vmm_src, v_scale);
+
+    // Approximate 2^(-r) with 1 + (-r)*(c1 + c2*(-r))
+    h->movprfx(v_poly, p_all, v_c1);
+    h->fmla(v_poly, p_all / T_m, v_neg_r, v_c2);
+    h->fmov(v_tmp, 1.);
+    h->fmla(v_tmp, p_all / T_m, v_neg_r, v_poly);
+    // x*2^k / (2^k + 2^(-r))
+    h->fadd(v_neg_r, v_scale, v_tmp);
+    h->fdiv(vmm_src, p_all / T_m, v_neg_r);
 }
 
 template <cpu_isa_t isa>
@@ -1543,6 +1588,7 @@ size_t jit_uni_eltwise_injector_t<isa>::aux_gprs_count() {
         case eltwise_tanh:
         case eltwise_gelu_tanh:
         case eltwise_gelu_erf: num_gprs_needed = 2; break;
+        case eltwise_swish: break;
         default: return 0;
     }
 
@@ -1585,8 +1631,7 @@ size_t jit_uni_eltwise_injector_t<isa>::aux_vecs_count() {
             case eltwise_exp: return (isa == asimd) ? 5 : 3;
             case eltwise_gelu_tanh:
                 return (isa == asimd) ? 8 : 6; /* = tanh + 1 */
-            case eltwise_swish:
-                return (isa == asimd) ? 7 : 4; /* = logistic + 1 */
+            case eltwise_swish: return isa == asimd ? 6 : 8;
             case eltwise_log: return 7;
             case eltwise_clip:
             case eltwise_clip_v2_use_dst_for_bwd:
@@ -1868,6 +1913,22 @@ void jit_uni_eltwise_injector_t<isa>::register_table_entries() {
             {exp_scale_thresh, {0x43400000, true}}, // 192.0f
             {exp_special_offset, {0x82000000, true}},
             {exp_special_bias, {0x7f000000, true}},
+    };
+
+    static const table_t sve_swish_polynomial_consts {
+            {swish_fexpa_shift, {0x48001fc0, true}}, // 131199.f
+            {swish_polynomial_exp_c1, {0x3f3174c1, true}}, // 0.6931878021f
+            {swish_polynomial_exp_c2, {0x3e760066, true}}, // 0.2402358998f
+            {swish_polynomial_exp_min, {0xc238aa3b, true}}, // -32 * log2(e)
+            {swish_polynomial_exp_max, {0x4238aa3b, true}}, // 32 * log2(e)
+    };
+    static const table_t asimd_swish_polynomial_consts {
+            {swish_polynomial_exp_min, {0xc238aa3b, true}}, // -32 * log2(e)
+            {swish_polynomial_exp_max, {0x4238aa3b, true}}, // 32 * log2(e)
+            {swish_asimd_exp2_c1, {0x3f3170ca, true}}, // 0.6931272745f
+            {swish_asimd_exp2_c2, {0x3e75fcc9, true}}, // 0.2402221113f
+            {swish_asimd_exp2_c3, {0x3d64ddb6, true}}, // 0.05587550253f
+            {swish_asimd_exp2_c4, {0x3c1e721f, true}}, // 0.009670763277f
     };
 
     // mish(x) constants
@@ -2158,7 +2219,6 @@ void jit_uni_eltwise_injector_t<isa>::register_table_entries() {
             {gelu_erf_lut_bias, {0x47800000, true}}, // 65536.f
             {gelu_erf_lut_max_index, {0x00000200, true}}, // 512
     };
-
     // gelu_erf(x) polynomial approximation
     static const table_t gelu_erf_polynomial {
             {gelu_erf_pol, {0x3e827906, true}}, // p1 = 0.254829592f
@@ -2445,6 +2505,8 @@ void jit_uni_eltwise_injector_t<isa>::register_table_entries() {
     };
 
     need_t need(alg_);
+    const bool use_swish_poly = is_fwd_ && alg_ == alg_kind::eltwise_swish;
+    if (use_swish_poly) need.exp_ = false;
 
     auto push_arg_entry_of = [&](const key_t key, const table_entry_val_t val,
                                      const bool broadcast) {
@@ -2506,6 +2568,12 @@ void jit_uni_eltwise_injector_t<isa>::register_table_entries() {
                         gelu_erf_lut_scale, float2int(scale_val), false);
             }
         }
+    }
+    if (use_swish_poly) {
+        constexpr float log2e = 1.4426950408889634f;
+        push_arg_entry_of(swish_alpha_log2e, float2int(alpha_ * log2e), true);
+        push_entries_of(isa == sve ? sve_swish_polynomial_consts
+                                   : asimd_swish_polynomial_consts);
     }
     // Now that we registered the entries, we set the offsets.  No
     // entries should be registered after this point.  This allows to
@@ -3038,19 +3106,6 @@ void jit_uni_eltwise_injector_t<asimd>::logistic_compute_vector_fwd(
 }
 
 template <>
-void jit_uni_eltwise_injector_t<asimd>::swish_compute_vector_fwd(
-        const TRegS &vmm_src) {
-    // IMPORTANT: we use vmm_aux5 to save src as logistic does not use it.
-    h->mov(VReg16B(vmm_aux5.getIdx()), VReg16B(vmm_src.getIdx()));
-    // x*alpha
-    if (alpha_ != 1.f) { h->fmul(vmm_src, vmm_src, table_val(alpha, z_tmp)); }
-    // sigmoid(x*alpha)
-    logistic_compute_vector_fwd(vmm_src);
-    // x*sigmoid(alpha*x)
-    h->fmul(vmm_src, vmm_src, vmm_aux5);
-}
-
-template <>
 void jit_uni_eltwise_injector_t<asimd>::log_compute_vector_fwd(
         const TRegS &vmm_src) {
     // ------------------------------------------------------------------------
@@ -3272,6 +3327,50 @@ void jit_uni_eltwise_injector_t<asimd>::gelu_erf_compute_vector_fwd(
     // GELU = 0.5 * s * (1 + erf)
     h->fmul(vmm_src, vmm_src, table_val(half, z_tmp));
     h->fmla(vmm_src, vmm_aux0, vmm_src);
+}
+
+// ASIMD replaces FEXPA with an integer FP32 exponent construction. For
+// a=alpha*x*log2(e)=k+r, rounding a to an integer leaves -r=k-a in
+// [-0.5,0.5], where a fitted quartic approximates 2^(-r).
+template <>
+void jit_uni_eltwise_injector_t<asimd>::swish_compute_vector_fwd(
+        const TRegS &vmm_src) {
+    const auto &v_neg_r = z_tmp;
+    const auto &v_scale = vmm_aux0;
+    const auto &v_poly = vmm_aux1;
+    const auto &v_scratch = vmm_aux2;
+    const auto &v_alpha_log2e = vmm_aux3;
+    const auto &v_exponent_bias = vmm_aux4;
+
+    // a = x*(alpha*log2(e)); the combined constant is generated as FP32.
+    h->fmul(v_neg_r, vmm_src, v_alpha_log2e);
+    // Clamp a to log2(e)*[-32,32] before constructing 2^k from an IEEE-754
+    // exponent field.
+    h->fmaxnm(v_neg_r, v_neg_r, table_val(swish_polynomial_exp_min, v_poly));
+    h->fminnm(v_neg_r, v_neg_r, table_val(swish_polynomial_exp_max, v_poly));
+    // k = round_to_nearest_even(a), then -r = k-a.
+    h->frintn(v_scale, v_neg_r);
+    h->fsub(v_neg_r, v_scale, v_neg_r);
+
+    // Construct 2^k directly as FP32 bits: (int32(k)+127)<<23. Integer and
+    // floating-point operations share the vector register.
+    h->fcvtzs(v_scale, v_scale);
+    h->add(v_scale, v_scale, v_exponent_bias);
+    h->shl(v_scale, v_scale, n_mantissa_bits);
+
+    // Horner evaluation of the fitted quartic:
+    //   2^(-r) ~= 1 + (-r)*(c1 + (-r)*(c2 + (-r)*(c3 + c4*(-r)))).
+    table_val(swish_asimd_exp2_c4, v_poly);
+    h->fmla(table_val(swish_asimd_exp2_c3, v_scratch), v_poly, v_neg_r);
+    h->fmla(table_val(swish_asimd_exp2_c2, v_poly), v_scratch, v_neg_r);
+    h->fmla(table_val(swish_asimd_exp2_c1, v_scratch), v_poly, v_neg_r);
+    h->fmov(v_poly, 1.f);
+    h->fmla(v_poly, v_scratch, v_neg_r);
+
+    // x*2^k / (2^k + 2^(-r)).
+    h->fmul(vmm_src, vmm_src, v_scale);
+    h->fadd(v_neg_r, v_scale, v_poly);
+    h->fdiv(vmm_src, vmm_src, v_neg_r);
 }
 
 template <>
