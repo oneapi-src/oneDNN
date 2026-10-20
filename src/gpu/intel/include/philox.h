@@ -21,9 +21,18 @@
 #include "gpu/intel/include/types.h"
 
 uint4 philox_4x32_vec4_w_offset(ulong idx, ulong seed, ulong offset) {
+/* Each round forms two 32x32 products and needs both halves of each.
+   Doing that as a 64-bit multiply forces the compiler to emulate it,
+   since Intel GPUs have no native 64-bit multiply; mul_hi() (high half)
+   plus a plain 32-bit multiply (low half) are one instruction each. */
 #define PHILOX_4UINT_ROUND(mul, ctr, key) \
-    as_uint4(convert_ulong2(ctr.s02) * mul).s3210 \
-            ^ (uint4)(ctr.s1 ^ key.s0, 0, ctr.s3 ^ key.s1, 0)
+    ({ \
+        uint lo0 = ctr.s0 * mul.s0; \
+        uint hi0 = mul_hi(ctr.s0, mul.s0); \
+        uint lo1 = ctr.s2 * mul.s1; \
+        uint hi1 = mul_hi(ctr.s2, mul.s1); \
+        (uint4)(hi1 ^ ctr.s1 ^ key.s0, lo1, hi0 ^ ctr.s3 ^ key.s1, lo0); \
+    })
 
     ulong x = (idx & ~3L);
     uint4 ctr = (uint4)((uint)offset, (uint)(offset >> 32), (uint)x,
@@ -32,7 +41,7 @@ uint4 philox_4x32_vec4_w_offset(ulong idx, ulong seed, ulong offset) {
     uint seed_hi = (uint)(seed >> 32);
     const ulong seeds = as_ulong((uint2)(seed_lo, seed_hi));
 
-    const ulong2 PHILOX_M4x32 = (ulong2)(0xD2511F53uL, 0xCD9E8D57uL);
+    const uint2 PHILOX_M4x32 = (uint2)(0xD2511F53u, 0xCD9E8D57u);
     const ulong PHILOX_W4x32 = as_ulong((uint2)(0x9E3779B9u, 0xBB67AE85u));
     const uint16 key0 = as_uint16((ulong8)(seeds))
             + as_uint16((ulong8)(PHILOX_W4x32))
