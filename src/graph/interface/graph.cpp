@@ -303,20 +303,19 @@ std::vector<dnnl_graph_graph::op_ptr> dnnl_graph_graph::deep_copy(
     return copied_ops;
 }
 
-status_t DNNL_API dnnl_graph_graph_create(
-        graph_t **graph, engine_kind_t engine_kind) {
+status_t dnnl_graph_graph_create(graph_t **graph, engine_kind_t engine_kind) {
     *graph = new graph_t(engine_kind);
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_graph_create_with_fpmath_mode(
+status_t dnnl_graph_graph_create_with_fpmath_mode(
         graph_t **graph, engine_kind_t engine_kind, fpmath_mode_t fpmath_mode) {
     if (graph == nullptr) return status::invalid_arguments;
     *graph = new graph_t(engine_kind, fpmath_mode);
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_graph_destroy(graph_t *graph) {
+status_t dnnl_graph_graph_destroy(graph_t *graph) {
     delete graph;
     return status::success;
 }
@@ -344,7 +343,7 @@ status_t dnnl_graph_graph_get_fpmath_mode(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_add_op(graph_t *graph, op_t *op) {
+status_t dnnl_graph_add_op(graph_t *graph, op_t *op) {
     if (graph == nullptr || op == nullptr) { return status::invalid_arguments; }
 
     if (graph->is_finalized()) { return status::invalid_graph; }
@@ -352,7 +351,7 @@ status_t DNNL_API dnnl_graph_add_op(graph_t *graph, op_t *op) {
     return graph->add_op(op);
 }
 
-status_t DNNL_API dnnl_graph_graph_finalize(graph_t *graph) {
+status_t dnnl_graph_graph_finalize(graph_t *graph) {
     if (graph == nullptr) return status::invalid_arguments;
 
     auto ret = graph->finalize();
@@ -360,8 +359,7 @@ status_t DNNL_API dnnl_graph_graph_finalize(graph_t *graph) {
     return ret;
 }
 
-status_t DNNL_API dnnl_graph_graph_is_finalized(
-        graph_t *graph, uint8_t *finalized) {
+status_t dnnl_graph_graph_is_finalized(graph_t *graph, uint8_t *finalized) {
     if (utils::any_null(graph, finalized)) return status::invalid_arguments;
 
     *finalized = static_cast<uint8_t>(graph->is_finalized());
@@ -369,8 +367,7 @@ status_t DNNL_API dnnl_graph_graph_is_finalized(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_graph_filter(
-        graph_t *graph, partition_policy_t policy) {
+status_t dnnl_graph_graph_filter(graph_t *graph, partition_policy_t policy) {
     if (graph == nullptr || (!graph->is_finalized())) {
         return status::invalid_graph;
     }
@@ -413,14 +410,13 @@ status_t DNNL_API dnnl_graph_graph_filter(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_graph_get_partition_num(
-        const graph_t *graph, size_t *num) {
+status_t dnnl_graph_graph_get_partition_num(const graph_t *graph, size_t *num) {
     if (graph == nullptr) { return status::invalid_graph; }
     *num = graph->get_num_partitions();
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_graph_get_partitions(
+status_t dnnl_graph_graph_get_partitions(
         graph_t *graph, size_t num, partition_t **partition) {
     if (utils::any_null(graph, partition) || num == 0) {
         return status::invalid_graph;

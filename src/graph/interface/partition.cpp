@@ -57,7 +57,7 @@ using namespace dnnl::impl::graph;
 /// implementation, we internally construct a temporal graph object, add the
 /// operator to it, and then do partitioning on the graph. The workflow should
 /// be the same as partitioning a normal user graph.
-status_t DNNL_API dnnl_graph_partition_create_with_op(
+status_t dnnl_graph_partition_create_with_op(
         partition_t **partition, const op_t *op, engine_kind_t ekind) {
     using ltw = logical_tensor_wrapper_t;
 
@@ -148,12 +148,12 @@ status_t DNNL_API dnnl_graph_partition_create_with_op(
     return ret;
 }
 
-status_t DNNL_API dnnl_graph_partition_destroy(partition_t *partition) {
+status_t dnnl_graph_partition_destroy(partition_t *partition) {
     delete partition;
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_get_op_num(
+status_t dnnl_graph_partition_get_op_num(
         const partition_t *partition, size_t *num) {
     if (utils::any_null(partition, num)) return status::invalid_arguments;
 
@@ -161,7 +161,7 @@ status_t DNNL_API dnnl_graph_partition_get_op_num(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_get_ops(
+status_t dnnl_graph_partition_get_ops(
         partition_t *partition, size_t num, size_t *ops) {
     if (utils::any_null(partition, ops)) { return status::invalid_arguments; }
 
@@ -176,15 +176,14 @@ status_t DNNL_API dnnl_graph_partition_get_ops(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_get_id(
-        const partition_t *partition, size_t *id) {
+status_t dnnl_graph_partition_get_id(const partition_t *partition, size_t *id) {
     if (utils::any_null(partition, id)) { return status::invalid_arguments; }
 
     *id = partition->id();
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
+status_t dnnl_graph_partition_compile(partition_t *partition,
         compiled_partition_t *compiled_partition, size_t in_num,
         const logical_tensor_t **inputs, size_t out_num,
         const logical_tensor_t **outputs, engine_t *engine) {
@@ -217,7 +216,7 @@ status_t DNNL_API dnnl_graph_partition_compile(partition_t *partition,
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_get_input_ports_num(
+status_t dnnl_graph_partition_get_input_ports_num(
         const partition_t *partition, size_t *num) {
     if (utils::any_null(partition, num)) { return status::invalid_arguments; }
 
@@ -225,7 +224,7 @@ status_t DNNL_API dnnl_graph_partition_get_input_ports_num(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_get_output_ports_num(
+status_t dnnl_graph_partition_get_output_ports_num(
         const partition_t *partition, size_t *num) {
     if (utils::any_null(partition, num)) { return status::invalid_arguments; }
 
@@ -233,7 +232,7 @@ status_t DNNL_API dnnl_graph_partition_get_output_ports_num(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_get_input_ports(
+status_t dnnl_graph_partition_get_input_ports(
         const partition_t *partition, size_t num, logical_tensor_t *inputs) {
     if (utils::any_null(partition, inputs)
             || partition->get_inputs_num() != num) {
@@ -248,7 +247,7 @@ status_t DNNL_API dnnl_graph_partition_get_input_ports(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_get_output_ports(
+status_t dnnl_graph_partition_get_output_ports(
         const partition_t *partition, size_t num, logical_tensor_t *outputs) {
     if (utils::any_null(partition, outputs)
             || partition->get_outputs_num() != num) {
@@ -263,7 +262,7 @@ status_t DNNL_API dnnl_graph_partition_get_output_ports(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_is_supported(
+status_t dnnl_graph_partition_is_supported(
         const partition_t *partition, uint8_t *is_supported) {
     if (utils::any_null(partition, is_supported))
         return status::invalid_arguments;
@@ -272,7 +271,7 @@ status_t DNNL_API dnnl_graph_partition_is_supported(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_partition_get_engine_kind(
+status_t dnnl_graph_partition_get_engine_kind(
         const partition_t *partition, engine_kind_t *kind) {
     if (utils::any_null(partition, kind)) { return status::invalid_arguments; }
 
@@ -291,7 +290,7 @@ status_t DNNL_API dnnl_graph_partition_get_kind(
 ///
 /// dnnl_graph_compiled_partition_t
 ///
-status_t DNNL_API dnnl_graph_compiled_partition_create(
+status_t dnnl_graph_compiled_partition_create(
         compiled_partition_t **compiled_partition, partition_t *partition) {
     if (utils::any_null(compiled_partition, partition)) {
         return status::invalid_arguments;
@@ -301,7 +300,7 @@ status_t DNNL_API dnnl_graph_compiled_partition_create(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_compiled_partition_execute(
+status_t dnnl_graph_compiled_partition_execute(
         const compiled_partition_t *compiled_partition, stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
         const tensor_t **outputs) {
@@ -309,7 +308,7 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute(
             num_inputs, inputs, num_outputs, outputs, nullptr);
 }
 
-status_t DNNL_API dnnl_graph_compiled_partition_execute_v2(
+status_t dnnl_graph_compiled_partition_execute_v2(
         const compiled_partition_t *compiled_partition, stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
         const tensor_t **outputs, const tensor_t *scratchpad) {
@@ -352,7 +351,7 @@ status_t DNNL_API dnnl_graph_compiled_partition_execute_v2(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
+status_t dnnl_graph_sycl_interop_compiled_partition_execute(
         const compiled_partition_t *compiled_partition, stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
         const tensor_t **outputs, const void *deps, void *sycl_event) {
@@ -361,7 +360,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute(
             outputs, nullptr, deps, sycl_event);
 }
 
-status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute_v2(
+status_t dnnl_graph_sycl_interop_compiled_partition_execute_v2(
         const compiled_partition_t *compiled_partition, stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
         const tensor_t **outputs, const tensor_t *scratchpad, const void *deps,
@@ -442,7 +441,7 @@ status_t DNNL_API dnnl_graph_sycl_interop_compiled_partition_execute_v2(
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
 using ocl_event_t = dnnl::impl::xpu::ocl::wrapper_t<cl_event>;
 
-status_t DNNL_API dnnl_graph_ocl_interop_compiled_partition_execute(
+status_t dnnl_graph_ocl_interop_compiled_partition_execute(
         const compiled_partition_t *compiled_partition, stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
         const tensor_t **outputs, const cl_event *deps, int ndeps,
@@ -452,7 +451,7 @@ status_t DNNL_API dnnl_graph_ocl_interop_compiled_partition_execute(
             outputs, nullptr, deps, ndeps, ocl_event);
 }
 
-status_t DNNL_API dnnl_graph_ocl_interop_compiled_partition_execute_v2(
+status_t dnnl_graph_ocl_interop_compiled_partition_execute_v2(
         const compiled_partition_t *compiled_partition, stream_t *stream,
         size_t num_inputs, const tensor_t **inputs, size_t num_outputs,
         const tensor_t **outputs, const tensor_t *scratchpad,
@@ -514,13 +513,13 @@ status_t DNNL_API dnnl_graph_ocl_interop_compiled_partition_execute_v2(
 }
 #endif
 
-status_t DNNL_API dnnl_graph_compiled_partition_destroy(
+status_t dnnl_graph_compiled_partition_destroy(
         compiled_partition_t *compiled_partition) {
     delete compiled_partition;
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_compiled_partition_query_logical_tensor(
+status_t dnnl_graph_compiled_partition_query_logical_tensor(
         const compiled_partition_t *compiled_partition, size_t tid,
         logical_tensor_t *lt) {
     if (utils::any_null(compiled_partition, lt))
@@ -528,7 +527,7 @@ status_t DNNL_API dnnl_graph_compiled_partition_query_logical_tensor(
     return compiled_partition->query_logical_tensor(tid, lt);
 }
 
-status_t DNNL_API dnnl_graph_compiled_partition_get_inplace_ports(
+status_t dnnl_graph_compiled_partition_get_inplace_ports(
         const compiled_partition_t *compiled_partition,
         size_t *num_inplace_pairs, const inplace_pair_t **inplace_pairs) {
     if (utils::any_null(compiled_partition, num_inplace_pairs, inplace_pairs))
@@ -541,7 +540,7 @@ status_t DNNL_API dnnl_graph_compiled_partition_get_inplace_ports(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_compiled_partition_get_scratchpad_logical_tensor(
+status_t dnnl_graph_compiled_partition_get_scratchpad_logical_tensor(
         const compiled_partition_t *compiled_partition, logical_tensor_t *lt) {
     if (utils::any_null(compiled_partition, lt))
         return status::invalid_arguments;
@@ -561,7 +560,7 @@ status_t DNNL_API dnnl_graph_compiled_partition_get_scratchpad_logical_tensor(
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_compiled_partition_query_impl_info(
+status_t dnnl_graph_compiled_partition_query_impl_info(
         const compiled_partition_t *compiled_partition,
         const char **impl_info) {
     if (utils::any_null(compiled_partition, impl_info))

@@ -74,37 +74,35 @@ std::string dnnl_graph_op::str() const {
 }
 
 /// C API implementations
-status_t DNNL_API dnnl_graph_op_create(op_t **op, size_t id,
-        dnnl_graph_op_kind_t kind, const char *verbose_name) {
+status_t dnnl_graph_op_create(op_t **op, size_t id, dnnl_graph_op_kind_t kind,
+        const char *verbose_name) {
     if (utils::any_null(op, verbose_name)) return status::invalid_arguments;
 
     *op = new op_t {id, kind, verbose_name};
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_destroy(op_t *op) {
+status_t dnnl_graph_op_destroy(op_t *op) {
     delete op;
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_add_input(
-        op_t *op, const logical_tensor_t *input) {
+status_t dnnl_graph_op_add_input(op_t *op, const logical_tensor_t *input) {
     if (utils::any_null(op, input)) return status::invalid_arguments;
 
     op->add_input(*input);
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_add_output(
-        op_t *op, const logical_tensor_t *output) {
+status_t dnnl_graph_op_add_output(op_t *op, const logical_tensor_t *output) {
     if (utils::any_null(op, output)) return status::invalid_arguments;
 
     op->add_output(*output);
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_set_attr_f32(op_t *op,
-        dnnl_graph_op_attr_t name, const float *value, size_t value_len) {
+status_t dnnl_graph_op_set_attr_f32(op_t *op, dnnl_graph_op_attr_t name,
+        const float *value, size_t value_len) {
     if (utils::any_null(op, value)) return status::invalid_arguments;
 
     if (is_f(name)) {
@@ -117,8 +115,8 @@ status_t DNNL_API dnnl_graph_op_set_attr_f32(op_t *op,
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_set_attr_bool(op_t *op,
-        dnnl_graph_op_attr_t name, const uint8_t *value, size_t value_len) {
+status_t dnnl_graph_op_set_attr_bool(op_t *op, dnnl_graph_op_attr_t name,
+        const uint8_t *value, size_t value_len) {
     if (utils::any_null(op, value)) return status::invalid_arguments;
     // we don't support bool vector.
     if (value_len != 1) return status::invalid_arguments;
@@ -129,8 +127,8 @@ status_t DNNL_API dnnl_graph_op_set_attr_bool(op_t *op,
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_set_attr_s64(op_t *op,
-        dnnl_graph_op_attr_t name, const int64_t *value, size_t value_len) {
+status_t dnnl_graph_op_set_attr_s64(op_t *op, dnnl_graph_op_attr_t name,
+        const int64_t *value, size_t value_len) {
     if (utils::any_null(op, value)) return status::invalid_arguments;
 
     if (is_i(name)) {
@@ -143,8 +141,8 @@ status_t DNNL_API dnnl_graph_op_set_attr_s64(op_t *op,
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_set_attr_str(op_t *op,
-        dnnl_graph_op_attr_t name, const char *value, size_t value_len) {
+status_t dnnl_graph_op_set_attr_str(op_t *op, dnnl_graph_op_attr_t name,
+        const char *value, size_t value_len) {
     if (utils::any_null(op, value)) return status::invalid_arguments;
     if (value_len == 0) return status::invalid_arguments;
 
@@ -153,15 +151,14 @@ status_t DNNL_API dnnl_graph_op_set_attr_str(op_t *op,
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_get_id(const op_t *op, size_t *id) {
+status_t dnnl_graph_op_get_id(const op_t *op, size_t *id) {
     if (utils::any_null(op, id)) return status::invalid_arguments;
 
     *id = op->get_id();
     return status::success;
 }
 
-status_t DNNL_API dnnl_graph_op_get_kind(
-        const op_t *op, dnnl_graph_op_kind_t *kind) {
+status_t dnnl_graph_op_get_kind(const op_t *op, dnnl_graph_op_kind_t *kind) {
     if (utils::any_null(op, kind)) return status::invalid_arguments;
 
     *kind = static_cast<dnnl_graph_op_kind_t>(op->get_kind());
