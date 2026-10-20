@@ -141,7 +141,23 @@ template <typename DT>
 void Generator<hw>::eadd(const InstructionModifier &mod, const RegData &dst, const RegData &src0, const RegData &src1,
                          const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
-    if (dst.getType() == DataType::f && src0.getType() == DataType::f && src1.getType() == DataType::bf && src1.getHS() != 1) {
+    // Xe3p has specific restrictions for mixed bf16/f32 add.
+    if (hw == HW::Xe3p && dst.getType() == DataType::bf && src1.getType() == DataType::f && dst.getByteHS() != src1.getByteHS()) {
+        bool bcastSrc1 = src1.getHS() == 0 && src1.getVS() == 0;
+        int hs = dst.getHS();
+        int tmp_elems = bcastSrc1 ? 1 : mod.getExecSize() * hs;
+        auto tempRange = state.ra.alloc_range(div_up(dst.getOffset() + tmp_elems, elementsPerGRF(hw, dst.getType())));
+        auto temp = tempRange[0].sub(dst.getOffset(), dst.getType());
+        if (bcastSrc1) {
+            // A full-width mov from a broadcast f32 scalar is also broken.
+            mov(1, temp(1), src1, loc);
+            add(mod, dst, src0, temp(0, 1, 0), loc);
+        } else {
+            mov(mod, temp(hs), src1, loc);
+            add(mod, dst, src0, temp(hs), loc);
+        }
+        state.ra.safeRelease(tempRange);
+    } else if (dst.getType() == DataType::f && src0.getType() == DataType::f && src1.getType() == DataType::bf && src1.getHS() != 1) {
         GRF alloced, temp = state.emulate.temp[0];
         if (temp.isInvalid())
             temp = alloced = state.ra.alloc();
