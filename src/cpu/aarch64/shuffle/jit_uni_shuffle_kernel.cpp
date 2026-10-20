@@ -51,7 +51,7 @@ void jit_uni_shuffle_kernel_t<isa>::prepare_mask() {
     using namespace data_type;
     using namespace types;
     if (conf_.simd_tail > 0) {
-        /* Because "ST1H { <Zt>.S }, <Pg>, [<Xn|SP>, <Zm>.S, UXTW #1]" is used
+        /* Because "LD1H { <Zt>.S }, <Pg>, [<Xn|SP>, <Zm>.S, UXTW #1]" is used
 	 to gather data for bf16, simd_tail must be evaluated
 	 with sizeof(unsigned). */
         assert(conf_.simd_tail < sve_length_ / sizeof(uint32_t));
@@ -90,16 +90,23 @@ void jit_uni_shuffle_kernel_t<isa>::gather_data(const XReg &reg_src_addr,
 template <>
 void jit_uni_shuffle_kernel_t<asimd>::gather_data(const XReg &addr,
         const int indices_idx, const int data_idx, const bool is_tail) {
+    using namespace data_type;
     constexpr unsigned xmm_size_elem = 4;
-    const VReg4S v(data_idx);
+
+    const bool is_bf16 = conf_.data_type == bf16;
 
     const unsigned number_of_values_to_load
             = is_tail ? conf_.simd_tail : xmm_size_elem;
 
+    const VReg v_data(data_idx);
+
     for (unsigned j = 0; j < number_of_values_to_load; j++) {
         mov(W_TMP_0, VReg4S(indices_idx)[j]);
         add(X_DEFAULT_ADDR, addr, X_TMP_0);
-        ld1(v[j], ptr(X_DEFAULT_ADDR));
+        if (is_bf16)
+            ld1(v_data.h[j], ptr(X_DEFAULT_ADDR));
+        else
+            ld1(v_data.s[j], ptr(X_DEFAULT_ADDR));
     }
 }
 
@@ -133,15 +140,27 @@ void jit_uni_shuffle_kernel_t<isa>::store_data(const int data_idx,
 template <>
 void jit_uni_shuffle_kernel_t<asimd>::store_data(const int data_idx,
         const XReg &reg_dst_addr, const int offset, const bool is_tail) {
+    using namespace data_type;
+
+    const bool is_bf16 = conf_.data_type == bf16;
+
+    const VReg v_data(data_idx);
+
     if (is_tail) {
         for (unsigned i = 0; i < conf_.simd_tail; i++) {
             add_imm(X_DEFAULT_ADDR, reg_dst_addr, offset + i * conf_.dt_size,
                     X_TMP_0);
-            st1(VReg4S(data_idx)[i], ptr(X_DEFAULT_ADDR));
+            if (is_bf16)
+                st1(v_data.h[i], ptr(X_DEFAULT_ADDR));
+            else
+                st1(v_data.s[i], ptr(X_DEFAULT_ADDR));
         }
     } else {
         add_imm(X_DEFAULT_ADDR, reg_dst_addr, offset, X_TMP_0);
-        str(QReg(data_idx), ptr(X_DEFAULT_ADDR));
+        if (is_bf16)
+            str(DReg(data_idx), ptr(X_DEFAULT_ADDR));
+        else
+            str(QReg(data_idx), ptr(X_DEFAULT_ADDR));
     }
 
     append_zero_padding(reg_dst_, false);
@@ -195,8 +214,6 @@ void jit_uni_shuffle_kernel_t<isa>::shuffle_blocked_format() {
     Label sp_loop_begin, sp_loop_end;
     Label sp_tail_loop_begin, sp_tail_loop_end;
     Label cb_loop_begin, cb_loop_end;
-    Label simd_loop_begin, simd_loop_end;
-    Label blk_tail_loop_begin, blk_tail_loop_end;
     Label blk_tail_check_end;
     Label no_tail;
 
