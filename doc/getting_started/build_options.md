@@ -333,11 +333,13 @@ of GEMM operations. The following options are supported:
 | ONEDNN_ENABLE_CPU_ISA_HINTS       | **ON**  | OFF              | Enables [CPU ISA hints](@ref dev_guide_cpu_isa_hints)                                          |
 | [ONEDNN_SAFE_RBP]                 | **OFF** | ON               | Enables restriction for JIT kernels to pollute RBP vector register content                     |
 | [ONEDNN_X64_USE_ZEN]              | **OFF** | ON               | Enables integration with the ZenDNN library for AMD (Zen) CPUs                                  |
+| [ONEDNN_ZENDNN_SOURCE]            | **ZenDNN release** | \<absolute path\>, \<url\>@\<tag\> | ZenDNN source to build when no ZenDNN package is found           |
 
 [ONEDNN_ENABLE_PRIMITIVE_CPU_ISA]: @ref opt_enable_primitive_cpu_isa
 [ONEDNN_ENABLE_GEMM_KERNELS_ISA]: @ref opt_enable_gemm_kernels_isa
 [ONEDNN_SAFE_RBP]: @ref opt_safe_rbp
 [ONEDNN_X64_USE_ZEN]: @ref opt_x64_use_zen
+[ONEDNN_ZENDNN_SOURCE]: @ref opt_zendnn_source
 
 @anchor opt_enable_primitive_cpu_isa
 #### ONEDNN_ENABLE_PRIMITIVE_CPU_ISA
@@ -394,13 +396,10 @@ $ cmake -DONEDNN_X64_USE_ZEN=ON ..
 When enabled, oneDNN looks for ZenDNN in this order:
 1. An installed ZenDNN package, found through `ZENDNNROOT` (CMake variable or
    environment variable) or the default CMake package search paths.
-2. The ZenDNN source tree at `ZENDNN_SOURCE_DIR`, built from source.
-3. A download into the build directory from `ONEDNN_ZENDNN_FETCH_URL` at
-   `ONEDNN_ZENDNN_FETCH_TAG`, built from source. The default URL is
-   `https://github.com/amd/ZenDNN.git`, and the default
-   `ONEDNN_ZENDNN_FETCH_TAG` is a ZenDNN release tag.
+2. The source given by [ONEDNN_ZENDNN_SOURCE](@ref opt_zendnn_source), built
+   from source. By default this downloads a ZenDNN release.
 
-If a package is found, `ZENDNN_SOURCE_DIR` is ignored; configure with
+If a package is found, `ONEDNN_ZENDNN_SOURCE` is ignored; configure with
 `-DCMAKE_DISABLE_FIND_PACKAGE_zendnnl=ON` to build from source anyway. Both
 static (archive) and shared ZenDNN packages are supported. A source build
 links the resulting static archive (`zendnnl::zendnnl_archive`).
@@ -411,10 +410,7 @@ ZenDNN is compiled as an external project through
 oneDNN. The first build in a build directory also downloads ZenDNN's own
 dependencies (AOCL-DLP, AOCL-Utils, and nlohmann-json), so it needs network
 access even when the ZenDNN source is already in place. Later builds in the
-same build directory reuse them. Changing `ZENDNN_SOURCE_DIR`,
-`ONEDNN_ZENDNN_FETCH_URL`, or `ONEDNN_ZENDNN_FETCH_TAG` rebuilds ZenDNN.
-Edits inside an existing `ZENDNN_SOURCE_DIR` tree are not picked up; use a
-clean build directory after changing it.
+same build directory reuse them.
 
 When `ONEDNN_X64_USE_ZEN=ON`, the following additional requirements apply
 (they do not affect the default `OFF` build):
@@ -427,6 +423,28 @@ When `ONEDNN_X64_USE_ZEN=ON`, the following additional requirements apply
   declaration in the ZenDNN `CMakeLists.txt`.
 * Requires `ONEDNN_CPU_RUNTIME=OMP`; ZenDNN only supports the OpenMP threading
   runtime, and other runtimes are rejected at configure time.
+
+@anchor opt_zendnn_source
+#### ONEDNN_ZENDNN_SOURCE
+
+This option selects the ZenDNN source that oneDNN builds when
+`ONEDNN_X64_USE_ZEN=ON` and no ZenDNN package is found. It takes one of:
+* An absolute path to a ZenDNN source tree, which is used in place.
+* `<git url>@<tag or commit>`, which is cloned into the build directory. The
+  value is split at the last `@`.
+
+The default is `https://github.com/amd/ZenDNN.git@v6.1.1`, the ZenDNN release
+this version of oneDNN is tested with.
+
+~~~sh
+$ cmake -DONEDNN_X64_USE_ZEN=ON -DONEDNN_ZENDNN_SOURCE=/path/to/ZenDNN ..
+$ cmake -DONEDNN_X64_USE_ZEN=ON \
+    -DONEDNN_ZENDNN_SOURCE=https://github.com/amd/ZenDNN.git@<tag> ..
+~~~
+
+Changing `ONEDNN_ZENDNN_SOURCE` in an existing build directory rebuilds
+ZenDNN. Edits inside an existing local source tree are not picked up; use a
+clean build directory after changing it.
 
 [ZenDNN]: https://github.com/amd/ZenDNN
 
