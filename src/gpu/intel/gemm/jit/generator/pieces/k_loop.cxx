@@ -1020,20 +1020,40 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
 
     auto reqRepackB = every(kb_loadMain)
                     | variants(B_copies);
-    auto reqRepackBRem = every(kb_loadRem)
+    auto reqRepackBRem = every(std::min(kb_loadRem, kb_repackRem))
                        | variants(B_copies);
     bool convertB = (Tb != Tb_load) && (Tb.bits() == Tb_load.bits());
     bool scheduleRepackB = state.repackB || state.repackBRem || convertB || dequantizeB;
 
     auto doRepackB = [&](RegisterLayout &layout, GRFMultirange &regs, bool repackB, int h, int k_load, int k_repack) {
+        auto sublayout = layout;
+        auto Br_sublayout = state.Br_layout;
+        bool signedShift = true;
+
+        // Partial repacks (k_repack < k_load) are placed at their full position in Br.
+        if (repackB && k_repack > 0 && k_repack < k_load) {
+            int hb = h % k_load;
+            auto layoutCopy = layout, Br_layoutCopy = Br_sublayout;
+            layoutCopy.unlinkFromMemory();
+            Br_layoutCopy.unlinkFromMemory();
+            sublayout = layoutCopy.slice(false, hb, hb + k_repack, false);
+            Br_sublayout = Br_layoutCopy.slice(false, hb, hb + k_repack, false);
+
+            // Sub-byte data is shifted in place, so shift it only once per load.
+            if (dequantizeB && canDequantizeSubByteInt(layout, state.Br_layout, {}, {})) {
+                if (hb == 0) dequantizeSubByteIntShift(Tb_load, regs, strategy);
+                signedShift = false;
+            }
+        }
+
         k_repack = std::max(k_repack, 1);
         int hbr = h % k_repack;
 
         if (dequantizeB)
-            gemmDequantizeAB(false, layout, state.Br_layout, regs, state.Br_regs, h, k_load, k_repack, kbq_load, problem, strategy, state);
+            gemmDequantizeAB(false, sublayout, Br_sublayout, regs, state.Br_regs, h, k_load, k_repack, kbq_load, problem, strategy, state, signedShift);
         else
         if (repackB)
-            copyRegisters(layout, state.Br_layout, regs, state.Br_regs, hbr, 0, false, strategy, state);
+            copyRegisters(sublayout, Br_sublayout, regs, state.Br_regs, hbr, 0, false, strategy, state);
         else if (convertB)
             convert(regs, Tb_load, Tb, strategy, state);
     };
