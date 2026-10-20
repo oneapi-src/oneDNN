@@ -14,3 +14,9 @@
 --brgemm-attr=use_uker:1+var_bs:1
 64x64:64x64
 
+# uker per-N dst zero point: an N tail after a full block read the zero
+# points at the tail size offset instead of the block position.
+--reset --dt=u8:s8:f32,s8:s8:u8
+--attr-zero-points=dst:per_dim_1
+--brgemm-attr=use_uker:1
+16x64:64x19 32x64:64x35
