@@ -106,42 +106,45 @@ if(zendnnl_FOUND)
             "Update ZenDNN, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
     endif()
     message(STATUS "Found ZenDNN ${zendnnl_VERSION}: ${zendnnl_DIR}")
-    if(ZENDNN_SOURCE_DIR)
-        message(STATUS "ZENDNN_SOURCE_DIR is ignored because a ZenDNN package "
+    if(NOT ONEDNN_ZENDNN_SOURCE STREQUAL "${ZENDNN_RELEASE_URL}@${ZENDNN_RELEASE_TAG}")
+        message(STATUS "ONEDNN_ZENDNN_SOURCE is ignored because a ZenDNN package "
             "was found. Set CMAKE_DISABLE_FIND_PACKAGE_zendnnl=ON to build from it.")
     endif()
 else()
-    # Source: user ZENDNN_SOURCE_DIR, else fetch into the build directory.
-    # Distinct from ZENDNNL_BINARY_DIR.
-    if(ZENDNN_SOURCE_DIR)
-        set(_zendnn_source_id "${ZENDNN_SOURCE_DIR}")
-    else()
-        set(_zendnn_source_id "${ONEDNN_ZENDNN_FETCH_URL}@${ONEDNN_ZENDNN_FETCH_TAG}")
-    endif()
-    if(NOT ZENDNN_SOURCE_DIR)
-        # Always go through FetchContent so a changed FETCH_TAG updates an
-        # existing checkout. SOURCE_SUBDIR has no CMakeLists.txt, so
-        # MakeAvailable only populates; the build is the fwk ExternalProject.
-        message(STATUS "Fetching ZenDNN from ${ONEDNN_ZENDNN_FETCH_URL} (${ONEDNN_ZENDNN_FETCH_TAG})")
+    # ONEDNN_ZENDNN_SOURCE is a local source tree or <url>@<tag>, split at the
+    # last '@'. Git refs cannot contain ':', which rejects a bare SSH URL.
+    if(IS_ABSOLUTE "${ONEDNN_ZENDNN_SOURCE}" AND IS_DIRECTORY "${ONEDNN_ZENDNN_SOURCE}")
+        set(_zendnn_source_dir "${ONEDNN_ZENDNN_SOURCE}")
+    elseif(ONEDNN_ZENDNN_SOURCE MATCHES "^(.+)@([^@:]+)$")
+        set(_zendnn_fetch_url "${CMAKE_MATCH_1}")
+        set(_zendnn_fetch_tag "${CMAKE_MATCH_2}")
+        # Always go through FetchContent so a changed tag updates an existing
+        # checkout. SOURCE_SUBDIR has no CMakeLists.txt, so MakeAvailable only
+        # populates; the build is the fwk ExternalProject.
+        message(STATUS "Fetching ZenDNN from ${_zendnn_fetch_url} (${_zendnn_fetch_tag})")
         include(FetchContent)
         FetchContent_Declare(ZenDNN
-            GIT_REPOSITORY ${ONEDNN_ZENDNN_FETCH_URL}
-            GIT_TAG        ${ONEDNN_ZENDNN_FETCH_TAG}
-            SOURCE_DIR     "${PROJECT_BINARY_DIR}/third_party/ZenDNN-src"
+            GIT_REPOSITORY ${_zendnn_fetch_url}
+            GIT_TAG        ${_zendnn_fetch_tag}
+            SOURCE_DIR     "${PROJECT_BINARY_DIR}/ZenDNN-src"
             SOURCE_SUBDIR  "not-available"
         )
         FetchContent_MakeAvailable(ZenDNN)
-        FetchContent_GetProperties(ZenDNN SOURCE_DIR ZENDNN_SOURCE_DIR)
+        FetchContent_GetProperties(ZenDNN SOURCE_DIR _zendnn_source_dir)
+    else()
+        message(FATAL_ERROR
+            "ONEDNN_ZENDNN_SOURCE=${ONEDNN_ZENDNN_SOURCE} is neither an absolute "
+            "path to an existing directory nor <git url>@<tag or commit>.")
     endif()
 
-    if(NOT EXISTS "${ZENDNN_SOURCE_DIR}/fwk/ZenDnnlFwkIntegrate.cmake")
+    if(NOT EXISTS "${_zendnn_source_dir}/fwk/ZenDnnlFwkIntegrate.cmake")
         message(FATAL_ERROR
             "ZenDNN framework integration script not found at "
-            "${ZENDNN_SOURCE_DIR}/fwk/ZenDnnlFwkIntegrate.cmake. "
+            "${_zendnn_source_dir}/fwk/ZenDnnlFwkIntegrate.cmake. "
             "Ensure ZenDNN source is complete and up-to-date.")
     endif()
 
-    file(READ "${ZENDNN_SOURCE_DIR}/CMakeLists.txt" ZENDNN_CMAKE_CONTENT)
+    file(READ "${_zendnn_source_dir}/CMakeLists.txt" ZENDNN_CMAKE_CONTENT)
     string(TOUPPER "${ZENDNN_CMAKE_CONTENT}" ZENDNN_CMAKE_CONTENT_UPPER)
     string(REGEX MATCH "PROJECT\\([^)]*VERSION[ \t]+([0-9]+\\.[0-9]+\\.[0-9]+)"
            ZENDNN_VERSION_MATCH "${ZENDNN_CMAKE_CONTENT_UPPER}")
@@ -154,31 +157,31 @@ else()
     if(NOT DEFINED zendnnl_VERSION OR zendnnl_VERSION STREQUAL "")
         message(FATAL_ERROR
             "ONEDNN_X64_USE_ZEN=ON requires ZenDNN >= ${ZENDNN_MIN_VERSION}, but the "
-            "ZenDNN source at ${ZENDNN_SOURCE_DIR} did not report a version. Use a "
+            "ZenDNN source at ${_zendnn_source_dir} did not report a version. Use a "
             "ZenDNN source that provides version information, or configure with "
             "-DONEDNN_X64_USE_ZEN=OFF.")
     elseif("${zendnnl_VERSION}" VERSION_LESS "${ZENDNN_MIN_VERSION}")
         message(FATAL_ERROR
             "ONEDNN_X64_USE_ZEN=ON requires ZenDNN >= ${ZENDNN_MIN_VERSION}. "
-            "Found ZenDNN ${zendnnl_VERSION} at ${ZENDNN_SOURCE_DIR}. "
+            "Found ZenDNN ${zendnnl_VERSION} at ${_zendnn_source_dir}. "
             "Update ZenDNN, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
     endif()
 
-    message(STATUS "Using ZenDNN source at: ${ZENDNN_SOURCE_DIR}")
+    message(STATUS "Using ZenDNN source at: ${_zendnn_source_dir}")
     message(STATUS "Found ZenDNN version: ${zendnnl_VERSION}")
 
-    set(ZENDNNL_SOURCE_DIR "${ZENDNN_SOURCE_DIR}" CACHE PATH "ZenDNN source directory" FORCE)
-    set(ZENDNNL_BINARY_DIR "${PROJECT_BINARY_DIR}/third_party/ZenDNN" CACHE PATH "ZenDNN build directory" FORCE)
-    set(ZENDNNL_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/zendnn_install" CACHE PATH "ZenDNN install prefix" FORCE)
+    set(ZENDNNL_SOURCE_DIR "${_zendnn_source_dir}" CACHE PATH "ZenDNN source directory" FORCE)
+    set(ZENDNNL_BINARY_DIR "${PROJECT_BINARY_DIR}/ZenDNN-build" CACHE PATH "ZenDNN build directory" FORCE)
+    set(ZENDNNL_INSTALL_PREFIX "${PROJECT_BINARY_DIR}/ZenDNN-install" CACHE PATH "ZenDNN install prefix" FORCE)
 
     # The fwk reuses an existing install in ZENDNNL_INSTALL_PREFIX without
     # rebuilding, so drop it and the build state when the source changes.
-    if(DEFINED _ZENDNN_SOURCE_ID AND NOT "${_ZENDNN_SOURCE_ID}" STREQUAL "${_zendnn_source_id}")
+    if(DEFINED _ZENDNN_SOURCE_ID AND NOT "${_ZENDNN_SOURCE_ID}" STREQUAL "${ONEDNN_ZENDNN_SOURCE}")
         message(STATUS "ZenDNN source changed, rebuilding ZenDNN")
         file(REMOVE_RECURSE "${ZENDNNL_BINARY_DIR}" "${ZENDNNL_INSTALL_PREFIX}"
             "${CMAKE_CURRENT_BINARY_DIR}/fwk_zendnnl-prefix")
     endif()
-    set(_ZENDNN_SOURCE_ID "${_zendnn_source_id}" CACHE INTERNAL "")
+    set(_ZENDNN_SOURCE_ID "${ONEDNN_ZENDNN_SOURCE}" CACHE INTERNAL "")
 
     set(ZENDNNL_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING "ZenDNN build type" FORCE)
     set(ZENDNNL_C_FLAGS "${CMAKE_C_FLAGS}" CACHE STRING "C compiler flags for ZenDNN" FORCE)
@@ -191,8 +194,8 @@ else()
     set(ZENDNNL_DEPENDS_PARLOOPER OFF CACHE BOOL "ZenDNN depends on parlooper" FORCE)
     set(ZENDNNL_DEPENDS_FBGEMM OFF CACHE BOOL "ZenDNN depends on FBGEMM" FORCE)
 
-    include("${ZENDNN_SOURCE_DIR}/fwk/ZenDnnlFwkIntegrate.cmake")
-    message(STATUS "Found ZenDNN framework integration at ${ZENDNN_SOURCE_DIR}")
+    include("${_zendnn_source_dir}/fwk/ZenDnnlFwkIntegrate.cmake")
+    message(STATUS "Found ZenDNN framework integration at ${_zendnn_source_dir}")
     message(STATUS "ZenDNN will be built via ExternalProject at ${ZENDNNL_BINARY_DIR}")
     message(STATUS "ZenDNN dependencies: AOCL-DLP=ON, oneDNN=OFF (avoid circular dep), LibXSMM=OFF, parlooper=OFF, FBGEMM=OFF")
 endif()
@@ -216,6 +219,17 @@ endfunction()
 function(target_link_zendnnl target visibility)
     zendnn_resolve_target(_zendnnl_target)
     target_link_libraries(${target} ${visibility} ${_zendnnl_target})
+
+    # Keep ZenDNN and AOCL symbols out of the dynamic symbol table. A static
+    # oneDNN passes the option on to the library that links it.
+    set(_zendnn_exclude_libs
+        "LINKER:--exclude-libs,libzendnnl_archive.a:libaocl-dlp.a:libaoclutils.a:libau_cpuid.a")
+    get_target_property(_target_type ${target} TYPE)
+    if(_target_type STREQUAL "SHARED_LIBRARY")
+        target_link_options(${target} PRIVATE ${_zendnn_exclude_libs})
+    elseif(_target_type STREQUAL "STATIC_LIBRARY")
+        target_link_options(${target} INTERFACE ${_zendnn_exclude_libs})
+    endif()
 
     # Ensure target waits for ZenDNN ExternalProject to complete
     if(TARGET fwk_zendnnl)

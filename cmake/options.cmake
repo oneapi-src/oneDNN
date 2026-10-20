@@ -379,12 +379,12 @@ onednn_option(X64_USE_ZEN OFF
 set(ZENDNNROOT "" CACHE STRING "Path to ZenDNN installation root")
 
 if(DNNL_X64_USE_ZEN)
-    set(ZENDNN_SOURCE_DIR "" CACHE PATH
-        "ZenDNN source tree. Empty: fetch into the build directory.")
-    set(ONEDNN_ZENDNN_FETCH_URL "https://github.com/amd/ZenDNN.git"
-        CACHE STRING "URL for FetchContent ZenDNN download")
-    set(ONEDNN_ZENDNN_FETCH_TAG "v6.1.1"
-        CACHE STRING "Git tag or commit for FetchContent ZenDNN download")
+    set(ZENDNN_RELEASE_URL "https://github.com/amd/ZenDNN.git")
+    set(ZENDNN_RELEASE_TAG "v6.1.1")
+    onednn_option(ZENDNN_SOURCE "${ZENDNN_RELEASE_URL}@${ZENDNN_RELEASE_TAG}"
+        "ZenDNN source to build when no ZenDNN package is found: an absolute
+        path to a ZenDNN source tree, or <git url>@<tag or commit> to fetch
+        into the build directory.")
 endif()
 
 # -------------------
