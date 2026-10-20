@@ -122,6 +122,10 @@ bool primitive_attr_t::has_default_values(dnnl_primitive_attr::skip_mask_t mask,
             zero_points_.has_default_groups()));
     CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::zero_points_data_type),
             zero_points_.has_default_data_type()));
+    CHECK_ARG(IMPLICATION((bool)(~mask & smask_t::static_sbzp),
+            !scales_.has_quantization_mode(quantization_mode::static_sbzp)
+                    && !zero_points_.has_quantization_mode(
+                            quantization_mode::static_sbzp)));
     CHECK_MASK(smask_t::precomputed_reductions, precomputed_reductions_);
     CHECK_MASK(smask_t::post_ops, post_ops_);
     CHECK_MASK(smask_t::rnn_data_qparams, rnn_data_qparams_);
@@ -674,11 +678,17 @@ status_t dnnl_primitive_attr_set_scales_v3(primitive_attr_t *attr, int arg,
     VCHECK_ATTR(attr, VERBOSE_NULL_ARG);
     VCHECK_ATTR(arg >= 0, VERBOSE_BAD_PARAM, "arg");
     VCHECK_ATTR(utils::one_of(qmode, quantization_mode::static_sazp,
+                        quantization_mode::static_sbzp,
                         quantization_mode::dynamic_mx,
                         quantization_mode::dynamic_fp),
             VERBOSE_BAD_PARAM, "qmode");
     VCHECK_ATTR(utils::one_of(data_type, f32, bf16, f16, e8m0, f8_e4m3),
             VERBOSE_INVALID_DATATYPE, "scales");
+    // static_sbzp scales: f16 or bf16, on weights only.
+    VCHECK_ATTR(IMPLICATION(qmode == quantization_mode::static_sbzp,
+                        arg == DNNL_ARG_WEIGHTS && !is_on_host
+                                && utils::one_of(data_type, bf16, f16)),
+            VERBOSE_BAD_PARAM, "qmode");
     // A single low-precision scale is not expected as they work per group.
     VCHECK_ATTR(IMPLICATION(utils::one_of(data_type, e8m0, f8_e4m3), mask > 0),
             VERBOSE_INVALID_DATATYPE, "scales");
@@ -717,11 +727,27 @@ status_t dnnl_primitive_attr_set_zero_points(dnnl_primitive_attr_t attr,
 status_t dnnl_primitive_attr_set_zero_points_v2(dnnl_primitive_attr_t attr,
         int arg, int mask, int group_ndims, const dnnl_dims_t group_dims,
         dnnl_data_type_t data_type, int is_on_host) {
+    return dnnl_primitive_attr_set_zero_points_v3(attr, arg, mask, group_ndims,
+            group_dims, data_type, is_on_host, quantization_mode::static_sazp);
+}
+
+status_t dnnl_primitive_attr_set_zero_points_v3(dnnl_primitive_attr_t attr,
+        int arg, int mask, int group_ndims, const dnnl_dims_t group_dims,
+        dnnl_data_type_t data_type, int is_on_host,
+        dnnl_quantization_mode_t qmode) {
     using namespace data_type;
 
     VCHECK_ATTR(attr, VERBOSE_NULL_ARG);
     VCHECK_ATTR(arg >= 0, VERBOSE_BAD_PARAM, "arg");
-    VCHECK_ATTR(utils::one_of(data_type, s32, s8, u8, s4, u4, u2),
+    VCHECK_ATTR(utils::one_of(qmode, quantization_mode::static_sazp,
+                        quantization_mode::static_sbzp),
+            VERBOSE_BAD_PARAM, "qmode");
+    // static_sbzp zero-points are scaled values: f16 or bf16, on weights only.
+    const bool sbzp = qmode == quantization_mode::static_sbzp;
+    VCHECK_ATTR(IMPLICATION(sbzp, arg == DNNL_ARG_WEIGHTS && !is_on_host),
+            VERBOSE_BAD_PARAM, "qmode");
+    VCHECK_ATTR(sbzp ? utils::one_of(data_type, bf16, f16)
+                     : utils::one_of(data_type, s32, s8, u8, s4, u4, u2),
             VERBOSE_INVALID_DATATYPE, "zero points");
     VCHECK_ATTR(IMPLICATION(utils::one_of(data_type, s4, u4, u2), mask > 0),
             VERBOSE_BAD_PARAM, "mask with sub-byte data type");
@@ -745,7 +771,7 @@ status_t dnnl_primitive_attr_set_zero_points_v2(dnnl_primitive_attr_t attr,
         VCHECK_ATTR(IMPLICATION(group_ndims > 0, mask > 0), VERBOSE_BAD_PARAM,
                 "mask incompatible with group_dims");
         return attr->zero_points_.set(
-                arg, mask, data_type, group_ndims, group_dims);
+                arg, mask, data_type, group_ndims, group_dims, false, qmode);
     }
 }
 

@@ -196,10 +196,13 @@ class Converter(metaclass=ConverterMeta):
                 result += f":{def_value}"
             dt = param.data_type
             groups = param.groups
-            if dt != def_type or groups:
+            sbzp = param.quantization_mode == "static_sbzp"
+            if dt != def_type or groups or sbzp:
                 result += f":{dt}"
             if groups:
                 result += f":{groups}"
+            if sbzp:
+                result += ":static_sbzp"
             results.append(result)
         return "+".join(results)
 

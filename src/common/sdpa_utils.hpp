@@ -181,6 +181,17 @@ static inline status_t sdpa_attr_check(const memory_desc_t *q_desc,
         return status::success;
     }
 
+    // Scales applied before zero-points (static_sbzp) are supported for
+    // matmul weights decompression only.
+    for (const auto *a : {attr, kq_attr, vs_attr}) {
+        if (!a) continue;
+        VCHECK_SDPA_UNIMPL(!a->scales_.has_quantization_mode(
+                                   quantization_mode::static_sbzp)
+                        && !a->zero_points_.has_quantization_mode(
+                                quantization_mode::static_sbzp),
+                VERBOSE_UNSUPPORTED_ATTR);
+    }
+
     using namespace dnnl::impl::data_type;
     if (kq_attr && !kq_attr->has_default_values()) {
         const auto &sc = kq_attr->scales_;

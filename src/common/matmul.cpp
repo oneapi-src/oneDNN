@@ -296,6 +296,8 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         attr_mask |= smask_t::zero_points_groups;
         attr_mask |= smask_t::scales_groups;
     }
+    // static_sbzp: weights decompression only, checked below.
+    if (wei_is_int) attr_mask |= smask_t::static_sbzp;
 
     const bool dst_is_int = types::is_integral_dt(dst_dt);
     const bool dst_is_fp8
@@ -611,6 +613,73 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
         VCHECK_MATMUL_UNIMPL(IMPLICATION(src_zp_group_k > 1,
                                      src_is_int8 && groups_are_divisible),
                 VERBOSE_UNSUPPORTED_ZP_CFG);
+    }
+
+    // Check static_sbzp: weights scales and zero-points with the same groups.
+    {
+        const auto &wei_sc = attr->scales_.get(DNNL_ARG_WEIGHTS);
+        const auto &wei_zp = attr->zero_points_.get(DNNL_ARG_WEIGHTS);
+        const bool wei_sc_sbzp = !wei_sc.has_default_values()
+                && wei_sc.get_quantization_mode()
+                        == quantization_mode::static_sbzp;
+        const bool wei_zp_sbzp = !wei_zp.has_default_values()
+                && wei_zp.get_quantization_mode()
+                        == quantization_mode::static_sbzp;
+        if (wei_sc_sbzp || wei_zp_sbzp) {
+            using namespace data_type;
+            // Both scales and zero-points must be set with the mode.
+            VCHECK_MATMUL_UNIMPL(wei_sc_sbzp && wei_zp_sbzp,
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "weights scales and zero-points with different "
+                    "quantization modes");
+            VCHECK_MATMUL_UNIMPL(utils::one_of(wei_dt, u4, s4, u8),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VCHECK_MATMUL_UNIMPL(utils::one_of(src_dt, f16, bf16),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VCHECK_MATMUL_UNIMPL(utils::one_of(dst_dt, f16, bf16, f32),
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            // Scales and zero-points have the activations' data type.
+            VCHECK_MATMUL_UNIMPL(wei_sc.get_data_type() == src_dt
+                            && wei_zp.get_data_type() == src_dt,
+                    VERBOSE_UNSUPPORTED_DT_CFG);
+            VCHECK_MATMUL_UNIMPL(attr->fpmath_.apply_to_int_,
+                    VERBOSE_UNSUPPORTED_FEATURE,
+                    "static_sbzp without weights decompression");
+
+            // Grouped along K, one value per N, the same groups for scales
+            // and zero-points. The mask may also cover batch dimensions of
+            // size 1 (e.g. 3D weights 1xKxN with a full-tensor mask).
+            const int wei_qmask_KN = wei_qmask_K | wei_qmask_N;
+            const auto &sbzp_mask_ok = [&](int mask) {
+                if ((mask & wei_qmask_KN) != wei_qmask_KN) return false;
+                for (int d = 0; d < ndims_wei - 2; d++)
+                    if ((mask & (1 << d)) && desc.weights_desc.dims[d] != 1)
+                        return false;
+                return mask_fits_ndims(mask, ndims_wei);
+            };
+            VCHECK_MATMUL_UNIMPL(sbzp_mask_ok(wei_sc.get_mask())
+                            && sbzp_mask_ok(wei_zp.get_mask()),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+            VCHECK_MATMUL_UNIMPL(!wei_sc.has_default_groups()
+                            && !wei_zp.has_default_groups(),
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+            // At least two groups along K: a single group is a per-channel
+            // scale, which is applied after the reduction.
+            const dim_t group_k = wei_sc.get_group(0);
+            VCHECK_MATMUL_UNIMPL(group_k > 1 && group_k < K && K % group_k == 0
+                            && wei_sc.get_group(1) == 1
+                            && wei_zp.get_group(0) == group_k
+                            && wei_zp.get_group(1) == 1,
+                    VERBOSE_UNSUPPORTED_ZP_CFG);
+
+            // No source quantization: this is weights decompression.
+            VCHECK_MATMUL_UNIMPL(attr->scales_.has_default_values(DNNL_ARG_SRC)
+                            && attr->zero_points_.has_default_values(
+                                    DNNL_ARG_SRC)
+                            && attr->precomputed_reductions_
+                                       .has_default_values(),
+                    VERBOSE_UNSUPPORTED_ATTR);
+        }
     }
 
     // Check precomputed reductions

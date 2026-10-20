@@ -165,6 +165,16 @@ The `mask` and `groups` parameters for scales and zero-points follow the
 conventions described in the
 [quantization guide](@ref dgaq_constructing_mask_and_groups).
 
+For weights decompression, weights scales and zero-points can use the
+`static_sbzp` quantization mode, where the floating-point zero-point is
+subtracted after the scale is applied (see the
+[quantization guide](@ref dev_guide_attributes_quantization)). It is supported
+for `u4`, `s4` and `u8` weights with `f16` or `bf16` source, an `f16`, `bf16`
+or `f32` destination, scales and zero-points of the source data type, and at
+least two groups along K
+shared by the scales and zero-points (`mask = (1 << ndims - 2) | (1 << ndims - 1)`,
+`groups = {G, 1}`).
+
 Scales, zero-points, and dropout require additional memory arguments at
 execution time. See the
 [quantization guide](@ref dgaq_execution) and the

@@ -8,9 +8,9 @@
     --attr-rounding-mode=ARG:MODE[+...]
     --attr-deterministic=BOOL
     --attr-dropout=PROBABILITY[:SEED[:TAG[:OFFSET[:HOST_SCALARS]]]]
-    --attr-scales=ARG:MASK_INPUT[:SCALE[:DATA_TYPE]][+...]
+    --attr-scales=ARG:MASK_INPUT[:SCALE[:DATA_TYPE[:GROUPS][:QMODE]]][+...]
                   ARG:MASK_INPUT[:DATA_TYPE[:GROUPS]][+...]
-    --attr-zero-points=ARG:MASK_INPUT[:ZEROPOINT[:DATA_TYPE]][+...]
+    --attr-zero-points=ARG:MASK_INPUT[:ZEROPOINT[:DATA_TYPE[:GROUPS][:QMODE]]][+...]
                        ARG:MASK_INPUT[:DATA_TYPE[:GROUPS]][+...]
     --attr-precomputed-reductions=ARG:MASK_INPUT:DATA_TYPE:GROUPS[+...]
     --attr-post-ops=SUM[:SCALE[:ZERO_POINT[:DATA_TYPE]]]
@@ -183,10 +183,18 @@ specifies an integer value which is passed for execution at runtime. Specifying
 a value for any other policies will trigger an error.
 
 `DATA_TYPE` specifies data type for zero points. Supported values are
-`s32` (the default), `s8`, `u8`, `s4`, `u4`.
+`s32` (the default), `s8`, `u8`, `s4`, `u4`, and `f16`, `bf16` with the
+`static_sbzp` quantization mode.
 
 `GROUPS` specifies how zero points are grouped along dimensions where multiple
 zero points are used.
+
+`QMODE` specifies the quantization mode. The only supported value is
+`static_sbzp` (scales applied before zero points, `x = scale * q - zp`), set on
+both the scales and the zero points of the weights, for example:
+`--attr-scales=wei:per_ocic:f16:32x1:static_sbzp
+--attr-zero-points=wei:per_ocic:f16:32x1:static_sbzp`. When not specified, the
+zero point is subtracted before the scale is applied (`static_sazp`).
 
 To specify more than one memory argument for this attribute, `+` delimiter is
 used.

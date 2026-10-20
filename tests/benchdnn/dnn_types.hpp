@@ -121,6 +121,8 @@ struct attr_t {
             std::vector<dnnl_dim_t> groups;
             int64_t mask = INT_MIN;
             mask_input_t mask_input = mask_input_t::none;
+            // The zero-point is applied after the scale (static_sbzp).
+            bool sbzp = false;
         };
 
         int from_str(const std::string &s);
@@ -259,6 +261,8 @@ struct attr_t {
             std::vector<dnnl_dim_t> groups;
             int64_t mask = INT_MIN;
             mask_input_t mask_input = mask_input_t::none;
+            // The scale is applied before the zero-point (static_sbzp).
+            bool sbzp = false;
         };
 
         void set(int arg, const entry_t &scale) { scales[arg] = scale; }

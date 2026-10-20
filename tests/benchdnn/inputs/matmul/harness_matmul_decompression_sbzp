@@ -1,0 +1,56 @@
+# Weights decompression with scales applied before zero-points
+# (static_sbzp): W = W_int * scale - zp, with floating-point scales and
+# zero-points grouped along K and sharing the same groups.
+# f16: GGUF K-quants (llama.cpp, OpenVINO); bf16: PyTorch int4 weight-only
+# quantization (uint4 values with an implicit -8 map to s4 weights).
+
+## f16
+--reset
+--dt=f16:u4:f16,f16:s4:f16,f16:u8:f16
+--wtag=ab,ba,any
+--attr-fpmath=f16:true
+--attr-scales=wei:per_ocic:f16:32x1:static_sbzp
+--attr-zero-points=wei:per_ocic:f16:32x1:static_sbzp
+1x512:512x256 8x512:512x256 128x1024:1024x512 512x2048:2048x128
+--attr-scales=wei:per_ocic:f16:64x1:static_sbzp
+--attr-zero-points=wei:per_ocic:f16:64x1:static_sbzp
+1x512:512x256 128x1024:1024x512
+--attr-scales=wei:per_ocic:f16:128x1:static_sbzp
+--attr-zero-points=wei:per_ocic:f16:128x1:static_sbzp
+1x1024:1024x256 128x1024:1024x512
+--attr-scales=wei:per_ocic:f16:256x1:static_sbzp
+--attr-zero-points=wei:per_ocic:f16:256x1:static_sbzp
+1x1024:1024x256 128x1024:1024x512
+
+## bf16
+--reset
+--dt=bf16:u4:bf16,bf16:s4:bf16,bf16:u8:bf16
+--wtag=ab,ba,any
+--attr-fpmath=bf16:true
+--attr-scales=wei:per_ocic:bf16:32x1:static_sbzp
+--attr-zero-points=wei:per_ocic:bf16:32x1:static_sbzp
+1x512:512x256 8x512:512x256 128x1024:1024x512
+--attr-scales=wei:per_ocic:bf16:128x1:static_sbzp
+--attr-zero-points=wei:per_ocic:bf16:128x1:static_sbzp
+1x1024:1024x256 128x1024:1024x512
+--attr-scales=wei:per_ocic:bf16:256x1:static_sbzp
+--attr-zero-points=wei:per_ocic:bf16:256x1:static_sbzp
+1x1024:1024x256 128x1024:1024x512
+
+## f16 activations with an f32 destination and a post-op
+--reset
+--dt=f16:u4:f32
+--attr-fpmath=f16:true
+--attr-scales=wei:per_ocic:f16:32x1:static_sbzp
+--attr-zero-points=wei:per_ocic:f16:32x1:static_sbzp
+--attr-post-ops=,eltwise_swish:1.0,binary_add:f32:per_oc
+8x512:512x256 128x1024:1024x512
+
+## 3D weights with a size-1 batch dimension and a full-tensor mask (OpenVINO
+## fully connected layers with 3D inputs)
+--reset
+--dt=f16:u4:f16,f16:u8:f16
+--attr-fpmath=f16:true
+--attr-scales=wei:per_tensor:f16:32x1:static_sbzp
+--attr-zero-points=wei:per_tensor:f16:32x1:static_sbzp
+1x1x512:1x512x256 1x8x512:1x512x256 1x128x1024:1x1024x512

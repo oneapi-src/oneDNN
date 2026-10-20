@@ -300,6 +300,22 @@ int parse_value_and_runtime(float &value, const std::string &s) {
         SAFE_V(FAIL); \
     }
 
+// The static_sbzp quantization mode of scales and zero-points.
+static bool is_sbzp_str(const std::string &s) {
+    return s == "static_sbzp" || s == "sbzp";
+}
+
+static int parse_sbzp(const std::string &s, bool &sbzp) {
+    if (!is_sbzp_str(s)) {
+        BENCHDNN_PRINT(0,
+                "Error: quantization mode \'%s\' was not recognized.\n",
+                s.c_str());
+        return FAIL;
+    }
+    sbzp = true;
+    return OK;
+}
+
 int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
     *this = arg_scales_t::entry_t();
     if (s.empty()) return OK;
@@ -345,16 +361,22 @@ int attr_t::arg_scales_t::entry_t::from_str(const std::string &s) {
     }
     HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
-    // process groups
-    const auto g_str = parser::get_substr(s, start_pos, ':');
-    parser::parse_vector_str(
-            this->groups, dims_t(), parser::utils::stoll_safe, g_str, 'x');
-
-    if (!this->groups.empty() && this->groups.size() != 2) {
-        BENCHDNN_PRINT(
-                0, "%s\n", "Error: the number of groups is expected to be 2.");
-        SAFE_V(FAIL);
+    // process groups, unless the quantization mode follows the data type
+    auto g_str = parser::get_substr(s, start_pos, ':');
+    if (!is_sbzp_str(g_str)) {
+        parser::parse_vector_str(
+                this->groups, dims_t(), parser::utils::stoll_safe, g_str, 'x');
+        if (!this->groups.empty() && this->groups.size() != 2) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: the number of groups is expected to be 2.");
+            SAFE_V(FAIL);
+        }
+        HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
+        g_str = parser::get_substr(s, start_pos, ':');
     }
+
+    // process the quantization mode
+    SAFE(parse_sbzp(g_str, this->sbzp), WARN);
     HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     return OK;
@@ -408,15 +430,22 @@ int attr_t::zero_points_t::entry_t::from_str(const std::string &s) {
     }
     HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
-    // process groups
-    const auto g_str = parser::get_substr(s, start_pos, ':');
-    parser::parse_vector_str(
-            this->groups, dims_t(), parser::utils::stoll_safe, g_str, 'x');
-    if (!this->groups.empty() && this->groups.size() != 2) {
-        BENCHDNN_PRINT(
-                0, "%s\n", "Error: the number of groups is expected to be 2.");
-        SAFE_V(FAIL);
+    // process groups, unless the quantization mode follows the data type
+    auto g_str = parser::get_substr(s, start_pos, ':');
+    if (!is_sbzp_str(g_str)) {
+        parser::parse_vector_str(
+                this->groups, dims_t(), parser::utils::stoll_safe, g_str, 'x');
+        if (!this->groups.empty() && this->groups.size() != 2) {
+            BENCHDNN_PRINT(0, "%s\n",
+                    "Error: the number of groups is expected to be 2.");
+            SAFE_V(FAIL);
+        }
+        HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
+        g_str = parser::get_substr(s, start_pos, ':');
     }
+
+    // process the quantization mode
+    SAFE(parse_sbzp(g_str, this->sbzp), WARN);
     HANDLE_DANGLING_SYMBOL_AND_END_OF_STRING();
 
     return OK;
@@ -898,8 +927,10 @@ std::ostream &operator<<(
         s << scale.policy;
     }
     if (scale.has_single_element()) s << ":" << scale.scale;
-    if (scale.dt != dnnl_f32 || !scale.groups.empty()) s << ':' << scale.dt;
+    if (scale.dt != dnnl_f32 || !scale.groups.empty() || scale.sbzp)
+        s << ':' << scale.dt;
     if (!scale.groups.empty()) s << ":" << dims2str(scale.groups);
+    if (scale.sbzp) s << ":static_sbzp";
     return s;
 }
 
@@ -917,10 +948,12 @@ std::ostream &operator<<(
             s << ":" << point.second.policy;
         }
         if (point.second.has_single_element()) s << ":" << point.second.value;
-        if (point.second.dt != dnnl_s32 || !point.second.groups.empty())
+        if (point.second.dt != dnnl_s32 || !point.second.groups.empty()
+                || point.second.sbzp)
             s << ':' << point.second.dt;
         if (!point.second.groups.empty())
             s << ":" << dims2str(point.second.groups);
+        if (point.second.sbzp) s << ":static_sbzp";
         delim = "+";
     }
 
@@ -1540,7 +1573,8 @@ dnnl_primitive_attr_t create_dnnl_attr(
             DNN_SAFE_V(dnnl_primitive_attr_set_scales_v3(dnnl_attr, arg_name,
                     mask, static_cast<int>(e.groups.size()), e.groups.data(),
                     e.dt, is_on_host,
-                    attr_t::policy2quantization_mode(e.policy)));
+                    e.sbzp ? dnnl_quantization_mode_static_sbzp
+                           : attr_t::policy2quantization_mode(e.policy)));
         }
     }
 
@@ -1572,8 +1606,11 @@ dnnl_primitive_attr_t create_dnnl_attr(
             const auto &groups = e.groups.data();
             const auto dt = e.dt;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
-                    dnnl_attr, arg_name, mask, group_ndims, groups, dt));
+            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points_v3(dnnl_attr,
+                    arg_name, mask, group_ndims, groups, dt,
+                    false /* is_on_host */,
+                    e.sbzp ? dnnl_quantization_mode_static_sbzp
+                           : dnnl_quantization_mode_static_sazp));
         }
     }
 

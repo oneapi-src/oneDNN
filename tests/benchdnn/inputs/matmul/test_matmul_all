@@ -90,3 +90,7 @@
 
 # matmul with binary injector with non-trivial strides
 --batch=harness_matmul_binary_injector_non_trivial_strides
+
+# weights decompression with scales applied before zero-points
+--reset
+--batch=harness_matmul_decompression_sbzp

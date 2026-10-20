@@ -152,6 +152,10 @@
 --reset
 --batch=harness_matmul_precomp_reductions
 
+# weights decompression with scales applied before zero-points
+--reset
+--batch=harness_matmul_decompression_sbzp
+
 # Test tf32 configuration
 --reset
 --batch=harness_matmul_fwks_key_gpu_tf32

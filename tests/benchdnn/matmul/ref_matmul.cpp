@@ -56,6 +56,8 @@ struct chunk_params_t {
     bool has_src_zp = false, has_wei_zp = false, has_dst_zp = false;
     bool has_src_single_scale = false, has_wei_single_scale = false;
     bool has_src_single_zp = false, has_wei_single_zp = false;
+    // Weights scales applied before zero-points (static_sbzp).
+    bool has_wei_sbzp = false;
 
     // Quantization masks
     int src_scale_mask = 0, wei_scale_mask = 0, dst_scale_mask = 0;
@@ -76,7 +78,9 @@ struct chunk_params_t {
     std::vector<std::pair<int, int>> v_po_masks;
 
     // Pre-fetched single-value quant params (valid when has_*_single_* is true).
-    int src_zp_single = 0, wei_zp_single = 0;
+    // Weights zero-points can be floating-point (static_sbzp).
+    int src_zp_single = 0;
+    float wei_zp_single = 0.f;
     float src_scale_single = 1.f, wei_scale_single = 1.f;
 
     // Data types
@@ -134,6 +138,8 @@ static chunk_params_t make_chunk_params(const prb_t *prb, const args_t &args) {
 
     p.has_src_single_zp = p.has_src_zp && p.src_zp_mask == 0;
     p.has_wei_single_zp = p.has_wei_zp && p.wei_zp_mask == 0;
+    p.has_wei_sbzp
+            = p.has_wei_zp && prb->attr.zero_points.get(DNNL_ARG_WEIGHTS).sbzp;
 
     p.src_scale_groups = prb->attr.scales.get(DNNL_ARG_SRC).groups;
     p.wei_scale_groups = prb->attr.scales.get(DNNL_ARG_WEIGHTS).groups;
@@ -167,7 +173,7 @@ static chunk_params_t make_chunk_params(const prb_t *prb, const args_t &args) {
     p.v_po_masks = prb->attr.post_ops.get_po_masks(prb->ndims);
 
     p.src_zp_single = p.has_src_single_zp ? p.src_zps->get_elem(0) : 0;
-    p.wei_zp_single = p.has_wei_single_zp ? p.wei_zps->get_elem(0) : 0;
+    p.wei_zp_single = p.has_wei_single_zp ? p.wei_zps->get_f32_elem(0) : 0.f;
     p.src_scale_single
             = p.has_src_single_scale ? p.src_scales->get_f32_elem(0) : 1.f;
     p.wei_scale_single
@@ -219,7 +225,7 @@ static void compute_ref_matmul_chunk(const chunk_params_t &p, int64_t M,
     // Mutable per-element quant params; initialised to the single value when
     // applicable and overwritten per K-group otherwise.
     int src_zp = p.src_zp_single;
-    int wei_zp = p.wei_zp_single;
+    float wei_zp = p.wei_zp_single;
     float src_scale = p.src_scale_single;
     float wei_scale = p.wei_scale_single;
 
@@ -248,7 +254,7 @@ static void compute_ref_matmul_chunk(const chunk_params_t &p, int64_t M,
             if (p.has_wei_zp && !p.has_wei_single_zp) {
                 const auto wei_zp_idx = p.wei_m->get_idx(wei_gK_off,
                         p.wei_zp_mask, p.wei_m->ndims(), p.wei_zp_groups);
-                wei_zp = p.wei_zps->get_elem(wei_zp_idx);
+                wei_zp = p.wei_zps->get_f32_elem(wei_zp_idx);
             }
 
             if (p.has_src_scale && !p.has_src_single_scale) {
@@ -270,7 +276,11 @@ static void compute_ref_matmul_chunk(const chunk_params_t &p, int64_t M,
                         = wei_base + kk * wei_k_stride + n * wei_n_stride;
 
                 auto s = src_scale * (p.src_m->get_f32_elem(src_off) - src_zp);
-                auto w = wei_scale * (p.wei_m->get_f32_elem(wei_off) - wei_zp);
+                const float q = p.wei_m->get_f32_elem(wei_off);
+                // static_sbzp applies the scale first, static_sazp the
+                // zero-point first.
+                auto w = p.has_wei_sbzp ? wei_scale * q - wei_zp
+                                        : wei_scale * (q - wei_zp);
 
                 dst += s * w;
             }

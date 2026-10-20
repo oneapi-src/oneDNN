@@ -84,6 +84,14 @@ status_t dnnl_gated_mlp_primitive_desc_create(
                         && (dims_i[1] == dims[i][1]),
                 "invalid GMLP %s dims", str_md(idxs[i]));
     }
+    // Scales applied before zero-points (static_sbzp) are supported for
+    // matmul weights decompression only.
+    VCONDCHECK(primitive, create, check, gated_mlp,
+            !attr->scales_.has_quantization_mode(
+                    dnnl::impl::quantization_mode::static_sbzp)
+                    && !attr->zero_points_.has_quantization_mode(
+                            dnnl::impl::quantization_mode::static_sbzp),
+            dnnl::impl::status::unimplemented, VERBOSE_UNSUPPORTED_ATTR);
     primitive_attr_t mlp_attr = *attr;
     auto po = mlp_attr.post_ops_.set_default_formats(arg_md(DNNL_ARG_DST));
     VCHECK_GATED_MLP(po == dnnl_success, "invalid GMLP post_ops formats");

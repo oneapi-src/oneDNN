@@ -239,6 +239,16 @@ struct quant_entries_t {
         return get(arg).has_default_groups();
     }
 
+    // Returns `true` if any argument uses the quantization mode `qmode`.
+    bool has_quantization_mode(quantization_mode_t qmode) const {
+        for (const auto &e : entries_) {
+            if (!e.second.has_default_values()
+                    && e.second.get_quantization_mode() == qmode)
+                return true;
+        }
+        return false;
+    }
+
     // This interface is used to make sure that other than `supported_args` have
     // default values. It's to make sure that non-allowed arguments were not
     // passed to the library.

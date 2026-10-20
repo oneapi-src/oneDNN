@@ -658,6 +658,9 @@ struct dnnl_primitive_attr {
         rounding_mode = 1u << 17,
         precomputed_reductions = 1u << 18,
         post_ops_inplace = (unsigned)post_ops | (1u << 19),
+        // Scales and zero-points with the static_sbzp quantization mode.
+        // Implementations that support the mode set this bit explicitly.
+        static_sbzp = 1u << 20,
     };
 
     /** Returns true if the attributes have default values.
