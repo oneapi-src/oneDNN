@@ -20,3 +20,10 @@
 --attr-zero-points=dst:per_dim_1
 --brgemm-attr=use_uker:1
 16x64:64x19 32x64:64x35
+
+# uker BF32 without interleaved stores: the C tile store overwrote the
+# converted inputs, and the A transform cache was reused across bd blocks
+# with the bd loop innermost.
+--reset --dt=f32 --attr-fpmath=bf16 --beta=0,1 --attr-post-ops=,relu
+--brgemm-attr=use_uker:1+use_interleave_stores:0+hint_innermost_loop:1,use_uker:1+use_interleave_stores:0+hint_innermost_loop:2
+64x64:64x64 128x40:40x96
