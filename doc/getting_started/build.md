@@ -231,14 +231,12 @@ rejected at configure time).
    cmake .. -DONEDNN_X64_USE_ZEN=ON
    ~~~
    @note CMake uses an installed ZenDNN package if one is found through
-   `ZENDNNROOT` or the default package search paths. Otherwise it builds from
-   `ZENDNN_SOURCE_DIR` if set, or clones
-   [ZenDNN](https://github.com/amd/ZenDNN) at a release tag into the build
-   directory. Override the remote with
-   `-DONEDNN_ZENDNN_FETCH_URL=<url>` and
-   `-DONEDNN_ZENDNN_FETCH_TAG=<tag or commit>`. To skip the download, set
-   `ZENDNNROOT` or `-DZENDNN_SOURCE_DIR=<path>`. Configuration also fails
-   if the version is older than 6.1.1.
+   `ZENDNNROOT` or the default package search paths. Otherwise it builds the
+   source given by `ONEDNN_ZENDNN_SOURCE`, which by default clones a
+   [ZenDNN](https://github.com/amd/ZenDNN) release into the build directory.
+   Set `-DONEDNN_ZENDNN_SOURCE=<absolute path>` to use a local source tree, or
+   `-DONEDNN_ZENDNN_SOURCE=<url>@<tag or commit>` to clone another revision.
+   Configuration also fails if the version is older than 6.1.1.
 
 3. Build the library
    ~~~sh
