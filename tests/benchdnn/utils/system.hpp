@@ -31,4 +31,11 @@ int get_gpu_ram_sizes(size_t &ram_size, size_t &max_alloc_size);
 int get_cpu_cache_size(cpu_cache_args_t &cache_args);
 int get_gpu_cache_size(size_t &cache_size);
 
+// Reports performance-related system settings when they are not set to values
+// providing stable performance measurements. Dispatches to engine-specific
+// checks: CPU (min/max frequency, Turbo mode, and C-states) or GPU (per-tile
+// min/max frequency). Controlled by the `--summary=[no-]perf-hints` knob.
+// Prints the hints at most once per run.
+void report_perf_hints();
+
 #endif

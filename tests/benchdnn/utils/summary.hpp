@@ -26,6 +26,11 @@ struct summary_t {
     // automated systems.
     bool impl_names = true;
     bool impl_names_csv = false;
+    // Reports performance-related system settings when they are not set to
+    // values providing stable performance measurements. Inspects CPU settings
+    // (frequency, Turbo mode, and C-states) or GPU settings (per-tile
+    // frequency) depending on the engine.
+    bool perf_hints = true;
 };
 
 extern summary_t summary;

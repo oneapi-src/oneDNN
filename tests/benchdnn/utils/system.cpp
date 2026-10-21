@@ -14,9 +14,17 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <fstream> // for std::ifstream
+#include <string>
+#include <utility> // for std::move
 #include <vector>
 
 #include <assert.h>
+
+#ifdef __linux__
+#include <dirent.h> // for opendir, readdir, closedir
+#include <sys/stat.h> // for stat
+#endif
 
 #include "oneapi/dnnl/dnnl.hpp"
 #if DNNL_GPU_RUNTIME == DNNL_RUNTIME_OCL
@@ -33,6 +41,7 @@
 
 #include "common.hpp"
 #include "utils/engine.hpp"
+#include "utils/summary.hpp"
 #include "utils/system.hpp"
 
 #if defined(_WIN32)
@@ -205,4 +214,221 @@ int get_gpu_cache_size(size_t &cache_size) {
 #endif
     cache_size = _cache_size;
     return OK;
+}
+
+#ifdef __linux__
+// A missing or unparsable file leaves `value` untouched and returns `FAIL` so
+// the caller skips a setting that can't be verified rather than acting on a
+// bogus reading.
+static int read_sysfs_int(const std::string &path, int64_t &value) {
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) return FAIL;
+    ifs >> value;
+    if (ifs.fail()) return FAIL;
+    return OK;
+}
+
+static std::string read_sysfs_str(const std::string &path) {
+    std::ifstream ifs(path);
+    std::string value;
+    if (!(ifs >> value)) return std::string();
+    return value;
+}
+
+// TODO: the sysfs traversal helpers below (path_exists, list_dir, and the
+// manual path concatenation in find_gpu_gts_*) reimplement functionality
+// available in `std::filesystem` (exists, directory_iterator, path). Replace
+// them with `<filesystem>` once benchdnn moves to the C++17 standard.
+static bool path_exists(const std::string &path) {
+    struct stat st;
+    return ::stat(path.c_str(), &st) == 0;
+}
+
+static std::vector<std::string> list_dir(const std::string &path) {
+    std::vector<std::string> names;
+    DIR *dir = ::opendir(path.c_str());
+    if (!dir) return names;
+    for (dirent *e = ::readdir(dir); e != nullptr; e = ::readdir(dir)) {
+        std::string n = e->d_name;
+        if (n == "." || n == "..") continue;
+        names.push_back(std::move(n));
+    }
+    ::closedir(dir);
+    return names;
+}
+
+struct gpu_gt_t {
+    std::string name;
+    std::string min_freq_path;
+    std::string max_freq_path;
+};
+
+// Path components encode the xe driver's sysfs ABI. Media GTs (those without
+// rcs/ccs engines) don't run compute workloads, so their frequency is
+// irrelevant to performance measurements and they are skipped.
+static std::vector<gpu_gt_t> find_gpu_gts_xe(const std::string &card) {
+    std::vector<gpu_gt_t> gts;
+    const std::string device = card + "/device";
+    for (const auto &tile : list_dir(device)) {
+        if (tile.rfind("tile", 0) != 0) continue;
+        const std::string tile_path = device + "/" + tile;
+        for (const auto &gt : list_dir(tile_path)) {
+            const std::string freq = tile_path + "/" + gt + "/freq0";
+            if (!path_exists(freq + "/min_freq")) continue;
+            const std::string eng = tile_path + "/" + gt + "/engines";
+            if (path_exists(eng) && !path_exists(eng + "/rcs")
+                    && !path_exists(eng + "/ccs"))
+                continue;
+            gts.push_back(
+                    {tile + "/" + gt, freq + "/min_freq", freq + "/max_freq"});
+        }
+    }
+    return gts;
+}
+
+// Per-GT path is the i915 driver's sysfs ABI; the single-GT path at the card
+// root covers kernels that don't expose a `gt/` hierarchy.
+static std::vector<gpu_gt_t> find_gpu_gts_i915(const std::string &card) {
+    std::vector<gpu_gt_t> gts;
+    const std::string gt_root = card + "/gt";
+    for (const auto &gt : list_dir(gt_root)) {
+        const std::string min = gt_root + "/" + gt + "/rps_min_freq_mhz";
+        if (path_exists(min))
+            gts.push_back({gt, min, gt_root + "/" + gt + "/rps_max_freq_mhz"});
+    }
+    if (gts.empty() && path_exists(card + "/gt_min_freq_mhz"))
+        gts.push_back(
+                {"gt", card + "/gt_min_freq_mhz", card + "/gt_max_freq_mhz"});
+    return gts;
+}
+
+static bool report_cpu_perf_hints_impl() {
+    bool any_hint = false;
+
+    constexpr const char *min_freq_path
+            = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq";
+    constexpr const char *max_freq_path
+            = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq";
+    constexpr const char *no_turbo_path
+            = "/sys/devices/system/cpu/intel_pstate/no_turbo";
+    constexpr const char *max_cstate_path
+            = "/sys/module/intel_idle/parameters/max_cstate";
+
+    // The effective (scaling) min and max frequency are expected to coincide.
+    // When they don't, the frequency may float during the run and skew
+    // performance measurements. Note: `cpuinfo_*_freq` report the hardware
+    // limits and always differ, so `scaling_*_freq` (the governor's allowed
+    // range) is inspected instead as it reflects whether the frequency is
+    // pinned.
+    int64_t min_freq = 0, max_freq = 0;
+    if (read_sysfs_int(min_freq_path, min_freq) == OK
+            && read_sysfs_int(max_freq_path, max_freq) == OK) {
+        if (min_freq != max_freq) {
+            BENCHDNN_PRINT(0,
+                    "[PERF_HINTS] Info: CPU min (%ld kHz) and max (%ld kHz) "
+                    "frequencies differ. Pin the frequency for stable "
+                    "performance measurements.\n",
+                    (long)min_freq, (long)max_freq);
+            any_hint = true;
+        }
+    }
+
+    // Turbo mode is supposed to be disabled (`no_turbo` equals to `1`).
+    int64_t no_turbo = 0;
+    if (read_sysfs_int(no_turbo_path, no_turbo) == OK) {
+        if (no_turbo != 1) {
+            BENCHDNN_PRINT(0, "%s",
+                    "[PERF_HINTS] Info: CPU Turbo mode is enabled. Disable "
+                    "it for stable performance measurements.\n");
+            any_hint = true;
+        }
+    }
+
+    // C-states are supposed to be no more than `1`.
+    int64_t max_cstate = 0;
+    if (read_sysfs_int(max_cstate_path, max_cstate) == OK) {
+        if (max_cstate > 1) {
+            BENCHDNN_PRINT(0,
+                    "[PERF_HINTS] Info: CPU max C-state is set to %ld. Set "
+                    "it to no more than 1 for stable performance "
+                    "measurements.\n",
+                    (long)max_cstate);
+            any_hint = true;
+        }
+    }
+
+    return any_hint;
+}
+
+// An unpinned GPU frequency (min != max) may float during the run and skew
+// performance measurements. The sysfs layout is probed (xe, then i915) because
+// the driver name alone doesn't determine which frequency-control files exist.
+static bool report_gpu_perf_hints_impl() {
+    bool any_hint = false;
+
+    const std::string drm_root = "/sys/class/drm";
+    for (const auto &card : list_dir(drm_root)) {
+        // A `-` marks a connector node (e.g. `card0-HDMI-A-1`), not a device.
+        if (card.rfind("card", 0) != 0 || card.find('-') != std::string::npos)
+            continue;
+        const std::string card_path = drm_root + "/" + card;
+        // Only Intel GPUs expose the frequency controls inspected below.
+        if (read_sysfs_str(card_path + "/device/vendor") != "0x8086") continue;
+
+        auto gts = find_gpu_gts_xe(card_path);
+        if (gts.empty()) gts = find_gpu_gts_i915(card_path);
+
+        if (gts.empty()) {
+            BENCHDNN_PRINT(0,
+                    "[PERF_HINTS] Warning: GPU device \"%s\" was not "
+                    "identified. The device search logic needs adjustment.\n",
+                    card.c_str());
+            continue;
+        }
+
+        for (const auto &gt : gts) {
+            int64_t min_freq = 0, max_freq = 0;
+            if (read_sysfs_int(gt.min_freq_path, min_freq) != OK
+                    || read_sysfs_int(gt.max_freq_path, max_freq) != OK)
+                continue;
+            if (min_freq != max_freq) {
+                BENCHDNN_PRINT(0,
+                        "[PERF_HINTS] Info: GPU %s %s min (%ld MHz) and max "
+                        "(%ld MHz) frequencies differ. Pin the frequency for "
+                        "stable performance measurements.\n",
+                        card.c_str(), gt.name.c_str(), (long)min_freq,
+                        (long)max_freq);
+                any_hint = true;
+            }
+        }
+    }
+
+    return any_hint;
+}
+#endif
+
+void report_perf_hints() {
+    if (!summary.perf_hints) return;
+
+    // Report at most once per run.
+    static bool reported = false;
+    if (reported) return;
+    reported = true;
+
+#ifdef __linux__
+    // Diagnostics are engine-specific and kept separate so that other CPU
+    // architectures (e.g. AArch64, RISC-V) or GPU vendors can extend them
+    // independently.
+    bool any_hint = false;
+    if (is_cpu())
+        any_hint = report_cpu_perf_hints_impl();
+    else if (is_gpu())
+        any_hint = report_gpu_perf_hints_impl();
+
+    if (any_hint) {
+        BENCHDNN_PRINT(0, "%s",
+                "[PERF_HINTS] Use `--summary=no-perf-hints` to disable these "
+                "messages.\n");
+    }
+#endif
 }

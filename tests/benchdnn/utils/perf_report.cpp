@@ -18,10 +18,14 @@
 #include "dnn_types.hpp"
 #include "dnnl_common.hpp"
 #include "utils/stringstream.hpp"
+#include "utils/system.hpp"
 
 #include "utils/perf_report.hpp"
 
 void base_perf_report_t::report(res_t *res, const char *prb_str) const {
+    // Report performance hints before any perf data is emitted.
+    report_perf_hints();
+
     dump_perf_header();
 
     // `prb_str` carries only driver-specific settings. Prepend the global
