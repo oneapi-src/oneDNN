@@ -72,3 +72,9 @@
 --attr-post-ops=binary_add:f32:13:abcd:16512x16512x129x1+binary_mul:f32:13:abcd:16512x16512x129x1
 --attr-scratchpad=user
 4x16x128x64:4x16x64x128
+
+# transA gemv with strided rhs varying along M or batch
+--reset --stag=acb --attr-post-ops=add:f32:1:abc:3x1x1 4x20x23:4x23x1
+--reset --stag=abdc --attr-post-ops=add:f32:5:abcd:40x40x2x1 2x3x20x23:2x3x23x1
+# transA gemv with padded dst batch stride
+--reset --strides=460x1x20::21x1x1 --attr-post-ops=add:f32:per_oc,add:f32:per_dim_0,prelu:per_oc 3x20x23:1x23x1
