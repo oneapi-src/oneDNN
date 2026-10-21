@@ -65,6 +65,8 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto kb_loadMain = strategy.kb_load, kb_loadRem = state.kb_loadRem;
     auto ka_repackMain = state.ka_repack, ka_repackRem = state.ka_repackRem;
     auto kb_repackMain = state.kb_repack, kb_repackRem = state.kb_repackRem;
+    auto ka_repackPeriodRem = std::min(ka_loadRem, ka_repackRem);
+    auto kb_repackPeriodRem = std::min(kb_loadRem, kb_repackRem);
     auto ka_pfStride = strategy.ka_pfStride;
     auto kb_pfStride = strategy.kb_pfStride;
     auto kInterleaveChunk = strategy.kInterleaveChunk;
@@ -120,6 +122,16 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         kaq_loadLate = std::min(kaq_loadLate, kInterleaveChunk);
         kbq_loadLate = std::min(kbq_loadLate, kInterleaveChunk);
     }
+
+    // 2D quantization remainders are loaded one group at a time
+    int kaq_loadRem = std::min(kaq_load, aqGroupK);
+    int kbq_loadRem = std::min(kbq_load, bqGroupK);
+    int kaq_loadLateRem = std::min(kaq_loadLate, aqGroupK);
+    int kbq_loadLateRem = std::min(kbq_loadLate, bqGroupK);
+    int durationAq = (kaq_loadRem < kaq_load) ? kaq_load : 1;
+    int durationBq = (kbq_loadRem < kbq_load) ? kbq_load : 1;
+    int durationAqLate = (kaq_loadLateRem < kaq_loadLate) ? kaq_loadLate : 1;
+    int durationBqLate = (kbq_loadLateRem < kbq_loadLate) ? kbq_loadLate : 1;
 
     bool Ai_incrementalRem = state.Ai_incrementalRem;
     bool Bi_incrementalRem = state.Bi_incrementalRem;
@@ -323,6 +335,16 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     auto repackB = [&](Iteration h) { return B_remActive(h) ? state.repackBRem : state.repackB; };
     auto ka_load = [&](Iteration h) { return A_remActive(h) ? ka_loadRem : ka_loadMain; };
     auto kb_load = [&](Iteration h) { return B_remActive(h) ? kb_loadRem : kb_loadMain; };
+    auto kaq_loadCur = [&](Iteration h) {
+        if (kaq_load == 0) return 0;
+        bool rem = (h.remaining() < kaq_load - (h % kaq_load));
+        return rem ? kaq_loadRem : kaq_load;
+    };
+    auto kbq_loadCur = [&](Iteration h) {
+        if (kbq_load == 0) return 0;
+        bool rem = (h.remaining() < kbq_load - (h % kbq_load));
+        return rem ? kbq_loadRem : kbq_load;
+    };
     auto ka_repack = [&](Iteration h) { return !repackA(h) ? ka_load(h) : A_remActive(h) ? ka_repackRem : ka_repackMain; };
     auto kb_repack = [&](Iteration h) { return !repackB(h) ? kb_load(h) : B_remActive(h) ? kb_repackRem : kb_repackMain; };
     auto A_copy = [&](Iteration h) { return (h / ka_load(h)) % A_copies; };
@@ -731,24 +753,53 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     int delaySLMInc = delayABInc ? (unrollKSLM >> 1) : 0;
 
     // Quantization parameter address increment helpers.
-    auto doIncAq = [&](Iteration h, bool late) {
-        auto kaInc = kInc(h, late ? state.kaqLate : state.kaqStride, problem.aqGroupK);
-        if (late ? ao2DLate : ao2D) incAddrK(state.A_offsetAddrs, true,  kaInc, state.ldao,     state.ldaoIncrements, state.A_offsetLayout, strategy, state);
-        if (late ? as2DLate : as2D) incAddrK(state.A_scaleAddrs,  true,  kaInc, state.ldaScale, state.ldasIncrements, state.A_scaleLayout,  strategy, state);
-        if (late && ag2DLate)       incAddrK(state.Ag_addrs,      true,  kaInc, state.ldag,     state.ldagIncrements, state.Ag_layout,      strategy, state);
+    auto doIncAq = [&](Iteration h, bool late, bool rem) {
+        bool doOffset = late ? ao2DLate : ao2D;
+        bool doScale  = late ? as2DLate : as2D;
+        bool doG      = late && ag2DLate;
+
+        auto &offsetAddrs  = rem ? state.A_offsetAddrsRem  : state.A_offsetAddrs;
+        auto &scaleAddrs   = rem ? state.A_scaleAddrsRem   : state.A_scaleAddrs;
+        auto &gAddrs       = rem ? state.Ag_addrsRem       : state.Ag_addrs;
+        auto &offsetLayout = rem ? state.A_offsetLayoutRem : state.A_offsetLayout;
+        auto &scaleLayout  = rem ? state.A_scaleLayoutRem  : state.A_scaleLayout;
+        auto &gLayout      = rem ? state.Ag_layoutRem      : state.Ag_layout;
+
+        // Remainder loads cover a single group.
+        int kaqInc = late ? state.kaqLate : state.kaqStride;
+        if (rem) kaqInc = 1;
+
+        auto kaInc = kInc(h, kaqInc, problem.aqGroupK);
+        if (doOffset) incAddrK(offsetAddrs, true, kaInc, state.ldao,     state.ldaoIncrements, offsetLayout, strategy, state);
+        if (doScale)  incAddrK(scaleAddrs,  true, kaInc, state.ldaScale, state.ldasIncrements, scaleLayout,  strategy, state);
+        if (doG)      incAddrK(gAddrs,      true, kaInc, state.ldag,     state.ldagIncrements, gLayout,      strategy, state);
     };
 
-    auto doIncBq = [&](Iteration h, bool late) {
-        auto kbInc = kInc(h, late ? state.kbqLate : state.kbqStride, problem.bqGroupK);
-        if (late ? bo2DLate : bo2D) incAddrK(state.B_offsetAddrs, false, kbInc, state.ldbo,     state.ldboIncrements, state.B_offsetLayout, strategy, state);
-        if (late ? bs2DLate : bs2D) incAddrK(state.B_scaleAddrs,  false, kbInc, state.ldbScale, state.ldbsIncrements, state.B_scaleLayout,  strategy, state);
-        if (late && bg2DLate)       incAddrK(state.Bg_addrs,      false, kbInc, state.ldbg,     state.ldbgIncrements, state.Bg_layout,      strategy, state);
+    auto doIncBq = [&](Iteration h, bool late, bool rem) {
+        bool doOffset = late ? bo2DLate : bo2D;
+        bool doScale  = late ? bs2DLate : bs2D;
+        bool doG      = late && bg2DLate;
+
+        auto &offsetAddrs  = rem ? state.B_offsetAddrsRem  : state.B_offsetAddrs;
+        auto &scaleAddrs   = rem ? state.B_scaleAddrsRem   : state.B_scaleAddrs;
+        auto &gAddrs       = rem ? state.Bg_addrsRem       : state.Bg_addrs;
+        auto &offsetLayout = rem ? state.B_offsetLayoutRem : state.B_offsetLayout;
+        auto &scaleLayout  = rem ? state.B_scaleLayoutRem  : state.B_scaleLayout;
+        auto &gLayout      = rem ? state.Bg_layoutRem      : state.Bg_layout;
+
+        int kbqInc = late ? state.kbqLate : state.kbqStride;
+        if (rem) kbqInc = 1;
+
+        auto kbInc = kInc(h, kbqInc, problem.bqGroupK);
+        if (doOffset) incAddrK(offsetAddrs, false, kbInc, state.ldbo,     state.ldboIncrements, offsetLayout, strategy, state);
+        if (doScale)  incAddrK(scaleAddrs,  false, kbInc, state.ldbScale, state.ldbsIncrements, scaleLayout,  strategy, state);
+        if (doG)      incAddrK(gAddrs,      false, kbInc, state.ldbg,     state.ldbgIncrements, gLayout,      strategy, state);
     };
 
     // SLM quantization parameter address increment.
     if (slmDequantize2D) ls.schedule(reqSLMLoadQ.delay(delaySLMInc), [&](Iteration h) {
-        if (slmDequantize2DA) doIncAq(h, false);
-        if (slmDequantize2DB) doIncBq(h, false);
+        if (slmDequantize2DA) doIncAq(h, false, false);
+        if (slmDequantize2DB) doIncBq(h, false, false);
     });
 
     // SLM load address increments.
@@ -814,15 +865,31 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     gemmScheduleL3PrefetchIncs(&ls, problem, strategy, state);
 
     // A/B quantization parameter address increment.
-    auto reqIncAq = every(kaq_load);
-    auto reqIncBq = every(kbq_load);
-    if (readA && dequantize2DA) ls.schedule(reqIncAq, [&](Iteration h) { doIncAq(h, false); });
-    if (readB && dequantize2DB) ls.schedule(reqIncBq, [&](Iteration h) { doIncBq(h, false); });
+    auto reqIncAq = every(kaq_load) | duration(durationAq);
+    auto reqIncBq = every(kbq_load) | duration(durationBq);
+    auto reqIncAqRem = every(kaq_loadRem);
+    auto reqIncBqRem = every(kbq_loadRem);
+    auto reqIncAqLate = every(kaq_loadLate) | duration(durationAqLate);
+    auto reqIncBqLate = every(kbq_loadLate) | duration(durationBqLate);
+    auto reqIncAqLateRem = every(kaq_loadLateRem);
+    auto reqIncBqLateRem = every(kbq_loadLateRem);
 
-    auto reqIncAqLate = every(kaq_loadLate);
-    auto reqIncBqLate = every(kbq_loadLate);
-    if (readA && dequantize2DALate) ls.schedule(reqIncAqLate, [&](Iteration h) { doIncAq(h, true); });
-    if (readB && dequantize2DBLate) ls.schedule(reqIncBqLate, [&](Iteration h) { doIncBq(h, true); });
+    if (readA && dequantize2DA) ls.schedule({
+        {reqIncAq,    [&](Iteration h) { doIncAq(h, false, false); }},
+        {reqIncAqRem, [&](Iteration h) { doIncAq(h, false, true);  }}
+    });
+    if (readB && dequantize2DB) ls.schedule({
+        {reqIncBq,    [&](Iteration h) { doIncBq(h, false, false); }},
+        {reqIncBqRem, [&](Iteration h) { doIncBq(h, false, true);  }}
+    });
+    if (readA && dequantize2DALate) ls.schedule({
+        {reqIncAqLate,    [&](Iteration h) { doIncAq(h, true, false); }},
+        {reqIncAqLateRem, [&](Iteration h) { doIncAq(h, true, true);  }}
+    });
+    if (readB && dequantize2DBLate) ls.schedule({
+        {reqIncBqLate,    [&](Iteration h) { doIncBq(h, true, false); }},
+        {reqIncBqLateRem, [&](Iteration h) { doIncBq(h, true, true);  }}
+    });
 
     // A address increment.
     int delayAInc = (delayABInc && A_copies > 1) ? (ka_loadMain >> 1) : 0;
@@ -944,10 +1011,14 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         ls.swapLast2();
 
     // A/B quantization parameter repacking and remasking.
-    auto reqRepackAq = every(kaq_load);
-    auto reqRepackBq = every(kbq_load);
-    auto reqRepackAqLate = every(kaq_loadLate);
-    auto reqRepackBqLate = every(kbq_loadLate);
+    auto reqRepackAq = every(kaq_load) | duration(durationAq);
+    auto reqRepackBq = every(kbq_load) | duration(durationBq);
+    auto reqRepackAqRem = every(kaq_loadRem);
+    auto reqRepackBqRem = every(kbq_loadRem);
+    auto reqRepackAqLate = every(kaq_loadLate) | duration(durationAqLate);
+    auto reqRepackBqLate = every(kbq_loadLate) | duration(durationBqLate);
+    auto reqRepackAqLateRem = every(kaq_loadLateRem);
+    auto reqRepackBqLateRem = every(kbq_loadLateRem);
 
     bool remaskAq = (ao2D || as2D) && (minOPCount > 1) && (problem.aqGroupK == 1);
     bool remaskBq = (bo2D || bs2D) && (minOPCount > 1) && (problem.bqGroupK == 1);
@@ -995,34 +1066,95 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
         state.ra.safeRelease(offK);
     };
 
-    auto doRepackAq = [&](Iteration h, bool late) {
+    auto doRepackAq = [&](Iteration h, bool late, bool rem) {
         if (!late && A_remActive(h)) doRemaskAq(h, false);
-        if (late ? ao2DLate : ao2D) gemmRepack2DOffsetData(Ta_ext, state.A_offsetLayout, state.Ar_offsetLayout, state.A_offsetRegs, state.Ar_offsetRegs, problem, strategy, state);
-        if (late ? as2DLate : as2D) gemmRepack2DQuantizationData(state.A_scaleLayout,    state.Ar_scaleLayout,  state.A_scaleRegs,  state.Ar_scaleRegs,  problem, strategy, state);
-        if (late && ag2DLate)       gemmRepack2DQuantizationData(state.Ag_layout,        state.Agr_layout,      state.Ag_regs,      state.Agr_regs,      problem, strategy, state);
+
+        bool doOffset = late ? ao2DLate : ao2D;
+        bool doScale  = late ? as2DLate : as2D;
+        bool doG      = late && ag2DLate;
+
+        auto &offsetLayout = rem ? state.A_offsetLayoutRem : state.A_offsetLayout;
+        auto &scaleLayout  = rem ? state.A_scaleLayoutRem  : state.A_scaleLayout;
+        auto &gLayout      = rem ? state.Ag_layoutRem      : state.Ag_layout;
+
+        int kq_load    = late ? kaq_loadLate    : kaq_load;
+        int kq_loadRem = late ? kaq_loadLateRem : kaq_loadRem;
+
+        auto Ar_offsetLayout = state.Ar_offsetLayout;
+        auto Ar_scaleLayout  = state.Ar_scaleLayout;
+        auto Agr_layout      = state.Agr_layout;
+        if (rem && kq_loadRem < kq_load) {
+            // Slice the repacked layout, taking a single k-group
+            int hq = late ? (h % kq_load) / aqGroupK : 0;
+            for (auto *layout: {&Ar_offsetLayout, &Ar_scaleLayout, &Agr_layout}) {
+                if (layout->empty()) continue;
+                *layout = layout->slice(true, hq, hq + 1, false);
+                for (auto &block: *layout) block.offsetC -= hq;
+            }
+        }
+
+        if (doOffset) gemmRepack2DOffsetData(Ta_ext, offsetLayout, Ar_offsetLayout, state.A_offsetRegs, state.Ar_offsetRegs, problem, strategy, state);
+        if (doScale)  gemmRepack2DQuantizationData(scaleLayout,    Ar_scaleLayout,  state.A_scaleRegs,  state.Ar_scaleRegs,  problem, strategy, state);
+        if (doG)      gemmRepack2DQuantizationData(gLayout,        Agr_layout,      state.Ag_regs,      state.Agr_regs,      problem, strategy, state);
     };
 
-    auto doRepackBq = [&](Iteration h, bool late) {
+    auto doRepackBq = [&](Iteration h, bool late, bool rem) {
         if (!late && B_remActive(h)) doRemaskBq(h, false);
-        if (late ? bo2DLate : bo2D) gemmRepack2DOffsetData(Tb_ext, state.B_offsetLayout, state.Br_offsetLayout, state.B_offsetRegs, state.Br_offsetRegs, problem, strategy, state);
-        if (late ? bs2DLate : bs2D) gemmRepack2DQuantizationData(state.B_scaleLayout,    state.Br_scaleLayout,  state.B_scaleRegs,  state.Br_scaleRegs,  problem, strategy, state);
-        if (late && bg2DLate)       gemmRepack2DQuantizationData(state.Bg_layout,        state.Bgr_layout,      state.Bg_regs,      state.Bgr_regs,      problem, strategy, state);
+
+        bool doOffset = late ? bo2DLate : bo2D;
+        bool doScale  = late ? bs2DLate : bs2D;
+        bool doG      = late && bg2DLate;
+
+        auto &offsetLayout = rem ? state.B_offsetLayoutRem : state.B_offsetLayout;
+        auto &scaleLayout  = rem ? state.B_scaleLayoutRem  : state.B_scaleLayout;
+        auto &gLayout      = rem ? state.Bg_layoutRem      : state.Bg_layout;
+
+        int kq_load    = late ? kbq_loadLate    : kbq_load;
+        int kq_loadRem = late ? kbq_loadLateRem : kbq_loadRem;
+
+        auto Br_offsetLayout = state.Br_offsetLayout;
+        auto Br_scaleLayout  = state.Br_scaleLayout;
+        auto Bgr_layout      = state.Bgr_layout;
+        if (rem && kq_loadRem < kq_load) {
+            int hq = late ? (h % kq_load) / bqGroupK : 0;
+            for (auto *layout: {&Br_offsetLayout, &Br_scaleLayout, &Bgr_layout}) {
+                if (layout->empty()) continue;
+                *layout = layout->slice(false, hq, hq + 1, false);
+                for (auto &block: *layout) block.offsetR -= hq;
+            }
+        }
+
+        if (doOffset) gemmRepack2DOffsetData(Tb_ext, offsetLayout, Br_offsetLayout, state.B_offsetRegs, state.Br_offsetRegs, problem, strategy, state);
+        if (doScale)  gemmRepack2DQuantizationData(scaleLayout,    Br_scaleLayout,  state.B_scaleRegs,  state.Br_scaleRegs,  problem, strategy, state);
+        if (doG)      gemmRepack2DQuantizationData(gLayout,        Bgr_layout,      state.Bg_regs,      state.Bgr_regs,      problem, strategy, state);
     };
 
-    if (dequantize2DA)     ls.schedule(reqRepackAq,     [&](Iteration h) { doRepackAq(h, false); });
-    if (dequantize2DB)     ls.schedule(reqRepackBq,     [&](Iteration h) { doRepackBq(h, false); });
-    if (dequantize2DALate) ls.schedule(reqRepackAqLate, [&](Iteration h) { doRepackAq(h, true);  });
-    if (dequantize2DBLate) ls.schedule(reqRepackBqLate, [&](Iteration h) { doRepackBq(h, true);  });
+    if (dequantize2DA) ls.schedule({
+        {reqRepackAq,    [&](Iteration h) { doRepackAq(h, false, false); }},
+        {reqRepackAqRem, [&](Iteration h) { doRepackAq(h, false, true);  }}
+    });
+    if (dequantize2DB) ls.schedule({
+        {reqRepackBq,    [&](Iteration h) { doRepackBq(h, false, false); }},
+        {reqRepackBqRem, [&](Iteration h) { doRepackBq(h, false, true);  }}
+    });
+    if (dequantize2DALate) ls.schedule({
+        {reqRepackAqLate,    [&](Iteration h) { doRepackAq(h, true, false); }},
+        {reqRepackAqLateRem, [&](Iteration h) { doRepackAq(h, true, true);  }}
+    });
+    if (dequantize2DBLate) ls.schedule({
+        {reqRepackBqLate,    [&](Iteration h) { doRepackBq(h, true, false); }},
+        {reqRepackBqLateRem, [&](Iteration h) { doRepackBq(h, true, true);  }}
+    });
 
     // A/B repacking.
     auto reqRepackA = every(ka_repackMain)
                     | variants(A_copies);
-    auto reqRepackARem = every(std::min(ka_loadRem, ka_repackRem))
+    auto reqRepackARem = every(ka_repackPeriodRem)
                        | variants(A_copies);
     bool convertA = (Ta != Ta_load) && (Ta.bits() == Ta_load.bits());
     bool scheduleRepackA = state.repackA || state.repackARem || convertA || dequantizeA;
 
-    auto doRepackA = [&](RegisterLayout &layout, GRFMultirange &regs, bool repackA, int h, int k_load, int k_repack) {
+    auto doRepackA = [&](RegisterLayout &layout, GRFMultirange &regs, bool repackA, int h, int k_load, int k_repack, int kq_load) {
         k_repack = std::max(k_repack, 1);
         int ha = h % k_load;
         int har = h % k_repack;
@@ -1053,7 +1185,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
             }
         }
         if (dequantizeA)
-            gemmDequantizeAB(true, sublayout, Ar_sublayout, regs, state.Ar_regs, h, k_load, k_repack, kaq_load, problem, strategy, state, signedShift);
+            gemmDequantizeAB(true, sublayout, Ar_sublayout, regs, state.Ar_regs, h, k_load, k_repack, kq_load, problem, strategy, state, signedShift);
         else
         if (repackA)
             copyRegisters(sublayout, Ar_sublayout, regs, state.Ar_regs, 0, har, false, strategy, state, false, signedShift);
@@ -1062,18 +1194,18 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     };
 
     if (scheduleRepackA && readA) ls.schedule({
-        {reqRepackA,    [&](Iteration h) { doRepackA(A_layout(h), A_regs(h), repackA(h), h, ka_load(h), ka_repack(h));  }},
-        {reqRepackARem, [&](Iteration h) { doRepackA(A_layout(h), A_regs(h), repackA(h), h, ka_load(h), ka_repack(h));  }}
+        {reqRepackA,    [&](Iteration h) { doRepackA(A_layout(h), A_regs(h), repackA(h), h, ka_load(h), ka_repack(h), kaq_loadCur(h));  }},
+        {reqRepackARem, [&](Iteration h) { doRepackA(A_layout(h), A_regs(h), repackA(h), h, ka_load(h), ka_repack(h), kaq_loadCur(h));  }}
     });
 
     auto reqRepackB = every(kb_repackMain)
                     | variants(B_copies);
-    auto reqRepackBRem = every(std::min(kb_loadRem, kb_repackRem))
+    auto reqRepackBRem = every(kb_repackPeriodRem)
                        | variants(B_copies);
     bool convertB = (Tb != Tb_load) && (Tb.bits() == Tb_load.bits());
     bool scheduleRepackB = state.repackB || state.repackBRem || convertB || dequantizeB;
 
-    auto doRepackB = [&](RegisterLayout &layout, GRFMultirange &regs, bool repackB, int h, int k_load, int k_repack) {
+    auto doRepackB = [&](RegisterLayout &layout, GRFMultirange &regs, bool repackB, int h, int k_load, int k_repack, int kq_load) {
         k_repack = std::max(k_repack, 1);
         int hb = h % k_load;
         int hbr = h % k_repack;
@@ -1095,7 +1227,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
             }
         }
         if (dequantizeB)
-            gemmDequantizeAB(false, sublayout, Br_sublayout, regs, state.Br_regs, h, k_load, k_repack, kbq_load, problem, strategy, state, s4Shift);
+            gemmDequantizeAB(false, sublayout, Br_sublayout, regs, state.Br_regs, h, k_load, k_repack, kq_load, problem, strategy, state, s4Shift);
         else
         if (repackB)
             copyRegisters(sublayout, Br_sublayout, regs, state.Br_regs, hbr, 0, false, strategy, state);
@@ -1104,35 +1236,73 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     };
 
     if (scheduleRepackB && readB) ls.schedule({
-        {reqRepackB,    [&](Iteration h) { doRepackB(B_layout(h), B_regs(h), repackB(h), h, kb_load(h), kb_repack(h)); }},
-        {reqRepackBRem, [&](Iteration h) { doRepackB(B_layout(h), B_regs(h), repackB(h), h, kb_load(h), kb_repack(h)); }}
+        {reqRepackB,    [&](Iteration h) { doRepackB(B_layout(h), B_regs(h), repackB(h), h, kb_load(h), kb_repack(h), kbq_loadCur(h)); }},
+        {reqRepackBRem, [&](Iteration h) { doRepackB(B_layout(h), B_regs(h), repackB(h), h, kb_load(h), kb_repack(h), kbq_loadCur(h)); }}
     });
 
     if (scheduleRepackA && scheduleRepackB && loadBFirst)
         ls.swapLast2();
 
     // A/B 2D quantization parameter loads.
-    auto reqLoadAq = every(kaq_load) | lookahead(ka_repackMain);
-    auto reqLoadBq = every(kbq_load) | lookahead(kb_repackMain);
-    auto reqLoadAqLate = every(kaq_loadLate) | lookahead(kaq_loadLate);
-    auto reqLoadBqLate = every(kbq_loadLate) | lookahead(kbq_loadLate);
+    auto reqLoadAq = every(kaq_load) | duration(durationAq) | lookahead(ka_repackMain);
+    auto reqLoadBq = every(kbq_load) | duration(durationBq) | lookahead(kb_repackMain);
+    auto reqLoadAqRem = every(kaq_loadRem) | lookahead(ka_repackPeriodRem);
+    auto reqLoadBqRem = every(kbq_loadRem) | lookahead(kb_repackPeriodRem);
+    auto reqLoadAqLate = every(kaq_loadLate) | duration(durationAqLate) | lookahead(kaq_loadLate);
+    auto reqLoadBqLate = every(kbq_loadLate) | duration(durationBqLate) | lookahead(kbq_loadLate);
+    auto reqLoadAqLateRem = every(kaq_loadLateRem) | lookahead(kaq_loadLateRem);
+    auto reqLoadBqLateRem = every(kbq_loadLateRem) | lookahead(kbq_loadLateRem);
 
-    auto doLoadAq = [&](Iteration h, bool late) {
-        if (late ? ao2DLate : ao2D) gemmALoad(state.A_offsetRegs, state.A_offsetLayout, state.A_offsetAddrs, problem, strategy, state);
-        if (late ? as2DLate : as2D) gemmALoad(state.A_scaleRegs,  state.A_scaleLayout,  state.A_scaleAddrs,  problem, strategy, state);
-        if (late && ag2DLate)       gemmALoad(state.Ag_regs,      state.Ag_layout,      state.Ag_addrs,      problem, strategy, state);
+    auto doLoadAq = [&](Iteration h, bool late, bool rem) {
+        bool doOffset = late ? ao2DLate : ao2D;
+        bool doScale  = late ? as2DLate : as2D;
+        bool doG      = late && ag2DLate;
+
+        auto &offsetLayout = rem ? state.A_offsetLayoutRem : state.A_offsetLayout;
+        auto &scaleLayout  = rem ? state.A_scaleLayoutRem  : state.A_scaleLayout;
+        auto &gLayout      = rem ? state.Ag_layoutRem      : state.Ag_layout;
+        auto &offsetAddrs  = rem ? state.A_offsetAddrsRem  : state.A_offsetAddrs;
+        auto &scaleAddrs   = rem ? state.A_scaleAddrsRem   : state.A_scaleAddrs;
+        auto &gAddrs       = rem ? state.Ag_addrsRem       : state.Ag_addrs;
+
+        if (doOffset) gemmALoad(state.A_offsetRegs, offsetLayout, offsetAddrs, problem, strategy, state);
+        if (doScale)  gemmALoad(state.A_scaleRegs,  scaleLayout,  scaleAddrs,  problem, strategy, state);
+        if (doG)      gemmALoad(state.Ag_regs,      gLayout,      gAddrs,      problem, strategy, state);
     };
 
-    auto doLoadBq = [&](Iteration h, bool late) {
-        if (late ? bo2DLate : bo2D) gemmBLoad(state.B_offsetRegs, state.B_offsetLayout, state.B_offsetAddrs, problem, strategy, state);
-        if (late ? bs2DLate : bs2D) gemmBLoad(state.B_scaleRegs,  state.B_scaleLayout,  state.B_scaleAddrs,  problem, strategy, state);
-        if (late && bg2DLate)       gemmBLoad(state.Bg_regs,      state.Bg_layout,      state.Bg_addrs,      problem, strategy, state);
+    auto doLoadBq = [&](Iteration h, bool late, bool rem) {
+        bool doOffset = late ? bo2DLate : bo2D;
+        bool doScale  = late ? bs2DLate : bs2D;
+        bool doG      = late && bg2DLate;
+
+        auto &offsetLayout = rem ? state.B_offsetLayoutRem : state.B_offsetLayout;
+        auto &scaleLayout  = rem ? state.B_scaleLayoutRem  : state.B_scaleLayout;
+        auto &gLayout      = rem ? state.Bg_layoutRem      : state.Bg_layout;
+        auto &offsetAddrs  = rem ? state.B_offsetAddrsRem  : state.B_offsetAddrs;
+        auto &scaleAddrs   = rem ? state.B_scaleAddrsRem   : state.B_scaleAddrs;
+        auto &gAddrs       = rem ? state.Bg_addrsRem       : state.Bg_addrs;
+
+        if (doOffset) gemmBLoad(state.B_offsetRegs, offsetLayout, offsetAddrs, problem, strategy, state);
+        if (doScale)  gemmBLoad(state.B_scaleRegs,  scaleLayout,  scaleAddrs,  problem, strategy, state);
+        if (doG)      gemmBLoad(state.Bg_regs,      gLayout,      gAddrs,      problem, strategy, state);
     };
 
-    if (readA && dequantize2DA)     ls.schedule(reqLoadAq,     [&](Iteration h) { doLoadAq(h, false); });
-    if (readB && dequantize2DB)     ls.schedule(reqLoadBq,     [&](Iteration h) { doLoadBq(h, false); });
-    if (readA && dequantize2DALate) ls.schedule(reqLoadAqLate, [&](Iteration h) { doLoadAq(h, true);  });
-    if (readB && dequantize2DBLate) ls.schedule(reqLoadBqLate, [&](Iteration h) { doLoadBq(h, true);  });
+    if (readA && dequantize2DA) ls.schedule({
+        {reqLoadAq,    [&](Iteration h) { doLoadAq(h, false, false); }},
+        {reqLoadAqRem, [&](Iteration h) { doLoadAq(h, false, true);  }}
+    });
+    if (readB && dequantize2DB) ls.schedule({
+        {reqLoadBq,    [&](Iteration h) { doLoadBq(h, false, false); }},
+        {reqLoadBqRem, [&](Iteration h) { doLoadBq(h, false, true);  }}
+    });
+    if (readA && dequantize2DALate) ls.schedule({
+        {reqLoadAqLate,    [&](Iteration h) { doLoadAq(h, true, false); }},
+        {reqLoadAqLateRem, [&](Iteration h) { doLoadAq(h, true, true);  }}
+    });
+    if (readB && dequantize2DBLate) ls.schedule({
+        {reqLoadBqLate,    [&](Iteration h) { doLoadBq(h, true, false); }},
+        {reqLoadBqLateRem, [&](Iteration h) { doLoadBq(h, true, true);  }}
+    });
 
     // Outer product(s).
     // If outer products batched across k (dp4a/dpas/k-chaining), trigger every opCount loops.
