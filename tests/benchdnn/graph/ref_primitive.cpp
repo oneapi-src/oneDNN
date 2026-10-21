@@ -198,8 +198,9 @@ int ref_primitive_t::init_prim(
                      force_f32_prim_dt, /*is_graph_ref=*/true),
                 WARN);
         if (res->state == SKIPPED || res->state == UNIMPLEMENTED) return OK;
-        ::init_memory_args(mems_, prb, fwd_prim_, res,
-                /*override_dir_with_fwd=*/true, ref_eng);
+        SAFE(::init_memory_args(mems_, prb, fwd_prim_, res,
+                     /*override_dir_with_fwd=*/true, ref_eng),
+                WARN);
         SAFE(init_ref_memory_args_func_(
                      ref_mems, mems_, fwd_prim_, prb, res, nullptr),
                 WARN);
@@ -221,8 +222,8 @@ void ref_primitive_t::init_memory_args(const engine_t &ref_eng, res_t *res) {
     if (!prb_) return;
 
     if (prim_) {
-        ::init_memory_args(mems_, prb_.get(), prim_, res,
-                /*override_dir_with_fwd=*/false, ref_eng);
+        SAFE_V(::init_memory_args(mems_, prb_.get(), prim_, res,
+                /*override_dir_with_fwd=*/false, ref_eng));
     } else {
         // handle an empty primitive through a driver's reference
         init_memory_args_native_func_(mems_, prb_.get(), op_, ref_eng);
