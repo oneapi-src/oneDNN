@@ -493,7 +493,9 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                     RegData XS;
                     if (state.useBDPAS && !Xr_scaleLayout.empty()) {
                         int xqGroupK = isA ? problem.aqGroupK : problem.bqGroupK;
-                        int kxq = isA ? state.kaq : state.kbq;
+                        int kaq = state.lateScale2DA ? state.kaqLate : state.kaq;
+                        int kbq = state.lateScale2DB ? state.kbqLate : state.kbq;
+                        int kxq = isA ? kaq : kbq;
                         int kxq_load = xqGroupK * kxq;
                         int hq = local_k_index(h, opCount, kxq_load, problem);
                         hq = (hq + hh) % kxq_load;
