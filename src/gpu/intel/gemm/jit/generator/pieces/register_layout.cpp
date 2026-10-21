@@ -915,11 +915,11 @@ RegisterBlock RegisterBlock::trySlice(Type T, bool column, int x1, int x2, int x
             }
             case AccessType::Scattered:
             case AccessType::ChannelScattered: {
-                if (T.paddedSize() > blockDst.ebytes)   return RegisterBlock();
-                if (x1 != 0)                            return RegisterBlock();
-                if (!is_zero_or_pow2(x2))               return RegisterBlock();
+                if (x1 != 0)              return RegisterBlock();
+                if (!is_zero_or_pow2(x2)) return RegisterBlock();
 
-                blockDst.simdSize = div_up(ns * T, blockDst.ebytes);
+                // Keep the same number of lanes per row/column. Non-power-of-2 blocks have padding lanes.
+                blockDst.simdSize = div_up(ns * simdSize, roundup_pow2(oldNS));
 
                 auto minSIMD = minScatteredSIMD(hw, astrategy);
                 if (blockDst.simdSize <= minSIMD && simdSize > minSIMD) {

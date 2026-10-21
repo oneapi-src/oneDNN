@@ -288,6 +288,9 @@ struct GEMMState : public CommonState {
     std::vector<ngen::RegisterRange> A_offsetAddrs, B_offsetAddrs;
     std::vector<ngen::RegisterRange> A_scaleAddrs, B_scaleAddrs, C_scaleAddrs;
     std::vector<ngen::RegisterRange> Ag_addrs, Bg_addrs;
+    std::vector<ngen::RegisterRange> A_offsetAddrsRem, B_offsetAddrsRem;
+    std::vector<ngen::RegisterRange> A_scaleAddrsRem, B_scaleAddrsRem;
+    std::vector<ngen::RegisterRange> Ag_addrsRem, Bg_addrsRem;
     // Auxiliary (quantization) prefetch addresses, advanced with the A/B prefetch schedule (strategy.pfaux).
     std::vector<ngen::RegisterRange> Ap_offsetAddrs, Bp_offsetAddrs;
     std::vector<ngen::RegisterRange> Ap_scaleAddrs, Bp_scaleAddrs;
@@ -380,6 +383,9 @@ struct GEMMState : public CommonState {
     RegisterLayout A_offsetLayout, B_offsetLayout;
     RegisterLayout A_scaleLayout, B_scaleLayout, C_scaleLayout;
     RegisterLayout Ag_layout, Bg_layout;
+    RegisterLayout A_offsetLayoutRem, B_offsetLayoutRem;
+    RegisterLayout A_scaleLayoutRem, B_scaleLayoutRem;
+    RegisterLayout Ag_layoutRem, Bg_layoutRem;
     RegisterLayout Ar_offsetLayout, Br_offsetLayout;
     RegisterLayout Ar_scaleLayout, Br_scaleLayout;
     RegisterLayout Agr_layout, Bgr_layout;
