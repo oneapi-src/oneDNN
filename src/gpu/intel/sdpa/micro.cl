@@ -112,6 +112,10 @@ inline void apply_dropout_s_tile(
        groups. */
     if (use_dropout_offset && (k_stride & 3) == 0 && (dnj & 3) == 0
             && (((batch_head_base + (ulong)tile_offset_r) & 3UL) == 0)) {
+        /* The key schedule depends only on seed, which is loop-invariant
+           across every group below (i0 and j) -- compute it once here
+           instead of inside philox_4x32_vec4[x2]_w_offset() on every call. */
+        const philox_key_schedule_t ks = philox_4x32_key_schedule(seed);
         for (int i0 = 0; i0 < dbr * dnbr; i0 += dsg) {
             const int i = i0 + get_sub_group_local_id();
             const int offset_c = tile_offset_c + i;
@@ -123,8 +127,8 @@ inline void apply_dropout_s_tile(
                this gives the compiler ILP to hide mul_hi() latency behind,
                instead of one fully sequential chain per call. */
             for (; j + 8 <= dnj; j += 8) {
-                const uint8 v8 = philox_4x32_vec4x2_w_offset(
-                        cbase + (ulong)j, seed, offset);
+                const uint8 v8 = philox_4x32_vec4x2_w_keys(
+                        cbase + (ulong)j, offset, ks.key0, ks.key1);
                 for (int w = 0; w < 8; w++) {
                     tile_access(scale_tile, i0, j + w, dsg, dbr, dbc, dnbr)
                             = dropout_keep(
@@ -132,8 +136,8 @@ inline void apply_dropout_s_tile(
                 }
             }
             for (; j < dnj; j += 4) {
-                const uint4 v4 = philox_4x32_vec4_w_offset(
-                        cbase + (ulong)j, seed, offset);
+                const uint4 v4 = philox_4x32_vec4_w_keys(
+                        cbase + (ulong)j, offset, ks.key0, ks.key1);
                 for (int w = 0; w < 4; w++) {
                     tile_access(scale_tile, i0, j + w, dsg, dbr, dbc, dnbr)
                             = dropout_keep(
