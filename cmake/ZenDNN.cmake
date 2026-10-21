@@ -25,11 +25,28 @@ if(NOT DNNL_X64_USE_ZEN)
     return()
 endif()
 
-# ZenDNN does not support Windows builds.
-if(WIN32)
+# ZenDNN provides x86_64 kernels only. Checked before every other requirement
+# below: without it, configuration completes on a non-x64 target and the x64
+# ZenDNN library is still linked into dnnl (src/CMakeLists.txt gates that on
+# DNNL_X64_USE_ZEN alone), so the mismatch only surfaces at link time as an
+# object machine-type conflict.
+if(NOT DNNL_TARGET_ARCH STREQUAL "X64")
     message(FATAL_ERROR
-        "ONEDNN_X64_USE_ZEN=ON is not supported on Windows. "
-        "Build on Linux, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
+        "ONEDNN_X64_USE_ZEN=ON requires an x86_64 target; ZenDNN provides "
+        "x86_64 kernels only. Current DNNL_TARGET_ARCH: ${DNNL_TARGET_ARCH}. "
+        "Configure with -DONEDNN_X64_USE_ZEN=OFF.")
+endif()
+
+# On Windows, ZenDNN is built against the LLVM OpenMP runtime (/openmp:llvm).
+# OpenMP_RUNTIME_MSVC, which selects it here, is only honored by CMake >= 3.30;
+# on older CMake it is silently ignored and this build falls back to MSVC's
+# /openmp (vcomp), putting two OpenMP runtimes in one process. That corrupts
+# multithreaded work partitioning rather than failing loudly.
+if(WIN32 AND CMAKE_VERSION VERSION_LESS "3.30")
+    message(FATAL_ERROR
+        "ONEDNN_X64_USE_ZEN=ON on Windows requires CMake >= 3.30. "
+        "Current CMake: ${CMAKE_VERSION}. "
+        "Upgrade CMake, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
 endif()
 
 # ZenDNN requires CMake >= 3.26.
@@ -61,7 +78,7 @@ endif()
 # Minimum supported ZenDNN version. With ONEDNN_X64_USE_ZEN=ON, a missing ZenDNN
 # fails configuration (see the FATAL_ERROR below); a ZenDNN that is present but
 # older than this is treated as a misconfiguration and also fails the build.
-set(ZENDNN_MIN_VERSION "6.0.0")
+set(ZENDNN_MIN_VERSION "6.0.1")
 find_package(zendnnl CONFIG)
 
 if(NOT zendnnl_FOUND)
@@ -86,7 +103,7 @@ elseif("${zendnnl_VERSION}" VERSION_LESS "${ZENDNN_MIN_VERSION}")
         "Update ZenDNN, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
 endif()
 
-# Require GCC >= 11.2 or Clang >= 14; ZenDNN builds only with GCC/Clang.
+# Require GCC >= 11.2, Clang >= 14, or MSVC >= 19.43.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "11.2")
         message(FATAL_ERROR
@@ -103,17 +120,37 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
             "${CMAKE_CXX_COMPILER_VERSION}. "
             "Upgrade Clang, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
     endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.43")
+        message(FATAL_ERROR
+            "ONEDNN_X64_USE_ZEN=ON requires MSVC >= 19.43 (Visual Studio 2022 "
+            "17.13), the toolset the ZenDNN Windows port is built and tested "
+            "with. Current C++ compiler: ${CMAKE_CXX_COMPILER_ID} "
+            "${CMAKE_CXX_COMPILER_VERSION}. "
+            "Upgrade MSVC, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
+    endif()
 else()
     message(FATAL_ERROR
-        "ONEDNN_X64_USE_ZEN=ON requires GCC >= 11.2 or Clang >= 14; ZenDNN does "
-        "not support other compilers. Current C++ compiler: "
+        "ONEDNN_X64_USE_ZEN=ON requires GCC >= 11.2, Clang >= 14, or "
+        "MSVC >= 19.43; ZenDNN does not support other compilers. "
+        "Current C++ compiler: "
         "${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}. "
-        "Build with GCC or Clang, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
+        "Build with GCC, Clang or MSVC, or configure with "
+        "-DONEDNN_X64_USE_ZEN=OFF.")
 endif()
 
 add_definitions(-DDNNL_X64_USE_ZEN=1)
 # C++17 requirement is applied per-target via target_compile_features()
 # in src/cpu/{,x64/}CMakeLists.txt, not project-wide.
+
+# ZenDNN's installed headers call std::getenv and std::strncpy, which MSVC
+# deprecates (C4996); oneDNN compiles with /sdl, which promotes that to an
+# error. Scoped here rather than in oneDNN's global flags so it applies only to
+# ZenDNN-enabled builds -- the default ONEDNN_X64_USE_ZEN=OFF build returns
+# above and keeps its CRT deprecation warnings intact.
+if(MSVC)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+endif()
 
 # Resolve the available ZenDNN imported target name into ${out_var}. ZenDNN may
 # export either a shared (zendnnl::zendnnl) or an archive

@@ -402,14 +402,21 @@ ZenDNN install is found, configuration fails with an error.
 
 When `ONEDNN_X64_USE_ZEN=ON`, the following additional requirements apply
 (they do not affect the default `OFF` build):
-* Targets Linux on x86_64; Windows builds are rejected at configure time.
-* Requires CMake 3.26 or later.
-* Requires GCC 11.2 or later, or Clang 14 or later; other compilers are
-  rejected.
-* Requires ZenDNN version 6.0.0 or later. Both static (archive) and shared
-  ZenDNN builds are supported.
+* Targets x86_64 on Linux or Windows.
+* Requires CMake 3.26 or later, and 3.30 or later on Windows (see the OpenMP
+  note below).
+* Requires GCC 11.2 or later, Clang 14 or later, or MSVC 19.43 or later
+  (Visual Studio 2022 17.13); other compilers are rejected.
+* Requires ZenDNN version 6.0.1 or later; on Windows, ZenDNN tag
+  `zendnn-2026-WW37` or later. Both static (archive) and shared ZenDNN builds
+  are supported.
 * Requires `ONEDNN_CPU_RUNTIME=OMP`; ZenDNN only supports the OpenMP threading
   runtime, and other runtimes are rejected at configure time.
+
+On Windows the build selects the LLVM OpenMP runtime (`/openmp:llvm`)
+automatically, since ZenDNN and AOCL-DLP are built against it and mixing it
+with MSVC's `vcomp` silently corrupts multithreaded work partitioning. This
+relies on `OpenMP_RUNTIME_MSVC`, which CMake honors only from 3.30 onward.
 
 Refer to the [ZenDNN repository](https://github.com/amd/ZenDNN) for
 instructions on building the ZenDNN binary (build it with

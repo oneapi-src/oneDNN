@@ -374,7 +374,7 @@ onednn_option(SAFE_RBP OFF
 
 onednn_option(X64_USE_ZEN OFF
     "Enable ZenDNN integration. When ON, configuration requires a discoverable
-    ZenDNN package (>= 6.0.0) and ONEDNN_CPU_RUNTIME=OMP, and fails otherwise.")
+    ZenDNN package (>= 6.0.1) and ONEDNN_CPU_RUNTIME=OMP, and fails otherwise.")
 set(ZENDNNROOT "" CACHE STRING "Path to ZenDNN installation root")
 
 # -------------------

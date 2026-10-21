@@ -214,9 +214,10 @@ You can build the library on Linux, macOS, or Windows using the compiler of your
 This opt-in path links oneDNN against the [ZenDNN](https://github.com/amd/ZenDNN)
 library to enable AMD (Zen) CPU-tuned kernels. It is `OFF` by default; see
 [ONEDNN_X64_USE_ZEN](@ref opt_x64_use_zen) for the full list of requirements
-(Linux on x86_64, CMake >= 3.26, GCC >= 11.2 or Clang >= 14, `ONEDNN_CPU_RUNTIME=OMP`,
-and a ZenDNN install >= 6.0.0 built as either a static archive or a shared
-library; Windows builds are rejected at configure time).
+(x86_64, CMake >= 3.26, GCC >= 11.2 or Clang >= 14, `ONEDNN_CPU_RUNTIME=OMP`,
+and a ZenDNN install >= 6.0.1 built as either a static archive or a shared
+library). For Windows, see
+[Use Microsoft Visual C++ Compiler with ZenDNN](@ref build_zen_msvc).
 
 1. Set up the environment for the compiler
 
@@ -237,7 +238,7 @@ library; Windows builds are rejected at configure time).
    @note You can also pass the ZenDNN location directly on the command line with
    `-DZENDNNROOT=<path/to/zendnnl/install>` instead of exporting it. If
    `ZENDNNROOT` is unset, CMake searches the default package paths; if no
-   ZenDNN install is found (or the found version is older than 6.0.0),
+   ZenDNN install is found (or the found version is older than 6.0.1),
    configuration fails with an error.
 
 3. Build the library
@@ -286,6 +287,55 @@ both `Debug` and `Release` builds), but it must refer to the same build type
 
 @note Alternatively, you can open `oneDNN.sln` to build the project from the
 Microsoft Visual Studio IDE.
+
+@anchor build_zen_msvc
+#### Use Microsoft Visual C++ Compiler with ZenDNN
+
+This is the Windows counterpart of the GCC/Clang ZenDNN path above. See
+[ONEDNN_X64_USE_ZEN](@ref opt_x64_use_zen) for the full requirement list; on
+Windows it additionally requires MSVC 19.43 or later (Visual Studio 2022
+17.13), CMake 3.30 or later, and a ZenDNN install built from tag
+`zendnn-2026-WW37` or later.
+
+1. Set up the environment for the compiler
+
+   Open `x64 Native Tools Command Prompt` from the start menu, or run
+   `VsDevCmd.bat` as shown above.
+
+2. Generate the build system
+
+   Build (or install) a prebuilt ZenDNN binary as documented in the
+   [ZenDNN repository](https://github.com/amd/ZenDNN), then point `ZENDNNROOT`
+   at it.
+   ~~~bat
+   mkdir build
+   cd build
+   cmake .. -G "Visual Studio 17 2022" -A x64 ^
+     -DCMAKE_BUILD_TYPE=Release ^
+     -DONEDNN_X64_USE_ZEN=ON ^
+     -DZENDNNROOT=<path\to\zendnnl\install>
+   ~~~
+   @note `ZENDNNROOT` must point at the directory containing `lib\cmake`,
+   which for a default ZenDNN install is the `zendnnl` subdirectory of the
+   install prefix (for example `<prefix>\install\zendnnl`), not the prefix
+   itself. A successful configuration reports
+   `Found ZenDNN <version>: <path>`.
+
+   @note The LLVM OpenMP runtime is selected automatically; do not set
+   `OpenMP_RUNTIME_MSVC` yourself. Configuration reporting
+   `Found OpenMP_CXX: -openmp:llvm` confirms it. The `(found version "2.0")`
+   printed alongside is expected: MSVC leaves the `_OPENMP` macro at the
+   OpenMP 2.0 value even under `/openmp:llvm`.
+
+3. Build the library
+   ~~~bat
+   cmake --build . --config=Release --parallel %NUMBER_OF_PROCESSORS%
+   ~~~
+   The multi-config caveat above applies: `--config` must name the same build
+   type as `CMAKE_BUILD_TYPE`.
+
+With this generator the library is written to `src\Release\dnnl.dll` rather
+than `src\dnnl.dll`.
 
 #### Use Intel oneAPI DPC++/C++ Compiler with SYCL Runtime
 

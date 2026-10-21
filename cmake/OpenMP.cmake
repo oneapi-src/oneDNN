@@ -31,6 +31,29 @@ else()
     set(_omp_severity "FATAL_ERROR")
 endif()
 
+# ZenDNN and AOCL-DLP are built against the LLVM OpenMP runtime, so on MSVC
+# oneDNN has to select it too: two OpenMP runtimes in one process (vcomp +
+# libomp) do not share a thread pool and silently corrupt work partitioning
+# rather than failing to link. Set here rather than in ZenDNN.cmake because
+# that file is included after find_package(OpenMP) below has already run.
+# Requires CMake >= 3.30, which ZenDNN.cmake enforces.
+if(MSVC AND DNNL_X64_USE_ZEN)
+    set(OpenMP_RUNTIME_MSVC "llvm")
+    # A build tree first configured with ONEDNN_X64_USE_ZEN=OFF has cached
+    # FindOpenMP's probe result for /openmp (vcomp). FindOpenMP re-probes only
+    # when OpenMP_<LANG>_FLAGS / OpenMP_<LANG>_LIB_NAMES are absent from the
+    # cache, so enabling Zen on such a tree would silently keep vcomp and mix
+    # two runtimes. Drop the stale entries so the runtime selected above is
+    # applied.
+    if(DEFINED OpenMP_CXX_FLAGS
+            AND NOT "${OpenMP_CXX_FLAGS}" MATCHES "openmp:llvm")
+        unset(OpenMP_C_FLAGS CACHE)
+        unset(OpenMP_CXX_FLAGS CACHE)
+        unset(OpenMP_C_LIB_NAMES CACHE)
+        unset(OpenMP_CXX_LIB_NAMES CACHE)
+    endif()
+endif()
+
 if(DPCPP_HOST_COMPILER_KIND STREQUAL "DEFAULT")
     # XXX: workaround: when -fsycl is specified the compiler doesn't define
     # _OPENMP macro causing `find_package(OpenMP)` to fail.
@@ -49,6 +72,18 @@ if(DPCPP_HOST_COMPILER_KIND STREQUAL "DEFAULT")
     endif()
     find_package(OpenMP)
     set(CMAKE_CXX_FLAGS "${_omp_original_cmake_cxx_flags}")
+endif()
+
+# Never proceed with a mixed-runtime configuration: ZenDNN and AOCL-DLP are
+# built against libomp, and pairing them with MSVC's vcomp corrupts threading
+# at run time instead of failing to link.
+if(MSVC AND DNNL_X64_USE_ZEN AND OpenMP_CXX_FOUND
+        AND NOT "${OpenMP_CXX_FLAGS}" MATCHES "openmp:llvm")
+    message(FATAL_ERROR
+        "ONEDNN_X64_USE_ZEN=ON requires the LLVM OpenMP runtime, but OpenMP "
+        "resolved to '${OpenMP_CXX_FLAGS}'. This usually means the build "
+        "directory was first configured without ZenDNN. Reconfigure in a "
+        "clean build directory.")
 endif()
 
 # add flags unconditionally to always utilize openmp-simd for any threading runtime
