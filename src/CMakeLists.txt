@@ -286,6 +286,9 @@ write_basic_package_version_file(
     "${LIB_VERSION_FILE}"
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY SameMajorVersion)
+if(DNNL_X64_USE_ZEN)
+    zendnn_install_package()
+endif()
 configure_package_config_file(
     "../cmake/config.cmake.in"
     "${LIB_CONFIG_FILE}"

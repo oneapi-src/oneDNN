@@ -90,6 +90,9 @@ endif()
 
 # Minimum supported ZenDNN version. A missing or too-old ZenDNN fails configure.
 set(ZENDNN_MIN_VERSION "6.1.1")
+# find_package replaces a zendnnl_DIR without a package by
+# zendnnl_DIR-NOTFOUND, so keep the requested path for the error below.
+set(_zendnn_requested_dir "${zendnnl_DIR}")
 find_package(zendnnl CONFIG)
 
 if(zendnnl_FOUND)
@@ -106,11 +109,22 @@ if(zendnnl_FOUND)
             "Update ZenDNN, or configure with -DONEDNN_X64_USE_ZEN=OFF.")
     endif()
     message(STATUS "Found ZenDNN ${zendnnl_VERSION}: ${zendnnl_DIR}")
+    set(_zendnn_package_dir "${zendnnl_DIR}")
     if(NOT ONEDNN_ZENDNN_SOURCE STREQUAL "${ZENDNN_RELEASE_URL}@${ZENDNN_RELEASE_TAG}")
         message(STATUS "ONEDNN_ZENDNN_SOURCE is ignored because a ZenDNN package "
             "was found. Set CMAKE_DISABLE_FIND_PACKAGE_zendnnl=ON to build from it.")
     endif()
 else()
+    # ZENDNNROOT or zendnnl_DIR names a package; do not fall back to a source
+    # build unless find_package is disabled.
+    if(_zendnn_requested_dir AND NOT CMAKE_DISABLE_FIND_PACKAGE_zendnnl)
+        message(FATAL_ERROR
+            "ONEDNN_X64_USE_ZEN=ON but no ZenDNN package was found in "
+            "${_zendnn_requested_dir}. Set ZENDNNROOT or zendnnl_DIR to a "
+            "ZenDNN install, or configure with "
+            "-DCMAKE_DISABLE_FIND_PACKAGE_zendnnl=ON to build from "
+            "ONEDNN_ZENDNN_SOURCE anyway.")
+    endif()
     # ONEDNN_ZENDNN_SOURCE is a local source tree or <url>@<tag>, split at the
     # last '@'. Git refs cannot contain ':', which rejects a bare SSH URL.
     if(IS_ABSOLUTE "${ONEDNN_ZENDNN_SOURCE}" AND IS_DIRECTORY "${ONEDNN_ZENDNN_SOURCE}")
@@ -218,7 +232,11 @@ endfunction()
 # Link ZenDNN target into ${target} with given visibility (PRIVATE/PUBLIC/INTERFACE)
 function(target_link_zendnnl target visibility)
     zendnn_resolve_target(_zendnnl_target)
-    target_link_libraries(${target} ${visibility} ${_zendnnl_target})
+    # The source-built target is an alias of the fwk's zendnnl_library, and an
+    # export resolves aliases to the real name. $<1:...> keeps the package name.
+    target_link_libraries(${target} ${visibility}
+        "$<BUILD_INTERFACE:${_zendnnl_target}>"
+        "$<INSTALL_INTERFACE:$<1:${_zendnnl_target}>>")
 
     # Keep ZenDNN and AOCL symbols out of the dynamic symbol table. A static
     # oneDNN passes the option on to the library that links it.
@@ -234,5 +252,31 @@ function(target_link_zendnnl target visibility)
     # Ensure target waits for ZenDNN ExternalProject to complete
     if(TARGET fwk_zendnnl)
         add_dependencies(${target} fwk_zendnnl)
+    endif()
+endfunction()
+
+# Sets ZENDNN_CONFIG_HINT for the installed dnnl-config.cmake. A static oneDNN
+# exports its ZenDNN link, so a source-built ZenDNN is installed with it;
+# skipped when oneDNN is a subproject (PyTorch, ideep), whose install would
+# otherwise ship the ZenDNN tree. Call after GNUInstallDirs.
+function(zendnn_install_package)
+    if(_zendnn_package_dir)
+        set(ZENDNN_CONFIG_HINT "${_zendnn_package_dir}" PARENT_SCOPE)
+    elseif(DNNL_LIBRARY_TYPE STREQUAL "STATIC" AND PROJECT_IS_TOP_LEVEL)
+        set(_dir "${CMAKE_INSTALL_LIBDIR}/zendnn")
+        install(DIRECTORY "${ZENDNNL_INSTALL_PREFIX}/zendnnl" "${ZENDNNL_INSTALL_PREFIX}/deps"
+            DESTINATION "${_dir}" USE_SOURCE_PERMISSIONS)
+        set(_deps "${ZENDNNL_SOURCE_DIR}/dependencies")
+        set(_doc "${CMAKE_INSTALL_DATAROOTDIR}/doc/${LIB_PACKAGE_NAME}/zendnn")
+        install(FILES "${ZENDNNL_SOURCE_DIR}/LICENSE"
+            "${ZENDNNL_SOURCE_DIR}/THIRD-PARTY-NOTICES"
+            DESTINATION "${_doc}/zendnn")
+        install(FILES "${_deps}/aocldlp/LICENSE" "${_deps}/aocldlp/NOTICES"
+            DESTINATION "${_doc}/aocl-dlp")
+        install(FILES "${_deps}/aoclutils/License.txt" "${_deps}/aoclutils/NOTICES.txt"
+            DESTINATION "${_doc}/aocl-utils")
+        install(FILES "${_deps}/json/LICENSE.MIT"
+            DESTINATION "${_doc}/nlohmann-json")
+        set(ZENDNN_CONFIG_HINT "\${PACKAGE_PREFIX_DIR}/${_dir}/zendnnl/lib/cmake" PARENT_SCOPE)
     endif()
 endfunction()
