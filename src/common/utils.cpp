@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2018 Intel Corporation
+* Copyright 2026 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -253,8 +254,7 @@ static setting_t<std::string> jit_profiling_jitdumpdir;
 dnnl_status_t init_jit_profiling_jitdumpdir(
         const char *jitdumpdir, bool overwrite) {
 #ifdef __linux__
-    static std::mutex m;
-    std::lock_guard<std::mutex> g(m);
+    std::lock_guard<std::mutex> guard {jit_profiling_jitdumpdir.mutex};
 
     if (jit_profiling_jitdumpdir.initialized() && !overwrite)
         return status::success;
@@ -280,15 +280,11 @@ dnnl_status_t init_jit_profiling_jitdumpdir(
 std::string get_jit_profiling_jitdumpdir() {
     std::string jitdumpdir;
 #if DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE
-    if (!jit_profiling_jitdumpdir.initialized()) {
-        auto status = init_jit_profiling_jitdumpdir(nullptr, false);
-        if (status != status::success) return std::string();
-    } else {
-        static std::mutex m;
-        std::lock_guard<std::mutex> g(m);
+    auto status = init_jit_profiling_jitdumpdir(nullptr, false);
+    if (status != status::success) return std::string();
 
-        jitdumpdir = jit_profiling_jitdumpdir.get();
-    }
+    std::lock_guard<std::mutex> guard {jit_profiling_jitdumpdir.mutex};
+    jitdumpdir = jit_profiling_jitdumpdir.get();
 #endif
     return jitdumpdir;
 }
