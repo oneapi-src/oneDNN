@@ -134,7 +134,7 @@ struct prb_t : public prb_vdims_t, public base_prb_t {
         , scale_type(scale_type) {
 
         // Broadcast data types if needed: Q,K,V,DST
-        broadcast_vector(this->dt, this->dt[0], 4);
+        broadcast_vector(this->dt, dt[0], 4);
 
         const auto &qdims = q_dims();
         const auto &kdims = k_dims();
