@@ -18,7 +18,6 @@
 #define EXAMPLE_UTILS_H
 
 #include <assert.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -107,7 +106,13 @@ static inline void read_from_dnnl_memory(void *handle, dnnl_memory_t mem) {
     CHECK(dnnl_memory_get_memory_desc(mem, &md));
     size_t bytes = dnnl_memory_desc_get_size(md);
 
-    bool is_cpu_sycl
+    // Use _Bool rather than bool: on ppc64 the OpenCL headers pull in
+    // <altivec.h> (dnnl_ocl.h -> CL/cl_platform.h), which aliases bool to the
+    // AltiVec keyword __vector __bool int and breaks scalar use. _Bool is not
+    // aliased. Workaround for
+    // https://github.com/KhronosGroup/OpenCL-Headers/issues/320, remove once
+    // that is fixed upstream and third_party/opencl is updated.
+    _Bool is_cpu_sycl
             = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
 
     if (eng_kind == dnnl_gpu || is_cpu_sycl) {
@@ -146,9 +151,10 @@ static inline void write_to_dnnl_memory(void *handle, dnnl_memory_t mem) {
     size_t bytes = dnnl_memory_desc_get_size(md);
 
 #ifdef DNNL_WITH_SYCL
-    bool is_cpu_sycl
+    // _Bool rather than bool, see read_from_dnnl_memory() above.
+    _Bool is_cpu_sycl
             = (DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_cpu);
-    bool is_gpu_sycl
+    _Bool is_gpu_sycl
             = (DNNL_GPU_RUNTIME == DNNL_RUNTIME_SYCL && eng_kind == dnnl_gpu);
     if (is_cpu_sycl || is_gpu_sycl) {
         void *mapped_ptr = NULL;
