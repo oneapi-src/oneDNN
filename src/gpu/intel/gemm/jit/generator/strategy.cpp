@@ -602,6 +602,7 @@ bool GEMMStrategy::minimize(HW hw, const GEMMProblem &problem)
 
     // Remove k chaining.
     kChain = 1;
+    extendedAtomicFMA = false;
 
     // Reduce k unroll for SLM copies.
     if (slmA || slmB) {
