@@ -117,7 +117,21 @@ inline void apply_dropout_s_tile(
             const int offset_c = tile_offset_c + i;
             const ulong cbase = batch_head_base
                     + (ulong)offset_c * (ulong)k_stride + (ulong)tile_offset_r;
-            for (int j = 0; j < dnj; j += 4) {
+            int j = 0;
+            /* Process two groups of four (eight elements) per Philox call
+               when possible -- the two 10-round chains are independent, so
+               this gives the compiler ILP to hide mul_hi() latency behind,
+               instead of one fully sequential chain per call. */
+            for (; j + 8 <= dnj; j += 8) {
+                const uint8 v8 = philox_4x32_vec4x2_w_offset(
+                        cbase + (ulong)j, seed, offset);
+                for (int w = 0; w < 8; w++) {
+                    tile_access(scale_tile, i0, j + w, dsg, dbr, dbc, dnbr)
+                            = dropout_keep(
+                                    v8[w], tile_offset_r + j + w, offset_c);
+                }
+            }
+            for (; j < dnj; j += 4) {
                 const uint4 v4 = philox_4x32_vec4_w_offset(
                         cbase + (ulong)j, seed, offset);
                 for (int w = 0; w < 4; w++) {
