@@ -3327,7 +3327,7 @@ void CopyPlan::legalizeRegions()
         }
 
         /* PVC limitations on packing multiple execution channels into a DWord */
-        if (canSwizzle && hw >= HW::XeHPC && channelSize < 4 && !nullDst && i.dst.stride * getBytes(dt) < 4) {
+        if (canSwizzle && hw >= HW::XeHPC && channelSize < 4 && !nullDst && i.dst.stride * getBytes(dt) < 4 && !isBroadcast(i.src0)) {
             int d0s = i.dst.stride;
             int d0o = i.dst.offset;
             int s0s = i.src0.stride;
