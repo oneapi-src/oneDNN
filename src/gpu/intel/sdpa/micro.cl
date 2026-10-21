@@ -701,7 +701,7 @@ micro_sdpa(const global KEY_DATA_T *K, const global QRY_DATA_T *Q,
 #endif
     uint dropout_threshold = get_dropout_threshold(dropout_p);
     float dropout_inv_q = (dropout_p != 1.f) ? 1.f / (1.f - dropout_p) : 0.f;
-    const ulong dropout_batch_head_idx = (ulong)(DST_BATCH(b1, b0) / DST_S1);
+    const ulong dropout_batch_head_idx = (ulong)b1 * (ulong)DST_D1 + (ulong)b0;
     const ulong dropout_batch_head_base
             = dropout_batch_head_idx * (ulong)q * (ulong)k;
 #endif
