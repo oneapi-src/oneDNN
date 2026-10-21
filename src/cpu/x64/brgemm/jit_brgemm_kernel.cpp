@@ -123,8 +123,25 @@ struct jit_brgemm_kernel_t : public brgemm_kernel_t {
                     dst_md_wrapper, tail_size, k_mask,
                     use_exact_tail_scalar_bcast};
 
-            const binary_injector::static_params_t bsp {this->param1,
-                    binary_injector::get_all_strategies_supported_by_injector(),
+            // The transA GEMV kernel with `y` as a column vectorizes the
+            // accumulators along M. For 3D dst {B, M, 1}, M is the channel
+            // dimension for the injector, and rhs can only be {1, 1, 1},
+            // {1, M, 1}, {B, 1, 1} or {B, M, 1}. The strategies below cover
+            // these shapes without assuming vectorization along a spatial
+            // dimension, unlike per_oc_spatial and per_mb_spatial. Other dst
+            // need no changes, as M is the minibatch dimension for the
+            // injector in 2D dst and a spatial one in 4D and higher dst.
+            const bool is_transa_gemv_3d = brg.is_gemv
+                    && brg.gemv_acc_is_vector() && !brg.treat_y_as_row
+                    && brg.dst_md()->ndims == 3;
+            const auto bcast_set = is_transa_gemv_3d
+                    ? bcast_set_t {broadcasting_strategy_t::scalar,
+                              broadcasting_strategy_t::per_oc,
+                              broadcasting_strategy_t::per_mb,
+                              broadcasting_strategy_t::no_broadcast}
+                    : binary_injector::
+                              get_all_strategies_supported_by_injector();
+            const binary_injector::static_params_t bsp {this->param1, bcast_set,
                     rhs_sp, f8_e5m2_cvt_.get(), f8_e4m3_cvt_.get()};
 
             postops_injector_ = utils::make_unique<po_injector_t>(this,
