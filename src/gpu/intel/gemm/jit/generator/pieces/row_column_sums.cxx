@@ -204,7 +204,9 @@ void Generator<hw>::accumulateSum(bool column,
                     eadd(ne, dst, dst, src_fp, strategy, state);
                 } else
                     eadd(ne, dst, src, dst, strategy, state);
-            } else
+            } else if (hw >= HW::Xe3p && src.getHS() * Tsrc != dst.getHS() * Tdst)
+                eadd(ne, dst, src, dst, strategy, state);
+            else
                 eadd(ne, dst, dst, src, strategy, state);
 
             x += ne * reduce;
