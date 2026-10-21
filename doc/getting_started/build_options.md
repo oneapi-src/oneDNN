@@ -335,7 +335,7 @@ of GEMM operations. The following options are supported:
 | ONEDNN_ENABLE_CPU_ISA_HINTS       | **ON**  | OFF              | Enables [CPU ISA hints](@ref dev_guide_cpu_isa_hints)                                          |
 | [ONEDNN_SAFE_RBP]                 | **OFF** | ON               | Enables restriction for JIT kernels to pollute RBP vector register content                     |
 | [ONEDNN_X64_USE_ZEN]              | **OFF** | ON               | Enables integration with the ZenDNN library for AMD (Zen) CPUs                                  |
-| [ONEDNN_ZENDNN_SOURCE]            | **ZenDNN release** | \<absolute path\>, \<url\>@\<tag\> | ZenDNN source to build when no ZenDNN package is found           |
+| [ONEDNN_ZENDNN_SOURCE]            | [ZenDNN\@v6.1.1][ZenDNN] | \<path\>, \<url\>\@\<tag\> | ZenDNN source to build when no ZenDNN package is found           |
 
 [ONEDNN_ENABLE_PRIMITIVE_CPU_ISA]: @ref opt_enable_primitive_cpu_isa
 [ONEDNN_ENABLE_GEMM_KERNELS_ISA]: @ref opt_enable_gemm_kernels_isa
@@ -397,7 +397,9 @@ $ cmake -DONEDNN_X64_USE_ZEN=ON ..
 
 When enabled, oneDNN looks for ZenDNN in this order:
 1. An installed ZenDNN package, found through `ZENDNNROOT` (CMake variable or
-   environment variable) or the default CMake package search paths.
+   environment variable), `zendnnl_DIR`, or the default CMake package search
+   paths. If `ZENDNNROOT` or `zendnnl_DIR` is set, it must contain a package;
+   configure fails otherwise.
 2. The source given by [ONEDNN_ZENDNN_SOURCE](@ref opt_zendnn_source), built
    from source. By default this downloads a ZenDNN release.
 
@@ -406,13 +408,18 @@ If a package is found, `ONEDNN_ZENDNN_SOURCE` is ignored; configure with
 static (archive) and shared ZenDNN packages are supported. A source build
 links the resulting static archive (`zendnnl::zendnnl_archive`).
 
-ZenDNN is compiled as an external project through
-`fwk/ZenDnnlFwkIntegrate.cmake` when oneDNN itself is built. oneDNN forces
-`ZENDNNL_DEPENDS_ONEDNN=OFF` for that build so ZenDNN does not bundle its own
-oneDNN. The first build in a build directory also downloads ZenDNN's own
-dependencies (AOCL-DLP, AOCL-Utils, and nlohmann-json), so it needs network
-access even when the ZenDNN source is already in place. Later builds in the
-same build directory reuse them.
+Otherwise ZenDNN is compiled as an external project. The first build in a
+build directory also downloads ZenDNN's own dependencies (AOCL-DLP,
+AOCL-Utils, and nlohmann-json), so it needs network access even when the
+ZenDNN source is already in place. Later builds in the same build directory
+reuse them.
+
+A static oneDNN built from ZenDNN source installs that ZenDNN and its
+dependencies under `${CMAKE_INSTALL_LIBDIR}/zendnn`, and their license files
+under `${CMAKE_INSTALL_DATAROOTDIR}/doc/dnnl/zendnn`. The installed oneDNN
+package finds ZenDNN there. A static oneDNN built against a ZenDNN
+package finds that package instead. When oneDNN is built as a subproject,
+ZenDNN is not installed.
 
 When `ONEDNN_X64_USE_ZEN=ON`, the following additional requirements apply
 (they do not affect the default `OFF` build):
@@ -434,9 +441,6 @@ This option selects the ZenDNN source that oneDNN builds when
 * An absolute path to a ZenDNN source tree, which is used in place.
 * `<git url>@<tag or commit>`, which is cloned into the build directory. The
   value is split at the last `@`.
-
-The default is `https://github.com/amd/ZenDNN.git@v6.1.1`, the ZenDNN release
-this version of oneDNN is tested with.
 
 ~~~sh
 $ cmake -DONEDNN_X64_USE_ZEN=ON -DONEDNN_ZENDNN_SOURCE=/path/to/ZenDNN ..
