@@ -320,7 +320,7 @@ dnnl_data_type_t deduce_cfg_data_type(
 // references once the object emplaced due to memory re-allocations happening
 // internally, while map doesn't not invalidate its references when adding a new
 // element which simplifies an implementation.
-void init_memory_args(dnn_mem_map_t &mem_map, const base_prb_t *base_prb,
+int init_memory_args(dnn_mem_map_t &mem_map, const base_prb_t *base_prb,
         dnnl_primitive_t prim, res_t *res, bool override_dir_with_fwd = false,
         const engine_t &test_engine = get_test_engine());
 
