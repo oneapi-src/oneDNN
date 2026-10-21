@@ -41,6 +41,8 @@
 --reset --dt=100:f16+101:f16+102:f16+103:f16+12:f16+105:f16+13:f16+15:f16+104:f16+10:f16+30:f16+33:f16+31:f16+35:f16
         --tensor-property=205:undef+206:undef+207:undef,205:host_scalar+206:host_scalar+207:host_scalar
         --case=complex_fusion/mha/gqa-plain-training-bwd-w-dropout-bf16-f32.json
+--reset --case=complex_fusion/mha/sdpa-training-fwd-w-dropout-strided-f16-f32.json
+--reset --case=complex_fusion/mha/sdpa-training-bwd-w-dropout-strided-f16-f32.json
 --reset --dt=0:f16+1:f16+2:f16+12:f16+14:f16 --in-shapes=,\
         0:128x12x197x64*453888x37824x192x1+1:128x12x64x197*453888x37824x1x192+2:128x12x197x64*453888x37824x192x1+14:128x12x197x64*453888x37824x192x1,\
         0:128x12x197x64*302592x25216x128x2+1:128x12x64x197*302592x25216x394x2+2:128x12x197x64*302592x25216x128x2+13:128x12x197x1*4728x394x2x1+14:128x12x197x64*302592x25216x128x2
