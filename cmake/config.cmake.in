@@ -51,6 +51,11 @@ endif()
 # Reverting the CMAKE_MODULE_PATH to its original state
 set(CMAKE_MODULE_PATH ${DNNL_ORIGINAL_CMAKE_MODULE_PATH})
 
+if("@DNNL_X64_USE_ZEN@" AND "@DNNL_LIBRARY_TYPE@" STREQUAL "STATIC")
+    include(CMakeFindDependencyMacro)
+    find_dependency(zendnnl CONFIG HINTS "@ZENDNN_CONFIG_HINT@")
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/@LIB_EXPORT_NAME@.cmake")
 check_required_components("@LIB_PACKAGE_NAME@")
 
