@@ -495,7 +495,15 @@ inline uint32_t philox4x32(uint64_t idx, uint64_t seed, uint64_t offset) {
         key[0] += PHILOX_W4x32_0;
         key[1] += PHILOX_W4x32_1;
     };
-    constexpr int nrounds = 10;
+    // EXPERIMENTAL: reduced from the PyTorch-reference 10 rounds to 7.
+    // 7 rounds still passes BigCrush statistically (see e.g. NVIDIA
+    // cuRANDDx docs) but is NOT bit-compatible with the standard
+    // Philox-4x32-10 stream used by PyTorch and described in the comment
+    // above -- it is only self-consistent within this library because
+    // src/gpu/intel/include/philox.h's PHILOX_ROUNDS is reduced to the
+    // same count in the same commit. Revert both together if PyTorch
+    // mask bit-compatibility is required.
+    constexpr int nrounds = 7;
     for (int i = 0; i < (nrounds - 1); ++i) {
         philox4x32round();
         philox4x32bumpkey();

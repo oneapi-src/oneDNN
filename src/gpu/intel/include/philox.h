@@ -20,6 +20,15 @@
 #define DT_UNDEF 1
 #include "gpu/intel/include/types.h"
 
+/* EXPERIMENTAL: the reference Philox-4x32-10 (PyTorch-compatible) uses 10
+   rounds. This reduces it to 7, which still passes BigCrush statistically
+   (see e.g. NVIDIA cuRANDDx docs) but is NOT bit-compatible with the
+   standard 10-round stream -- it only stays self-consistent because the
+   CPU reference in src/common/math_utils.hpp::philox4x32() is changed to
+   the same 7-round count in the same commit. Do not enable this unless
+   that CPU reference is kept in sync. */
+#define PHILOX_ROUNDS 7
+
 /* The Philox key schedule (key0/key1, 10 round-keys derived from seed) does
    not depend on idx/offset at all. Callers that invoke philox many times
    with the same seed in a loop (e.g. one call per group of 4 dropout mask
@@ -72,10 +81,18 @@ uint4 philox_4x32_vec4_w_keys(ulong idx, ulong offset, uint16 key0, uint4 key1) 
     ctr = PHILOX_4UINT_ROUND(PHILOX_M4x32, ctr, key0.s67);
     ctr = PHILOX_4UINT_ROUND(PHILOX_M4x32, ctr, key0.s89);
     ctr = PHILOX_4UINT_ROUND(PHILOX_M4x32, ctr, key0.sAB);
+#if PHILOX_ROUNDS >= 7
     ctr = PHILOX_4UINT_ROUND(PHILOX_M4x32, ctr, key0.sCD);
+#endif
+#if PHILOX_ROUNDS >= 8
     ctr = PHILOX_4UINT_ROUND(PHILOX_M4x32, ctr, key0.sEF);
+#endif
+#if PHILOX_ROUNDS >= 9
     ctr = PHILOX_4UINT_ROUND(PHILOX_M4x32, ctr, key1.s01);
+#endif
+#if PHILOX_ROUNDS >= 10
     ctr = PHILOX_4UINT_ROUND(PHILOX_M4x32, ctr, key1.s23);
+#endif
     return ctr;
 }
 
@@ -115,10 +132,18 @@ uint8 philox_4x32_vec4x2_w_keys(
     PHILOX_4UINT_ROUND_X2(key0.s67);
     PHILOX_4UINT_ROUND_X2(key0.s89);
     PHILOX_4UINT_ROUND_X2(key0.sAB);
+#if PHILOX_ROUNDS >= 7
     PHILOX_4UINT_ROUND_X2(key0.sCD);
+#endif
+#if PHILOX_ROUNDS >= 8
     PHILOX_4UINT_ROUND_X2(key0.sEF);
+#endif
+#if PHILOX_ROUNDS >= 9
     PHILOX_4UINT_ROUND_X2(key1.s01);
+#endif
+#if PHILOX_ROUNDS >= 10
     PHILOX_4UINT_ROUND_X2(key1.s23);
+#endif
 #undef PHILOX_4UINT_ROUND_X2
     return (uint8)(ctrA, ctrB);
 }
