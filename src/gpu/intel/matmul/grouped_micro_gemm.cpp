@@ -43,7 +43,7 @@ namespace matmul {
 namespace {
 
 // grouped_micro_gemm cross-thread argument bytes, plus headroom.
-constexpr int host_argument_bytes = 256;
+constexpr int host_argument_bytes = 268;
 
 } // namespace
 
