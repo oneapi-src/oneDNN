@@ -1,6 +1,6 @@
 {
   "version": "3.14.0",
-  "engine_kind": "cpu",
+  "engine_kind": "gpu",
   "fpmath_mode": "strict",
   "fpmath_mode_apply_to_int": "false",
   "input_ports": [

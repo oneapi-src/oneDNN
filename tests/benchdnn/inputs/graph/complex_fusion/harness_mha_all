@@ -177,6 +177,9 @@
 --reset --op-attrs=0:accumulation_mode:f16 --case=complex_fusion/mha/sdpa-plain-simplified-f16-f32.json
 --reset --op-attrs=7:accumulation_mode:f16 --dt=1:f16+3:f16+8:f16+16:f16+19:f16+20:f16 --case=complex_fusion/mha/gqa-plain-implicit-causal-mask-fp32-bs1.json
 
+# fp8 graphs (rest in harness_mha_ci)
+--reset --in-shapes=4:2x16x512x64+13:2x1x1x512+24:2x16x512x64 --case=complex_fusion/mha/sdpa-dynamic-fp8-bf16-native.json
+
 # torchbench sdpa training
 --reset --in-shapes=0:8x6x1500x64*acbd+1:8x6x1500x64*abcd+2:8x6x1500x64*abcd+3:8x6x1500x64*abcd+4:8x6x1500x64*abcd+5:8x6x1500x1*abcd+9:8x6x1500x64*abcd+10:8x6x1500x64*abcd+11:8x6x1500x64*abcd,\
 0:32x6x197x64*acbd+1:32x6x197x64*226944x64x1152x1+2:32x6x197x64*226944x64x1152x1+3:32x6x197x64*226944x64x1152x1+4:32x6x197x64*acbd+5:32x6x197x1*abcd+9:32x6x197x64*acbd+10:32x6x197x64*acbd+11:32x6x197x64*acbd,\

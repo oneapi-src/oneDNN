@@ -52,6 +52,11 @@ struct sdpa_executable_t : public op_executable_t {
     bool is_initialized() const override { return pd_ && prim_; }
 
 private:
+    // Primitive arguments, minus the graph-only probability scales after
+    // checking that they cancel
+    std::vector<dnnl_exec_arg_t> make_c_args(
+            const std::unordered_map<int, memory> &args) const;
+
     std::unique_ptr<dnnl_primitive_desc, pd_deleter_t> pd_;
     std::unique_ptr<dnnl_primitive, prim_deleter_t> prim_;
 
@@ -61,6 +66,7 @@ private:
     attn_mask_type_t mask_type_;
     bool is_invert_scale_;
     bool with_dropout_;
+    bool with_probs_scales_;
 };
 
 struct sdpa_bwd_executable_t : public op_executable_t {
