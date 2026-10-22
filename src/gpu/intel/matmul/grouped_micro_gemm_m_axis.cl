@@ -309,19 +309,23 @@ void load_wei_attr_scales(wei_attr_scales_tile_type *tile,
 }
 #endif
 
+// The argument layout keeps the kernel payload small: IGC < 2.33 crashes on
+// DG2 when it exceeds 224 bytes. IGC places the pointers first and then the
+// by-value arguments in order, so keeping the longs ahead of the ints leaves no
+// alignment padding
 __attribute__((intel_reqd_sub_group_size(SUBGROUP_SIZE)))
 __attribute__((reqd_work_group_size(ugemm_grouped_sg_per_wg_m * SUBGROUP_SIZE,
         ugemm_grouped_sg_per_wg_n, ugemm_grouped_sg_per_wg_k))) kernel void
 grouped_micro_gemm_m_axis(const global SRC_DATA_T *src, long ldsrc,
-        const global WEI_DATA_T *wei, long4 wei_strides, global DST_DATA_T *dst,
-        long lddst, const global int *src_offsets,
-        const global int *dst_offsets,
+        const global int *src_offsets,
         const global SRC_SCALES_DATA_T *src_attr_scales,
         const global SRC_ZP_DATA_T *src_attr_zp, const long ldsrcq,
+        const global WEI_DATA_T *wei,
         const global WEI_SCALES_DATA_T *wei_attr_scales,
         const global WEI_ZP_DATA_T *wei_attr_zp, const long ldweiq,
-        const long n, const long k, const long num_groups,
-        const global BIA_DATA_T *bias,
+        long wei_batch_stride, long ldwei, global DST_DATA_T *dst, long lddst,
+        const global int *dst_offsets, const int n, const int k,
+        const int num_groups, const global BIA_DATA_T *bias,
         const global binary_scale_grouped_tile_data_t *binary_grouped_scale,
         const global binary_scale_dense_tile_data_t *binary_dense_scale,
         const global float *binary_nvfp4_scale) {
@@ -374,10 +378,8 @@ grouped_micro_gemm_m_axis(const global SRC_DATA_T *src, long ldsrc,
     off_t sg_j0 = wg_j0 + sg_j * ugemm_grouped_sg_tile_n;
 
     src += src_offset * ldsrc / SRC_ELEMS_PER_BYTE;
-    wei += batch * wei_strides[0] / WEI_ELEMS_PER_BYTE;
+    wei += batch * wei_batch_stride / WEI_ELEMS_PER_BYTE;
     dst += src_offset * lddst;
-
-    off_t ldwei = wei_strides[2] == 1 ? wei_strides[1] : wei_strides[2];
 
 #if WITH_SRC_SCALES
     src_attr_scales += src_offset * ldsrcq;
