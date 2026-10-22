@@ -31,6 +31,24 @@ namespace impl {
 namespace xpu {
 namespace ocl {
 
+status_t query_event_timestamps(const xpu::ocl::event_t &event, size_t index,
+        uint64_t *start, uint64_t *end) {
+
+    if (start) {
+        cl_ulong beg = 0;
+        OCL_CHECK(xpu::ocl::clGetEventProfilingInfo(event[index].get(),
+                CL_PROFILING_COMMAND_START, sizeof(beg), &beg, nullptr));
+        *start = static_cast<uint64_t>(beg);
+    }
+    if (end) {
+        cl_ulong e = 0;
+        OCL_CHECK(xpu::ocl::clGetEventProfilingInfo(event[index].get(),
+                CL_PROFILING_COMMAND_END, sizeof(e), &e, nullptr));
+        *end = static_cast<uint64_t>(e);
+    }
+    return status::success;
+}
+
 status_t stream_profiler_t::get_info(profiling_data_kind_t data_kind,
         int *num_entries, uint64_t *data) const {
     return get_info_generic(data_kind, num_entries, data);
@@ -40,14 +58,7 @@ status_t stream_profiler_t::query_event_time(
         const xpu::event_t &event, uint64_t &start, uint64_t &end) const {
     const auto &ocl_event = xpu::ocl::event_t::from(event);
     assert(ocl_event.size() == 1);
-    cl_ulong beg, e;
-    OCL_CHECK(xpu::ocl::clGetEventProfilingInfo(ocl_event[0].get(),
-            CL_PROFILING_COMMAND_START, sizeof(beg), &beg, nullptr));
-    OCL_CHECK(xpu::ocl::clGetEventProfilingInfo(ocl_event[0].get(),
-            CL_PROFILING_COMMAND_END, sizeof(e), &e, nullptr));
-    start = beg;
-    end = e;
-    return status::success;
+    return query_event_timestamps(ocl_event, 0, &start, &end);
 }
 
 status_t stream_profiler_t::query_event_freq(
@@ -62,9 +73,9 @@ status_t verbose_profiler_t::get_aggregate_exec_time(
     if (!active_) return status::success;
 
     if (index >= profiling_data_.size()) {
-        VERROR(primitive, exec,
-                "profiling error: invalid index %zu, profiling_data size is "
-                "%zu",
+        VDEBUGINFO(7, primitive, exec,
+                "profiling error: invalid index %zu, profiling_data size "
+                "is %zu",
                 index, profiling_data_.size());
         return status::success;
     }
@@ -87,20 +98,14 @@ status_t verbose_profiler_t::get_aggregate_exec_time(
         assert(ocl_event.size() > 0);
         size_t last_idx = ocl_event.size() - 1;
 
-        cl_ulong evbeg, evend;
-        OCL_CHECK(xpu::ocl::clGetEventProfilingInfo(ocl_event[0].get(),
-                CL_PROFILING_COMMAND_START, sizeof(evbeg), &evbeg, nullptr));
-        OCL_CHECK(xpu::ocl::clGetEventProfilingInfo(ocl_event[last_idx].get(),
-                CL_PROFILING_COMMAND_END, sizeof(evend), &evend, nullptr));
-        agg_start = std::min(agg_start, evbeg);
-        agg_end = std::max(agg_end, evend);
+        cl_ulong ev_start = 0, ev_end = 0;
+        CHECK(query_event_timestamps(ocl_event, 0, &ev_start, nullptr));
+        CHECK(query_event_timestamps(ocl_event, last_idx, nullptr, &ev_end));
+        agg_start = std::min(agg_start, ev_start);
+        agg_end = std::max(agg_end, ev_end);
     }
 
     if (agg_end < agg_start) { return status::runtime_error; }
-
-    // TODO: Consolidate timing calculation calls between different
-    // profilers to avoid code duplication and ensure consistent time
-    // conversion logic
     duration_ms = static_cast<double>(agg_end - agg_start) * 1e-6;
     return status::success;
 }
@@ -118,7 +123,7 @@ bool verbose_profiler_t::is_event_complete(
             nullptr);
 
     if (err != CL_SUCCESS) {
-        VERROR(primitive, exec, "failed to get event status: %d", err);
+        VDEBUGINFO(7, primitive, exec, "failed to get event status: %d", err);
         return false;
     }
 
@@ -138,7 +143,8 @@ void verbose_profiler_t::wait_for_event_completion(
     if (err != CL_SUCCESS) {
         // Note: Cannot throw from destructor context, so just
         // logging error
-        VERROR(primitive, exec, "failed to wait for event completion: %d", err);
+        VDEBUGINFO(7, primitive, exec,
+                "failed to wait for event completion: %d", err);
     }
 }
 

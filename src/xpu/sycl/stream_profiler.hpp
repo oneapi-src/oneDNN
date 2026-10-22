@@ -20,11 +20,17 @@
 #include "common/c_types_map.hpp"
 
 #include "xpu/stream_profiler.hpp"
+#include "xpu/sycl/context.hpp"
 
 namespace dnnl {
 namespace impl {
 namespace xpu {
 namespace sycl {
+
+// Queries start and/or end timestamp in nanoseconds for a single event.
+// Either start or end may be nullptr to skip that half of the query.
+status_t query_event_timestamps(const xpu::sycl::event_t &event, size_t index,
+        uint64_t *start, uint64_t *end);
 
 struct stream_profiler_t : public xpu::stream_profiler_t {
     stream_profiler_t(const stream_t *stream)
