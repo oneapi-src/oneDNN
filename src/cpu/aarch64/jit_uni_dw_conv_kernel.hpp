@@ -16,8 +16,8 @@
 * limitations under the License.
 *******************************************************************************/
 
-#ifndef CPU_AARCH64_JIT_UNI_DW_CONV_KERNEL_F32_HPP
-#define CPU_AARCH64_JIT_UNI_DW_CONV_KERNEL_F32_HPP
+#ifndef CPU_AARCH64_JIT_UNI_DW_CONV_KERNEL_HPP
+#define CPU_AARCH64_JIT_UNI_DW_CONV_KERNEL_HPP
 
 #include <memory>
 #include "common/c_types_map.hpp"

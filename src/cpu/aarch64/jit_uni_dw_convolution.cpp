@@ -166,6 +166,7 @@ template struct jit_uni_dw_convolution_fwd_t<sve_128, data_type::f32>;
 template struct jit_uni_dw_convolution_fwd_t<asimd, data_type::f32>;
 template struct jit_uni_dw_convolution_fwd_t<sve_256, data_type::bf16>;
 template struct jit_uni_dw_convolution_fwd_t<sve_128, data_type::bf16>;
+template struct jit_uni_dw_convolution_fwd_t<asimd, data_type::bf16>;
 
 template <cpu_isa_t isa, data_type_t diff_dst_type, data_type_t diff_src_type>
 void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,

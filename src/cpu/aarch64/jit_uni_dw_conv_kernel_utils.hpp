@@ -29,7 +29,7 @@
 
 #include "cpu/aarch64/jit_generator.hpp"
 #include "cpu/aarch64/jit_primitive_conf.hpp"
-#include "cpu/aarch64/jit_uni_dw_conv_kernel_f32.hpp"
+#include "cpu/aarch64/jit_uni_dw_conv_kernel.hpp"
 
 #include "cpu/aarch64/injectors/jit_uni_eltwise_injector.hpp"
 
@@ -321,6 +321,7 @@ template struct jit_uni_dw_conv_fwd_kernel_t<sve_128, data_type::f32>;
 template struct jit_uni_dw_conv_fwd_kernel_t<asimd, data_type::f32>;
 template struct jit_uni_dw_conv_fwd_kernel_t<sve_256, data_type::bf16>;
 template struct jit_uni_dw_conv_fwd_kernel_t<sve_128, data_type::bf16>;
+template struct jit_uni_dw_conv_fwd_kernel_t<asimd, data_type::bf16>;
 
 template <cpu_isa_t isa, data_type_t kernel_dt>
 struct jit_uni_dw_conv_bwd_data_kernel_t {

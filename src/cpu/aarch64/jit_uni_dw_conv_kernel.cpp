@@ -22,7 +22,7 @@
 #include "common/type_helpers.hpp"
 #include "common/utils.hpp"
 
-#include "cpu/aarch64/jit_uni_dw_conv_kernel_f32.hpp"
+#include "cpu/aarch64/jit_uni_dw_conv_kernel.hpp"
 
 #define GET_OFF(field) static_cast<int32_t>(offsetof(jit_conv_args_t, field))
 
@@ -115,11 +115,21 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<asimd>::load_src(
 
             int o_off = ow * ow_stride;
             if (this->jcp.with_sum) {
-                auto z_tmp = QReg(0);
-                assert(jcp.dst_dt == data_type::f32);
-                ldr(z_tmp,
-                        ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
-                                X_DEFAULT_ADDR, reg_tmp_imm)));
+                if (jcp.dst_dt == data_type::f32) {
+                    auto z_tmp = QReg(0);
+                    ldr(z_tmp,
+                            ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
+                                    X_DEFAULT_ADDR, reg_tmp_imm)));
+                } else if (jcp.dst_dt == data_type::bf16) {
+                    auto z_tmp = DReg(0);
+                    ldr(z_tmp,
+                            ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
+                                    X_DEFAULT_ADDR, reg_tmp_imm)));
+                    // do a bit-packing trick to store bf16 as fp32
+                    shll(VReg4S(0), VReg4H(0), 16);
+                } else {
+                    assert(!"Unsupported: data type");
+                }
                 fadd(VReg4S(acc_idx), VReg4S(acc_idx), VReg4S(0));
             }
         }
@@ -166,12 +176,23 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<isa>::apply_filter_unrolled(
             for (int kw = 0; kw < jcp.kw; kw++) {
                 int ker_off = kw * ch_blk;
                 if (isa == asimd) {
-                    QReg zregs_ker = QReg(0);
-                    assert(jcp.dst_dt == data_type::f32);
-                    ldr(zregs_ker,
-                            ptr(addr_off(reg_tmp2_addr,
-                                    ker_off * jcp.typesize_in, X_DEFAULT_ADDR,
-                                    reg_tmp_imm)));
+                    if (jcp.dst_dt == data_type::f32) {
+                        auto zregs_ker = QReg(0);
+                        ldr(zregs_ker,
+                                ptr(addr_off(reg_tmp2_addr,
+                                        ker_off * jcp.typesize_in,
+                                        X_DEFAULT_ADDR, reg_tmp_imm)));
+                    } else if (jcp.dst_dt == data_type::bf16) {
+                        auto zregs_ker = DReg(0);
+                        ldr(zregs_ker,
+                                ptr(addr_off(reg_tmp2_addr,
+                                        ker_off * jcp.typesize_in,
+                                        X_DEFAULT_ADDR, reg_tmp_imm)));
+                        // do a bit-packing trick to store bf16 as fp32
+                        shll(VReg4S(0), VReg4H(0), 16);
+                    } else {
+                        assert(!"Unsupported: data type");
+                    }
                 } else {
                     ZReg zregs_ker = get_ker_reg(0);
                     if (jcp.dst_dt == data_type::f32) {
@@ -191,11 +212,23 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<isa>::apply_filter_unrolled(
                     int inp_off = (ow * stride_w - pad_l) * iw_stride
                             + kw * dilate_w * iw_stride;
                     if (isa == asimd) {
-                        QReg zregs_src = QReg(1);
-                        ldr(zregs_src,
-                                ptr(addr_off(reg_tmp_addr,
-                                        inp_off * jcp.typesize_in,
-                                        X_DEFAULT_ADDR, reg_tmp_imm)));
+                        if (jcp.dst_dt == data_type::f32) {
+                            QReg zregs_src = QReg(1);
+                            ldr(zregs_src,
+                                    ptr(addr_off(reg_tmp_addr,
+                                            inp_off * jcp.typesize_in,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                        } else if (jcp.dst_dt == data_type::bf16) {
+                            DReg zregs_src = DReg(1);
+                            ldr(zregs_src,
+                                    ptr(addr_off(reg_tmp_addr,
+                                            inp_off * jcp.typesize_in,
+                                            X_DEFAULT_ADDR, reg_tmp_imm)));
+                            // do a bit-packing trick to store bf16 as fp32
+                            shll(VReg4S(1), VReg4H(1), 16);
+                        } else {
+                            assert(!"Unsupported: data type");
+                        }
                         const int acc_idx
                                 = get_acc_reg(ch * ur_w + ow).getIdx();
                         fmla(VReg4S(acc_idx), VReg4S(1), VReg4S(0));
@@ -297,11 +330,20 @@ void jit_uni_dw_conv_fwd_kernel_f32_t<asimd>::store_dst(
                 reg_tmp_imm);
         for (int ow = 0; ow < ur_w; ow++) {
             const int o_off = ow * ow_stride;
-            assert(jcp.dst_dt == data_type::f32);
             const int acc_idx = get_acc_reg(ch * ur_w + ow).getIdx();
-            str(QReg(acc_idx),
-                    ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
-                            X_DEFAULT_ADDR, reg_tmp_imm)));
+            if (jcp.dst_dt == data_type::f32) {
+                str(QReg(acc_idx),
+                        ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
+                                X_DEFAULT_ADDR, reg_tmp_imm)));
+            } else if (jcp.dst_dt == data_type::bf16) {
+                // do a bit-packing trick to store f32 as bf16
+                uzp2(VReg8H(acc_idx), VReg8H(acc_idx), VReg8H(acc_idx));
+                str(DReg(acc_idx),
+                        ptr(addr_off(reg_tmp_addr, o_off * jcp.typesize_out,
+                                X_DEFAULT_ADDR, reg_tmp_imm)));
+            } else {
+                assert(!"Unsupported: data type");
+            }
         }
     }
 }
