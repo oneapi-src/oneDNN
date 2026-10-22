@@ -580,10 +580,13 @@ status_t grouped_micro_gemm_t::pd_t::init_m_axis(const impl::engine_t *engine) {
 
     if (wei_quant_.with_zp()) {
         const int wei_zp_mask = wei_quant_.zp_mask();
-        // Common and per-column zero points are supported for weights.
+        // Common zero points are supported only for u3 weights.
         VDISPATCH_MATMUL(utils::one_of(wei_zp_mask, 7, 5, 0),
                 VERBOSE_UNSUPPORTED_ZP_CFG ": wei zero points mask(%d)",
                 wei_zp_mask);
+        VDISPATCH_MATMUL(IMPLICATION(wei_zp_mask == 0, wei_dt == u3),
+                VERBOSE_UNSUPPORTED_ZP_CFG
+                ": common wei zero points require u3 weights");
         if (attr()->zero_points_.get(DNNL_ARG_WEIGHTS).is_host_scalar()) {
             VDISPATCH_MATMUL(utils::one_of(wei_quant_.zp_dt(), u8, s8),
                     VERBOSE_UNSUPPORTED_ZP_CFG
