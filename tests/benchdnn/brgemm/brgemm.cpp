@@ -394,8 +394,9 @@ int init_kernel(kernel_args_t &kernel_args, res_t *res) {
         attr_args.prepare_quant(
                 prb->attr, DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS, 2);
     }
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args, prb->ndims));
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_attr_t> dnnl_attr;
+    DNN_SAFE(create_dnnl_attr(dnnl_attr, prb->attr, attr_args, prb->ndims),
+            WARN);
     dims_t dst_strides = {prb->get_ldd(), 1};
     auto dst_md = dnn_mem_t::init_md(
             prb->ndims, prb->dst_dims.data(), prb->dst_dt(), "", dst_strides);
@@ -457,8 +458,9 @@ int init_kernel(kernel_args_t &kernel_args, res_t *res) {
 #else // !defined(DNNL_EXPERIMENTAL_UKERNEL)
     attr_args_t attr_args;
     attr_args.prepare_post_ops_mds(prb->attr, prb->ndims, prb->dst_dims.data());
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args, prb->ndims));
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_attr_t> dnnl_attr;
+    DNN_SAFE(create_dnnl_attr(dnnl_attr, prb->attr, attr_args, prb->ndims),
+            WARN);
     auto dnnl_post_ops = query_post_ops(dnnl_attr);
 
     dnnl_status_t st = dnnl_success;

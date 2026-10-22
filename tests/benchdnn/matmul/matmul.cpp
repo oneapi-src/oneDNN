@@ -238,8 +238,9 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
             prb->attr.precomputed_reductions.get(DNNL_ARG_SRC).policy,
             DNNL_ARG_ATTR_PRECOMPUTED_REDUCTIONS | DNNL_ARG_SRC);
 
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args, prb->ndims));
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_attr_t> dnnl_attr;
+    DNN_SAFE_STATUS(
+            create_dnnl_attr(dnnl_attr, prb->attr, attr_args, prb->ndims));
 
     TIME_C_PD(DNN_SAFE_STATUS(dnnl_matmul_primitive_desc_create(
             &init_pd_args.pd, init_pd_args.engine,

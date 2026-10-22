@@ -284,8 +284,9 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
                 wei_mask);
     }
     attr_args.prepare_dw_post_op(prb->attr, prb->get_dt(WEI), prb->bia_dt());
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args, prb->ndims));
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_attr_t> dnnl_attr;
+    DNN_SAFE_STATUS(
+            create_dnnl_attr(dnnl_attr, prb->attr, attr_args, prb->ndims));
 
     switch (prb->dir) {
         case FWD_D:
