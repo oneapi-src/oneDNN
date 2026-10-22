@@ -84,6 +84,67 @@
 --bia_dt=f32,bf16,s32,u8,s8
 --batch=option_set_int8
 
+# Roll loop hints
+# Both batch kinds cover the run-time bs walk; interleaved tile stores keep
+# the bs loop unrolled, hence use_interleave_stores:0 for its hint.
+--reset
+--dt=u8:s8:s32,s8:s8:f32
+--bia_dt=undef,f32
+--beta=0,1
+--batch-kind=addr,offs
+--brgemm-attr=use_uker:1+hint_roll_bd_loop:1,use_uker:1+hint_roll_ld_loop:1,use_uker:1+use_interleave_stores:0+hint_roll_bs_loop:1,use_uker:1+hint_roll_rd_loop:1
+--batch=option_set_int8
+
+# Roll the bd and bs loops together
+# A rolled bd loop keeps its A displacement across the A reloads of a batch;
+# shapes have more than one bd block, otherwise the bd loop does not roll.
+--reset
+--dt=u8:s8:s32,s8:s8:f32
+--bia_dt=undef,f32
+--beta=0,1
+--bs=1,3
+--batch-kind=addr,offs
+--brgemm-attr=use_uker:1+use_interleave_stores:0+hint_roll_bd_loop:1+hint_roll_bs_loop:1,use_uker:1+use_interleave_stores:0+hint_roll_bd_loop:1+hint_roll_bs_loop:1+hint_roll_rd_loop:1
+64x64:64x32 64x64:64x64 64x256:256x64 128x64:64x32 128x256:256x64
+--bs=1
+64x16:16x32 64x32:32x32 64x32:32x48 64x96:96x48
+
+# Roll the ld loop over a multi element batch
+# The ld loop sits outside the bs loop and keeps its B displacement in
+# reg_ld_B_shift, because every batch element reloads B.
+--reset
+--dt=u8:s8:s32,s8:s8:f32
+--bia_dt=undef,f32
+--beta=0,1
+--bs=1,3
+--batch-kind=addr,offs
+--brgemm-attr=use_uker:1+use_interleave_stores:0+hint_roll_ld_loop:1,use_uker:1+use_interleave_stores:0+hint_roll_ld_loop:1+hint_roll_bs_loop:1
+--batch=option_set_int8
+
+# Roll the bd loop with a runtime batch size
+# The var_bs loop keeps its counter aside so that r9, which addresses the
+# next bd iteration, survives the shared body.
+--reset
+--dt=u8:s8:s32,s8:s8:f32
+--bia_dt=undef,f32
+--beta=0,1
+--bs=1,3
+--batch-kind=addr,offs
+--brgemm-attr=use_uker:1+use_interleave_stores:0+var_bs:1+hint_roll_bd_loop:1,use_uker:1+use_interleave_stores:0+var_bs:1+hint_roll_bd_loop:1+hint_roll_rd_loop:1
+64x64:64x32 64x64:64x64 64x256:256x64 128x64:64x32 128x256:256x64
+--bs=1
+64x16:16x32 64x32:32x32 64x32:32x48 64x96:96x48
+
+# Roll loop hints with zero points
+# The zero point buffers are addressed by the JIT-time ld position, so the
+# hints must not roll the ld loop with them.
+--reset
+--dt=u8:s8:s32,s8:s8:f32
+--beta=0,1
+--attr-zero-points=src:common:-2,dst:per_oc,src:common:128+dst:per_oc
+--brgemm-attr=use_uker:1+use_interleave_stores:0+hint_roll_bd_loop:1,use_uker:1+use_interleave_stores:0+hint_roll_ld_loop:1
+--batch=option_set_int8
+
 # ukernel wtag support
 --reset
 --wtag=ba

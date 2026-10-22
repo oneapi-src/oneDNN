@@ -49,14 +49,9 @@ inline bool ace_dt_ok(data_type_t dt_a, data_type_t dt_b) {
             || (utils::one_of(dt_a, u8, s8) && utils::one_of(dt_b, u8, s8));
 }
 
-/* ACE picks the unrolled kernel by default; it is usually fastest, but its
- * per-bd/ld block expansion can bloat code. TODO: when M*N*K*max_bs grows,
- * switch from the unconditional `true` to a size-based criterion that falls
- * back to the base kernel. Some needed dimensions are not available everywhere,
- * so they must be threaded through with the criterion. */
-inline bool ace_prefer_uker() {
-    return true;
-}
+/* Whether the ACE unrolled kernel stays within the size limit, once it
+ * rolls what it may; called from brgemm_desc_finalize() after blocking. */
+bool ace_prefer_uker(const brgemm_desc_t &brg);
 
 /* The purpose of this function is to enable initialization of brgemm values
  * and then call additional functions like blocking heuristics without

@@ -659,6 +659,24 @@ status_t brgemm_desc_finalize(brgemm_desc_t *brg) {
     else
         CHECK(brgemm_blocking(brg));
 
+    // With enable_size_driven_roll, fall back to the base kernel if even the
+    // rolled ACE uker is too large. The base kernel does not support the
+    // features below and addresses C linearly, which ignores LDC2_N.
+    if (brg->is_ace() && !brg->is_dgmm && brg->brgattr.use_uker
+            && brg->brgattr.enable_size_driven_roll
+            && brg->type != brgemm_static_offs
+            && utils::one_of(brg->dt_c, data_type::f32, data_type::s32)
+            && brg->brgattr.bd_mask_level == 0 && !brg->fused_copy_a
+            && !brg->has_per_k_scales() && !brg->with_per_mn_compensation
+            && brg->LDA2 == brg->LDA && brg->LDC2_M == brg->LDC
+            && IMPLICATION(brg->load_dim > brg->LDC, brg->LDC2_N == brg->LDC)
+            && !brgemm_utils::ace_prefer_uker(*brg)) {
+        brg->brgattr.use_uker = false;
+        brg->brgattr.use_interleave_stores = false;
+        // The blocking depends on the kernel, see recalc_blocking().
+        CHECK(brgemm_blocking(brg));
+    }
+
     if (!brg->is_dgmm) {
         // virtual padding is restricted by bd_block size due to
         // brgemm_kernel implementation. TODO: remove this restriction
@@ -930,7 +948,11 @@ int brgemm_cmp(const brgemm_desc_t &lhs, const brgemm_desc_t &rhs) {
     CMP_BRGEMM_FIELD(brgattr.hint_ld_block);
     CMP_BRGEMM_FIELD(brgattr.hint_bd_block2);
     CMP_BRGEMM_FIELD(brgattr.hint_ld_block2);
-    CMP_BRGEMM_FIELD(brgattr.hint_ununroll_bd_loop);
+    CMP_BRGEMM_FIELD(brgattr.hint_roll_bd_loop);
+    CMP_BRGEMM_FIELD(brgattr.hint_roll_ld_loop);
+    CMP_BRGEMM_FIELD(brgattr.hint_roll_bs_loop);
+    CMP_BRGEMM_FIELD(brgattr.hint_roll_rd_loop);
+    CMP_BRGEMM_FIELD(brgattr.enable_size_driven_roll);
 
     CMP_BRGEMM_FIELD(brgattr.hint_load_nt_A);
     CMP_BRGEMM_FIELD(brgattr.hint_load_nt_B);

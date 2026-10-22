@@ -16,6 +16,7 @@
 
 #include "cpu/x64/brgemm/brgemm_utils.hpp"
 #include "cpu/x64/brgemm/jit_brdgmm_kernel.hpp"
+#include "cpu/x64/brgemm/jit_brgemm_amx_uker.hpp"
 
 #include "cpu/x64/cpu_isa_traits.hpp"
 
@@ -392,6 +393,10 @@ static void recalc_blocking(brgemm_desc_t *brg, int new_bd_block,
             brg->ldb2_tail = full_ld_blocks % brg->ld_block2;
         }
     }
+}
+
+bool ace_prefer_uker(const brgemm_desc_t &brg) {
+    return ace_uker_small_enough(brg);
 }
 
 status_t brgemm_blocking_tmm(brgemm_desc_t *brg) {
