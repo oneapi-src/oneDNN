@@ -369,6 +369,7 @@ gen_desc_t::decisions_t gen_desc_t::resolve_launch(const kcatalog::Entry &base,
     kcatalog::Entry e = base;
     e.driverInfo = driver_info_of(st);
     e.selector.layouts[2] = isColMajor(problem_.C.layout) ? "N" : "T";
+    e.selector.hw = hwTag(hw_);
     if (wgK > 0) e.driverInfo.wg[LoopK] = wgK;
     aux_params_ = evaluateFixed(e, getDerivedParams(e, eval_params));
 

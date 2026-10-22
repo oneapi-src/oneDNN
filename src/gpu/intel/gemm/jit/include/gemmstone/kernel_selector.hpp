@@ -100,6 +100,7 @@ const std::vector<const kcatalog::Entry *> select(const kcatalog::Catalog &catal
 
 // Extended API for iterating over all matching kernels.
 bool matches(const kcatalog::Entry &e, const MatchParams &pattern);
+char hwTag(ngen::HW hw);
 bool lessAligned(int alignA1, int alignB1, int alignA2, int alignB2);
 
 const kcatalog::Entry *lower_bound(const kcatalog::Catalog &catalog, const kcatalog::Selector &selector);

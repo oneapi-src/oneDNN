@@ -369,6 +369,19 @@ const kcatalog::Entry *upper_bound(const kcatalog::Catalog &catalog, const kcata
 }
 
 
+char hwTag(ngen::HW hw)
+{
+    switch (hw) {
+        case ngen::HW::Gen12LP: return kcatalog::HWTagGen12LP;
+        case ngen::HW::XeHPG:   return kcatalog::HWTagXeHPG;
+        case ngen::HW::XeHPC:   return kcatalog::HWTagXeHPC;
+        case ngen::HW::Xe2:     return kcatalog::HWTagXe2;
+        case ngen::HW::Xe3:     return kcatalog::HWTagXe3;
+        case ngen::HW::Xe3p:    return kcatalog::HWTagXe3p;
+        default:                return 0;
+    }
+}
+
 MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, const ngen::Product &product, const GEMMProblem &problem_)
 {
     using namespace kcatalog;
@@ -399,15 +412,8 @@ MatchParamsBase::MatchParamsBase(ngen::HW hw, bool systolicAvailable, const ngen
         unrollReq[LoopM] = 32;
     }
 
-    switch (hw) {
-        default: assert(!"Unknown architecture");
-        case ngen::HW::Gen12LP: selector.hw = kcatalog::HWTagGen12LP; break;
-        case ngen::HW::XeHPG:   selector.hw = kcatalog::HWTagXeHPG;   break;
-        case ngen::HW::XeHPC:   selector.hw = kcatalog::HWTagXeHPC;   break;
-        case ngen::HW::Xe2:     selector.hw = kcatalog::HWTagXe2;     break;
-        case ngen::HW::Xe3:     selector.hw = kcatalog::HWTagXe3;     break;
-        case ngen::HW::Xe3p:    selector.hw = kcatalog::HWTagXe3p;    break;
-    }
+    selector.hw = hwTag(hw);
+    assert(selector.hw && "Unknown architecture");
 
     auto &C = problem.C;
     auto equivCLayout = C.layout;
