@@ -987,32 +987,32 @@ status_t grouped_micro_gemm_t::execute_m_axis(const exec_ctx_t &ctx) const {
 
     dim_t ldsrc = src_md->dims[src_md->ndims - 1];
     dim_t lddst = dst_md->dims[dst_md->ndims - 1];
-    const dims_t &wei_strides_ = wei_md->format_desc.blocking.strides;
-    compute::int64x4_t wei_strides
-            = {static_cast<int64_t>(wei_strides_[wei_md->ndims - 3]),
-                    static_cast<int64_t>(wei_strides_[wei_md->ndims - 2]),
-                    static_cast<int64_t>(wei_strides_[wei_md->ndims - 1]),
-                    static_cast<int64_t>(wei_strides_[wei_md->ndims - 0])};
+    dim_t wei_batch_stride
+            = wei_md->format_desc.blocking.strides[wei_md->ndims - 3];
+    // Must match the A layout chosen by get_trans() in init_ukernel_problem():
+    // with N == 1 the stride of the size-1 dimension is arbitrary.
+    dim_t ldwei = gemm_desc_t::get_ld(*wei_md);
 
     compute::kernel_arg_list_t arg_list;
 
     arg_list.append(src_data);
     arg_list.append(ldsrc);
-    arg_list.append(wei_data);
-    arg_list.append(wei_strides);
-    arg_list.append(dst_data);
-    arg_list.append(lddst);
     arg_list.append(src_offsets);
-    arg_list.append(dst_offsets);
     arg_list.append(src_scales);
     arg_list.append(src_zero_points);
     arg_list.append(ldsrcq);
+    arg_list.append(wei_data);
     arg_list.append(wei_scales);
     arg_list.append(wei_zero_points);
     arg_list.append(ldweiq);
-    arg_list.append(n);
-    arg_list.append(k);
-    arg_list.append(pd()->ngroups());
+    arg_list.append(wei_batch_stride);
+    arg_list.append(ldwei);
+    arg_list.append(dst_data);
+    arg_list.append(lddst);
+    arg_list.append(dst_offsets);
+    arg_list.append(into<int>(n));
+    arg_list.append(into<int>(k));
+    arg_list.append(into<int>(pd()->ngroups()));
     arg_list.append(bias_data);
 
     const memory_storage_t *grouped_scale = &memory_storage_t::empty_storage();
