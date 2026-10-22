@@ -432,8 +432,9 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
     auto src_d = dnn_mem_t::init_md(prb->ndims, prb->data_dims().data(),
             force_f32_dt ? dnnl_f32 : prb->dt, prb->tag, prb->strides[0]);
 
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args_t(), prb->ndims));
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_attr_t> dnnl_attr;
+    DNN_SAFE_STATUS(
+            create_dnnl_attr(dnnl_attr, prb->attr, attr_args_t(), prb->ndims));
 
     auto flags = (dnnl_normalization_flags_t)prb->flags;
     if (dir & FLAG_FWD) {

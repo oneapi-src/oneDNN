@@ -98,8 +98,9 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
         attr_args.prepare_post_ops_mds(
                 prb->attr, prb->ndims, prb->score_dims.data());
     }
-    auto dnnl_attr = make_benchdnn_dnnl_wrapper(
-            create_dnnl_attr(prb->attr, attr_args, prb->ndims));
+    benchdnn_dnnl_wrapper_t<dnnl_primitive_attr_t> dnnl_attr;
+    DNN_SAFE_STATUS(
+            create_dnnl_attr(dnnl_attr, prb->attr, attr_args, prb->ndims));
 
     const auto mask_ptr
             = prb->with_mask() ? (const_dnnl_memory_desc_t)mask_d : nullptr;

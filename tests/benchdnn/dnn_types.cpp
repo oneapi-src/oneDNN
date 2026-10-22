@@ -1516,10 +1516,15 @@ void attr_args_t::prepare_dw_post_op(
     dw_entry.bia_dt = bia_dt;
 }
 
-dnnl_primitive_attr_t create_dnnl_attr(
+dnnl_status_t create_dnnl_attr(
+        benchdnn_dnnl_wrapper_t<dnnl_primitive_attr_t> &dnnl_attr_out,
         const attr_t &attr, const attr_args_t &attr_args, const int ndims) {
     dnnl_primitive_attr_t dnnl_attr = nullptr;
-    DNN_SAFE_V(dnnl_primitive_attr_create(&dnnl_attr));
+    DNN_SAFE_STATUS(dnnl_primitive_attr_create(&dnnl_attr));
+    // Manage the attribute lifetime with an internal wrapper so that any early
+    // exit on failure cleans up the object. On success, the ownership is
+    // transferred to the user-provided wrapper.
+    auto dnnl_attr_wrapper = make_benchdnn_dnnl_wrapper(dnnl_attr);
 
     if (!attr.scales.is_def()) {
         const auto &as = attr.scales;
@@ -1537,9 +1542,9 @@ dnnl_primitive_attr_t create_dnnl_attr(
                     ? args_mask
                     : as.get_mask(arg_name, dnnl_undefined_primitive, ndims);
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_scales_v3(dnnl_attr, arg_name,
-                    mask, static_cast<int>(e.groups.size()), e.groups.data(),
-                    e.dt, is_on_host,
+            DNN_SAFE_STATUS(dnnl_primitive_attr_set_scales_v3(dnnl_attr,
+                    arg_name, mask, static_cast<int>(e.groups.size()),
+                    e.groups.data(), e.dt, is_on_host,
                     attr_t::policy2quantization_mode(e.policy)));
         }
     }
@@ -1553,9 +1558,9 @@ dnnl_primitive_attr_t create_dnnl_attr(
             const auto &e = arg.second;
 
             if (e.policy == policy_t::HOST_SCALAR) {
-                DNN_SAFE_V(dnnl_primitive_attr_set_zero_points_v2(dnnl_attr,
-                        arg_name, 0 /* mask */, 0 /* ndims */, nullptr, e.dt,
-                        true /* is_on_host = true*/));
+                DNN_SAFE_STATUS(dnnl_primitive_attr_set_zero_points_v2(
+                        dnnl_attr, arg_name, 0 /* mask */, 0 /* ndims */,
+                        nullptr, e.dt, true /* is_on_host = true*/));
 
                 continue;
             }
@@ -1572,7 +1577,7 @@ dnnl_primitive_attr_t create_dnnl_attr(
             const auto &groups = e.groups.data();
             const auto dt = e.dt;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_zero_points(
+            DNN_SAFE_STATUS(dnnl_primitive_attr_set_zero_points(
                     dnnl_attr, arg_name, mask, group_ndims, groups, dt));
         }
     }
@@ -1596,37 +1601,41 @@ dnnl_primitive_attr_t create_dnnl_attr(
             const auto &groups = e.groups.data();
             const auto dt = e.dt;
 
-            DNN_SAFE_V(dnnl_primitive_attr_set_precomputed_reductions(
+            DNN_SAFE_STATUS(dnnl_primitive_attr_set_precomputed_reductions(
                     dnnl_attr, arg_name, mask, group_ndims, groups, dt));
         }
     }
 
     if (!attr.rounding_mode.is_def()) {
         for (const auto &e : attr.rounding_mode.rounding_modes_) {
-            DNN_SAFE_V(dnnl_primitive_attr_set_rounding(
+            DNN_SAFE_STATUS(dnnl_primitive_attr_set_rounding(
                     dnnl_attr, e.first, e.second));
         }
     }
 
     if (!attr.post_ops.is_def()) {
-        dnnl_post_ops_t ops;
-        DNN_SAFE_V(dnnl_post_ops_create(&ops));
+        dnnl_post_ops_t ops = nullptr;
+        DNN_SAFE_STATUS(dnnl_post_ops_create(&ops));
+        // RAII wrapper cleans up the local post-ops on any early exit. The
+        // attribute copies the post-ops in `set_post_ops`, so the local copy
+        // can be safely destroyed afterwards.
+        auto ops_wrapper = make_benchdnn_dnnl_wrapper(ops);
 
         const auto &po = attr.post_ops;
         for (int idx = 0; idx < po.len(); ++idx) {
             const auto &e = po.entry[idx];
             if (e.is_sum_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_sum(
+                DNN_SAFE_STATUS(dnnl_post_ops_append_sum(
                         ops, e.sum.scale, e.sum.zero_point, e.sum.dt));
             } else if (e.is_convolution_kind()) {
                 const auto wei_dt = attr_args.get_dw_arg(DNNL_ARG_WEIGHTS);
                 const auto bia_dt = attr_args.get_dw_arg(DNNL_ARG_BIAS);
 
-                DNN_SAFE_V(dnnl_post_ops_append_dw(ops, wei_dt, bia_dt,
+                DNN_SAFE_STATUS(dnnl_post_ops_append_dw(ops, wei_dt, bia_dt,
                         e.convolution.dst_dt, e.convolution.kernel,
                         e.convolution.stride, e.convolution.padding));
             } else if (e.is_eltwise_kind()) {
-                DNN_SAFE_V(dnnl_post_ops_append_eltwise(
+                DNN_SAFE_STATUS(dnnl_post_ops_append_eltwise(
                         ops, e.eltwise.alg, e.eltwise.alpha, e.eltwise.beta));
             } else if (e.is_binary_kind()) {
                 const auto &src1_md = attr_args.get_md(
@@ -1639,43 +1648,44 @@ dnnl_primitive_attr_t create_dnnl_attr(
                     assert(query_md_ndims(src2_md) != 0);
                 }
 
-                DNN_SAFE_V(dnnl_post_ops_append_binary_v2(
+                DNN_SAFE_STATUS(dnnl_post_ops_append_binary_v2(
                         ops, e.binary.alg, src1_md, src2_md));
 
             } else if (e.is_prelu_kind()) {
                 const auto mask = attr_args.get_mask(
                         DNNL_ARG_ATTR_MULTIPLE_POST_OP(idx) | DNNL_ARG_WEIGHTS);
-                DNN_SAFE_V(dnnl_post_ops_append_prelu(ops, mask));
+                DNN_SAFE_STATUS(dnnl_post_ops_append_prelu(ops, mask));
             } else {
                 assert(!"unknown attr::post_ops::kind");
             }
         }
-        DNN_SAFE_V(dnnl_primitive_attr_set_post_ops(dnnl_attr, ops));
+        DNN_SAFE_STATUS(dnnl_primitive_attr_set_post_ops(dnnl_attr, ops));
         auto c_ops = query_post_ops(dnnl_attr);
-        SAFE_V(dnnl_post_ops_len(c_ops) == po.len() ? OK : FAIL);
-
-        DNN_SAFE_V(dnnl_post_ops_destroy(ops));
+        if (dnnl_post_ops_len(c_ops) != po.len()) return dnnl_invalid_arguments;
     }
 
-    DNN_SAFE_V(dnnl_primitive_attr_set_scratchpad_mode(
+    DNN_SAFE_STATUS(dnnl_primitive_attr_set_scratchpad_mode(
             dnnl_attr, attr.scratchpad_mode));
 
-    DNN_SAFE_V(dnnl_primitive_attr_set_fpmath_mode_v2(
+    DNN_SAFE_STATUS(dnnl_primitive_attr_set_fpmath_mode_v2(
             dnnl_attr, attr.fpmath_mode.mode, attr.fpmath_mode.apply_to_int));
 
-    DNN_SAFE_V(dnnl_primitive_attr_set_accumulation_mode(
+    DNN_SAFE_STATUS(dnnl_primitive_attr_set_accumulation_mode(
             dnnl_attr, attr.acc_mode));
 
-    DNN_SAFE_V(dnnl_primitive_attr_set_deterministic(
+    DNN_SAFE_STATUS(dnnl_primitive_attr_set_deterministic(
             dnnl_attr, attr.deterministic.enabled));
 
     if (!attr.dropout.is_def()) {
         const auto &drop_mask_md = attr_args.get_md(DNNL_ARG_ATTR_DROPOUT_MASK);
-        DNN_SAFE_V(dnnl_primitive_attr_set_dropout_v2(dnnl_attr, drop_mask_md,
-                dnnl_s64, attr.dropout.offset != 0,
+        DNN_SAFE_STATUS(dnnl_primitive_attr_set_dropout_v2(dnnl_attr,
+                drop_mask_md, dnnl_s64, attr.dropout.offset != 0,
                 attr.dropout.use_host_scalars));
     }
-    return dnnl_attr;
+
+    // Transfer the ownership of a successfully created attribute to the caller.
+    dnnl_attr_out = std::move(dnnl_attr_wrapper);
+    return dnnl_success;
 }
 
 // Exception free version of std::stoi, sets idx to 0 and returns 0 in case of
