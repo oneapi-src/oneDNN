@@ -147,7 +147,7 @@ Team: @uxlfoundation/onednn-cpu-aarch64
 | Hamza Butt         | @theComputeKid        | Arm Ltd           | Maintainer |
 | Siddhartha Menon   | @Sqvid                | Arm Ltd           | Maintainer |
 | Aditya Tewari      | @aditew01             | Arm Ltd           | Code Owner |
-| Crefeda Rodrigues  | @cfrod                | Arm Ltd           | Code Owner |
+| Crefeda Rodrigues  | @cfRod                | Arm Ltd           | Code Owner |
 | David Svantesson   | @davsva01             | Arm Ltd           | Code Owner |
 | Jonathan Deakin    | @jondea               | Arm Ltd           | Code Owner |
 | Marek Michałowski  | @michalowski-arm      | Arm Ltd           | Code Owner |
