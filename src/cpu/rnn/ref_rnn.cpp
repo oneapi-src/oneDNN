@@ -814,6 +814,21 @@ dnnl::impl::cpu::ref_rnn_common_t<aprop, src_type, weights_type,
     }
 }
 
+namespace {
+// Wraps a raw CPU pointer in a memory object. Passing a ready storage avoids
+// the temporary flag and handle vectors of the flags-based constructor and
+// reports storage creation failures.
+status_t create_matmul_memory(engine_t *engine, const memory_desc_t *md,
+        void *handle, std::unique_ptr<memory_t, memory_deleter_t> &mem) {
+    memory_storage_t *storage_ptr = nullptr;
+    CHECK(engine->create_memory_storage(&storage_ptr,
+            memory_flags_t::use_runtime_ptr, memory_desc_wrapper(md).size(),
+            handle));
+    std::unique_ptr<memory_storage_t> storage(storage_ptr);
+    return safe_ptr_assign(mem, new memory_t(engine, md, std::move(storage)));
+}
+} // namespace
+
 template <prop_kind_t aprop, data_type_t src_type, data_type_t weights_type,
         data_type_t acc_type>
 rnn_matmul_sig((ref_rnn_common_t<aprop, src_type, weights_type,
@@ -824,22 +839,16 @@ rnn_matmul_sig((ref_rnn_common_t<aprop, src_type, weights_type,
     // engine regardless of the CPU runtime. For example, SYCL CPU engine
     // cannot be used to create such objects.
     engine_t *service_engine = get_service_engine();
-    constexpr auto mem_flag = memory_flags_t::use_runtime_ptr;
 
     // a_, b_ and c_ are regular, raw CPU pointers that can only be used with
     // memory_t objects created for the classic CPU engine.
-    std::unique_ptr<memory_t, memory_deleter_t> src_mem;
-    CHECK(safe_ptr_assign(src_mem,
-            new memory_t(service_engine, matmul_prim->pd()->src_md(), mem_flag,
-                    (void *)(a_))));
-    std::unique_ptr<memory_t, memory_deleter_t> wei_mem;
-    CHECK(safe_ptr_assign(wei_mem,
-            new memory_t(service_engine, matmul_prim->pd()->weights_md(),
-                    mem_flag, (void *)(b_))));
-    std::unique_ptr<memory_t, memory_deleter_t> dst_mem;
-    CHECK(safe_ptr_assign(dst_mem,
-            new memory_t(service_engine, matmul_prim->pd()->dst_md(), mem_flag,
-                    (void *)(c_))));
+    std::unique_ptr<memory_t, memory_deleter_t> src_mem, wei_mem, dst_mem;
+    CHECK(create_matmul_memory(service_engine, matmul_prim->pd()->src_md(),
+            (void *)(a_), src_mem));
+    CHECK(create_matmul_memory(service_engine, matmul_prim->pd()->weights_md(),
+            (void *)(b_), wei_mem));
+    CHECK(create_matmul_memory(service_engine, matmul_prim->pd()->dst_md(),
+            (void *)(c_), dst_mem));
 
     exec_args_t matmul_args;
     // Note Matmul src and wei may not directly map to RNN primitive src and wei
