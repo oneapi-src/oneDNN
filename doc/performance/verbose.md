@@ -66,7 +66,8 @@ recommend using `ONEDNN_VERBOSE=all`, unless message printing overhead
 becomes noticeable.
 
 `debuginfo` information is available only if the library is built with
-`ONEDNN_DEV_MODE=ON`.
+`ONEDNN_DEV_MODE=ON`. Such builds also accept the `xe=<level>` token for Intel
+GPU specific logs. Refer to @ref dev_guide_gpu_dev_mode for details.
 
 oneDNN verbose also provides a `filter` option, which takes a regular
 expression and applies the verbose output to matching components. Currently, the
