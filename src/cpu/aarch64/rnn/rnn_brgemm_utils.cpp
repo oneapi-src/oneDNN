@@ -1,6 +1,7 @@
 /*******************************************************************************
 * Copyright 2021 Intel Corporation
 * Copyright 2026 FUJITSU LIMITED
+* Copyright 2026 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -73,7 +74,6 @@ aarch64::cpu_isa_t brgemm_calc_isa(
     if (mayiuse(sve_512)) return sve_512;
     if (mayiuse(sve_256)) return sve_256;
     if (mayiuse(sve_128)) return sve_128;
-    if (mayiuse(asimd)) return asimd;
     return isa_undef;
 }
 
