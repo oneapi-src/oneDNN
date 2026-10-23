@@ -1,7 +1,7 @@
 /*******************************************************************************
 * Copyright 2016 Intel Corporation
 * Copyright 2020-2024 FUJITSU LIMITED
-* Copyright 2025 Arm Ltd. and affiliates
+* Copyright 2025-2026 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -667,6 +667,7 @@ struct jit_brgemm_conv_conf_t {
     bool brgemm_bd_loop_innermost;
 
     bool use_uker;
+    bool use_mmla {false};
     bool var_bs {false};
     bool use_interleave_stores;
     brgemm_kernel_prefetching_t hint_prefetching;

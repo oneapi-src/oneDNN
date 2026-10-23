@@ -1,5 +1,6 @@
 /*******************************************************************************
 * Copyright 2021 Intel Corporation
+* Copyright 2026 Arm Ltd. and affiliates
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -34,6 +35,10 @@
 #if DNNL_X64 && (DNNL_CPU_RUNTIME != DNNL_RUNTIME_NONE)
 #include "src/cpu/x64/amx_tile_configure.hpp"
 #include "src/cpu/x64/cpu_isa_traits.hpp"
+#endif
+
+#if DNNL_AARCH64
+#include "src/cpu/aarch64/cpu_isa_traits.hpp"
 #endif
 
 namespace dnnl {
@@ -292,6 +297,37 @@ inline bool is_superset(dnnl_cpu_isa_t isa_1, dnnl_cpu_isa_t isa_2) {
     return false;
 }
 
+#endif
+
+#if DNNL_AARCH64
+namespace aarch64_mmla_test {
+
+inline bool has_bf16_mmla() {
+    using namespace impl::cpu::aarch64;
+    return mayiuse(sve) && mayiuse_bf16();
+}
+
+inline bool has_bf16_mmla_impl() {
+    using namespace impl::cpu::aarch64;
+    return has_bf16_mmla() && mayiuse(sve_128) && !mayiuse(sve_512);
+}
+
+inline bool matches_weights_desc(
+        const memory::desc &desc, int k_dim, int n_dim) {
+    if (desc.get_data_type() != memory::data_type::bf16
+            || desc.get_format_kind() != memory::format_kind::blocked)
+        return false;
+
+    // BF16 MMLA packs each K8 block as K2 x N x K4, where N is one
+    // ISA-sized output-channel tile.
+    const auto inner_blks = desc.get_inner_blks();
+    const auto inner_idxs = desc.get_inner_idxs();
+    return inner_idxs == memory::dims {k_dim, n_dim, k_dim}
+    && (inner_blks == memory::dims {2, 16, 4}
+            || inner_blks == memory::dims {2, 32, 4});
+}
+
+} // namespace aarch64_mmla_test
 #endif
 
 } // namespace dnnl
