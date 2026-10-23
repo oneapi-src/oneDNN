@@ -3488,16 +3488,19 @@ void jit_brgemm_kernel_t<Wmm>::gemv_microkernel(
         // benefits from prefetch. f32/avx2 is already at the BW limit so leave
         // it to the HW prefetcher.
         constexpr dim_t gemv_pf_rd_steps_ahead = 8;
-        const bool do_pf = is_superset(brg.isa_impl, avx512_core);
+        const dim_t row_bytes = rdb_A_offset();
+        const dim_t pf_offset = gemv_pf_rd_steps_ahead * row_bytes;
 
+        const bool do_f32_pf = brg.is_f32 && brg.isa_impl == avx2
+                && brg.rdb >= 32 && row_bytes >= 2048;
+        const bool do_pf = is_superset(brg.isa_impl, avx512_core) || do_f32_pf;
         bcast_and_convert_to_f32(gemv_load_b(), ptr[reg_aux_B], brg.dt_b);
         for (int bd = 0; bd < bd_block; bd++) {
             const bool is_tail_acc
                     = gemv_is_tail_acc(bd, bd_block, is_bdb_tail);
             const auto a_addr = ptr[reg_aux_A + A_offset(bd, 0)];
             if (do_pf) {
-                prefetcht0(ptr[reg_aux_A + A_offset(bd, 0)
-                        + gemv_pf_rd_steps_ahead * rdb_A_offset()]);
+                prefetcht0(ptr[reg_aux_A + A_offset(bd, 0) + pf_offset]);
             }
             maybe_set_avx_mask(is_tail_acc);
             load_and_convert_to_f32(
