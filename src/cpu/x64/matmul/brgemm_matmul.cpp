@@ -324,11 +324,6 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
     VDISPATCH_MATMUL(po.check_sum_consistency(dst_dt, is_int8),
             VERBOSE_UNSUPPORTED_POSTOP);
 
-    VDISPATCH_MATMUL(
-            !binary_injector::any_binary_postop_rhs_with_ternary_scalar_bcast(
-                    po, dst_d),
-            VERBOSE_UNSUPPORTED_POSTOP);
-
     CHECK(check_attr_scales());
     VDISPATCH_MATMUL(
             check_attr_zero_points(is_bf16_with_int_wei || is_f16_with_int_wei
