@@ -34,6 +34,8 @@
 --reset --stag=ab --wtag=ba --dtag=ab 1x1:1x200
 # test gemv with sum post-op
 --reset --dt=f32 --stag=ab --wtag=ba --dtag=ab --attr-post-ops=sum 1x3808:3808x246_n"gemv_with_sum_po"
+# test transA gemv with binary and prelu post-ops varying along M or batch
+--reset --dt=f32,bf16,f16 --stag=acb --attr-post-ops=add:s8:per_oc,add:f32:per_dim_0,prelu:per_oc 2x20x23:1x23x1_n"transa_gemv_po"
 # test shapes with b_buffer
 --reset --dt=f16:f16:f16 --stag=ab --wtag=ba --dtag=ab --bia-dt=f16 327x256:256x256
 # Test that cases when M == 1 are handled correctly.
