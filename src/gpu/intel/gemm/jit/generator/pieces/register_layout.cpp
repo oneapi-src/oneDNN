@@ -27,6 +27,11 @@ using namespace ngen;
 using namespace ngen::utils;
 using std::vector;
 
+static int int3RowSpreadOffset(int byte, int ld, int crosspack)
+{
+    return (byte / crosspack) * (ld * crosspack) + byte % crosspack;
+}
+
 namespace SendSpec {
 int MaxBlock2DWidthBytes(ngen::HW hw, bool prefetch) { return (hw == HW::Xe3p && prefetch) ? 256 : 64; }
 } // namespace SendSpec
@@ -936,9 +941,14 @@ RegisterBlock RegisterBlock::trySlice(Type T, bool column, int x1, int x2, int x
         return blockDst;
 
     if (colMajor == column) {
-        if (x1 % crosspack) return RegisterBlock();
-
-        blockDst.offsetBytes += (x1 * bytes) / oldNS;
+        if (T.is3() && !isLoadBlock() && colMajor && !byteGlue) {
+            if (x1 % 8) return RegisterBlock();
+            int phase = offsetBytes % crosspack;
+            blockDst.offsetBytes += int3RowSpreadOffset(phase + x1 / 8 * 3, ld, crosspack) - phase;
+        } else {
+            if (x1 % crosspack) return RegisterBlock();
+            blockDst.offsetBytes += (x1 * bytes) / oldNS;
+        }
 
         if (isLoadBlock()) switch (effAccessType) {
             case AccessType::Scattered:
@@ -996,7 +1006,8 @@ RegisterBlock RegisterBlock::trySlice(Type T, bool column, int x1, int x2, int x
                 break;
         }
     } else {
-        blockDst.offsetBytes += x1 * Telem * crosspack;
+        blockDst.offsetBytes += (T.is3() && !isLoadBlock() && colMajor && !byteGlue)
+                ? x1 * crosspack : x1 * Telem * crosspack;
 
         if (isLoadBlock()) switch (effAccessType) {
             case AccessType::Block:
@@ -1079,8 +1090,10 @@ Subregister RegisterBlock::find(Type T, int ii, int jj, const GRFMultirange &reg
             stub("u3 element index must be aligned to an 8-element (3-byte) group boundary.");
 
         int group = yy / 8;
-        int byteOff = (group * 3 / crosspack) * (ld * crosspack)
-                + (group * 3 % crosspack) + xx * crosspack;
+        // A sliced layout can start partway through a packed dword.
+        int phase = offsetBytes % crosspack;
+        int byteOff = int3RowSpreadOffset(phase + group * 3, ld, crosspack)
+                - phase + xx * crosspack;
         byteOff += offsetBytes;
 
         int consecutive;
@@ -1153,7 +1166,13 @@ void RegisterBlock::calcBytes(Type T)
 {
     if (cxComponent != Interleaved)
         T = T.real();
-    bytes = align_up(colMajor ? nc : nr, crosspack) * ld * T;
+    if (T.is3() && !isLoadBlock() && colMajor && !byteGlue) {
+        int phase = offsetBytes % crosspack;
+        int lastByte = phase + div_up(nc * T.bits(), 8) - 1;
+        bytes = int3RowSpreadOffset(lastByte, ld, crosspack) - phase
+                + (nr - 1) * crosspack + 1;
+    } else
+        bytes = align_up(colMajor ? nc : nr, crosspack) * ld * T;
     if (isLoadBlock() && msgRegs == 0)
         msgRegs = GRF::bytesToGRFs(hw, bytes);
 }
