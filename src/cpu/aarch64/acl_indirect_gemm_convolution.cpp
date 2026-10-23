@@ -111,9 +111,10 @@ status_t acl_indirect_gemm_convolution_fwd_t::pd_t::init(
             && impl::is_dense_format_kind({src_md(), weights_md(), dst_md()});
     if (!ok) return status::unimplemented;
 
-    // Indirect is slower than brgconv sve for small OC * IC, which makes sense because
-    // this is the amount of work per pointer indirection.
-    VDISPATCH_CONV(!(mayiuse(sve) && OC() * IC() <= 2048),
+    // Indirect is slower than brgconv sve for small OC * IC, which makes sense
+    // because this is the amount of work per pointer indirection. (Exclude
+    // no-SVE support and f16 because brg does not support these cases)
+    VDISPATCH_CONV(OC() * IC() > 2048 || !mayiuse(sve) || is_fp16_ok,
             "brgconv:sve is faster for small OC * IC");
 
     CHECK(init_conf());

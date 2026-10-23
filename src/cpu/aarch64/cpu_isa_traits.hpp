@@ -326,7 +326,8 @@ inline size_t data_type_vnni_simd_elems(data_type_t data_type) {
 // Maximum number of elements of a given type in a SIMD (SVE/Neon) vector for a
 // given ISA. Note that if cpu_isa_t is just sve (not sve_vl) then the value is
 // determined at runtime (unlike the others, which can be determiend at compile time)
-inline size_t simd_elems(data_type_t dt, cpu_isa_t cpu_isa) {
+inline size_t simd_elems(
+        data_type_t dt, cpu_isa_t cpu_isa = get_max_cpu_isa()) {
     switch (cpu_isa) {
         case sve_512: return data_type_vnni_simd_elems<sve_512>(dt);
         case sve_256: return data_type_vnni_simd_elems<sve_256>(dt);

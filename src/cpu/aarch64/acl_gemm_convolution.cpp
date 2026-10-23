@@ -70,7 +70,8 @@ status_t acl_gemm_convolution_fwd_t<src_t, wei_t, dst_t, bia_t>::pd_t::init(
 
     if (weights_md_.ndims != 4) return status::unimplemented;
 
-    VDISPATCH_CONV(!(mayiuse(sve) && OC() * IC() <= 2048),
+    const bool any_f16 = utils::one_of(data_type::f16, src_t, wei_t, dst_t);
+    VDISPATCH_CONV(OC() * IC() > 2048 || !mayiuse(sve) || any_f16,
             "brgconv:sve is faster for small OC * IC");
 
     // General Compute Library checks, memory tags are also set there
