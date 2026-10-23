@@ -617,6 +617,8 @@ summary_t str2summary(const std::string &s) {
             v.impl_names = !negate_option;
         } else if (option == "impl-csv") {
             v.impl_names_csv = !negate_option;
+        } else if (option == "perf-hints") {
+            v.perf_hints = !negate_option;
         } else {
             BENCHDNN_PRINT(0,
                     "Error: unsupported option-value combination "
@@ -1974,9 +1976,9 @@ static bool parse_stream_kind(
 static bool parse_summary(
         const char *str, const std::string &option_name = "summary") {
     static const std::string help
-            = "STRING    (Default: `failures`)\n    Instructs benchdnn to "
-              "print additional statistics and information based on the STRING "
-              "values.\n";
+            = "STRING    (Default: `failures+impl+perf-hints`)\n    Instructs "
+              "benchdnn to print additional statistics and information based "
+              "on the STRING values.\n";
     return parse_single_value_option(
             summary, summary_t(), parsers::str2summary, str, option_name, help);
 }

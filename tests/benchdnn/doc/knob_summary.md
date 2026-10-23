@@ -46,3 +46,27 @@ without necessity to process the whole output manually. Enabled by default.
 This knob provides a list of implementation names and the number of hits used
 for problems. A table view is enabled by default, and CSV-style output is
 disabled by default.
+
+## Performance hints summary
+
+### Usage
+```
+    --summary=[no-]perf-hints
+```
+
+This knob inspects performance-related system settings and reports the ones
+that are not set to values providing stable performance measurements. Enabled by
+default. It is only effective on Linux and reports the hints at most once per
+run, before any performance data is printed. The checks are engine-specific.
+
+For the CPU engine the following settings are verified:
+* Min and max CPU frequency. The effective (scaling) range is expected to
+  coincide; otherwise the frequency may float during the run.
+* Turbo mode. It is expected to be disabled; otherwise the frequency may
+  increase during the run.
+* C-states. The max C-state is expected to be no more than 1; otherwise it will
+  take more time to wake cores up affecting initial results.
+
+For the GPU engine the following settings are verified:
+* Min and max frequency of each Intel GPU render/compute tile. The range is
+  expected to coincide; otherwise the frequency may float during the run.

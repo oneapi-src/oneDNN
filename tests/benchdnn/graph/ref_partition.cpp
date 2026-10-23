@@ -20,6 +20,7 @@
 #include "setting_handler.hpp"
 
 #include "utils/compare.hpp"
+#include "utils/system.hpp"
 
 namespace graph {
 

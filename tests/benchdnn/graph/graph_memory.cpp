@@ -17,6 +17,8 @@
 #include "graph_memory.hpp"
 #include "allocator.hpp"
 
+#include "utils/system.hpp"
+
 #include "oneapi/dnnl/dnnl_graph.hpp"
 
 #include <cstring>
