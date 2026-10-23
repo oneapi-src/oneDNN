@@ -16,6 +16,7 @@
 
 #include "gemmstone/dsl/kernel.hpp"
 #include "dsl/ir/core.hpp"
+#include "dsl/ir/ir.hpp"
 #include "ngen_interface.hpp"
 
 GEMMSTONE_NAMESPACE_START
@@ -28,10 +29,9 @@ kernel::iface_t::iface_t(const ngen::InterfaceHandler &iface)
         if (a.exttype == ngen::ExternalArgumentType::Scalar) {
             register_arg(a.name, type_t(a.type));
         } else if (a.exttype == ngen::ExternalArgumentType::GlobalPtr) {
-            register_arg(a.name, type_t::byte(type::attr_t::ptr));
+            register_arg(a.name, type_t::byte(type::attr_t::gm));
         } else if (a.exttype == ngen::ExternalArgumentType::LocalPtr) {
-            register_arg(a.name,
-                    type_t::byte(type::attr_t::ptr | type::attr_t::slm));
+            register_arg(a.name, type_t::byte(type::attr_t::slm));
         } else {
             stub();
         }
@@ -57,13 +57,34 @@ size_t kernel::iface_t::index(const std::string &name) const {
     return -1;
 }
 
-void kernel::iface_t::register_arg(
+ir::expr_t kernel::iface_t::register_arg(
         const std::string &name, const type_t &type) {
-    register_arg(ir::var_t::make(type, name));
+    auto ret = ir::var_t::make(type, name);
+    register_arg(ret);
+    return ret;
+}
+
+ir::expr_t kernel::iface_t::register_global(
+        const std::string &name, const type_t &type) {
+    auto ret = ir::var_t::make(type.with_gm(), name);
+    register_arg(ret);
+    return ret;
 }
 
 const std::string &kernel::iface_t::arg_t::name() const {
     return var.as<ir::var_t>().name;
+}
+
+std::string kernel_t::str() const {
+    ostringstream_t oss;
+    const char *prefix = "";
+    oss << iface.kernel_name() << "(";
+    for (size_t i = 0; i < iface.nargs(); i++) {
+        oss << prefix << iface[i].str();
+        prefix = ", ";
+    }
+    oss << "):\n" << to_string(body, 1);
+    return oss.str();
 }
 
 } // namespace dsl

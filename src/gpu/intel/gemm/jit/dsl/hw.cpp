@@ -81,8 +81,18 @@ static hw_t get_default_hardware(ngen::ProductFamily family) {
 hw_t::hw_t(const ngen::ProductFamily &family)
     : hw_t(get_default_hardware(family)) {}
 
+bool hw_t::operator==(const hw_t &other) const {
+    return hw_ == other.hw_ && eu_count_ == other.eu_count_
+            && max_wg_size_ == other.max_wg_size_
+            && l3_cache_size_ == other.l3_cache_size_ && attr_ == other.attr_
+            && (product_ == other.product_
+                    || (product_ && other.product_
+                            && *product_ == *other.product_));
+}
+
 const ngen::Product &hw_t::product() const {
-    gpu_assert(product_) << "Product information not available";
+    if (!product_)
+        throw std::runtime_error("Product information not available.");
     return *product_;
 }
 
@@ -114,7 +124,7 @@ int hw_t::eus_per_core() const {
         case ngen::HW::Xe2:
         case ngen::HW::Xe3:
         case ngen::HW::Xe3p: return 8;
-        default: gpu_error_not_expected(); return 8;
+        default: stub(); return 8;
     }
 }
 
@@ -130,7 +140,7 @@ int grf_per_eu(const ngen::Product &product) {
         case ngen::HW::Xe3:
         case ngen::HW::Xe3p:
             return product.family == ngen::ProductFamily::CRI ? 2048 : 1024;
-        default: gpu_error_not_expected(); return 1024;
+        default: stub(); return 1024;
     }
 }
 
@@ -145,7 +155,7 @@ int max_threads_per_eu(const ngen::Product product) {
         case ngen::HW::Xe3: return 8;
         case ngen::HW::Xe3p:
             return family == ngen::ProductFamily::NVLP ? 10 : 8;
-        default: gpu_error_not_expected();
+        default: stub();
     }
     return 8;
 }
@@ -168,7 +178,7 @@ int hw_t::cache_line_size() const {
         case ngen::HW::Xe2:
         case ngen::HW::Xe3:
         case ngen::HW::Xe3p: return 64;
-        default: gpu_error_not_expected();
+        default: stub();
     }
     return 0;
 }

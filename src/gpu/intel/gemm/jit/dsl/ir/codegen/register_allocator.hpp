@@ -47,6 +47,7 @@ public:
         update_peak_grf_usage();
         return ret;
     }
+
     ngen::GRF alloc(ngen::Bundle bundle = ngen::Bundle()) {
         auto ret = ra.alloc(bundle);
         update_peak_grf_usage();

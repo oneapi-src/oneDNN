@@ -51,6 +51,7 @@ const std::unordered_map<kind_t, std::string> &kind_names() {
             {kind_t::tf32, "tf32"},
             {kind_t::f32, "f32"},
             {kind_t::f64, "f64"},
+            {kind_t::e8m0, "e8m0"},
             {kind_t::byte, "byte"},
             {kind_t::dword, "dword"},
             {kind_t::qword, "qword"},
@@ -92,20 +93,54 @@ kind_t get_kind(ngen::DataType t) {
     }
 }
 
+kind_t get_kind(Type t) {
+    switch (t) {
+        case Type::_Type::invalid: return kind_t::undef;
+        case Type::_Type::u64: return kind_t::u64;
+        case Type::_Type::s64: return kind_t::s64;
+        case Type::_Type::u32: return kind_t::u32;
+        case Type::_Type::s32: return kind_t::s32;
+        case Type::_Type::u16: return kind_t::u16;
+        case Type::_Type::s16: return kind_t::s16;
+        case Type::_Type::u8: return kind_t::u8;
+        case Type::_Type::s8: return kind_t::s8;
+        case Type::_Type::u4: return kind_t::u4;
+        case Type::_Type::s4: return kind_t::s4;
+
+        case Type::_Type::f64: return kind_t::f64;
+        case Type::_Type::f32: return kind_t::f32;
+        case Type::_Type::tf32: return kind_t::tf32;
+        case Type::_Type::f16: return kind_t::f16;
+        case Type::_Type::bf16: return kind_t::bf16;
+        case Type::_Type::bf8: return kind_t::bf8;
+        case Type::_Type::hf8: return kind_t::hf8;
+        case Type::_Type::f8_e8m0: return kind_t::e8m0;
+        case Type::_Type::f4_e2m1: return kind_t::f4_e2m1;
+        default: stub(); return kind_t::undef;
+    }
+}
+
 } // namespace type
 
 type_t::type_t(ngen::DataType type, uint32_t elems, attr_t attr)
     : type_t(type::get_kind(type), elems, attr) {}
+type_t::type_t(Type type, uint32_t elems, attr_t attr)
+    : type_t(type::get_kind(type), elems, attr) {}
 
 size_t type_t::get_hash() const {
-    return hash(kind(), elems(), is_ptr());
+    return hash(kind(), elems(), attr());
 }
 
 int type_t::size() const {
     if (is_ptr()) return sizeof(uint64_t);
+    if (is_gm()) return scalar().with_elems(elems()).size();
 
     if (is_bool()) return div_up(elems(), 8);
     if (is_x2()) return div_up(elems(), 4);
+    if (is_simd() && !is_packed()) {
+        const int dword_size = 4;
+        return std::max(dword_size, type_t(kind_).size()) * elems();
+    }
     if (is_x4() || is_fp4()) return div_up(elems(), 2);
 
     if (elems() != 1) return elems() * scalar().size();
@@ -115,6 +150,7 @@ int type_t::size() const {
         case kind_t::s8:
         case kind_t::bf8:
         case kind_t::hf8:
+        case kind_t::e8m0:
         case kind_t::byte: return 1;
         case kind_t::u16:
         case kind_t::s16:
@@ -138,6 +174,7 @@ int type_t::size() const {
 
 int type_t::mantissa_bits() const {
     if (!is_fp()) return 0;
+    if (is_int()) return 0;
 
     switch (kind()) {
         case kind_t::f64: return 52;
@@ -148,6 +185,7 @@ int type_t::mantissa_bits() const {
         case kind_t::hf8: return 3;
         case kind_t::bf8: return 2;
         case kind_t::f4_e2m1: return 1;
+        case kind_t::e8m0: return 0;
         default: stub();
     }
     return 0;
@@ -156,11 +194,16 @@ int type_t::mantissa_bits() const {
 std::string type_t::str() const {
     ostringstream_t oss;
     oss << type::to_string(kind());
-    if (elems() > 1) oss << "x" << elems();
     if (is_ptr()) oss << ".ptr";
+    if (is_gm()) oss << ".gm";
+    if (is_packed()) oss << ".packed";
     if (is_simd()) oss << ".simd";
     if (is_mutable()) oss << ".mut";
     if (is_slm()) oss << ".slm";
+    if (is_gm() && elems() == 0)
+        oss << "[?]";
+    else if (elems() > 1)
+        oss << "[" << elems() << "]";
     return oss.str();
 }
 
@@ -178,14 +221,22 @@ void type_t::parse(std::istream &in) {
         return;
     };
 
-    int elems = 1;
-    if (stream_try_match(in, "x")) { in >> elems; }
-
     attr_t attr {};
     if (stream_try_match(in, ".ptr")) { attr |= attr_t::ptr; }
+    if (stream_try_match(in, ".gm")) { attr |= attr_t::gm; }
+    if (stream_try_match(in, ".packed")) { attr |= attr_t::packed; }
     if (stream_try_match(in, ".simd")) { attr |= attr_t::simd; }
     if (stream_try_match(in, ".mut")) { attr |= attr_t::mut; }
     if (stream_try_match(in, ".slm")) { attr |= attr_t::slm; }
+
+    int elems = 1;
+    if (stream_try_match(in, "[")) {
+        if (stream_try_match(in, "?"))
+            elems = 0;
+        else
+            in >> elems;
+        stream_try_match(in, "]");
+    }
     *this = type_t(kind, elems, attr);
 }
 
@@ -202,6 +253,8 @@ bool is_subset(const type_t &a, const type_t &b) {
     if (a == b) return true;
     if (a.is_tf32() && b.is_f32()) return true;
     if (a.is_fp() && b.is_int()) return false;
+    // e8m0 range greatly exceeds that of f16.
+    if (a.is_e8m0()) return b.is_bf16() || b.is_f32() || b.is_f64();
 
     const auto a_bits = a.scalar().bitsize();
     const auto b_bits = b.scalar().bitsize();

@@ -383,6 +383,7 @@ std::string layout_t::desc_str(bool dnnl_style) const {
     std::string ret;
     stride_t dense_stride(1);
     idx_map_t<bool> seen;
+    bool is_dense = true;
     for (auto &b : blocks()) {
         std::string b_str;
         if (dnnl_style && is_outermost(b)) {
@@ -396,6 +397,7 @@ std::string layout_t::desc_str(bool dnnl_style) const {
                 b_str.append(1, '?');
             } else if (b.stride != dense_stride) {
                 b_str.append(1, '*');
+                is_dense = false;
             }
         }
         b_str += ret;
@@ -403,34 +405,45 @@ std::string layout_t::desc_str(bool dnnl_style) const {
         dense_stride = b.stride * b.size;
         seen[b.idx] = true;
     }
+    if (!is_dense) {
+        ret += ":";
+        for (size_t i = nblocks(); i > 0; i--) {
+            ret += std::to_string((int)blocks_[i - 1].stride);
+            if (i != 1) ret += "x";
+        }
+    }
     ret += ":" + type().str();
     return ret;
 }
 
 void layout_t::sanity_check() const {
 #if !defined(NDEBUG) || GEMMSTONE_ASSERTIONS
-    // TODO: Enable enforcement of sorting, some implementations currently use
-    // layout_t to define an iteration order, and in this circumstance sorting
-    // is not desired as sorting blocks results in different orders.
-
-    // for (size_t i = 0; i < blocks_.size(); i++) {
-    //     dsl_assert(blocks_[i].size > 0) << "Incorrect block size.";
-    //     if (i > 0)
-    //         dsl_assert(blocks_[i].stride >= blocks_[i - 1].stride)
-    //                 << "Block " << blocks_[i]
-    //                 << " is incorrectly sorted when compared with "
-    //                 << blocks_[i - 1];
-    // }
+    for (size_t i = 0; i < blocks_.size(); i++) {
+        dsl_assert(blocks_[i].size > 0) << "Incorrect block size.";
+    }
     dsl_assert(has_ndims() || ndims_ == max_ndims);
 #endif
 }
 
-expr_t global_tensor_t::offset(const icoord_t &sub_coord) const {
-    expr_t ret = base_offset;
-    for (auto &c : sub_coord) {
-        ret += (coord[c] + sub_coord[c]) * strides[c];
+expr_t tensor_t::subvec(const icoord_t &coord, int elems) const {
+    int off = base_layout_.offset<int>(coord_ + coord);
+    return ir::ref_t::make(buf(), off, elems);
+}
+
+expr_t global_tensor_t::offset(const coord_t &sub_coord) const {
+    expr_t ret = base_offset_ ? base_offset_ : 0;
+    for (auto &c : strides_) {
+        ret += (coord_.get(c) + sub_coord.get(c)) * strides_[c];
     }
-    return simplify(ret * type.size());
+    return simplify(ret);
+}
+
+expr_t global_tensor_t::buf_u64(const expr_t &off) const {
+    auto ret = cast(u64, buf_);
+    if (base_offset_)
+        ret += base_offset_ * scalar_type().size() / scalar_type().packing();
+    if (off) ret += off * scalar_type().size() / scalar_type().packing();
+    return ret;
 }
 
 } // namespace dsl

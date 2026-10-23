@@ -259,7 +259,7 @@ private:
         if (elems == 1) return _var;
         auto &var = _var.as<var_t>();
         auto vec_name = var.name + "_" + std::to_string(idx) + "_";
-        return var_t::make(var.type.base(), vec_name);
+        return var_t::make(var.type.scalar(), vec_name);
     }
 
     ir_context_t &ir_ctx_;

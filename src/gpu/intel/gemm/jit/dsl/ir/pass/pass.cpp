@@ -66,6 +66,12 @@ private:
     bool in_cond_;
 };
 
+void fixup_if_conditions(kernel_t &k) {
+    trace_start();
+    k.body = if_condition_fixer_t(k.options.simd()).mutate(k.body);
+    trace_pass("fixup_if_conditions", k);
+}
+
 stmt_t fixup_if_conditions(const stmt_t &s, ir_context_t &ir_ctx) {
     trace_start();
     auto ret = if_condition_fixer_t(ir_ctx.options().simd()).mutate(s);

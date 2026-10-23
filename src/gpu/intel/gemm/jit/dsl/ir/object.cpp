@@ -14,6 +14,7 @@
 * limitations under the License.
 *******************************************************************************/
 
+#include <mutex>
 #include <typeindex>
 
 #include "dsl/ir/core.hpp"

@@ -19,12 +19,10 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <memory>
-#include <numeric>
 #include <string>
 
+#include "gemmstone/../../dsl/dsl_impl.hpp"
 #include "gemmstone/../../dsl/utils/utils.hpp"
-#include "gemmstone/dsl/ir.hpp"
 
 // All IR expression objects.
 #define HANDLE_EXPR_IR_OBJECTS() \
@@ -270,19 +268,26 @@ inline bool is_ref(const expr_t &e);
 inline bool all_of(const expr_t &e, const expr_t &value);
 
 // Unary and binary operators.
-enum class op_kind_t {
-    undef,
+enum class op_kind_t : int {
+    undef = (int)op::kind_t::undef,
+    _add = (int)op::add,
+    _sub = (int)op::sub,
+    _mul = (int)op::mul,
+    _div = (int)op::div,
+    _mod = (int)op::mod,
+    _min = (int)op::min,
+    _max = (int)op::max,
 
+    // Parametric ReLU.
+    // if (a > 0) op = a
+    // else       op = a * b
+    _prelu = (int)op::prelu,
+
+    // Operations internal to the IR (not exposed in op::kind_t)
     _minus,
-    _add,
-    _sub,
-    _mul,
-    _div,
-    _mod,
+    _exp,
     _shl,
     _shr,
-    _min,
-    _max,
 
     _lt,
     _le,
@@ -296,10 +301,6 @@ enum class op_kind_t {
     _xor,
 
     // Ternary operations.
-    // Parametric ReLU.
-    // if (a > 0) op = a
-    // else       op = a * b
-    _prelu,
     // Ternary add.
     // op = a + b + c
     _add3,
@@ -338,6 +339,8 @@ op_kind_t negate_cmp_op(op_kind_t op_kind);
 type_t unary_op_type(op_kind_t op_kind, const expr_t &a);
 
 type_t common_int_type(const type_t &_a, const type_t &_b);
+
+type_t common_type(const type_t &base, const type_t &a, const type_t &b);
 
 type_t common_type(const type_t &a, const type_t &b);
 
@@ -573,10 +576,17 @@ public:
 
 private:
     iif_t(const expr_t &cond, const expr_t &true_expr, const expr_t &false_expr)
-        : expr_iface_t(common_type(true_expr.type(), false_expr.type()))
+        : expr_iface_t(
+                  iif_type(cond.type(), true_expr.type(), false_expr.type()))
         , cond(cond)
         , true_expr(true_expr)
         , false_expr(false_expr) {}
+
+    static type_t iif_type(
+            const type_t &cond, const type_t &T, const type_t &F) {
+        auto type = common_type(T, F);
+        return common_type(type, type, cond);
+    }
 };
 
 // Linear combination expression:
@@ -637,7 +647,7 @@ void normalize_ptr(const type_t &type, expr_t &base, expr_t &off);
 class load_t : public expr_iface_t<load_t> {
 public:
     // offset and stride are expressed in bytes.
-    // default stride means unit stride (in terms of type.base() elements).
+    // default stride means unit stride (in terms of type.scalar() elements).
     static expr_t make(const type_t &type, const expr_t &buf, const expr_t &off,
             int stride = default_stride) {
         return expr_t(new load_t(type, buf, off, stride));
@@ -666,7 +676,7 @@ private:
         : expr_iface_t(_type), buf(_buf), off(_off), stride(_stride) {
         normalize_ptr(type, buf, off);
         dsl_assert(is_var(buf) || is_ref(buf)) << buf;
-        if (stride == type.base().size()) stride = default_stride;
+        if (stride == type.scalar().size()) stride = default_stride;
     }
 };
 
@@ -697,8 +707,24 @@ public:
 
 private:
     ptr_t(const expr_t &base, const expr_t &off)
-        : expr_iface_t(base.type().with_ptr()), base(base), off(off) {
+        : expr_iface_t(ptr_type(base.type(), off.type()))
+        , base(base)
+        , off(off) {
         normalize(this->base, this->off);
+    }
+
+    static type_t ptr_type(type_t base, const type_t &off) {
+        if (!base.is_ptr()) {
+            if (!base.is_slm())
+                dsl_assert(off.is_scalar())
+                        << "Pointer to register buffer can be scalar only.";
+            // base is not a pointer -> treat it as a pointer to the base.
+            base = base.scalar().with_ptr();
+        }
+        int elems = std::max(base.elems(), off.elems());
+        dsl_assert(one_of(base.elems(), {1, elems}));
+        dsl_assert(one_of(off.elems(), {1, elems}));
+        return common_type(base, base, off);
     }
 };
 
@@ -818,7 +844,7 @@ private:
         auto elem_type = vec[0].type();
         if (vec.size() == 1 && elem_type.is_simd()) {
             dsl_assert(idx.size() == 1);
-            return elem_type.base();
+            return elem_type.scalar();
         }
 
         for (auto &v : vec)
@@ -923,11 +949,17 @@ private:
         : expr_iface_t(type), name(name), is_mutable(is_mutable) {}
 };
 
-const std::string &tg_idx_name(int idx);
-const std::string &thr_idx_name(int idx);
 const std::string &local_id_name(int idx);
 const std::string &local_size_name(int idx);
 const std::string &group_id_name(int idx);
+const std::string &group_subgroup_count_name();
+const std::string &subgroup_id_name(int idx);
+const std::string &subgroup_local_id_name();
+const std::string &subgroup_linear_id_name();
+
+// Deprecated
+const std::string &tg_idx_name(int idx);
+const std::string &thr_idx_name(int idx);
 
 // Index into a buffer
 // off is offset in number of elements
@@ -1288,7 +1320,7 @@ private:
 class store_t : public stmt_iface_t<store_t> {
 public:
     // offset and stride are expressed in bytes.
-    // default stride means unit stride (in terms of value.type().base()
+    // default stride means unit stride (in terms of value.type().scalar()
     // elements).
     static stmt_t make(const expr_t &buf, const expr_t &off,
             const expr_t &_value, int stride = default_stride,
@@ -1304,7 +1336,7 @@ public:
                 if (!fill_mask0) return stmt_t();
                 auto type = value.type();
                 value = shuffle_t::make_broadcast(
-                        cast_t::make(type.base(), 0), type.elems());
+                        cast_t::make(type.scalar(), 0), type.elems());
                 mask = expr_t();
             }
         }
@@ -1355,7 +1387,7 @@ private:
         , fill_mask0(_fill_mask0) {
         normalize_ptr(value.type(), buf, off);
         dsl_assert(is_var(buf) || is_ref(buf)) << buf;
-        if (stride == value.type().base().size()) stride = default_stride;
+        if (stride == value.type().scalar().size()) stride = default_stride;
         if (mask)
             dsl_assert(mask.type() == type_t::_bool(value.type().elems()));
     }

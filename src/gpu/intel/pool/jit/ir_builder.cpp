@@ -372,7 +372,7 @@ stmt_t builder_t::try_build(builder_t &pb, const kernel_info_t &ki,
     auto acc_type = cfg.acc_type(simd);
     auto acc_buf = ir_ctx.create_tmp_var(
             dsl::type_t::byte(dsl::type::attr_t::ptr), "acc");
-    const auto acc_sc_size = acc_type.base().size();
+    const auto acc_sc_size = acc_type.scalar().size();
     const auto acc_size = acc_sc_size * lg[4] * lg[3] * lg[2] * lg[1] * lg[0];
 
     auto read_buf = ir_ctx.create_tmp_var(
@@ -407,8 +407,8 @@ stmt_t builder_t::try_build(builder_t &pb, const kernel_info_t &ki,
     stmt_t stmt;
 
     auto gen_fill_values = [](int simd, bool isneg, dsl::type_t type) {
-        gpu_assert(type.base().size() <= 4);
-        const int mult = 4 / type.base().size();
+        gpu_assert(type.scalar().size() <= 4);
+        const int mult = 4 / type.scalar().size();
         expr_t v = 0;
         if (isneg) {
             v = type.is_f32()        ? 0xFF7FFFFF
@@ -512,7 +512,7 @@ stmt_t builder_t::try_build(builder_t &pb, const kernel_info_t &ki,
                 *pd.invariant_dst_md(), *pd.invariant_dst_md(), view_mapper);
         stmt = stmt.append(create_epilogue_stmt(exec, ir_ctx, schedule,
                 /*force_c_reorder=*/false, post_op_ctx, dst_thr_tile_coord,
-                write_layout.with(acc_type.base()), dst_buf, acc_buf,
+                write_layout.with(acc_type.scalar()), dst_buf, acc_buf,
                 buf_size));
         for (auto &alloc : allocs) {
             auto &a = alloc.as<alloc_t>();

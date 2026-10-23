@@ -18,6 +18,7 @@
 #define GEMMSTONE_DSL_IR_PASS_TRACE_HPP
 
 #include "gemmstone/config.hpp"
+#include "gemmstone/dsl/kernel.hpp"
 
 GEMMSTONE_NAMESPACE_START
 namespace dsl {
@@ -35,12 +36,16 @@ void trace_stop(const char *pass_name);
 void trace_perf();
 void trace_pass(
         const char *pass_name, const stmt_t &stmt, const ir_context_t &ir_ctx);
+void trace_pass(const char *pass_name, const kernel_t &kernel);
+void trace_pass(
+        const char *pass_name, const stmt_t &stmt, const ir_context_t &ir_ctx);
 #else
 inline void trace_start() {};
 inline void trace_reset() {};
 inline void trace_stamp(const char *) {};
 inline void trace_stop(const char *) {};
 inline void trace_perf() {};
+inline void trace_pass(const char *pass_name, const kernel_t &kernel) {}
 inline void trace_pass(const char *pass_name, const stmt_t &stmt,
         const ir_context_t &ir_ctx) {};
 #endif

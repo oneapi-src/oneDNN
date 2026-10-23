@@ -30,6 +30,7 @@ object_t const_fold(const object_t &obj);
 std::string to_string(op_kind_t kind) {
     switch (kind) {
         case op_kind_t::_minus: return "-";
+        case op_kind_t::_exp: return "exp";
 
         case op_kind_t::_add: return "+";
         case op_kind_t::_sub: return "-";
@@ -114,20 +115,21 @@ type_t unary_op_type(op_kind_t op_kind, const expr_t &a) {
                 return type_t::s32(t.elems(), a.type().attr());
             return t;
         }
+        case op_kind_t::_exp: return a.type();
         default: dsl_error() << "Unknown op_kind_t value: " << op_kind;
     }
     return type_t::undef();
 }
 
 type::attr_t common_attr(const type_t &a, const type_t &b) {
-    dsl_assert(!a.is_ptr() && !b.is_ptr());
+    dsl_assert(!(a.is_ptr() && b.is_ptr()));
     return (a.attr() | b.attr()) & ~type::attr_t::mut;
 }
 
 type_t common_type(const type_t &base, const type_t &a, const type_t &b) {
     auto attr = common_attr(a, b);
     int elems = std::max(a.elems(), b.elems());
-    return base[elems].with_attr(attr);
+    return base.with_attr(attr)[elems];
 }
 
 type_t common_int_type_impl(const type_t &_a, const type_t &_b) {
@@ -214,8 +216,7 @@ type_t ternary_op_type(
             return binary_op_type(op_kind_t::_add, a.type(),
                     binary_op_type(op_kind_t::_mul, b, c));
         case op_kind_t::_idiv:
-        case op_kind_t::_imod:
-            return a.type().is_signed() ? type_t::s32() : type_t::u32();
+        case op_kind_t::_imod: return binary_op_type(op_kind_t::_idiv, a, b);
         default: stub();
     }
     return type_t::undef();
@@ -342,7 +343,9 @@ object_t ir_mutator_t::_mutate(const ref_t &obj) {
     return ref_t::make(var, obj.off, obj.elems);
 }
 
-void ir_visitor_t::_visit(const ref_t &obj) {}
+void ir_visitor_t::_visit(const ref_t &obj) {
+    visit(obj.var);
+}
 
 object_t ir_mutator_t::_mutate(const binary_op_t &obj) {
     auto a = mutate(obj.a);
@@ -588,16 +591,6 @@ void ir_visitor_t::_visit(const while_t &obj) {
     visit(obj.body);
 }
 
-const std::string &tg_idx_name(int idx) {
-    static const std::array<std::string, 3> names
-            = {"tg_idx0", "tg_idx1", "tg_idx2"};
-    return names[idx];
-}
-const std::string &thr_idx_name(int idx) {
-    static const std::array<std::string, 3> names
-            = {"thr_idx0", "thr_idx1", "thr_idx2"};
-    return names[idx];
-}
 const std::string &local_id_name(int idx) {
     static const std::array<std::string, 3> names
             = {"local_id0", "local_id1", "local_id2"};
@@ -612,6 +605,29 @@ const std::string &group_id_name(int idx) {
     static const std::array<std::string, 3> names
             = {"group_id0", "group_id1", "group_id2"};
     return names[idx];
+}
+const std::string &group_subgroup_count_name() {
+    static const std::string name = "group_subgroup_count";
+    return name;
+}
+const std::string &subgroup_id_name(int idx) {
+    static const std::array<std::string, 3> names
+            = {"subgroup_id0", "subgroup_id1", "subgroup_id2"};
+    return names[idx];
+}
+const std::string &subgroup_local_id_name() {
+    static const std::string name = "subgroup_local_id";
+    return name;
+}
+const std::string &subgroup_linear_id_name() {
+    static const std::string name = "subgroup_linear_id";
+    return name;
+}
+const std::string &tg_idx_name(int idx) {
+    return group_id_name(idx);
+}
+const std::string &thr_idx_name(int idx) {
+    return subgroup_id_name(idx);
 }
 
 } // namespace ir
