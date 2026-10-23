@@ -93,7 +93,9 @@ step. They are omitted above for clarity.
   operation itself carries only that index. The table also holds each
   accumulator's output offset, which a binary post-op needs to address its
   right-hand-side argument and a sum post-op needs to read the previous
-  destination value. The injector saves and restores its own registers and does
+  destination value. Each call also selects full vectors or the kernel's fixed
+  tail count, allowing a vector-accumulator kernel to handle both safely.
+  The injector saves and restores its own registers and does
   not participate in IR allocation.
 
 ### Control and Data Flow
@@ -168,6 +170,21 @@ output with `ir::print_kernel_dump()` (see Debug Output).
 The kernel-specific builders live outside this directory. For example,
 `src/cpu/x64/brgemm/brgemv_ir.{hpp,cpp}` holds the GEMV builder and shows how
 `generate()` passes the IR and the post-ops inputs to `generate_kernel()`.
+
+### GEMV Coverage
+
+The GEMV builder supports transposed and nontransposed A with matching f32,
+bf16, or f16 inputs and f32 accumulation and output. Existing GEMV ISA selection
+is unchanged: f32 uses AVX2, bf16 uses AVX-512 BF16, and f16 uses AVX-512 FP16.
+Nontransposed bf16 retains its native dot-product path. Transposed bf16 and f16
+widen inputs to f32 before FMA, with one broadcast input per reduction step.
+Output conversions and unsupported attributes continue to use the existing
+non-IR fallback. Vector accumulators require contiguous output elements.
+
+`vload_bcast` carries both a memory datatype and a destination-register
+datatype, like a vector load. AVX-512 can widen a bf16 or f16 scalar while
+broadcasting it.
+Masked widening loads preserve the input element count and zero inactive lanes.
 
 ## Developer Guidelines
 

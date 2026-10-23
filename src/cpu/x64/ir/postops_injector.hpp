@@ -108,7 +108,7 @@ struct postops_injector_t {
     // right-hand-side argument through it, sum reads the previous destination
     // value from it. `base_phys` is -1 for a chain that needs neither.
     void DNNL_API inject(const std::vector<int> &acc_phys, int base_phys,
-            const std::vector<dim_t> &out_byte_off);
+            const std::vector<dim_t> &out_byte_off, bool is_tail = true);
 
     // Emit the post-ops constant table. Call once, after the postamble. Only
     // eltwise and sum post-ops have a table, so this is a no-op without one.
