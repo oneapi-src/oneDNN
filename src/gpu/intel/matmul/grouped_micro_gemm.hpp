@@ -22,14 +22,18 @@
 
 #if DNNL_EXPERIMENTAL_GROUPED_MEMORY
 
+#include "common/serialization.hpp"
 #include "common/utils.hpp"
-#include "gemmstone/microkernel/package.hpp"
+#include "gemmstone/microkernel_selector.hpp"
+#include "gpu/intel/kernel_cache.hpp"
 #include "gpu/intel/matmul/config.hpp"
 #include "gpu/intel/matmul/grouped_post_ops_gen.hpp"
+#include "gpu/intel/post_ops.hpp"
 #include "gpu/intel/primitive.hpp"
 #include "gpu/intel/primitive_conf.hpp"
 
 #include <array>
+#include <memory>
 #include <vector>
 
 namespace dnnl {
@@ -47,25 +51,67 @@ namespace matmul {
 //           per group (MoE backward).
 enum class grouped_axis_t { undefined = -1, m_axis, k_axis, n_axis };
 
-struct grouped_micro_params_t
-    : trivially_serializable_t<grouped_micro_params_t> {
+// OpenCL kernel parameters
+struct grouped_ocl_params_t : trivially_serializable_t<grouped_ocl_params_t> {
+    grouped_axis_t axis = grouped_axis_t::undefined;
+    data_type_t src_dt = data_type::undef;
+    data_type_t wei_dt = data_type::undef;
+    data_type_t dst_dt = data_type::undef;
+    data_type_t bia_dt = data_type::undef;
+    data_type_t src_scale_dt = data_type::undef;
+    data_type_t src_zp_dt = data_type::undef;
+    data_type_t wei_scale_dt = data_type::undef;
+    data_type_t wei_zp_dt = data_type::undef;
 
+    int src_group_k = 0;
+    int wei_group_k = 0, wei_group_n = 0;
+
+    // Classification of each post-op entry
+    std::array<po_kind_t, 3> po_chain
+            = {{po_kind_t::none, po_kind_t::none, po_kind_t::none}};
+
+    bool transc = false;
+    bool is_gemv = false;
+    bool with_src_scale = false, with_src_zp = false;
+    bool with_wei_scale = false, with_wei_zp = false;
+    bool with_bias = false;
+    bool with_post_op = false;
+};
+DNNL_ASSERT_TRIVIALLY_SERIALIZABLE(grouped_ocl_params_t);
+
+// Kernel cache key: the OpenCL kernel parameters and the microkernel selected
+// by the pd.
+struct grouped_micro_params_t : grouped_ocl_params_t {
     const std::vector<const char *> &get_kernel_names() const {
-        static const std::vector<const char *> kernel_names
-                = {"grouped_micro_gemm_m_axis", "grouped_micro_gemm_k_axis"};
-        return kernel_names;
+        static const std::vector<const char *> m_axis_kernel_names
+                = {"grouped_micro_gemm_m_axis"};
+        static const std::vector<const char *> k_axis_kernel_names
+                = {"grouped_micro_gemm_k_axis"};
+        return axis == grouped_axis_t::k_axis ? k_axis_kernel_names
+                                              : m_axis_kernel_names;
     }
 
     status_t create_generator(const intel::engine_t &engine,
-            compute::kernel_bundle_t &bundle) const {
-        compute::kernel_ctx_t kernel_ctx;
-        CHECK(get_kernel_ctx(kernel_ctx));
-        auto status = engine.create_kernel_bundle(
-                bundle, get_kernel_names(), kernel_ctx);
-        return status;
+            compute::kernel_bundle_t &bundle) const;
+
+    status_t get_kernel_ctx(compute::kernel_ctx_t &kernel_ctx,
+            const compute::device_info_t &dev_info) const;
+
+    serialization_stream_t serialize() const {
+        const grouped_ocl_params_t &ocl = *this;
+        return serialization_stream_t(ocl, post_ops, ukernel);
     }
 
-    status_t get_kernel_ctx(compute::kernel_ctx_t &) const;
+    gpu_post_ops_t post_ops;
+
+    // Microkernel selected by the pd. Its options and host payload follow from
+    // the device and the problem, so they are not part of the key.
+    gemmstone::microkernel::GEMMCandidate ukernel;
+
+    // Microkernel the pd generated for ukernel. It provides the launch
+    // configuration and creates the kernel on a kernel cache miss. It is
+    // determined by ukernel, so it is not part of the key.
+    std::shared_ptr<const gemmstone::microkernel::Package> ukernel_package;
 };
 
 struct grouped_micro_gemm_t : public primitive_t {
@@ -79,9 +125,8 @@ struct grouped_micro_gemm_t : public primitive_t {
         status_t init(const impl::engine_t *engine);
         status_t init_m_axis(const impl::engine_t *engine);
         status_t init_k_axis(const impl::engine_t *engine);
-        status_t init_microkernels(const impl::engine_t *engine);
-        status_t init_kernel_ctx_m_axis();
-        status_t init_kernel_ctx_k_axis();
+        status_t init_conf();
+        status_t init_microkernel(const impl::engine_t *engine);
 
         bool transc() const {
             if (dst_md()->format_kind != dnnl_format_kind_sparse)
@@ -90,23 +135,20 @@ struct grouped_micro_gemm_t : public primitive_t {
                 return false;
         }
 
-        grouped_axis_t grouped_axis_ = grouped_axis_t::undefined;
+        // Number of groups partitioning the grouped axis
+        dim_t ngroups() const {
+            return memory_desc_wrapper(src_md())
+                    .sparse_desc()
+                    .grouped_desc.group_count;
+        }
 
-        bool is_gemv_ = false;
-        bool with_post_op_ = false;
-        po_kind_t po_chain_[3]
-                = {po_kind_t::none, po_kind_t::none, po_kind_t::none};
-        data_type_t binary_scale_dts_[2] = {data_type::undef, data_type::undef};
-        data_type_t ugemm_result_dt_ = data_type::f32;
+        // Group sizes of the src quantization along m and k
+        std::array<int, 2> src_group_sizes() const;
+
         int sg_size_ = 0;
-        int strategyGRFs_ = 0;
-        dim_t ngroups_ = 0;
-        std::array<int, 2> src_group_sizes_ = {0, 0};
-        std::array<int, 3> wei_group_sizes_ = {0, 0, 0};
         quantization_t src_quant_;
         quantization_t wei_quant_;
-        gemmstone::microkernel::Package gemm_;
-        compute::kernel_ctx_t kernel_ctx_;
+        grouped_micro_params_t conf_;
     };
     status_t init(impl::engine_t *engine) override;
 
@@ -123,6 +165,15 @@ private:
 };
 
 } // namespace matmul
+
+// The microkernel problem and strategy serialize one way only, so the key
+// cannot be validated with a serialization round trip.
+template <>
+struct key_validator_t<matmul::grouped_micro_params_t> {
+    static bool is_valid(const matmul::grouped_micro_params_t &) {
+        return true;
+    }
+};
 } // namespace intel
 } // namespace gpu
 } // namespace impl

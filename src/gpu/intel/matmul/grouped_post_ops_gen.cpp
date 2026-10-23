@@ -50,13 +50,17 @@ int find_po_in_chain(const po_kind_t *po_chain, po_kind_t kind) {
     return -1;
 }
 
+// An unspecified scale data type is read as f32
+static bool is_scale_dt_supported(const memory_desc_wrapper &mdw) {
+    return utils::one_of(mdw.data_type(), data_type::undef, data_type::f16,
+            data_type::bf16, data_type::f32);
+}
+
 status_t check_post_op_chain(const primitive_attr_t &attr,
-        const memory_desc_wrapper &dst_desc, dim_t ngroups, po_kind_t *po_chain,
-        data_type_t *scale_arr) {
+        const memory_desc_wrapper &dst_desc, dim_t ngroups,
+        po_kind_t *po_chain) {
     constexpr int max_po_len = 3;
     auto &po = attr.post_ops_;
-    scale_arr[0] = data_type::undef;
-    scale_arr[1] = data_type::undef;
     VDISPATCH_MATMUL_IC(po.len() <= max_po_len,
             VERBOSE_UNSUPPORTED_POSTOP ": chain length(%d) exceeds max(%d)",
             po.len(), max_po_len);
@@ -78,7 +82,8 @@ status_t check_post_op_chain(const primitive_attr_t &attr,
                     i, dnnl_alg_kind2str(e.binary.alg));
 
             const memory_desc_wrapper po_mdw(po.entry_[i].binary.src1_desc);
-            if (po_mdw.nelems() == ngroups && !po_mdw.is_host_scalar_desc()) {
+            if (!po_mdw.is_grouped_desc() && po_mdw.nelems() == ngroups
+                    && !po_mdw.is_host_scalar_desc()) {
                 // [G, 1] operand: one scale per group (expert), e.g. nvfp4
                 // per-expert global f32 scale
                 VDISPATCH_MATMUL_IC(po_mdw.data_type() == data_type::f32,
@@ -87,7 +92,8 @@ status_t check_post_op_chain(const primitive_attr_t &attr,
                         i, dnnl_dt2str(po_mdw.data_type()));
                 po_chain[i] = po_kind_t::binary_nvfp4_scale;
             } else {
-                if (po_mdw.is_grouped_desc()) {
+                if (po_mdw.is_grouped_desc()
+                        && po_mdw.dims()[1] == dst_desc.dims()[1]) {
                     // [total_tokens, N] grouped - element-wise multiply
                     VDISPATCH_MATMUL_IC(find_po_in_chain(po_chain,
                                                 po_kind_t::binary_grouped_scale)
@@ -97,6 +103,11 @@ status_t check_post_op_chain(const primitive_attr_t &attr,
                             "only one is supported",
                             i);
                     po_chain[i] = po_kind_t::binary_grouped_scale;
+                    VDISPATCH_MATMUL_IC(is_scale_dt_supported(po_mdw),
+                            VERBOSE_UNSUPPORTED_POSTOP
+                            ": entry %d grouped binary scale dt(%s), expected "
+                            "f16, bf16 or f32",
+                            i, dnnl_dt2str(po_mdw.data_type()));
                 } else if (!po_mdw.format_any()) {
                     // Dense tensor - check dimensions
                     const auto &dims = po_mdw.dims();
@@ -113,6 +124,11 @@ status_t check_post_op_chain(const primitive_attr_t &attr,
                                 "only one is supported",
                                 i);
                         po_chain[i] = po_kind_t::binary_dense_scale;
+                        VDISPATCH_MATMUL_IC(is_scale_dt_supported(po_mdw),
+                                VERBOSE_UNSUPPORTED_POSTOP
+                                ": entry %d dense binary scale dt(%s), "
+                                "expected f16, bf16 or f32",
+                                i, dnnl_dt2str(po_mdw.data_type()));
                     }
                 }
             }
@@ -126,45 +142,15 @@ status_t check_post_op_chain(const primitive_attr_t &attr,
         }
     }
 
-    set_binary_scales_dt(attr, po_chain, scale_arr);
-    const bool has_grouped_scale
-            = find_po_in_chain(po_chain, po_kind_t::binary_grouped_scale) != -1;
-    const bool has_dense_scale
-            = find_po_in_chain(po_chain, po_kind_t::binary_dense_scale) != -1;
-
-    if (has_grouped_scale) {
-        VDISPATCH_MATMUL_IC(utils::one_of(scale_arr[0], data_type::f16,
-                                    data_type::bf16, data_type::f32),
-                VERBOSE_UNSUPPORTED_POSTOP
-                ": grouped binary scale dt(%s), expected f16, bf16 or f32",
-                dnnl_dt2str(scale_arr[0]));
-    }
-    if (has_dense_scale) {
-        VDISPATCH_MATMUL_IC(utils::one_of(scale_arr[1], data_type::f16,
-                                    data_type::bf16, data_type::f32),
-                VERBOSE_UNSUPPORTED_POSTOP
-                ": dense binary scale dt(%s), expected f16, bf16 or f32",
-                dnnl_dt2str(scale_arr[1]));
-    }
-
     return status::success;
 }
-void set_binary_scales_dt(const primitive_attr_t &attr,
-        const po_kind_t *po_chain, data_type_t *scale_arr) {
-    const auto &po = attr.post_ops_;
-    for (int i = 0; i < po.len(); ++i) {
-        bool set_float = false;
-        if (po.entry_[i].binary.src1_desc.data_type == data_type::undef) {
-            set_float = true;
-        }
-        if (po_chain[i] == po_kind_t::binary_grouped_scale) {
-            scale_arr[0] = set_float ? data_type::f32
-                                     : po.entry_[i].binary.src1_desc.data_type;
-        } else if (po_chain[i] == po_kind_t::binary_dense_scale) {
-            scale_arr[1] = set_float ? data_type::f32
-                                     : po.entry_[i].binary.src1_desc.data_type;
-        }
-    }
+
+data_type_t binary_scale_dt(const gpu_post_ops_t &post_ops,
+        const po_kind_t *po_chain, po_kind_t kind) {
+    const int i = find_po_in_chain(po_chain, kind);
+    if (i == -1) return data_type::undef;
+    const data_type_t dt = post_ops[i].as_binary().src1_desc.dt;
+    return dt == data_type::undef ? data_type::f32 : dt;
 }
 
 static std::string to_ocl_float(float v) {
@@ -174,7 +160,7 @@ static std::string to_ocl_float(float v) {
 }
 
 std::string generate_post_ops_microgemm_header(
-        const primitive_attr_t &attr, const po_kind_t *po_chain) {
+        const gpu_post_ops_t &post_ops, const po_kind_t *po_chain) {
     std::string s = R"(
 inline void apply_post_ops_chain(c_tile_type_float *c_tile, long n, long m, long lddst,
     off_t sg_i0, off_t sg_j0, off_t src_offset, off_t batch,
@@ -182,21 +168,21 @@ inline void apply_post_ops_chain(c_tile_type_float *c_tile, long n, long m, long
     const global binary_scale_dense_tile_data_t *dense_scale,
     const global float *nvfp4_scale) {
 )";
-    const auto &po = attr.post_ops_;
-    for (int i = 0; i < po.len(); ++i) {
-        const auto &e = po.entry_[i];
-        if (e.is_eltwise()) {
+    for (int i = 0; i < into<int>(post_ops.len()); ++i) {
+        const auto &entry = post_ops[i];
+        if (entry.is_eltwise()) {
+            const auto &e = entry.as_eltwise();
             s += utils::format(R"(
 #define eltwise_apply_%d(v) fwd_eltwise_common(%d, v, %s, %s, %s)
     tile_elementwise((*c_tile), eltwise_apply_%d);
 #undef eltwise_apply_%d
                      )",
-                    i, static_cast<int>(e.eltwise.alg),
-                    to_ocl_float(e.eltwise.alpha).c_str(),
-                    to_ocl_float(e.eltwise.beta).c_str(),
-                    to_ocl_float(e.eltwise.scale).c_str(), i, i);
-        } else if (e.is_binary()) {
-            if (po_chain[i] == po_kind_t::binary_grouped_scale) {
+                    i, static_cast<int>(e.alg), to_ocl_float(e.alpha).c_str(),
+                    to_ocl_float(e.beta).c_str(), to_ocl_float(e.scale).c_str(),
+                    i, i);
+        } else if (entry.is_binary()) {
+            const po_kind_t kind = po_chain[i];
+            if (kind == po_kind_t::binary_grouped_scale) {
                 s += R"(
     {
         const global binary_scale_grouped_tile_data_t *group_scale_ptr
@@ -226,7 +212,7 @@ inline void apply_post_ops_chain(c_tile_type_float *c_tile, long n, long m, long
 #undef GRP_NBC
     }
                          )";
-            } else if (po_chain[i] == po_kind_t::binary_dense_scale) {
+            } else if (kind == po_kind_t::binary_dense_scale) {
                 s += utils::format(
                         R"(
 #define CONCAT_I(var) var##_%d
@@ -243,7 +229,7 @@ inline void apply_post_ops_chain(c_tile_type_float *c_tile, long n, long m, long
 #undef CONCAT_I
 )",
                         i);
-            } else if (po_chain[i] == po_kind_t::binary_nvfp4_scale) {
+            } else if (kind == po_kind_t::binary_nvfp4_scale) {
                 s += utils::format(
                         R"(
     float gs_%d = nvfp4_scale[batch];

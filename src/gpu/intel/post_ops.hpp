@@ -126,7 +126,7 @@ struct ndim_normalizer_t {
     }
 
     dim_t stride(int idx, const memory_desc_t &md) const {
-        auto &strides = md.format_desc.blocking.strides;
+        const auto &strides = memory_desc_wrapper(md).strides();
         return (idx < insert_idx)
                 ? strides[idx]
                 : (idx < insert_idx + bcast_ndims ? 0
@@ -216,24 +216,28 @@ struct relative_md_t {
     }
     static status_t make(relative_md_t &rmd, const memory_desc_t &md,
             const ndim_normalizer_t &ndim_normalizer) {
-        if (md.format_kind != format_kind::blocked)
+        memory_desc_wrapper mdw(md);
+        if (!mdw.is_blocking_desc() && !mdw.is_grouped_desc())
             return status::unimplemented;
 
+        rmd = relative_md_t();
         rmd.dt = md.data_type;
 
         auto ndims = ndim_normalizer.ndims(md);
 
-        memory_desc_wrapper mdw(md);
-        gpu_assert(mdw.is_blocking_desc());
-        auto &blocking = mdw.blocking_desc();
-        gpu_assert(blocking.inner_nblks <= blocking_t::max_dims);
+        // Only blocked layouts have inner blocks.
+        if (mdw.is_blocking_desc()) {
+            auto &blocking = mdw.blocking_desc();
+            gpu_assert(blocking.inner_nblks <= blocking_t::max_dims);
 
-        for (dim_t i = 0; i < blocking.inner_nblks; i++) {
-            auto rmd_i = blocking.inner_nblks - 1 - i;
-            rmd.inner_layout.idxs[rmd_i] = from_md_idx(
-                    into<int>(blocking.inner_idxs[i]), ndims, ndim_normalizer);
-            rmd.inner_layout.blocks[rmd_i]
-                    = into<uint8_t>(blocking.inner_blks[i]);
+            for (dim_t i = 0; i < blocking.inner_nblks; i++) {
+                auto rmd_i = blocking.inner_nblks - 1 - i;
+                rmd.inner_layout.idxs[rmd_i]
+                        = from_md_idx(into<int>(blocking.inner_idxs[i]), ndims,
+                                ndim_normalizer);
+                rmd.inner_layout.blocks[rmd_i]
+                        = into<uint8_t>(blocking.inner_blks[i]);
+            }
         }
 
         // Default all dimensions to broadcast
@@ -250,7 +254,7 @@ struct relative_md_t {
         for (int i = 0; i < ndims; i++) {
             if (ndim_normalizer.dim(i, md) > 1
                     && ndim_normalizer.stride(i, md) <= min_stride) {
-                rmd.inner_dim = from_md_idx(i, ndims, ndim_normalizer);
+                rmd.inner_dim = from_md_idx(i, ndims, ndim_normalizer_t());
                 min_stride = ndim_normalizer.stride(i, md);
             }
         }

@@ -24,6 +24,7 @@
 #include "common/c_types_map.hpp"
 #include "common/memory_desc_wrapper.hpp"
 #include "common/primitive.hpp"
+#include "gpu/intel/post_ops.hpp"
 
 #include <string>
 
@@ -33,6 +34,10 @@ namespace gpu {
 namespace intel {
 namespace matmul {
 
+// Classification of post-ops for grouped matmul microkernel generation.
+//
+// Note: Needed to diffentiate between per token and per expert binary mul post-ops
+// which cannot be differentiated by the gpu_post_ops_t representation alone.
 enum class po_kind_t {
     none,
     eltwise,
@@ -46,14 +51,16 @@ bool is_eltwise_alg_supported(alg_kind_t alg);
 int find_po_in_chain(const po_kind_t *po_chain, po_kind_t kind);
 
 status_t check_post_op_chain(const primitive_attr_t &attr,
-        const memory_desc_wrapper &dst_desc, dim_t ngroups, po_kind_t *po_chain,
-        data_type_t *scale_arr);
+        const memory_desc_wrapper &dst_desc, dim_t ngroups,
+        po_kind_t *po_chain);
 
-void set_binary_scales_dt(const primitive_attr_t &attr,
-        const po_kind_t *po_chain, data_type_t *scale_arr);
+// Data type of the binary scale classified as kind in the chain, f32 when
+// unspecified, or undef when the chain has no such scale.
+data_type_t binary_scale_dt(const gpu_post_ops_t &post_ops,
+        const po_kind_t *po_chain, po_kind_t kind);
 
 std::string generate_post_ops_microgemm_header(
-        const primitive_attr_t &attr, const po_kind_t *po_chain);
+        const gpu_post_ops_t &post_ops, const po_kind_t *po_chain);
 
 } // namespace matmul
 } // namespace intel
