@@ -118,7 +118,9 @@ status_t with_post_ops_t::pd_t::init(const impl::engine_t *engine) {
     int src_mask = zp.get_mask(DNNL_ARG_SRC);
     int wei_mask = zp.get_mask(DNNL_ARG_WEIGHTS);
     if (!zp.has_default_values(DNNL_ARG_SRC)) {
-        CHECK(attributes_without_po.zero_points_.set(DNNL_ARG_SRC, src_mask));
+        const auto dt = attr()->zero_points_.get_data_type(DNNL_ARG_SRC);
+        CHECK(attributes_without_po.zero_points_.set(
+                DNNL_ARG_SRC, src_mask, dt, 0, {}));
     }
     if (!zp.has_default_values(DNNL_ARG_WEIGHTS)) {
         const auto dt = attr()->zero_points_.get_data_type(DNNL_ARG_WEIGHTS);

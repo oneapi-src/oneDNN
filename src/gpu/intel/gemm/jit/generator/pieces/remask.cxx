@@ -69,7 +69,7 @@ void Generator<hw>::setupTeardownRemask(Type T, int index, bool setup, int nq, S
             else if (haveFixedOff)
                 add(1, nremQ, remQ, -fixedOffQ);
             if (subByte && !thirdByte)
-                divUp(nremQ, (haveVariableOff || haveFixedOff) ? nremQ : remQ, Tsrc.perByte(), strategy, state);
+                divUp(nremQ, (haveVariableOff || haveFixedOff) ? nremQ : remQ, Tsrc.perByte(), strategy, state, true);
             remQ = nremQ;
         }
         mov<uint16_t>(8, masks[0][0](1), Immediate::uv(0,1,2,3,4,5,6,7));
