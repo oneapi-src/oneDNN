@@ -30,6 +30,9 @@
 #include "common/cache_hit_types.hpp"
 #include "common/stream.hpp"
 #include "common/verbose.hpp"
+#if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
+#include "cpu/cpu_stream.hpp"
+#endif
 
 #include "graph/interface/allocator.hpp"
 #include "graph/interface/backend.hpp"
@@ -331,7 +334,9 @@ status_t dnnl_graph_compiled_partition_execute_v2(
         bool block_on_wait = true;
 #if DNNL_CPU_RUNTIME == DNNL_RUNTIME_THREADPOOL
         dnnl::threadpool_interop::threadpool_iface *tp;
-        auto status = stream->get_threadpool(&tp);
+        auto *cpu_stream
+                = utils::downcast<dnnl::impl::cpu::cpu_stream_t *>(stream);
+        auto status = cpu_stream->get_threadpool(&tp);
         block_on_wait = status == status::success && tp
                 && !(tp->get_flags()
                         & dnnl::threadpool_interop::threadpool_iface::
