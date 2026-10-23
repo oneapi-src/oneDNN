@@ -982,11 +982,11 @@ int dnn_mem_t::initialize_memory_create(const handle_info_t &handle_info) {
     if (is_cpu(engine_) && handle_info.is_allocate() && !is_sycl) {
         // Allocate memory for native runtime directly.
         is_data_owner_ = true;
-        const size_t alignment = 2 * 1024 * 1024;
 
+        assert(handle_info.alignment != 0);
         for (int i = 0; i < nhandles; i++) {
             size_t sz = dnnl_memory_desc_get_size_v2(md_, i);
-            data_.push_back(zmalloc(sz, alignment));
+            data_.push_back(zmalloc(sz, handle_info.alignment));
         }
         if (std::any_of(
                     data_.cbegin(), data_.cend(), [](void *p) { return !p; })) {

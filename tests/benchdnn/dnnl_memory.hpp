@@ -29,15 +29,22 @@
 #define dnnl_mem_default_value 0xFF
 #define dnnl_mem_default_perf_test_value 0x3F
 
+static constexpr size_t dnnl_mem_large_page_size = 2u * 1024u * 1024u;
+static constexpr size_t dnnl_mem_page_size = 4096u;
+
 struct dnn_mem_t {
     struct handle_info_t {
         bool is_host_ptr;
         void *ptr;
+        // Alignment used when allocating CPU buffers. Defaults to
+        // `dnnl_mem_large_page_size`.
+        size_t alignment;
 
         bool is_allocate() const { return ptr == DNNL_MEMORY_ALLOCATE; }
 
-        static handle_info_t allocate() {
-            return {false, DNNL_MEMORY_ALLOCATE};
+        static handle_info_t allocate(
+                size_t alignment = dnnl_mem_large_page_size) {
+            return {false, DNNL_MEMORY_ALLOCATE, alignment};
         }
     };
 
