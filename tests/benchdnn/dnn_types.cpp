@@ -1574,7 +1574,6 @@ dnnl_status_t create_dnnl_attr(
             if (as.is_def(arg_name)) continue;
 
             const auto &e = arg.second;
-            int is_on_host = e.is_host_scalar();
 
             // Check if there's a arg with pre-defined mask in `attr_args`...
             int args_mask = attr_args.get_mask(DNNL_ARG_ATTR_SCALES | arg_name);
@@ -1585,7 +1584,7 @@ dnnl_status_t create_dnnl_attr(
 
             DNN_SAFE_STATUS(dnnl_primitive_attr_set_scales_v3(dnnl_attr,
                     arg_name, mask, static_cast<int>(e.groups.size()),
-                    e.groups.data(), e.dt, is_on_host, e.qmode));
+                    e.groups.data(), e.dt, e.is_host_scalar(), e.qmode));
         }
     }
 
@@ -1597,16 +1596,7 @@ dnnl_status_t create_dnnl_attr(
 
             const auto &e = arg.second;
 
-            if (e.policy == policy_t::HOST_SCALAR) {
-                // TODO: merge this into the general path below.
-                DNN_SAFE_STATUS(dnnl_primitive_attr_set_zero_points_v3(
-                        dnnl_attr, arg_name, 0 /* mask */, 0 /* ndims */,
-                        nullptr, e.dt, 1 /* is_on_host */, e.qmode));
-
-                continue;
-            }
-
-            // Check if there's a arg with pre-defined mask in `attr_args`...
+            // Check if there's an arg with pre-defined mask in `attr_args`...
             int args_mask
                     = attr_args.get_mask(DNNL_ARG_ATTR_ZERO_POINTS | arg_name);
             // If it's non-default, use it, otherwise, deduce it.
@@ -1614,13 +1604,9 @@ dnnl_status_t create_dnnl_attr(
                     ? args_mask
                     : zp.get_mask(arg_name, dnnl_undefined_primitive, ndims);
 
-            int group_ndims = static_cast<int>(e.groups.size());
-            const auto &groups = e.groups.data();
-            const auto dt = e.dt;
-
             DNN_SAFE_STATUS(dnnl_primitive_attr_set_zero_points_v3(dnnl_attr,
-                    arg_name, mask, group_ndims, groups, dt, 0 /* is_on_host */,
-                    e.qmode));
+                    arg_name, mask, static_cast<int>(e.groups.size()),
+                    e.groups.data(), e.dt, e.is_host_scalar(), e.qmode));
         }
     }
 
@@ -1639,12 +1625,9 @@ dnnl_status_t create_dnnl_attr(
                     ? args_mask
                     : pr.get_mask(arg_name, dnnl_undefined_primitive, ndims);
 
-            int group_ndims = static_cast<int>(e.groups.size());
-            const auto &groups = e.groups.data();
-            const auto dt = e.dt;
-
             DNN_SAFE_STATUS(dnnl_primitive_attr_set_precomputed_reductions(
-                    dnnl_attr, arg_name, mask, group_ndims, groups, dt));
+                    dnnl_attr, arg_name, mask,
+                    static_cast<int>(e.groups.size()), e.groups.data(), e.dt));
         }
     }
 
