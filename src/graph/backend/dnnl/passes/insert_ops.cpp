@@ -1273,6 +1273,13 @@ status_t insert_host_scalar(std::shared_ptr<subgraph_t> &sg) {
                 val->remove_consumer(consumer.get_op(), consumer.get_offset());
                 consumer.get_op().connect_input(
                         consumer.get_offset(), host_scalar_op_out_val);
+                // Outputs may have been inferred from the 0-D scalar input,
+                // reset them so they are re-inferred from the _host_scalar
+                // output.
+                for (auto &out_val : consumer.get_op().get_output_values()) {
+                    if (!out_val->get_consumers().empty())
+                        out_val->set_ndims(-1);
+                }
             }
 
             val->add_consumer(*host_scalar_op, 0);

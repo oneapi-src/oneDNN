@@ -32,6 +32,7 @@ using namespace dnnl;
 
 using namespace dnnl::graph;
 using layout_type = logical_tensor::layout_type;
+using property_type = logical_tensor::property_type;
 using data_type = logical_tensor::data_type;
 using dim = logical_tensor::dim;
 using dims = logical_tensor::dims;
@@ -182,8 +183,8 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     softmax.add_outputs({probs});
 
     // dynamically quantize the probs from f32 to quantized type
-    auto p_quant_scales = logical_tensor(
-            id++, data_type::f32, scale_sz, layout_type::strided);
+    auto p_quant_scales = logical_tensor(id++, data_type::f32, 0,
+            layout_type::strided, property_type::host_scalar);
     auto probs_x8 = logical_tensor(id++, dt, score_sz, layout_type::strided);
     auto p_quant = op(id++, op::kind::DynamicQuantize, "p_quant");
     p_quant.set_attr<std::string>(op::attr::qtype, "per_tensor");
@@ -191,8 +192,8 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     p_quant.add_output(probs_x8);
 
     // dynamically dequant the probs from quantized type to f32
-    auto p_deq_scales = logical_tensor(
-            id++, data_type::f32, scale_sz, layout_type::strided);
+    auto p_deq_scales = logical_tensor(id++, data_type::f32, 0,
+            layout_type::strided, property_type::host_scalar);
     auto probs_f32 = logical_tensor(
             id++, data_type::f32, score_sz, layout_type::strided);
     auto p_deq = op(id++, op::kind::DynamicDequantize, "p_deq");
@@ -261,11 +262,25 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     auto ts_k_scales = tensor(k_scales, eng);
     auto ts_scale = tensor(scale, eng);
     auto ts_mask = tensor(mask, eng);
-    auto ts_p_quant_scales = tensor(p_quant_scales, eng);
-    auto ts_p_deq_scales = tensor(p_deq_scales, eng);
     auto ts_value = tensor(v_x8, eng);
     auto ts_v_scales = tensor(v_scales, eng);
     auto ts_output = tensor(output, eng);
+
+    // This is to demonstrate the use of host scalar tensors for p_quant_scales
+    // and p_deq_scales on GPU. They can be defined as normal tensors as well.
+    float pt_scale = 1.f;
+    auto ts_p_quant_scales
+            = tensor::make_scalar_tensor(p_quant_scales, &pt_scale);
+    auto ts_p_deq_scales = tensor::make_scalar_tensor(p_deq_scales, &pt_scale);
+
+    // Query scratchpad logical tensor and allocate scratchpad buffer. Here we
+    // leverage the tensor API to allocate the scratchpad buffer for
+    // convenience.
+    auto scratchpad_lt = cp.get_scratchpad_logical_tensor();
+    tensor scratchpad_ts;
+    if (scratchpad_lt.get_mem_size() > 0) {
+        scratchpad_ts = tensor(scratchpad_lt, eng);
+    }
 
     // Allocate user data.
     std::vector<float> query_data(product(qkv_sz));
@@ -274,7 +289,6 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     std::vector<float> scale_data(
             product(scale_sz), (float)std::sqrt(p.head_size));
     std::vector<float> mask_data(product(mask_sz));
-    std::vector<float> pt_scales_data(product(scale_sz), 0.25f);
     std::vector<float> value_data(product(qkv_sz));
 
     fill_random(query_data);
@@ -289,8 +303,6 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     write_to_dnnl_tensor(qkv_scales_data.data(), ts_k_scales);
     write_to_dnnl_tensor(scale_data.data(), ts_scale);
     write_to_dnnl_tensor(mask_data.data(), ts_mask);
-    write_to_dnnl_tensor(pt_scales_data.data(), ts_p_quant_scales);
-    write_to_dnnl_tensor(pt_scales_data.data(), ts_p_deq_scales);
     write_to_dnnl_tensor(value_data.data(), ts_value);
     write_to_dnnl_tensor(qkv_scales_data.data(), ts_v_scales);
 
@@ -299,7 +311,7 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     cp.execute(strm,
             {ts_query, ts_q_scales, ts_key, ts_k_scales, ts_scale, ts_mask,
                     ts_p_quant_scales, ts_p_deq_scales, ts_value, ts_v_scales},
-            {ts_output});
+            {ts_output}, scratchpad_ts);
 
     // Wait for the computation to finish.
     strm.wait();
@@ -309,7 +321,7 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
     cp.execute(strm,
             {ts_query, ts_q_scales, ts_key, ts_k_scales, ts_scale, ts_mask,
                     ts_p_quant_scales, ts_p_deq_scales, ts_value, ts_v_scales},
-            {ts_output});
+            {ts_output}, scratchpad_ts);
     strm.wait();
     auto end_first = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> dur_first
@@ -325,7 +337,7 @@ void bench_quantized_sdpa(engine::kind ekind, const data_type dt,
                 {ts_query, ts_q_scales, ts_key, ts_k_scales, ts_scale, ts_mask,
                         ts_p_quant_scales, ts_p_deq_scales, ts_value,
                         ts_v_scales},
-                {ts_output});
+                {ts_output}, scratchpad_ts);
     strm.wait();
     auto end = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> duration = end - start;
