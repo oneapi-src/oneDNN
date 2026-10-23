@@ -228,6 +228,37 @@ void jit_rvv_softmax_xf16_reduce_max(data_type_t dt, const void *src, dim_t len,
 void jit_rvv_softmax_f32_reduce_max(
         const float *src, dim_t len, float *max_val);
 
+struct jit_rvv_softmax_inner_kernel_t : public jit_generator_t {
+    struct call_params_t {
+        const float *src;
+        float *dst;
+        dim_t axis_len;
+        dim_t stride_bytes;
+        dim_t columns;
+        float *max;
+        float *sum;
+    };
+
+    DECLARE_CPU_JIT_AUX_FUNCTIONS(jit_rvv_softmax_inner_kernel_t)
+    jit_rvv_softmax_inner_kernel_t(bool apply, bool logsoftmax,
+            bool inf_as_zero, int lmul, bool axis_vectorized, bool packed_axis);
+    void operator()(const call_params_t *p) const {
+        jit_generator_t::operator()(p);
+    }
+    status_t status() const { return status_; }
+
+private:
+    status_t status_ = status::runtime_error;
+    const bool apply_, logsoftmax_, inf_as_zero_, axis_vectorized_,
+            packed_axis_;
+    const int lmul_;
+    void generate() override;
+};
+
+const jit_rvv_softmax_inner_kernel_t &get_softmax_inner_kernel(bool apply,
+        bool logsoftmax, bool inf_as_zero, int lmul, bool axis_vectorized,
+        bool packed_axis);
+
 } // namespace rv64
 } // namespace cpu
 } // namespace impl

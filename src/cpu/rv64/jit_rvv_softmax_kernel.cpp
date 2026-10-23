@@ -830,6 +830,322 @@ void jit_rvv_softmax_f32_exp_sub_sum(const float *src, float *dst, dim_t len,
         dispatch_f32_exp_sub_sum<false>(&p);
 }
 
+jit_rvv_softmax_inner_kernel_t::jit_rvv_softmax_inner_kernel_t(bool apply,
+        bool logsoftmax, bool inf_as_zero, int lmul, bool axis_vectorized,
+        bool packed_axis)
+    : jit_generator_t("jit_rvv_softmax_inner_kernel")
+    , apply_(apply)
+    , logsoftmax_(logsoftmax)
+    , inf_as_zero_(inf_as_zero)
+    , axis_vectorized_(axis_vectorized)
+    , packed_axis_(packed_axis)
+    , lmul_(lmul) {
+    assert(lmul == 1 || lmul == 2 || lmul == 4);
+    status_ = create_kernel();
+}
+
+void jit_rvv_softmax_inner_kernel_t::generate() {
+#if defined(XBYAK_RISCV_V) && XBYAK_RISCV_V == 1
+    const LMUL data_lmul = lmul_ == 1 ? LMUL::m1
+            : lmul_ == 2              ? LMUL::m2
+                                      : LMUL::m4;
+    const LMUL sum_lmul = lmul_ == 1 ? LMUL::m2
+            : lmul_ == 2             ? LMUL::m4
+                                     : LMUL::m8;
+    const Reg src = a1, dst = a2, axis = a3, stride = a4, columns = a5;
+    const Reg max_ptr = a6, sum_ptr = a7;
+    const Reg vl = t0, src_row = t1, dst_row = t2, rows_left = t3;
+    const Reg minexp = t4, maxexp = t5, imm = t6;
+    const FReg zero = ft0, lower = ft1, upper = ft2, round = ft3;
+    const FReg log2_recip = ft4, log2_high = ft5, log2_low = ft6;
+    const FReg poly = ft7, one = ft9, neg_inf = fa0;
+    const FReg coefficients[] = {ft8, fa1, fa2, fa3, one};
+    const VReg mask(0), maximum(4), x(8), bias(12), p(16), tmp(20), sum(24);
+    auto load_bits = [&](const FReg &f, uint32_t bits) {
+        li(imm, static_cast<int64_t>(bits));
+        fmv_w_x(f, imm);
+    };
+#define INNER_OFF(field) static_cast<int32_t>(offsetof(call_params_t, field))
+    ld(src, a0, INNER_OFF(src));
+    ld(dst, a0, INNER_OFF(dst));
+    ld(axis, a0, INNER_OFF(axis_len));
+    ld(stride, a0, INNER_OFF(stride_bytes));
+    ld(columns, a0, INNER_OFF(columns));
+    ld(max_ptr, a0, INNER_OFF(max));
+    ld(sum_ptr, a0, INNER_OFF(sum));
+#undef INNER_OFF
+    fmv_w_x(zero, x0);
+    load_bits(one, 0x3f800000u);
+    if (!apply_) {
+        load_bits(neg_inf, 0xff800000u);
+        load_bits(lower, utils::bit_cast<uint32_t>(-103.9720840454f));
+        load_bits(upper, utils::bit_cast<uint32_t>(88.7762626647950f));
+        load_bits(round, 0x4b400000u);
+        load_bits(log2_recip, 0x3fb8aa3bu);
+        load_bits(log2_high, 0xbf317200u);
+        load_bits(log2_low, 0xb5bfbe8eu);
+        load_bits(poly, 0x3ab4a000u);
+        load_bits(coefficients[0], 0x3c092f6eu);
+        load_bits(coefficients[1], 0x3d2aadadu);
+        load_bits(coefficients[2], 0x3e2aaa28u);
+        load_bits(coefficients[3], 0x3efffffbu);
+        li(minexp, static_cast<int64_t>(0xc1000000u));
+        li(maxexp, static_cast<int64_t>(0x3f800000u));
+    }
+
+    auto emit_exp = [&]() {
+        // Shared polynomial for both orientations; keep the same coefficients
+        // and evaluation order as the existing f32 softmax kernel.
+        vfmv_v_f(bias, round);
+        vmflt_vf(mask, x, lower);
+        vfmerge_vfm(x, x, lower);
+        vmfgt_vf(mask, x, upper);
+        vfmerge_vfm(x, x, upper);
+        vfmacc_vf(bias, log2_recip, x);
+        vfsub_vf(tmp, bias, round);
+        vfmacc_vf(x, log2_high, tmp);
+        vfmacc_vf(x, log2_low, tmp);
+        vfmv_v_f(p, poly);
+        for (const auto &coeff : coefficients) {
+            vfmul_vv(p, p, x);
+            vfadd_vf(p, p, coeff);
+        }
+        vsll_vi(bias, bias, 23);
+        vmin_vx(tmp, bias, maxexp);
+        vmax_vx(tmp, tmp, minexp);
+        vsub_vv(bias, bias, tmp);
+        vadd_vx(bias, bias, maxexp);
+        vadd_vx(tmp, tmp, maxexp);
+        vfmul_vv(x, x, bias);
+        vfmadd_vv(p, x, bias);
+        vfmul_vv(p, p, tmp);
+        if (inf_as_zero_ && !logsoftmax_) {
+            vmfeq_vf(mask, maximum, neg_inf);
+            vfmerge_vfm(p, p, zero);
+        }
+    };
+
+    if (axis_vectorized_) {
+        // A call handles one column. Actual VL determines the byte advance;
+        // Packed calls use unit-stride memory operations on caller scratch.
+        const FReg scalar_max = ft10, scalar_sum = ft11;
+        auto load_axis = [&]() {
+            // The softmax apply pass reads per-thread contiguous exponentials.
+            if (packed_axis_ || (apply_ && !logsoftmax_))
+                vle32_v(x, src_row);
+            else
+                vlse32_v(x, src_row, stride);
+        };
+        auto store_axis = [&](const VReg &value) {
+            if (packed_axis_ || (!apply_ && !logsoftmax_))
+                vse32_v(value, dst_row);
+            else
+                vsse32_v(value, dst_row, stride);
+        };
+        if (!apply_) {
+            mv(src_row, src);
+            mv(rows_left, axis);
+            vsetvli(vl, rows_left, SEW::e32, data_lmul, VTA::ta, VMA::ma);
+            vfmv_s_f(maximum, neg_inf);
+            Label max_loop;
+            L(max_loop);
+            vsetvli(vl, rows_left, SEW::e32, data_lmul, VTA::ta, VMA::ma);
+            load_axis();
+            vfredmax_vs(maximum, x, maximum);
+            mul(imm, vl, stride);
+            add(src_row, src_row, imm);
+            sub(rows_left, rows_left, vl);
+            bnez(rows_left, max_loop);
+            vfmv_f_s(scalar_max, maximum);
+            fsw(scalar_max, max_ptr);
+            // Keep f64 partial sums in every lane and reduce once per column.
+            // All lanes are initialized; the last partial chunk preserves
+            // inactive accumulator lanes until the VLMAX reduction.
+            vsetvli(vl, x0, SEW::e64, sum_lmul, VTA::tu, VMA::ma);
+            vmv_v_i(sum, 0);
+            mv(src_row, src);
+            mv(dst_row, dst);
+            mv(rows_left, axis);
+            Label exp_loop;
+            L(exp_loop);
+            vsetvli(vl, rows_left, SEW::e32, data_lmul, VTA::tu, VMA::ma);
+            load_axis();
+            vfmv_v_f(maximum, scalar_max);
+            vfsub_vv(x, x, maximum);
+            emit_exp();
+            vfwadd_wv(sum, sum, p);
+            if (!logsoftmax_) store_axis(p);
+            mul(imm, vl, stride);
+            add(src_row, src_row, imm);
+            if (!logsoftmax_) slli(imm, vl, 2);
+            add(dst_row, dst_row, imm);
+            sub(rows_left, rows_left, vl);
+            bnez(rows_left, exp_loop);
+            vsetvli(vl, x0, SEW::e64, sum_lmul, VTA::ta, VMA::ma);
+            fmv_d_x(scalar_sum, x0);
+            vfmv_s_f(maximum, scalar_sum);
+            vfredusum_vs(maximum, sum, maximum);
+            vfmv_f_s(scalar_sum, maximum);
+            fcvt_s_d(scalar_sum, scalar_sum);
+            fsw(scalar_sum, sum_ptr);
+        } else {
+            flw(scalar_max, max_ptr);
+            flw(scalar_sum, sum_ptr);
+            if (!logsoftmax_) {
+                // One reciprocal per column, rather than a vector division
+                // for every axis chunk. Match the zero-sum convention.
+                Label nonzero;
+                feq_s(imm, scalar_sum, zero);
+                beqz(imm, nonzero);
+                fsgnj_s(scalar_sum, one, one);
+                L(nonzero);
+                fdiv_s(scalar_sum, one, scalar_sum);
+            }
+            mv(src_row, src);
+            mv(dst_row, dst);
+            mv(rows_left, axis);
+            Label apply_loop;
+            L(apply_loop);
+            vsetvli(vl, rows_left, SEW::e32, data_lmul, VTA::ta, VMA::ma);
+            load_axis();
+            if (logsoftmax_) {
+                vfsub_vf(x, x, scalar_max);
+                vfsub_vf(x, x, scalar_sum);
+            } else {
+                vfmul_vf(x, x, scalar_sum);
+            }
+            store_axis(x);
+            mul(imm, vl, stride);
+            add(dst_row, dst_row, imm);
+            if (!logsoftmax_) slli(imm, vl, 2);
+            add(src_row, src_row, imm);
+            sub(rows_left, rows_left, vl);
+            bnez(rows_left, apply_loop);
+        }
+        ret();
+        return;
+    }
+
+    Label column_loop, done;
+    L(column_loop);
+    beqz(columns, done);
+    // Strip-mine in the kernel as well as the caller: the caller's tile can
+    // exceed the executing core's VLMAX on a heterogeneous system.
+    vsetvli(vl, columns, SEW::e32, data_lmul, VTA::ta, VMA::ma);
+    if (apply_) {
+        if (logsoftmax_) {
+            // Subtract max before log(sum) to avoid rounding their sum when
+            // the input has a large common offset.
+            vle32_v(maximum, max_ptr);
+            vle32_v(sum, sum_ptr);
+        } else {
+            vle32_v(sum, sum_ptr);
+            vmfeq_vf(mask, sum, zero);
+            vfmerge_vfm(sum, sum, one);
+            vfrdiv_vf(sum, sum, one);
+        }
+        mv(src_row, src);
+        mv(dst_row, dst);
+        mv(rows_left, axis);
+        Label apply_loop;
+        L(apply_loop);
+        vle32_v(x, src_row);
+        if (logsoftmax_) {
+            vfsub_vv(x, x, maximum);
+            vfsub_vv(x, x, sum);
+        } else
+            vfmul_vv(x, x, sum);
+        vse32_v(x, dst_row);
+        add(src_row, src_row, stride);
+        add(dst_row, dst_row, stride);
+        addi(rows_left, rows_left, -1);
+        bnez(rows_left, apply_loop);
+    } else {
+        vfmv_v_f(maximum, neg_inf);
+        mv(src_row, src);
+        mv(rows_left, axis);
+        Label max_loop;
+        L(max_loop);
+        vle32_v(x, src_row);
+        vfmax_vv(maximum, maximum, x);
+        add(src_row, src_row, stride);
+        addi(rows_left, rows_left, -1);
+        bnez(rows_left, max_loop);
+        vse32_v(maximum, max_ptr);
+
+        // Each lane sums a full axis, unlike an axis-vectorized reduction.
+        // Widen only the accumulator so long axes do not lose small terms.
+        // Doubling SEW and LMUL retains the same lane capacity.
+        vsetvli(vl, vl, SEW::e64, sum_lmul, VTA::ta, VMA::ma);
+        vmv_v_i(sum, 0);
+        vsetvli(vl, vl, SEW::e32, data_lmul, VTA::ta, VMA::ma);
+        mv(src_row, src);
+        mv(dst_row, dst);
+        mv(rows_left, axis);
+        Label exp_loop;
+        L(exp_loop);
+        vle32_v(x, src_row);
+        vfsub_vv(x, x, maximum);
+        emit_exp();
+        vfwadd_wv(sum, sum, p);
+        if (!logsoftmax_) vse32_v(p, dst_row);
+        add(src_row, src_row, stride);
+        add(dst_row, dst_row, stride);
+        addi(rows_left, rows_left, -1);
+        bnez(rows_left, exp_loop);
+        vfncvt_f_f_w(p, sum);
+        vse32_v(p, sum_ptr);
+    }
+    slli(imm, vl, 2);
+    add(src, src, imm);
+    add(dst, dst, imm);
+    add(max_ptr, max_ptr, imm);
+    add(sum_ptr, sum_ptr, imm);
+    sub(columns, columns, vl);
+    j_(column_loop);
+    L(done);
+#endif
+    ret();
+}
+
+namespace {
+template <int lmul, bool apply, bool log, bool inf, bool axis, bool packed>
+const jit_rvv_softmax_inner_kernel_t &get_kernel() {
+    static const jit_rvv_softmax_inner_kernel_t kernel(
+            apply, log, inf, lmul, axis, packed);
+    return kernel;
+}
+template <int lmul, bool axis = false, bool packed = false>
+const jit_rvv_softmax_inner_kernel_t &get_kernel(
+        bool apply, bool logsoftmax, bool inf_as_zero) {
+    if (apply)
+        return logsoftmax
+                ? get_kernel<lmul, true, true, false, axis, packed>()
+                : get_kernel<lmul, true, false, false, axis, packed>();
+    if (logsoftmax) return get_kernel<lmul, false, true, false, axis, packed>();
+    return inf_as_zero ? get_kernel<lmul, false, false, true, axis, packed>()
+                       : get_kernel<lmul, false, false, false, axis, packed>();
+}
+} // namespace
+
+const jit_rvv_softmax_inner_kernel_t &get_softmax_inner_kernel(bool apply,
+        bool logsoftmax, bool inf_as_zero, int lmul, bool axis_vectorized,
+        bool packed_axis) {
+    if (packed_axis) {
+        assert(axis_vectorized);
+        return get_kernel<4, true, true>(apply, logsoftmax, inf_as_zero);
+    }
+    if (axis_vectorized)
+        return get_kernel<4, true>(apply, logsoftmax, inf_as_zero);
+    switch (lmul) {
+        case 1: return get_kernel<1>(apply, logsoftmax, inf_as_zero);
+        case 2: return get_kernel<2>(apply, logsoftmax, inf_as_zero);
+        default:
+            assert(lmul == 4);
+            return get_kernel<4>(apply, logsoftmax, inf_as_zero);
+    }
+}
+
 } // namespace rv64
 } // namespace cpu
 } // namespace impl
