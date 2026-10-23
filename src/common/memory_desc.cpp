@@ -1092,14 +1092,19 @@ status_t dnnl_memory_desc_query_v2(
             *(dim_t *)result = md->format_desc.sparse_desc.nnz;
             break;
         case query::data_type:
-            *(data_type_t *)result = (index == 0)
-                    ? md->data_type
-                    : md->format_desc.sparse_desc.metadata_types
-                              [md->format_desc.sparse_desc.encoding
-                                                      == sparse_encoding_t::
-                                                              dnnl_coo
-                                              ? 0
-                                              : index - 1];
+            if (index == 0) {
+                *(data_type_t *)result = md->data_type;
+            } else {
+                if (!is_sparse) return status::invalid_arguments;
+                const auto &sd = md->format_desc.sparse_desc;
+                const int meta_idx = sd.encoding == sparse_encoding_t::dnnl_coo
+                        ? 0
+                        : index - 1;
+                VCHECK_MEMORY(meta_idx >= 0
+                                && meta_idx < sparse_desc_t::max_metadata_types,
+                        invalid_arguments, VERBOSE_UNSUPPORTED_SPARSE_CFG);
+                *(data_type_t *)result = sd.metadata_types[meta_idx];
+            }
             break;
         case query::num_handles_s32:
             if (is_sparse) {
