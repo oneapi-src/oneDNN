@@ -84,7 +84,7 @@ struct jit_uni_binary_kernel_t : public binary_kernel_t {
     const XReg reg_reverse_spat_offt_ = x13;
     const XReg reg_tmp_ = x14;
     const XReg reg_tmp1_ = x6;
-    const XReg reg_elt_inj_table_ = x15;
+    const XReg reg_elt_inj_table_ = x16;
     const XReg reg_off_rhs_postops_ = x2;
     const XReg reg_scales_src0_ = x3;
     const XReg reg_scales_src1_ = x5;
