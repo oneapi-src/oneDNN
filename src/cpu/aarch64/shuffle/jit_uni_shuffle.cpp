@@ -20,10 +20,12 @@
 #include <cstdint>
 
 #include "common/c_types_map.hpp"
+#include "common/compiler_workarounds.hpp"
 #include "common/dnnl_thread.hpp"
 #include "common/math_utils.hpp"
+#include "common/memory_tracking.hpp"
+#include "common/nstl.hpp"
 #include "common/type_helpers.hpp"
-
 #include "cpu/aarch64/jit_generator.hpp"
 #include "cpu/aarch64/shuffle/jit_uni_shuffle.hpp"
 #include "cpu/aarch64/shuffle/jit_uni_shuffle_kernel.hpp"
@@ -47,9 +49,6 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(const engine_t *engine) {
         return status::unimplemented;
 
     conf_.data_type = src_d.data_type();
-
-    VDISPATCH_SHUFFLE(DNNL_CPU_THREADING_RUNTIME != DNNL_RUNTIME_THREADPOOL,
-            VERBOSE_UNSUPPORTED_THREADPOOL_RUNTIME);
 
     const bool ok = is_superset(get_max_cpu_isa(), isa)
             && utils::one_of(conf_.data_type, f32, s32, bf16)
@@ -105,11 +104,17 @@ status_t jit_uni_shuffle_t<isa>::pd_t::init(const engine_t *engine) {
     conf_.axis_size = axis_size();
     conf_.el_size_of_indices = sizeof(unsigned);
 
+    auto sp = scratchpad_registry().registrar();
+    sp.template book<int>(
+            memory_tracking::names::key_shuffle_precompute_transpose,
+            utils::rnd_up(conf_.c, conf_.blk_size));
+
     return status::success;
 }
 
 template <cpu_isa_t isa>
-status_t jit_uni_shuffle_t<isa>::precompute_offsets() {
+status_t jit_uni_shuffle_t<isa>::precompute_offsets(
+        const exec_ctx_t &ctx) const {
     const auto conf = pd()->get_conf();
     const int axis_size = conf.axis_size;
     const int group_size = conf.group_size;
@@ -117,32 +122,24 @@ status_t jit_uni_shuffle_t<isa>::precompute_offsets() {
             = pd()->is_fwd() ? group_size : axis_size / group_size;
     const int transpose_col
             = pd()->is_fwd() ? axis_size / group_size : group_size;
-    std::vector<int> rev_transposed_(axis_size);
 
-    // Precompute transposed axis helper array
-    parallel_nd(transpose_col, transpose_row, [&](dim_t i, dim_t j) {
-        rev_transposed_[j * transpose_col + i] = i * transpose_row + j;
-    });
-
-    const dim_t C = conf.c;
-    input_off_ = (unsigned *)malloc(
-            C * sizeof(unsigned), platform::get_cache_line_size());
-    if (input_off_ == nullptr) return dnnl_out_of_memory;
+    const auto &sp = ctx.get_scratchpad_grantor();
+    auto sp_ptr = sp.template get<int>(
+            memory_tracking::names::key_shuffle_precompute_transpose);
 
     if (pd()->get_conf().tag_kind == jit_memory_tag_kind_t::blocked) {
         const dim_t blk_size = conf.blk_size;
-        const dim_t CB = utils::div_up(C, blk_size);
         const dim_t SP = conf.sp;
 
-        // Precompute input offsets using transposed axis
-        parallel_nd(CB, [&](dim_t cb) {
-            const int blk_end = nstl::min(blk_size, C - cb * blk_size);
+        const dim_t C = conf.c;
+        parallel(1, [=](int, int) {
             PRAGMA_OMP_SIMD()
-            for (int cc = 0; cc < blk_end; ++cc) {
-                const int off = cb * blk_size + cc;
-                const int &input_c = rev_transposed_[off];
-                input_off_[off] = (input_c / blk_size * SP * blk_size
-                                          + input_c % blk_size)
+            for (int cc = 0; cc < C; cc++) {
+                const int cc_row_idx = cc / transpose_col;
+                const int cc_col_idx = cc % transpose_col;
+                const int input_c = cc_col_idx * transpose_row + cc_row_idx;
+                sp_ptr[cc] = (input_c / blk_size * SP * blk_size
+                                     + input_c % blk_size)
                         * conf.dt_size;
             }
         });
@@ -150,13 +147,11 @@ status_t jit_uni_shuffle_t<isa>::precompute_offsets() {
         assert(!"Invalid memory format kind.");
         return status::invalid_arguments;
     }
-
     return status::success;
 }
 
 template <cpu_isa_t isa>
 status_t jit_uni_shuffle_t<isa>::init(engine_t *engine) {
-    CHECK(precompute_offsets());
     CHECK(safe_ptr_assign(
             kernel_, new jit_uni_shuffle_kernel_t<isa>(pd()->get_conf())));
     CHECK(kernel_->create_kernel());
@@ -168,14 +163,14 @@ inline jit_uni_shuffle_t<isa>::jit_uni_shuffle_t(const pd_t *apd)
     : primitive_t(apd) {}
 
 template <cpu_isa_t isa>
-jit_uni_shuffle_t<isa>::~jit_uni_shuffle_t() {
-    free(this->input_off_);
-}
+jit_uni_shuffle_t<isa>::~jit_uni_shuffle_t() = default;
 
 template <cpu_isa_t isa>
 status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
     using namespace prop_kind;
     using namespace utils;
+
+    CHECK(precompute_offsets(ctx));
 
     const auto i_arg = pd()->is_fwd() ? DNNL_ARG_SRC : DNNL_ARG_DIFF_DST;
     const auto o_arg = pd()->is_fwd() ? DNNL_ARG_DST : DNNL_ARG_DIFF_SRC;
@@ -190,10 +185,15 @@ status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
     const dim_t stride_mb = conf.stride_mb;
     const int data_type_size = conf.dt_size;
 
+    const auto &sp = ctx.get_scratchpad_grantor();
+    auto sp_ptr = sp.template get<int>(
+            memory_tracking::names::key_shuffle_precompute_transpose);
+
     if (pd()->get_conf().tag_kind == jit_memory_tag_kind_t::blocked) {
         const dim_t CB = utils::div_up(C, conf.c_split_size);
         const dim_t SPB = SP / conf.sp_split_size;
-        parallel_nd(MB, SPB, CB, [&](dim_t mb, dim_t spb, dim_t cb) {
+        parallel_nd(MB, SPB, CB,
+                [= COMPAT_THIS_CAPTURE](dim_t mb, dim_t spb, dim_t cb) {
             const dim_t c_work
                     = nstl::min(conf.c_split_size, C - cb * conf.c_split_size);
             const dim_t c_curr = cb * conf.c_split_size;
@@ -208,7 +208,7 @@ status_t jit_uni_shuffle_t<isa>::execute(const exec_ctx_t &ctx) const {
             args.cb_loop_size = c_work;
             args.is_padded_block = cb + 1 == CB;
 
-            args.input_off_ptr = this->input_off_ + c_curr;
+            args.input_off_ptr = sp_ptr + c_curr;
             (*kernel_)(&args);
         });
     } else {
