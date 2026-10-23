@@ -537,16 +537,7 @@ void emit_n_block(ir::ir_t &ir, const brgemm_ir_conf_t &cfg,
         for (int ld = 0; ld < blk.ld_block2; ld++) {
             const int i = bd * blk.ld_block2 + ld;
             acc[i] = ir.new_vec(cfg.dt_acc);
-
-            // The kernel takes only 0 and 1 for beta.
-            if (cfg.beta == 0.0f)
-                ir.vzero(acc[i]);
-            else if (blk.ld_tail_mask == ir::vreg_t::none)
-                ir.vload(acc[i], regs.advancing.c_ptr, cfg.c_off(blk, bd, ld),
-                        cfg.dt_c);
-            else
-                ir.vload_masked(acc[i], regs.advancing.c_ptr,
-                        cfg.c_off(blk, bd, ld), blk.ld_tail_mask, cfg.dt_c);
+            ir.vzero(acc[i]);
         }
     }
 
@@ -567,6 +558,24 @@ void emit_n_block(ir::ir_t &ir, const brgemm_ir_conf_t &cfg,
         ir::emit_loop_reg(ir, regs.invariant.bs, bs_body);
     else
         ir::emit_loop_imm(ir, 1, bs_body);
+
+    // The kernel takes only 0 and 1 for beta. C is added after the reduction,
+    // as in the classic kernel. Loading it into the accumulators up front
+    // would make every FMA chain wait for those loads.
+    if (cfg.beta != 0.0f) {
+        for (int bd = 0; bd < blk.bd_block; bd++) {
+            for (int ld = 0; ld < blk.ld_block2; ld++) {
+                const ir::vreg_t c = ir.new_vec(cfg.dt_c);
+                if (blk.ld_tail_mask == ir::vreg_t::none)
+                    ir.vload(c, regs.advancing.c_ptr, cfg.c_off(blk, bd, ld),
+                            cfg.dt_c);
+                else
+                    ir.vload_masked(c, regs.advancing.c_ptr,
+                            cfg.c_off(blk, bd, ld), blk.ld_tail_mask, cfg.dt_c);
+                ir.vadd(acc[bd * blk.ld_block2 + ld], c);
+            }
+        }
+    }
 
     if (cfg.has_post_ops()) {
         // The order is the one oneDNN defines and the classic kernel follows:
