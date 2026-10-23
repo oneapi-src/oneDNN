@@ -24,6 +24,8 @@
 #include "oneapi/dnnl/dnnl.h"
 
 #include "c_types_map.hpp"
+#include "primitive_exec_types.hpp"
+#include "tag_traits.hpp"
 #include "type_helpers.hpp"
 #include "utils.hpp"
 
@@ -249,6 +251,39 @@ status_t grouped_matmul_attr_check(
         }
     }
 
+    return status::success;
+}
+
+// Scales and zero points are supplied as memory objects at execution time, but
+// no API communicates their layout to the library: `quant_entry_t::get_md()`
+// derives the expected descriptor from the attribute alone and always produces
+// a dense one with `abx` stride order. The grouped matmul kernels index those
+// buffers with that layout baked in, so a descriptor laid out any other way is
+// read at the wrong offsets and the primitive silently returns wrong results.
+//
+// The number of dimensions is deliberately not constrained. Describing a
+// quantization tensor without its broadcast dimensions is legitimate and
+// handled by the kernels - a `[G, N]` descriptor for per-expert per-N weights
+// scales of a `[G, K, N]` weights tensor, say - hence only the layout of the
+// dimensions that are present is checked. `memory_desc_matches_tag()` derives
+// the reference strides from `mdw` itself and skips unit dimensions, whose
+// strides are ambiguous.
+status_t check_quant_arg_layout(
+        const memory_desc_wrapper &mdw, const char *arg_name) {
+    // An argument that was not passed maps to a zero descriptor, and a host
+    // scalar carries no layout at all.
+    if (mdw.is_zero() || mdw.is_host_scalar_desc()) return status::success;
+
+    const bool is_canonical = mdw.is_blocking_desc()
+            && !mdw.has_runtime_dims_or_strides() && mdw.offset0() == 0
+            && array_cmp(mdw.padded_dims(), mdw.dims(), mdw.ndims())
+            && mdw.matches_tag(get_abx_tag(mdw.ndims()));
+    VCONDCHECK(primitive, exec, check, matmul, is_canonical,
+            status::invalid_arguments,
+            "%s memory descriptor must be dense with `abx` strides, got `%s`",
+            arg_name,
+            mdw.is_blocking_desc() ? md2fmt_tag_str(mdw.md_).c_str()
+                                   : "non-plain");
     return status::success;
 }
 #endif // DNNL_EXPERIMENTAL_GROUPED_MEMORY
@@ -702,6 +737,24 @@ status_t matmul_attr_check(const matmul_desc_t &desc, const engine_t *engine,
 
 namespace dnnl {
 namespace impl {
+
+#if DNNL_EXPERIMENTAL_GROUPED_MEMORY
+status_t grouped_matmul_exec_check(const exec_ctx_t &ctx) {
+    CHECK(check_quant_arg_layout(
+            ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_SRC), "src scales"));
+    CHECK(check_quant_arg_layout(
+            ctx.memory_mdw(DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS),
+            "weights scales"));
+    CHECK(check_quant_arg_layout(
+            ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_SRC),
+            "src zero points"));
+    CHECK(check_quant_arg_layout(
+            ctx.memory_mdw(DNNL_ARG_ATTR_ZERO_POINTS | DNNL_ARG_WEIGHTS),
+            "weights zero points"));
+    return status::success;
+}
+#endif // DNNL_EXPERIMENTAL_GROUPED_MEMORY
+
 status_t matmul_desc_init(matmul_desc_t *matmul_desc,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,

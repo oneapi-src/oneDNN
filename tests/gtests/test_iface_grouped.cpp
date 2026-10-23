@@ -763,6 +763,86 @@ TEST(iface_grouped_test_t, TestBinaryPostOpDenseShapes) {
     }
 }
 
+// The grouped matmul kernels index quantization tensors assuming the dense
+// `abx` descriptor that the library synthesizes from the attribute, so a
+// non-canonical execution descriptor has to be rejected rather than silently
+// mis-indexed.
+HANDLE_EXCEPTIONS_FOR_TEST(iface_grouped_test_t, TestGroupedMatmulScaleLayout) {
+    engine eng = get_test_engine();
+
+    // The CPU SYCL stream submits the primitive as a host task and always
+    // reports success, so an execution status cannot be observed there.
+    SKIP_IF(eng.get_kind() == engine::kind::cpu
+                    && DNNL_CPU_RUNTIME == DNNL_RUNTIME_SYCL,
+            "Test requires a stream that propagates the execution status.");
+
+    const memory::dim ngroups = 2;
+    const memory::dim total_m = 8, K = 32, N = 8;
+    const memory::dim group_k = 16;
+    const memory::dim kg = K / group_k;
+    const int wei_mask = (1 << 0) | (1 << 1) | (1 << 2);
+
+    auto src_md = memory::desc::grouped({total_m, K}, dt::f16, 0, ngroups);
+    auto wei_md = memory::desc(
+            {ngroups, K, N}, dt::f4_e2m1, memory::format_tag::abc);
+    auto dst_md = memory::desc::grouped({total_m, N}, dt::f16, 0, ngroups);
+
+    primitive_attr attr;
+    attr.set_scales(DNNL_ARG_WEIGHTS, wei_mask, {group_k, 1}, dt::f8_e4m3);
+
+    matmul::primitive_desc pd;
+    ASSERT_NO_THROW(
+            pd = matmul::primitive_desc(eng, src_md, wei_md, dst_md, attr));
+    matmul prim(pd);
+    stream strm(eng);
+
+    // Byte-level initialization keeps this independent of the data types.
+    auto set_bytes = [](const memory &mem, uint8_t value, int index = 0) {
+        auto *p = mem.map_data<uint8_t>(index);
+        std::memset(p, value, mem.get_desc().get_size(index));
+        mem.unmap_data(p, index);
+    };
+    auto set_offsets = [&](const memory &mem) {
+        auto *p = mem.map_data<int32_t>(1);
+        for (memory::dim g = 0; g < ngroups; ++g)
+            p[g] = static_cast<int32_t>((g + 1) * total_m / ngroups);
+        mem.unmap_data(p, 1);
+    };
+
+    memory src_mem(src_md, eng);
+    memory wei_mem(wei_md, eng);
+    memory dst_mem(dst_md, eng);
+    set_bytes(src_mem, 0);
+    set_bytes(wei_mem, 0);
+    set_bytes(dst_mem, 0);
+    set_offsets(src_mem);
+    set_offsets(dst_mem);
+
+    auto execute_with_scales = [&](memory::format_tag tag) {
+        memory::desc scales_md({ngroups, kg, N}, dt::f8_e4m3, tag);
+        memory scales_mem(scales_md, eng);
+        set_bytes(scales_mem, 0x38); // f8_e4m3 1.0
+        dnnl_status_t status = dnnl_success;
+        try {
+            prim.execute(strm,
+                    {{DNNL_ARG_SRC, src_mem}, {DNNL_ARG_WEIGHTS, wei_mem},
+                            {DNNL_ARG_DST, dst_mem},
+                            {DNNL_ARG_ATTR_SCALES | DNNL_ARG_WEIGHTS,
+                                    scales_mem}});
+            strm.wait();
+        } catch (const error &e) { status = e.status; }
+        return status;
+    };
+
+    // A dense `abc` scale descriptor is what the kernels expect.
+    EXPECT_EQ(execute_with_scales(memory::format_tag::abc), dnnl_success);
+
+    // The same logical tensor described as `acb` transposes the two innermost
+    // dimensions, which the kernels cannot express.
+    EXPECT_EQ(execute_with_scales(memory::format_tag::acb),
+            dnnl_invalid_arguments);
+}
+
 } // namespace dnnl
 
 #endif // DNNL_EXPERIMENTAL_GROUPED_MEMORY

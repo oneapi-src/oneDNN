@@ -33,6 +33,8 @@ namespace matmul {
 // 2D grouped src (variable M) x 3D dense wei -> 2D grouped dst (variable M)
 // 2D grouped src (variable K) x 2D grouped wei (variable M) -> dense 3D dst
 status_t ref_grouped_t::execute(const exec_ctx_t &ctx) const {
+    CHECK(grouped_matmul_exec_check(ctx));
+
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper wei_d(pd()->weights_md(0));
     const memory_desc_wrapper dst_d(pd()->dst_md());

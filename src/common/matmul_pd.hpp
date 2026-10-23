@@ -47,6 +47,15 @@ status_t matmul_desc_init(matmul_desc_t *matmul_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc,
         const memory_desc_t *reduce_desc, matmul_reduce_kind_t reduce_kind);
 
+#if DNNL_EXPERIMENTAL_GROUPED_MEMORY
+// Validates the execution arguments that only the grouped matmul
+// implementations consume. Namely, the quantization arguments, whose layout no
+// API communicates at primitive descriptor creation time while the kernels
+// index them assuming the dense `abx` descriptor that `quant_entry_t::get_md()`
+// synthesizes.
+status_t grouped_matmul_exec_check(const exec_ctx_t &ctx);
+#endif
+
 status_t matmul_desc_init(matmul_desc_t *matmul_desc,
         const memory_desc_t *src_desc, const memory_desc_t *weights_desc,
         const memory_desc_t *bias_desc, const memory_desc_t *dst_desc);

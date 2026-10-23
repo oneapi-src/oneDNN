@@ -848,6 +848,8 @@ status_t grouped_micro_gemm_t::execute_k_axis(const exec_ctx_t &ctx) const {
 }
 
 status_t grouped_micro_gemm_t::execute(const exec_ctx_t &ctx) const {
+    CHECK(grouped_matmul_exec_check(ctx));
+
     switch (pd()->grouped_axis_) {
         case grouped_axis_t::m_axis: return execute_m_axis(ctx);
         case grouped_axis_t::k_axis: return execute_k_axis(ctx);
