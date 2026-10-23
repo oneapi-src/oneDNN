@@ -80,6 +80,8 @@ status_t concat_primitive_desc_create(std::shared_ptr<primitive_desc_t> &pd,
             !memory_desc_wrapper(src_mds[0]).has_runtime_dims_or_strides(),
             VERBOSE_RUNTIMEDIM_UNSUPPORTED);
 
+    VCHECK_CONCAT(concat_dim >= 0 && concat_dim < ndims, VERBOSE_BAD_AXIS);
+
     dim_t concat_dim_sz = dims[concat_dim];
     VCHECK_CONCAT(!memory_desc_wrapper(src_mds[0]).format_any(),
             VERBOSE_UNSUPPORTED_TAG_S, "src");

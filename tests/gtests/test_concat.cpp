@@ -299,6 +299,30 @@ CPU_INSTANTIATE_TEST_SUITE_P(TestConcat_EF_bf16, concat_test_bf16, cases_EF());
 CPU_INSTANTIATE_TEST_SUITE_P(
         TestConcat_EF_f16, concat_test_float16, cases_EF());
 
+TEST(concat_test_axis_t, TestConcatOutOfRangeAxis) {
+    auto eng = get_test_engine();
+    SKIP_IF(is_amd_gpu(eng), "Concat operator is not supported");
+
+    dnnl_dims_t dims = {2, 4, 5, 5};
+    dnnl_memory_desc_t mds[2];
+    for (auto &md : mds)
+        ASSERT_EQ(dnnl_memory_desc_create_with_tag(
+                          &md, 4, dims, dnnl_f32, dnnl_nchw),
+                dnnl_success);
+
+    // The destination is derived by the library, so the axis indexes the
+    // source dims directly.
+    for (int axis : {-1, 4, 100}) {
+        dnnl_primitive_desc_t concat_pd = nullptr;
+        ASSERT_EQ(dnnl_concat_primitive_desc_create(&concat_pd, eng.get(),
+                          nullptr, 2, axis, mds, nullptr),
+                dnnl_invalid_arguments);
+    }
+
+    for (auto &md : mds)
+        ASSERT_EQ(dnnl_memory_desc_destroy(md), dnnl_success);
+}
+
 static auto cases_padded = []() {
     return ::testing::Values(
             concat_test_params_t {1, {fmt::nChw16c, fmt::nChw16c}, fmt::nChw16c,
