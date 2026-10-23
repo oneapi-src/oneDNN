@@ -134,7 +134,7 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
 
         jit_1x1_conv_conf_t jcp_ = utils::zero<decltype(jcp_)>();
         reduce_to_unit_stride_t rtus_ = utils::zero<decltype(rtus_)>();
-        using dw_pd_t = jit_sve_512_dw_convolution_fwd_t::pd_t;
+        using dw_pd_t = typename jit_uni_dw_convolution_fwd_t<isa_>::pd_t;
         std::unique_ptr<dw_pd_t> dw_conv_pd_;
 
     protected:
@@ -339,7 +339,7 @@ struct jit_sve_1x1_convolution_fwd_t : public primitive_t {
                     dw_conv_buffer_size_,
                     types::data_type_size(dw_conv_pd_->src_md()->data_type));
 
-            jit_uni_dw_conv_fwd_kernel_t<isa_, data_type::f32>::init_scratchpad(
+            jit_uni_dw_conv_fwd_kernel_base_t::init_scratchpad(
                     dw_scratchpad, jcp_dw);
 
             return status::success;

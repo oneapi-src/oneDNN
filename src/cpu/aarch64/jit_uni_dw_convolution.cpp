@@ -33,12 +33,31 @@ using namespace dnnl::impl::status;
 using namespace dnnl::impl::memory_tracking::names;
 using namespace dnnl::impl::utils;
 
-template <cpu_isa_t isa, data_type_t src_type, data_type_t dst_type>
-void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
+template <cpu_isa_t isa>
+int jit_uni_dw_convolution_fwd_t<isa>::get_exec_num_of_threads(
+        const memory_desc_wrapper &dst_d, const jit_conv_conf_t &jcp) {
+    if (jcp.src_dt != data_type::f16) return jcp.nthr;
+
+    const int max_nthr = dnnl_get_current_num_threads();
+    const dim_t nelems = dst_d.nelems();
+    // Approximate launch cost in destination elements, chosen from
+    // experimental data. Request either one thread or the full team to avoid
+    // the libgomp issue with intermediate team sizes.
+    const dim_t thread_launch_work = 96;
+    const dim_t single_thread_work = 2048;
+    if (nelems <= single_thread_work) return 1;
+
+    return nelems >= static_cast<dim_t>(max_nthr) * thread_launch_work
+            ? max_nthr
+            : 1;
+}
+
+template <cpu_isa_t isa>
+void jit_uni_dw_convolution_fwd_t<isa>::execute_forward(
         const exec_ctx_t &ctx) const {
-    auto src = CTX_IN_MEM(const data_t *, DNNL_ARG_SRC);
-    auto weights = CTX_IN_MEM(const data_t *, DNNL_ARG_WEIGHTS);
-    auto dst = CTX_OUT_MEM(dst_data_t *, DNNL_ARG_DST);
+    auto src = CTX_IN_MEM(const char *, DNNL_ARG_SRC);
+    auto weights = CTX_IN_MEM(const char *, DNNL_ARG_WEIGHTS);
+    auto dst = CTX_OUT_MEM(char *, DNNL_ARG_DST);
 
     const memory_desc_wrapper src_d(pd()->src_md());
     const memory_desc_wrapper dst_d(pd()->dst_md());
@@ -80,7 +99,7 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
     const auto is_dst_layout_nxc = jcp.dst_tag == format_tag::nhwc;
 
     const int work_amount = jcp.mb * chb_work * jcp.oh;
-    const auto nthr = jcp.nthr;
+    const auto nthr = get_exec_num_of_threads(dst_d, jcp);
 
     parallel(nthr, [&](const int ithr, const int nthr) {
         int start {0}, end {0};
@@ -121,12 +140,15 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
             const auto oc_off_idx = is_dst_layout_nxc ? ch * jcp.ch_block : ch;
 
             auto par_conv = jit_conv_args_t();
-            par_conv.src = jcp.is_fused_conv
-                    ? src
-                    : &src[src_d.blk_off(n, ic_off_idx, ih, iw)];
-            par_conv.dst = &dst[dst_d.blk_off(n, oc_off_idx, oh, ow)];
+            par_conv.src = jcp.is_fused_conv ? src
+                                             : src
+                            + src_d.blk_off(n, ic_off_idx, ih, iw)
+                                    * jcp.typesize_in;
+            par_conv.dst = dst
+                    + dst_d.blk_off(n, oc_off_idx, oh, ow) * jcp.typesize_out;
 
-            par_conv.filt = &weights[weights_d.blk_off(ch, 0, 0, kh, kw)];
+            par_conv.filt = weights
+                    + weights_d.blk_off(ch, 0, 0, kh, kw) * jcp.typesize_in;
             if (bias) par_conv.bias = &bias[bias_d.blk_off(ch * jcp.ch_block)];
 
             par_conv.kh_padding = (size_t)nstl::max(0, kh_padding);
@@ -159,13 +181,6 @@ void jit_uni_dw_convolution_fwd_t<isa, src_type, dst_type>::execute_forward(
 
     if (pd()->wants_zero_pad_dst()) ctx.zero_pad_output(DNNL_ARG_DST);
 }
-
-template struct jit_uni_dw_convolution_fwd_t<sve_512, data_type::f32>;
-template struct jit_uni_dw_convolution_fwd_t<sve_256, data_type::f32>;
-template struct jit_uni_dw_convolution_fwd_t<sve_128, data_type::f32>;
-template struct jit_uni_dw_convolution_fwd_t<asimd, data_type::f32>;
-template struct jit_uni_dw_convolution_fwd_t<sve_256, data_type::bf16>;
-template struct jit_uni_dw_convolution_fwd_t<sve_128, data_type::bf16>;
 
 template <cpu_isa_t isa, data_type_t diff_dst_type, data_type_t diff_src_type>
 void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
@@ -273,9 +288,6 @@ void jit_uni_dw_convolution_bwd_data_t<isa, diff_dst_type,
         }
     });
 }
-
-template struct jit_uni_dw_convolution_bwd_data_t<sve_512, data_type::f32>;
-template struct jit_uni_dw_convolution_bwd_data_t<sve_256, data_type::f32>;
 
 template <cpu_isa_t isa, data_type_t src_type, data_type_t diff_weights_type>
 jit_uni_dw_convolution_bwd_weights_t<isa, src_type, diff_weights_type>::
@@ -535,6 +547,20 @@ void jit_uni_dw_convolution_bwd_weights_t<isa, src_type,
         cvt_float_to_bfloat16(diff_bias_in, diff_bias, jcp.ngroups);
     }
 }
+
+template struct jit_uni_dw_conv_bwd_data_kernel_t<sve_512, data_type::f32>;
+template struct jit_uni_dw_convolution_fwd_t<sve_512>;
+template struct jit_uni_dw_convolution_fwd_t<sve_256>;
+template struct jit_uni_dw_convolution_fwd_t<sve_128>;
+template struct jit_uni_dw_convolution_fwd_t<asimd>;
+
+template struct jit_uni_dw_conv_bwd_data_kernel_t<sve_256, data_type::f32>;
+
+template struct jit_uni_dw_convolution_bwd_data_t<sve_512, data_type::f32>;
+template struct jit_uni_dw_convolution_bwd_data_t<sve_256, data_type::f32>;
+
+template struct jit_uni_dw_conv_bwd_weights_kernel_t<sve_512, data_type::f32>;
+template struct jit_uni_dw_conv_bwd_weights_kernel_t<sve_256, data_type::f32>;
 
 template struct jit_uni_dw_convolution_bwd_weights_t<sve_512, data_type::f32>;
 template struct jit_uni_dw_convolution_bwd_weights_t<sve_256, data_type::f32>;
