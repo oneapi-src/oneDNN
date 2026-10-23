@@ -177,8 +177,6 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
     const bool with_int8_grouped_quantization = one_of(src_dt, u8, s8)
             && one_of(wei_dt, s4, u4, s8, u8) && one_of(dst_dt, f16, bf16, f32)
             && has_grouped_quant_attrs;
-    const bool is_f32_with_f4_wei
-            = src_dt == f32 && wei_dt == data_type::f4_e2m1 && dst_dt == f32;
 
     auto check_bias = [&]() -> bool {
         const auto bia_dt = weights_md(1)->data_type;
@@ -223,9 +221,9 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
             VDISPATCH_MATMUL(
                     !is_runtime_value(N()), VERBOSE_UNSUPPORTED_SCALES_CFG);
         }
-        // Impl supports f32 scales only for non-weight decompression
+        // Impl suppports f32 scales only for non-weight decompression
         if (!(is_bf16_with_int_wei || is_f16_with_int_wei || is_f32_with_int_wei
-                    || with_int8_grouped_quantization || is_f32_with_f4_wei)) {
+                    || with_int8_grouped_quantization)) {
             VDISPATCH_MATMUL(
                     one_of(asc.get_data_type(DNNL_ARG_SRC), undef, f32),
                     VERBOSE_UNSUPPORTED_SCALES_CFG);
@@ -290,7 +288,7 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
     const bool problem_dt_correct = one_of(true, is_f4, is_int8, is_f8, is_bf16,
             is_f32, is_f16, is_f32_f16, is_f32_bf16, is_bf16_with_int_wei,
             is_f16_with_int_wei, is_f32_with_int_wei, is_xf16_fp8,
-            with_int8_grouped_quantization, is_f32_with_f4_wei);
+            with_int8_grouped_quantization);
 
     auto src_d = memory_desc_wrapper(src_md_);
     auto weights_d = memory_desc_wrapper(weights_md_);
@@ -464,7 +462,6 @@ status_t brgemm_matmul_t<isa>::pd_t::init(const engine_t *engine) {
                 brg.src_scale_m_stride = num_k_groups * bgmmc_.src_scales_dt_sz;
             }
         }
-        brg.is_f4_fused_decompress = bgmmc_.is_f4_fused_decompress;
         CHECK(brgemm_desc_set_postops(
                 &brg, attr(), &dst_md_, LDD, bgmmc_.bia_dt));
 
@@ -2110,9 +2107,10 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         const dim_t wei_k_blk = get_data_B_k_blk();
         const dim_t k_idx = bgmmc_.blocked_B ? k / wei_k_blk : k;
         const dim_t n_idx = bgmmc_.blocked_B ? n / bgmmc_.wei_n_blk : n;
+        const int int4_fac = bgmmc_.is_int4_weights ? 2 : 1;
         return (B_strides_[1] * k_idx + B_strides_[0] * n_idx
                        + get_data_B_off_within_block(k, n))
-                / bgmmc_.wei_packed_elems_per_byte;
+                / int4_fac;
     }
 
     const char *get_data_B_kn_ptr(
@@ -2147,8 +2145,7 @@ struct brgemm_matmul_t<isa>::brg_matmul_exec_ctx_t {
         } else {
             b_off = wei_d_.off_l(b * bgmmc_.K * bgmmc_.N) * bgmmc_.b_dt_sz;
         }
-        const auto elems_per_byte = bgmmc_.wei_packed_elems_per_byte;
-        if (elems_per_byte > 1) b_off /= elems_per_byte;
+        if (bgmmc_.is_int4_weights) b_off = b_off / 2;
         return b_off;
     }
 
