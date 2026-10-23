@@ -159,7 +159,7 @@ void Generator<hw>::gemmMicrokernel(GEMMProblem problem, GEMMStrategy strategy, 
             state.fullK = state.ra.alloc_sub<uint32_t>(getHint(HintType::LongTerm, strategy));
             mov(1, state.fullK, state.inputs.k);
         }
-        
+
         if (strategy.kInterleave) {
             emad(1, state.h0, state.h0, state.lidK, strategy.kInterleaveChunk, strategy, state);
         } else {

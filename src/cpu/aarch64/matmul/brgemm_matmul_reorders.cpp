@@ -40,17 +40,11 @@ status_t brgemm_matmul_copy_reorder_t::pd_t::init(const engine_t *engine,
 
     const auto type_i = id.data_type();
     const auto type_o = od.data_type();
-    // TODO: enable support for type_i != type_o cases
-    const bool dt_ok = true && type_i == type_o
-            && utils::one_of(type_o, data_type::s8, data_type::bf16,
-                    data_type::f16, data_type::f32);
-    const bool is_f16 = utils::one_of(data_type::f16, type_i, type_o);
-    const bool is_s8s8 = type_i == data_type::s8 && type_o == data_type::s8;
+    // Currently only f32 is supported.
+    // TODO: enable support for bf16, f16, s8 and type_i != type_o cases.
+    const bool dt_ok = type_i == data_type::f32 && type_o == data_type::f32;
     const bool has_adj_scale
             = od.extra().flags & memory_extra_flags::scale_adjust;
-    UNUSED(is_f16);
-    UNUSED(is_s8s8);
-    assert(!(is_f16 || is_s8s8));
     const bool args_ok = true && dt_ok && id.is_dense()
             && utils::one_of(ndims, 2, 3) && !has_adj_scale
             && attr()->has_default_values() && od.is_blocking_desc()

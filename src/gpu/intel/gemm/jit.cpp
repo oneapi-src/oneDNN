@@ -42,6 +42,21 @@ bool check_memory_storage(const memory_storage_t *storage, const char *name) {
     return false;
 }
 
+namespace {
+
+// Offset of the 2D quantization parameters (zero points, scales and group
+// sums) for the block starting at (mn, k). They are laid out for the full
+// matrix with leading dimension ld, and mn_major is set when m (A) or n (B)
+// is the contiguous dimension.
+dim_t quant_offset(
+        bool mn_major, dim_t ld, int group_mn, int group_k, dim_t mn, dim_t k) {
+    dim_t i = mn / std::max(group_mn, 1);
+    dim_t j = k / std::max(group_k, 1);
+    return mn_major ? i + j * ld : i * ld + j;
+}
+
+} // namespace
+
 status_t gen_t::launch_nocopy(const exec_ctx_t &ctx,
         intel::stream_t *compute_stream, zero_pool_t *zero_pool,
         const memory_storage_t &a, const memory_storage_t &b,
@@ -55,10 +70,11 @@ status_t gen_t::launch_nocopy(const exec_ctx_t &ctx,
         const memory_storage_t *zero_buf_scratchpad,
         const memory_storage_t *sround_seed, int po_count,
         const memory_storage_t **po_srcs, int64_t offset_a, int64_t offset_b,
-        int64_t offset_c, int64_t offset_aq, int64_t offset_bq,
-        int64_t offset_co, int64_t *offset_po_src, int32_t lda, int32_t ldb,
-        int32_t ldc, int32_t m, int32_t n, int32_t k, int32_t k0, float alpha,
-        float beta, int32_t cmask, bool last_k_block, bool swap_ab,
+        int64_t offset_c, int64_t offset_ao, int64_t offset_bo,
+        int64_t offset_aq, int64_t offset_bq, int64_t offset_co,
+        int64_t *offset_po_src, int32_t lda, int32_t ldb, int32_t ldc,
+        int32_t ldaq, int32_t ldbq, int32_t m, int32_t n, int32_t k, int32_t k0,
+        float alpha, float beta, int32_t cmask, bool last_k_block, bool swap_ab,
         bool disable_hilbert) const {
     if (pd()->desc()->batch() == 0) return status::success;
 
@@ -138,25 +154,11 @@ status_t gen_t::launch_nocopy(const exec_ctx_t &ctx,
     }
 
     if (problem->aOffset2D() || problem->aScale2D()
-            || problem->needsAGroupSums()) {
-        auto layout = problem->needsAGroupSums() ? problem->Ag.layout
-                : problem->aScale2D()            ? problem->A_scale.layout
-                                                 : problem->AO.layout;
-        auto ldaq = into<int32_t>(isColMajor(layout)
-                        ? utils::div_up(m, problem->aqGroupM)
-                        : utils::div_up(pd()->desc()->k(), problem->aqGroupK));
+            || problem->needsAGroupSums())
         arg_list.set(argn++, ldaq);
-    }
     if (problem->bOffset2D() || problem->bScale2D()
-            || problem->needsBGroupSums()) {
-        auto layout = problem->needsBGroupSums() ? problem->Bg.layout
-                : problem->bScale2D()            ? problem->B_scale.layout
-                                                 : problem->BO.layout;
-        auto ldbq = into<int32_t>(!isColMajor(layout)
-                        ? utils::div_up(n, problem->bqGroupN)
-                        : utils::div_up(pd()->desc()->k(), problem->bqGroupK));
+            || problem->needsBGroupSums())
         arg_list.set(argn++, ldbq);
-    }
     if (pd()->with_mx_scale()) {
         auto ldcq = pd()->desc()->m() / problem->cqGroupM;
         arg_list.set(argn++, ldcq);
@@ -338,10 +340,12 @@ status_t gen_t::launch_nocopy(const exec_ctx_t &ctx,
         arg_list.set(argn++, slm, nullptr);
     }
 
-    if (problem->aoPtrDims >= 1 || problem->aScale2D())
-        arg_list.set(argn++, offset_aq);
-    if (problem->boPtrDims >= 1 || problem->bScale2D())
-        arg_list.set(argn++, offset_bq);
+    if (problem->aoPtrDims >= 1) arg_list.set(argn++, offset_ao);
+    if (problem->boPtrDims >= 1) arg_list.set(argn++, offset_bo);
+    if (problem->aScale2D()) arg_list.set(argn++, offset_aq);
+    if (problem->bScale2D()) arg_list.set(argn++, offset_bq);
+    if (problem->needsAGroupSums()) arg_list.set(argn++, offset_aq);
+    if (problem->needsBGroupSums()) arg_list.set(argn++, offset_bq);
 
     lws[0] *= nocopy_info()->subgroupSize;
     gws[0] *= nocopy_info()->subgroupSize;
@@ -586,6 +590,26 @@ status_t gen_t::execute(const exec_ctx_t &ctx) const {
 
     status_t status;
 
+    // The 2D quantization parameters are laid out for the full matrix, so
+    // their leading dimension and block offsets use the full problem size.
+    bool aq_2d = problem.aOffset2D() || problem.aScale2D()
+            || problem.needsAGroupSums();
+    bool bq_2d = problem.bOffset2D() || problem.bScale2D()
+            || problem.needsBGroupSums();
+    bool aq_m_major = isColMajor(problem.needsAGroupSums() ? problem.Ag.layout
+                    : problem.aScale2D() ? problem.A_scale.layout
+                                         : problem.AO.layout);
+    bool bq_n_major = !isColMajor(problem.needsBGroupSums() ? problem.Bg.layout
+                    : problem.bScale2D() ? problem.B_scale.layout
+                                         : problem.BO.layout);
+    int32_t ldaq = 0, ldbq = 0;
+    if (aq_2d)
+        ldaq = into<int32_t>(aq_m_major ? utils::div_up(m, problem.aqGroupM)
+                                        : utils::div_up(k, problem.aqGroupK));
+    if (bq_2d)
+        ldbq = into<int32_t>(bq_n_major ? utils::div_up(n, problem.bqGroupN)
+                                        : utils::div_up(k, problem.bqGroupK));
+
     auto block_m = nocopy_info()->blocking[0];
     auto block_n = nocopy_info()->blocking[1];
     auto block_k = nocopy_info()->blocking[2];
@@ -619,9 +643,9 @@ status_t gen_t::execute(const exec_ctx_t &ctx) const {
                     bo, ao_host_scalar, bo_host_scalar, a_scales, b_scales,
                     c_scales, ag, bg, *co, co_host_scalar, nullptr,
                     zero_buf_scratchpad.get(), sround_seed, po_count, po_srcs,
-                    off_a0, off_b0, off_c0, off_aq0, off_bq0, off_co0,
-                    po_offsets0, lda, ldb, ldc, m, n, 0, 1, 1.0f, beta, 0,
-                    false, swap_ab, true);
+                    off_a0, off_b0, off_c0, off_aq0, off_bq0, off_aq0, off_bq0,
+                    off_co0, po_offsets0, lda, ldb, ldc, ldaq, ldbq, m, n, 0, 1,
+                    1.0f, beta, 0, false, swap_ab, true);
             if (status) return status;
             beta = 1.0f;
         }
@@ -650,8 +674,16 @@ status_t gen_t::execute(const exec_ctx_t &ctx) const {
 
                 auto off_aq = off_aq0;
                 auto off_bq = off_bq0;
-                if (problem.aoPtrDims >= 1 || a_scales) off_aq += Bm;
-                if (problem.boPtrDims >= 1 || b_scales) off_bq += Bn;
+                if (aq_2d)
+                    off_aq += quant_offset(aq_m_major, ldaq, problem.aqGroupM,
+                            problem.aqGroupK, Bm, Bk);
+                if (bq_2d)
+                    off_bq += quant_offset(bq_n_major, ldbq, problem.bqGroupN,
+                            problem.bqGroupK, Bn, Bk);
+
+                // Zero point vectors are indexed by m (A) or n (B) only.
+                auto off_ao = problem.aOffset2D() ? off_aq : off_aq0 + Bm;
+                auto off_bo = problem.bOffset2D() ? off_bq : off_bq0 + Bn;
 
                 auto off_co = off_co0;
                 switch (cmask & 3) {
@@ -684,11 +716,12 @@ status_t gen_t::execute(const exec_ctx_t &ctx) const {
                         ao, bo, ao_host_scalar, bo_host_scalar, a_scales,
                         b_scales, c_scales, ag, bg, *co, co_host_scalar,
                         c_temp.get(), zero_buf_scratchpad.get(), sround_seed,
-                        po_count, po_srcs, off_a_src, off_b_src, off_c, off_aq,
-                        off_bq, off_co, po_offsets, lda, ldb, ldc,
-                        into<int32_t>(size_m), into<int32_t>(size_n),
-                        into<int32_t>(size_k), k0, alpha, eff_beta, cmask,
-                        last_k_block, swap_ab, disable_hilbert);
+                        po_count, po_srcs, off_a_src, off_b_src, off_c, off_ao,
+                        off_bo, off_aq, off_bq, off_co, po_offsets, lda, ldb,
+                        ldc, ldaq, ldbq, into<int32_t>(size_m),
+                        into<int32_t>(size_n), into<int32_t>(size_k), k0, alpha,
+                        eff_beta, cmask, last_k_block, swap_ab,
+                        disable_hilbert);
 
                 if (status) return status;
             }

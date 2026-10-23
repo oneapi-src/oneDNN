@@ -169,8 +169,8 @@ status_t brgemm_1x1_convolution_fwd_t<isa>::pd_t::init_brgemm_desc() {
 
     const auto src_type = src_md(0)->data_type;
     const auto wei_type = weights_md(0)->data_type;
-    const float alpha = 1.0;
-    const float beta = 1.0;
+    const float alpha = 1.0f;
+    const float beta = 1.0f;
 
     for (auto &params : brgemm_init_params_) {
         const auto vM = params.M_;

@@ -81,23 +81,32 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
 
     const bool channels_dense = data_d.blocking_desc().strides[1] == 1;
 
-    // Mean/variance: either supplied by the user or computed for training.
+    // Mean/variance: either supplied by the user or computed. Computed
+    // statistics are outputs for training and scratchpad for inference.
     const float *mean, *var;
     if (pd()->use_global_stats()) {
         mean = CTX_IN_MEM(const float *, DNNL_ARG_MEAN);
         var = CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE);
     } else {
-        assert(dtsrc == data_type::f16 && !channels_dense);
+        assert(utils::one_of(dtsrc, data_type::f32, data_type::f16)
+                && !channels_dense);
         const dim_t SP = D * H * W;
         const dim_t count = N * SP;
-        float *mean_out = CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
-        float *var_out = CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
+        float *mean_out, *var_out;
+        if (pd()->is_training()) {
+            mean_out = CTX_OUT_MEM(float *, DNNL_ARG_MEAN);
+            var_out = CTX_OUT_MEM(float *, DNNL_ARG_VARIANCE);
+        } else {
+            mean_out = ctx.get_scratchpad_grantor().template get<float>(
+                    memory_tracking::names::key_bnorm_tmp_stats);
+            var_out = mean_out + C;
+        }
         const auto &mean_kernel
                 = get_jit_uni_batch_normalization_fwd_stat_kernel(
-                        /*calculate_variance=*/false);
+                        dtsrc, /*calculate_variance=*/false);
         const auto &variance_kernel
                 = get_jit_uni_batch_normalization_fwd_stat_kernel(
-                        /*calculate_variance=*/true);
+                        dtsrc, /*calculate_variance=*/true);
 
         parallel_nd(C, [&](dim_t c) {
             auto reduce
@@ -126,7 +135,38 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
         var = var_out;
     }
 
-    if (!channels_dense) {
+    if (!channels_dense && pd()->spatial_dense(data_d)) {
+        // abx data tag with contiguous spatial dims: vectorize over the D*H*W
+        // row of each (n, c) so small spatial maps fill the vector. When there
+        // are few rows, split each row into chunks so that every thread gets
+        // work; chunks stay long enough to keep the vector unit busy.
+        const dim_t SP = D * H * W;
+        const dim_t min_chunk = 1024;
+        const dim_t rows = N * C;
+        const dim_t nchunks = nstl::max(dim_t(1),
+                nstl::min(
+                        utils::div_up(dim_t(4) * dnnl_get_max_threads(), rows),
+                        SP / min_chunk));
+        const dim_t chunk = utils::div_up(SP, nchunks);
+        parallel_nd(N, C, nchunks, [&](dim_t n, dim_t c, dim_t k) {
+            const dim_t sp_start = k * chunk;
+            const dim_t len = nstl::min(chunk, SP - sp_start);
+            if (len <= 0) return;
+            const float inv_std = 1.0f / sqrtf(var[c] + eps);
+            const float vscale = scale ? scale[c] : 1.0f;
+            const float vshift = shift ? shift[c] : 0.0f;
+            const float mean_b[1] = {mean[c]};
+            const float sm_b[1] = {vscale * inv_std};
+            const float sv_b[1] = {vshift};
+            const size_t base_off = off(n, c, 0, 0, 0) + sp_start;
+            const void *s_ptr = reinterpret_cast<const void *>(
+                    reinterpret_cast<const char *>(src) + base_off * data_size);
+            void *d_ptr = reinterpret_cast<void *>(
+                    reinterpret_cast<char *>(dst) + base_off * data_size);
+            bn_fwd_kernel(s_ptr, d_ptr, static_cast<size_t>(len), mean_b, sm_b,
+                    sv_b, dtsrc, /*per_elem_params=*/false, with_relu);
+        });
+    } else if (!channels_dense) {
         // abx data tag: vectorize over W for fixed channel
         parallel_nd(C, N, D, H, [&](dim_t c, dim_t n, dim_t d, dim_t h) {
             const float vmean = mean[c];

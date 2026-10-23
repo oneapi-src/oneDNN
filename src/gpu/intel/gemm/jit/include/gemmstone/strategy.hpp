@@ -158,6 +158,8 @@ struct CommonStrategy {
     bool multitile = true;                      // Enable multitile (implicit scaling) support?
     bool wgInSS = false;                        // Pretend to use barriers so that each WG belongs to 1 SS/DSS.
     bool finalFence = false;                    // Issue global memory fence before EOT.
+    bool chainPrefetches = false;               // Chain prefetches in {Atomic} sequences to reuse tokens?
+                                    ZPAD(A, 3)
     int pauseCycles = 0x0100;                   // Number of cycles to pause when waiting in a spin-loop.
     bool simulation = false;                    // For use in simulator?
     bool systolicAvailable = false;             // True if systolic array present.
@@ -169,7 +171,7 @@ struct CommonStrategy {
     int activeThreads = 0;                      // # of active threads (0 = dynamic).
 
     ngen::EmulationStrategy emulate;
-                                    ZPAD(B, 2)
+                                    ZPAD(C, 2)
 
     CommonStrategy() = default;
     CommonStrategy(ngen::HW hw, int stepping = 0);
@@ -184,7 +186,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
                                                  //     k alternate is for multi-tile execution with implicit scaling.
     int unroll[3] = {0};                         // Unrolls in each dimension (m/n/k), indexed by LoopType.
     int unrollK_masked = 0;                      // k unroll to use when masking.
-    int extraKAlign = 1;                         // Additional k alignment when blocking.
+    int extraKAlign = 1;                         // Additional k alignment when blocking (ka).
     LoopType loopOrder[3]
         = {LoopM, LoopN, LoopK};                 // Expected order of loops in driver code (in order from innermost to outermost).
     LoopType fusedLoop = LoopM;                  // Direction of fusing if threads fused.
@@ -208,6 +210,7 @@ struct GEMMStrategyPOD : public CommonStrategy {
     MatrixAddressingStrategy Ag, Bg;             // Strategies for accessing A/B groupwise reductions.
     int ka_load = 0, kb_load = 0;                // How much of A/B is loaded at once, in k dimension
     int ka_load_masked = 0, kb_load_masked = 0;  // Same as above, when masking m/n (0 = default = same as ka/kb_load)
+    int ka_repack = 0, kb_repack = 0;            // k chunk size for A/B repacking (0 = default)
     bool loadBFirst = false;                     // If true, load B before A (default A then B).
     bool doubleMasking = false;                  // Allow A/B to be masked in both dimensions.
     bool kDescRem = false;                       // Allow descriptor-based k remainder handling for A/B.
@@ -215,7 +218,8 @@ struct GEMMStrategyPOD : public CommonStrategy {
     bool splitCopy = false;                      // Separate SLM copy and compute threads?
     bool tlbWarmup = false;                      // Enable TLB warmup?
     bool tokenAlloc = false;                     // Enable dedicated SWSB token allocation for k loop loads/stores.
-    int slmBuffers = 0;                          // # of A/B SLM buffers, 0 for none.
+    int slmBuffersA = 0;                          // # of A SLM buffers, 0 for none.
+    int slmBuffersB = 0;                          // # of B SLM buffers, 0 for none.
     int unrollKSLM = 0;                          // k unroll for SLM copies (0 = auto = unroll[LoopK]/slmCopies)
     int unrollKSLMMasked = 0;                    //   Alternate value to use with masking (0 = same as unrollKSLM)
     bool slmATrans = false, slmBTrans = false;   // Whether A/B SLM data should be completely crosspacked (transposed).
@@ -340,29 +344,29 @@ struct GEMMStrategy : public GEMMStrategyPOD
     int wgTile(LoopType l)                            const { return unroll[l] * wg[l]; }
     int cInterleaveChunk(Type Tc_ext)                 const { return cInterleave ? 64 / Tc_ext : 1; }
 
-    bool lateExit()                                   const { return (slmBuffers > 0) || barrierFreq || kParallelLocal || fuseBeta || fusePostOps || cooperativePF; }
+    bool lateExit()                                   const { return (std::max(slmBuffersA, slmBuffersB) > 0) || barrierFreq || kParallelLocal || fuseBeta || fusePostOps || cooperativePF; }
 
     int slmABufBlockSize(const GEMMProblem &problem)  const { return fixedSystolic ? 1152 : int(slmA) * unroll[LoopM] * unrollKSLM * problem.Ta * problem.Ta.components(); }
     int slmBBufBlockSize(const GEMMProblem &problem)  const { return fixedSystolic ? 1536 : int(slmB) * unroll[LoopN] * unrollKSLM * problem.Tb * problem.Tb.components(); }
-    int slmGEMMABufSize(const GEMMProblem &problem)   const { return slmABufBlockSize(problem) * wg[LoopM] * wg[LoopK] * slmBuffers; }
-    int slmGEMMBBufSize(const GEMMProblem &problem)   const { return slmBBufBlockSize(problem) * wg[LoopN] * wg[LoopK] * slmBuffers; }
+
+    int slmGEMMABufSize(const GEMMProblem &problem)   const { return slmABufBlockSize(problem) * wg[LoopM] * wg[LoopK] * slmBuffersA; }
+    int slmGEMMBBufSize(const GEMMProblem &problem)   const { return slmBBufBlockSize(problem) * wg[LoopN] * wg[LoopK] * slmBuffersB; }
     int slmABufSize(const GEMMProblem &problem)       const { return slmGEMMABufSize(problem); }
     int slmBBufSize(const GEMMProblem &problem)       const { return slmGEMMBBufSize(problem); }
     int slmSysgemmBlockSize()                         const { return 1152 * wg[LoopM] + 1536 * wg[LoopN]; }
     bool variableSLM()                                const { return kParallelLocal; }
-    int slmBarriersPerUnroll()                        const { return (slmBuffers == 0) ? 0 :
-                                                                     (slmBuffers == 1) ? 2 : 1; }
+    int slmBarriersPerUnroll()                        const { return (std::max(slmBuffersA, slmBuffersB) == 0) ? 0 :
+                                                                     (std::max(slmBuffersA, slmBuffersB) == 1) ? 2 : 1; }
 
     int ka_inc() const { return slmA ? unrollKSLM : ka_load; }
     int kb_inc() const { return slmB ? unrollKSLM : kb_load; }
 
     bool persistentLoop()     const { return persistent || kParallelVariable; }
 
-    bool needsMNLocalIDs()    const { return xParallel || (slmBuffers > 0) || cooperativePF || kParallelLocal || persistentLoop()
-                                                       || namedBarriers[LoopM] || namedBarriers[LoopN] || (dpasw && !fixedSystolic)
-                                                       || (l3PrefetchA || l3PrefetchB); }
+    bool needsMNLocalIDs()    const { return xParallel || (std::max(slmBuffersA, slmBuffersB) > 0) || cooperativePF || kParallelLocal || persistentLoop()
+                                                       || namedBarriers[LoopM] || namedBarriers[LoopN] || (dpasw && !fixedSystolic) || (l3PrefetchA || l3PrefetchB); }
     bool needsKLocalIDs()     const { return kParallelLocal || persistentLoop(); }
-    bool needsKLoopBarrier()  const { return (barrierFreq > 0) || (slmBuffers > 0); }
+    bool needsKLoopBarrier()  const { return (barrierFreq > 0) || (std::max(slmBuffersA, slmBuffersB) > 0); }
     bool needsBarrier()       const { return needsKLoopBarrier() || xParallel || kParallelLocal || fuseBeta || fusePostOps; }
 
     bool needsUnnamedBarrier(const GEMMProblem &problem) const;
@@ -375,7 +379,7 @@ struct GEMMStrategy : public GEMMStrategyPOD
     WGType getWGType(const GEMMProblem &problem) const {
         if (forceWGUpdate == WGFixed)
             return WGFixed;
-        if ((slmBuffers > 0) || (forceWGUpdate == WGFixed) || namedBarriers[LoopM] || namedBarriers[LoopN])
+        if ((std::max(slmBuffersA, slmBuffersB) > 0) || (forceWGUpdate == WGFixed) || namedBarriers[LoopM] || namedBarriers[LoopN])
             return WGFixed;
         if (cooperativePF)
             return WGFixed;     /* until flexible cooperative PF enabled */
@@ -383,8 +387,7 @@ struct GEMMStrategy : public GEMMStrategyPOD
             return WGFixed;
         if (forceWGUpdate == WGShrinkable)
             return WGShrinkable;
-        else
-            return WGDynamic;
+        return WGDynamic;
     }
 
     bool fixedWG(const GEMMProblem &problem) const { return (getWGType(problem) == WGFixed); }
@@ -395,6 +398,7 @@ struct GEMMStrategy : public GEMMStrategyPOD
     bool legalAAlignment(const GEMMProblem &problem, int align) { return problem.isLegalAAlignment(align, unroll[LoopM]); }
     bool legalBAlignment(const GEMMProblem &problem, int align) { return problem.isLegalBAlignment(align, unroll[LoopN]); }
 
+    int repackPeriod(bool isA, const GEMMProblem &problem) const;
     int kAlign(const GEMMProblem &problem) const;
 
     int statusFlagStride() const { return 64 * (int(fuseBeta) + int(fusePostOps)); }

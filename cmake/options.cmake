@@ -167,7 +167,7 @@ onednn_option(ENABLE_PRIMITIVE "ALL"
     - ALL (the default). Includes all primitives to be enabled.
     - <PRIMITIVE_NAME>. Includes only the selected primitive to be enabled.
       Possible values are: BATCH_NORMALIZATION, BINARY, CONCAT, CONVOLUTION,
-      DECONVOLUTION, ELTWISE, GATED_MLP, GROUP_NORMALIZATION, INNER_PRODUCT,
+      DECONVOLUTION, ELTWISE, GROUP_NORMALIZATION, INNER_PRODUCT,
       LAYER_NORMALIZATION, LRN, MATMUL, POOLING, PRELU, REDUCTION, REORDER,
       RESAMPLING, RNN, SDPA, SHUFFLE, SOFTMAX, SUM.
     - <PRIMITIVE_NAME>;<PRIMITIVE_NAME>;... Includes only selected primitives to
@@ -373,9 +373,19 @@ onednn_option(SAFE_RBP OFF
     runtime profiling with tools like Flame Graph.")
 
 onednn_option(X64_USE_ZEN OFF
-    "Enable ZenDNN integration. When ON, configuration requires a discoverable
-    ZenDNN package (>= 6.0.0) and ONEDNN_CPU_RUNTIME=OMP, and fails otherwise.")
+    "Enable ZenDNN integration. When ON, uses a discoverable ZenDNN package
+    if present, otherwise builds ZenDNN from source. Requires ZenDNN >= 6.1.1
+    and ONEDNN_CPU_RUNTIME=OMP, and fails otherwise.")
 set(ZENDNNROOT "" CACHE STRING "Path to ZenDNN installation root")
+
+if(DNNL_X64_USE_ZEN)
+    set(ZENDNN_RELEASE_URL "https://github.com/amd/ZenDNN.git")
+    set(ZENDNN_RELEASE_TAG "v6.1.1")
+    onednn_option(ZENDNN_SOURCE "${ZENDNN_RELEASE_URL}@${ZENDNN_RELEASE_TAG}"
+        "ZenDNN source to build when no ZenDNN package is found: an absolute
+        path to a ZenDNN source tree, or <git url>@<tag or commit> to fetch
+        into the build directory.")
+endif()
 
 # -------------------
 # AArch64 CPU options

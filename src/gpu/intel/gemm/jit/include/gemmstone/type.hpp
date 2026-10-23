@@ -79,7 +79,7 @@ private:
     _Type val;
 
 public:
-    constexpr Type() : Type(f32) {}
+    constexpr Type() : Type(invalid) {}
     constexpr Type(_Type val_) : val(val_) {}
     constexpr operator _Type() const { return val; }
 
@@ -93,7 +93,9 @@ public:
     constexpr bool isSubByteInt()     const { return isSubByte() && isInteger(); };
     constexpr bool isInt8()           const { return (val == Type::u8)  || (val == Type::s8);  }
     constexpr bool isInt16()          const { return (val == Type::u16) || (val == Type::s16); }
-    constexpr bool isF8()             const { return (val == Type::bf8) || (val == Type::hf8) || (val == Type::f8_e8m0); }
+    constexpr bool isF8()             const {
+        return (val == Type::bf8) || (val == Type::hf8) || (val == Type::f8_e8m0);
+    }
     constexpr bool isF4()             const { return bits() == 4 && isFP(); }
     constexpr bool isSigned()         const { return (uint32_t(val) & 0x3) != 0x0; }
     constexpr int blockSize()         const { return (uint32_t(val) >> 12) & 0xF; }
@@ -145,18 +147,20 @@ public:
 
     ngen::DataType ngen() const
     {
+        if (val == invalid) return ngen::DataType::invalid;
         uint32_t index = (uint32_t(val) >> 20) & 0xFF;
         using DT = ngen::DataType;
         auto none = DT::invalid;
+        auto dt7 = none, dt28 = none, dt31 = none;
         static const DT table[64] = {
             DT::hf,      DT::f,       DT::df,      none,
-            DT::e2m1,    DT::e3m0 ,   ngen_nf4(),  none,
+            DT::e2m1,    DT::e3m0 ,   ngen_nf4(),  dt7,
             ngen_e8m0(), none,        none,        none,
             DT::bf,      DT::tf32,    DT::bf8,     DT::hf8,
             DT::u2,      DT::s2,      DT::u4,      DT::s4,
             DT::ub,      DT::b,       DT::uw,      DT::w,
             DT::ud,      DT::d,       DT::uq,      DT::q,
-            none,        none,        none,        none,
+            dt28,        none,        none,        dt31,
             none,        none,        none,        none,
             none,        none,        none,        none,
             none,        none,        none,        none,
@@ -178,6 +182,7 @@ public:
     bool isSubsetOf(Type T) const
     {
         if (*this == T) return true;
+        if (val == invalid || T == invalid) return false;
         return (real().bits() < T.real().bits());
     }
 

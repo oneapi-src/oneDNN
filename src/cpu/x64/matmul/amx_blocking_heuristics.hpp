@@ -162,7 +162,7 @@ protected:
     bool need_buf_c_ {false}, need_buf_a_ {false};
     bool extendable_k_ {false};
     size_t blocking_chunk_mem_size_ {0};
-    float efficiency_score_ {0.0};
+    float efficiency_score_ {0.0f};
     static constexpr float avx_ipc {1.2f};
     bool is_buffer_c_required() const;
 };

@@ -543,10 +543,8 @@ bool jit_uni_binary_t::post_ops_ok(const primitive_attr_t *attr,
      */
     const bool blocked_tail = p.len() && blocked_format && oc % blksize;
 
-    return binary_injector::binary_args_broadcast_supported(
-                   p, src0_d, get_supported_postops_bcast_strategies())
-            && IMPLICATION(
-                    utils::one_of(src0_d.data_type(), s8, u8), !blocked_tail);
+    return IMPLICATION(
+            utils::one_of(src0_d.data_type(), s8, u8), !blocked_tail);
 }
 
 binary_kernel_t *create_binary_kernel(

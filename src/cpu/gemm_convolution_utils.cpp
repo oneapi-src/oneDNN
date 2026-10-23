@@ -915,7 +915,7 @@ void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im,
         if (spatial_step == 0) {
             PRAGMA_OMP_SIMD()
             for (dim_t is = 0; is < iS; ++is)
-                img_ithr[is] = 0.;
+                img_ithr[is] = 0.f;
         }
 
         float *__restrict img_kh = img_ithr;
@@ -956,7 +956,7 @@ void col2im(const conv_gemm_conf_t &jcp, const float *col, float *im,
         const float *__restrict col_ = col + ic * col_step;
         PRAGMA_OMP_SIMD()
         for (dim_t is = 0; is < iS; ++is)
-            im_[is] = 0.;
+            im_[is] = 0.f;
 
         for_(dim_t kh = 0; kh < jcp.kh; ++kh)
         for (dim_t oh = 0; oh < jcp.oh; ++oh) {
@@ -1588,7 +1588,7 @@ status_t init_conf(conv_gemm_conf_t &jcp,
                 const float strided_im2col_k = 8;
                 const float thr_disb_k = 8;
                 const float thr_mem_eff_k {1}, oc_disb_k {1}, os_disb_k {1},
-                        ic_disb_k {1}, reg_osb_disb_k {1}, gemm_eff_k {0.5},
+                        ic_disb_k {1}, reg_osb_disb_k {1}, gemm_eff_k {0.5f},
                         gemm_calc_eff_k {1};
                 const float k_sum = thr_disb_k + oc_disb_k + os_disb_k
                         + ic_disb_k + reg_osb_disb_k + thr_mem_eff_k

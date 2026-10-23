@@ -53,6 +53,7 @@ const std::map<pk_impl_key_t, std::vector<impl_list_item_t>> &impl_list_map() {
         }},
         {{backward}, REG_BWD_PK({
             CPU_INSTANCE_X64(jit_uni_layer_normalization_bwd_t)
+            CPU_INSTANCE_RV64(jit_uni_layer_normalization_bwd_t)
             CPU_INSTANCE(simple_layer_normalization_bwd_t)
             CPU_INSTANCE(ref_layer_normalization_bwd_t)
             nullptr,

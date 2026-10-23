@@ -97,3 +97,13 @@
 --attr-scales=src:per_tensor:f16:1x32+wei:per_oc:f16
 --attr-zero-points=wei:common:4:u8
 832x2944:2944x92
+
+# AMX relaxed accumulation used the bf16/f16 dst as the K-chunk C buffer
+# for int8 too, which gave wrong results.
+--reset
+--dt=u8:s8:bf16,s8:s8:f16,u8:s4:bf16,s8:u4:f16
+--attr-acc-mode=relaxed,any
+64x4096:4096x64
+--dt=u8:u8:bf16
+--attr-scales=wei:per_ocic:f32:128x1
+64x4096:4096x64

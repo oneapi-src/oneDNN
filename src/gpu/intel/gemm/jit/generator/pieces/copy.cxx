@@ -117,7 +117,7 @@ void Generator<hw>::copyRegisters(Type Ts, Type Td, const RegisterLayout &layout
     auto RegisterBlock::*ny = sCM ? &RegisterBlock::nc : &RegisterBlock::nr;
 
     // Accumulate copy pseudo-instructions.
-    CopyPlan plan(hw, strategy.systolicAvailable);
+    CopyPlan plan(getProductFamily(), strategy.systolicAvailable);
 
     for (auto &sblock : layoutSrc) {
     for (int eoffY = 0; eoffY < sblock.*ny; eoffY++) {
@@ -131,8 +131,8 @@ void Generator<hw>::copyRegisters(Type Ts, Type Td, const RegisterLayout &layout
         int cxComp = 0;
 
         // Locate source and destination registers.
-        CopyOperand sOp = sblock.findRegion(Ts,                 eoffR,                          eoffC,         src, &ns,          cxComp, 0, true);
-        CopyOperand dOp = layoutDst.findRegion(sblock.offsetR + eoffR + dOffR, sblock.offsetC + eoffC + dOffC, dst, &nd, &dblock, cxComp, 0, true);
+        CopyOperand sOp = sblock.findRegion(Ts,                 eoffR,                          eoffC,         src, &ns,          cxComp, 0,     true);
+        CopyOperand dOp = layoutDst.findRegion(sblock.offsetR + eoffR + dOffR, sblock.offsetC + eoffC + dOffC, dst, &nd, &dblock, cxComp, 0,     true);
         dOp.type = Td.real().ngen();
         int n = std::min(ns, nd);
 

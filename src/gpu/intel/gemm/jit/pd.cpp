@@ -668,7 +668,8 @@ status_t pd_t::init_GEMMProblem(
     auto acc_mode = attr()->acc_mode_;
 
     // Strict acc mode default.
-    auto Tacc_mode = problem.Tc_ext.isFP() ? data_type::f32 : data_type::s32;
+    auto Tacc_mode
+            = types::is_integral_dt(c_type) ? data_type::s32 : data_type::f32;
 
     // Initialize non-strict acc mode.
     switch (acc_mode) {

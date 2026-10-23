@@ -676,7 +676,7 @@ RegisterBlock::RegisterBlock(HW hw_, Type T, int r, int c, const MatrixAddressin
             int maxBlockBytes = SendSpec::MaxBlock2DWidthBytes(hw, prefetch);
             if (X * Tblock < maxBlockBytes) {
                 // Max-size prefetches only, or fall back to regular block size limitations
-                maxBlockBytes =  SendSpec::MaxBlock2DWidthBytes(hw, false);
+                maxBlockBytes = SendSpec::MaxBlock2DWidthBytes(hw, false);
             }
             xblock = std::min(X, maxBlockBytes / Tblock);
             xblock = std::max(xblock, 4 / Tblock);
@@ -1826,8 +1826,9 @@ int RegisterLayout::regs() const
     if (empty()) return 0;
 
     int lastByte = 0;
-    for (auto &block: *this)
+    for (auto &block: *this) {
         lastByte = std::max(lastByte, block.offsetBytes + block.bytes);
+    }
 
     return GRF::bytesToGRFs(hw, lastByte);
 }

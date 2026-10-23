@@ -1583,7 +1583,7 @@ status_t jit_avx512_core_bf16_1x1_conv_kernel_t::init_conf(
                 int max_tg = div_up(jcp.nthr, lgc);
                 // Some heuristic here
                 float mem_koef = (max_tg == 1) ? 1.f : 1.3f;
-                float job_cost = 0.;
+                float job_cost = 0.f;
                 if (jcp.nthr % lgc < nb_load % lgc) {
                     job_cost = calc_job_cost(max_lb, min_tg, mem_koef);
                 } else {

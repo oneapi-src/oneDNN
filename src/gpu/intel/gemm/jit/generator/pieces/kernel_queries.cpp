@@ -32,6 +32,7 @@ size_t gemmSLMSize(HW hw, const GEMMProblem &problem, const GEMMStrategy &strate
 
     // Space needed by SLM copies.
     slmSize = strategy.slmABufSize(problem) + strategy.slmBBufSize(problem);
+
     if (strategy.kParallelLocal && !computeMax)
         slmSize /= strategy.wg[LoopK];
 

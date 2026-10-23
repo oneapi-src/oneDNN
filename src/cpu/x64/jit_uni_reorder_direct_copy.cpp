@@ -56,10 +56,15 @@ struct direct_copy_kernel_t
                 emu_kmask_aux_idx_, reg_tmp_);
         io::io_saturation_conf_t io_saturation_conf(
                 zero_idx_, saturation_ubound_idx_, reg_tmp_);
+        // e8m0 conversions reuse the fp8 emulation scratch (they never
+        // coexist): a scratch vector register, a scratch opmask and a gpr.
+        io::io_emu_e8m0_conf_t io_e8m0_conf(
+                emu_zmm_1_idx_, emu_kmask_aux_idx_, reg_tmp_);
 
         io_ = io::jit_io_multi_dt_helper_t<Vmm>(this, isa_, {src_dt_, dst_dt_},
                 io_conf, io_tail_conf, io_bf16_conf,
-                {{dst_dt_, io_saturation_conf}}, utils::nullopt, io_fp8_conf);
+                {{dst_dt_, io_saturation_conf}}, utils::nullopt, io_fp8_conf,
+                io_e8m0_conf);
     }
 
     static constexpr int vlen_ = vreg_traits_t<Vmm>::vlen;
@@ -272,6 +277,15 @@ status_t jit_uni_reorder_direct_copy_t::pd_t::init(const engine_t *engine,
     const bool is_f64 = utils::one_of(f64, src_dt, dst_dt);
     VDISPATCH_REORDER(!is_f64, VERBOSE_UNSUPPORTED_DT);
 
+    const bool is_s64 = utils::one_of(s64, src_dt, dst_dt);
+    VDISPATCH_REORDER(!is_s64, VERBOSE_UNSUPPORTED_DT);
+
+    // Sub-byte data types require nibble-packed addressing which the direct
+    // copy kernel doesn't support.
+    const bool is_subbyte = types::data_type_bits(src_dt) < 8
+            || types::data_type_bits(dst_dt) < 8;
+    VDISPATCH_REORDER(!is_subbyte, VERBOSE_UNSUPPORTED_DT);
+
     VDISPATCH_REORDER(IMPLICATION(utils::one_of(bf16, src_dt, dst_dt),
                               mayiuse(avx512_core) || mayiuse(avx2_vnni_2)),
             VERBOSE_ISA_DT_MISMATCH);
@@ -296,6 +310,12 @@ status_t jit_uni_reorder_direct_copy_t::pd_t::init(const engine_t *engine,
                               !utils::one_of(src_dt, u8, s8)
                                       && !utils::one_of(dst_dt, u8, s8)),
             VERBOSE_UNSUPPORTED_DT_CFG);
+
+    // Gate e8m0 behind same ISA as FP8 data types.
+    const bool is_e8m0 = utils::one_of(e8m0, src_dt, dst_dt);
+    VDISPATCH_REORDER(IMPLICATION(is_e8m0, mayiuse(avx512_core_amx)),
+            VERBOSE_ISA_DT_MISMATCH);
+
     // Direct copy operates only on identical formats.
     VDISPATCH_REORDER(src_d.similar_to(dst_d, true, false, 0),
             VERBOSE_TENSOR_FORMAT_MISMATCH, "src", "dst");

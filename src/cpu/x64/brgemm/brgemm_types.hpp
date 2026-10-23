@@ -336,6 +336,9 @@ struct brgemm_desc_t {
     // parallel task.
     bool with_dst_scales = false;
     data_type_t dt_wei_scales = data_type::undef;
+
+    bool is_f4_fused_decompress = false;
+
     // Grouping in batch used by brdgmm kernel
     int bs_group {0};
 
@@ -527,6 +530,10 @@ struct brgemm_desc_t {
         return is_fp8_via_convert() && isa_impl == avx10_2;
     }
 
+    bool is_f4_fused_decompress_non_amx() const {
+        return is_f4_fused_decompress && is_zmm;
+    }
+
     bool is_input_convert() const { return is_bf32 || is_fp8_via_convert(); }
 
     bool is_row_major() const {
@@ -599,7 +606,10 @@ struct brgemm_desc_t {
     }
 
     bool save_transform_A() const noexcept {
-        return can_reuse_input_transform() && ldb2 > 1;
+        // The cache holds A of one bd_block2 only, so with the bd loop
+        // innermost it is valid only if there is a single bd_block2.
+        return can_reuse_input_transform() && ldb2 > 1
+                && (innermost_loop == brgemm_ld_loop_innermost || bdb2 == 1);
     }
 
     bool save_transform_B() const noexcept {
@@ -713,10 +723,12 @@ struct brgemm_desc_t {
     bool are_post_ops_applicable() const {
         const bool has_zero_points = !utils::everyone_is(
                 brgemm_broadcast_t::none, zp_type_a, zp_type_b, zp_type_c);
+        // Fused f4 has no post-ops, but the kernel still needs the store->D
+        // path so the driver's final K-block write reaches ptr_D.
         return dt_c != dt_d || with_eltwise || with_binary || with_bias
                 || with_sum || req_s8s8_compensation || has_zero_points
                 || with_src_scales || with_wei_scales || with_dst_scales
-                || brgattr.use_intermediate_c_buffer;
+                || brgattr.use_intermediate_c_buffer || is_f4_fused_decompress;
     }
 
     bool can_dispatch_uker() const noexcept {

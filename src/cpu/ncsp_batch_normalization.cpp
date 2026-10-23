@@ -176,7 +176,7 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                 if (dnnl_thr_syncable()) dnnl_thr_barrier();
 
                 for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
-                    mean_blk[c] = 0.;
+                    mean_blk[c] = 0.f;
                     for (dim_t n = 0; n < SP_N_nthr; n++)
                         mean_blk[c] += ws_reduce[ws_iter_off
                                 + n * C_blks_per_iter + c];
@@ -187,7 +187,7 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
 
                 for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                     size_t off = c + C_off;
-                    acc_data_t sum = 0.;
+                    acc_data_t sum = 0.f;
                     for (dim_t n = N_s; n < N_e; ++n) {
                         const acc_data_t *_src;
                         size_t soff = off * SP + n * C * SP;
@@ -218,7 +218,7 @@ status_t ncsp_batch_normalization_fwd_t<d_type>::execute_forward(
                 if (dnnl_thr_syncable()) dnnl_thr_barrier();
 
                 for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
-                    variance_blk[c] = 0.;
+                    variance_blk[c] = 0.f;
                     for (dim_t n = 0; n < SP_N_nthr; n++)
                         variance_blk[c] += ws_reduce[ws_iter_off
                                 + n * C_blks_per_iter + c];
@@ -392,7 +392,7 @@ status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
             acc_data_t *diff_beta_blk = diff_shift + C_off;
             for (dim_t c = C_blk_s; c < C_blk_e; c++) {
                 size_t off = c + C_off;
-                acc_data_t diff_gamma = 0.0, diff_beta = 0.0;
+                acc_data_t diff_gamma = 0.0f, diff_beta = 0.0f;
                 acc_data_t v_mean = mean[off];
                 for (dim_t n = N_s; n < N_e; ++n) {
                     const acc_data_t *_diff_dst;
@@ -443,8 +443,8 @@ status_t ncsp_batch_normalization_bwd_t<d_type>::execute_backward(
             for (dim_t c = C_blk_gl_s; c < C_blk_gl_e; c++) {
                 acc_data_t sqrt_variance = static_cast<acc_data_t>(
                         1.0f / sqrtf(variance[c + C_off] + eps));
-                diff_gamma_blk[c] = 0.;
-                diff_beta_blk[c] = 0.;
+                diff_gamma_blk[c] = 0.f;
+                diff_beta_blk[c] = 0.f;
                 for (dim_t n = 0; n < SP_N_nthr; n++) {
                     diff_gamma_blk[c]
                             += ws_reduce[ws_iter_off + n * C_blks_per_iter + c];

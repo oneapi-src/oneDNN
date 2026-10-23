@@ -191,8 +191,8 @@ status_t brgemm_convolution_fwd_t<isa>::pd_t::add_brg_descriptor(dim_t vM,
     const auto wei_type = weights_md(0)->data_type;
     const auto is_amx = brgemm_convolution_utils::is_amx(isa);
 
-    const float alpha = 1.0;
-    const float beta = 1.0;
+    const float alpha = 1.0f;
+    const float beta = 1.0f;
 
     auto vbeta = do_init ? 0 : beta;
     auto vN = is_N_tail ? jcp_.N_tail : jcp_.N;

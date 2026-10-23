@@ -229,6 +229,68 @@ TEST(c_api_host_scalar_mem, TestNullPtr) {
     DNNL_CHECK(dnnl_memory_desc_destroy(scalar_md));
 }
 
+class c_api_mem_handle_idx_t
+    : public ::testing::TestWithParam<dnnl_engine_kind_t> {};
+
+class cpp_api_mem_handle_idx_t
+    : public ::testing::TestWithParam<dnnl_engine_kind_t> {};
+
+TEST_P(c_api_mem_handle_idx_t, TestOutOfRangeIndex) {
+    dnnl_engine_kind_t eng_kind_c = GetParam();
+    engine::kind eng_kind = static_cast<engine::kind>(eng_kind_c);
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine is not found.");
+
+    dnnl_engine_t engine = nullptr;
+    DNNL_CHECK(dnnl_engine_create(&engine, eng_kind_c, 0));
+
+    dnnl_dims_t dims = {4};
+    dnnl_memory_desc_t md = nullptr;
+    DNNL_CHECK(
+            dnnl_memory_desc_create_with_tag(&md, 1, dims, dnnl_f32, dnnl_x));
+
+    dnnl_memory_t mem = nullptr;
+    DNNL_CHECK(dnnl_memory_create(&mem, md, engine, DNNL_MEMORY_ALLOCATE));
+
+    void *handle = nullptr;
+    EXPECT_EQ(dnnl_memory_get_data_handle_v2(mem, &handle, -1),
+            dnnl_invalid_arguments);
+    EXPECT_EQ(dnnl_memory_get_data_handle_v2(mem, &handle, 1),
+            dnnl_invalid_arguments);
+
+    float value = 1.0f;
+    EXPECT_EQ(dnnl_memory_set_data_handle_v2(mem, &value, -1),
+            dnnl_invalid_arguments);
+    EXPECT_EQ(dnnl_memory_set_data_handle_v2(mem, &value, 1),
+            dnnl_invalid_arguments);
+
+    DNNL_CHECK(dnnl_memory_destroy(mem));
+    DNNL_CHECK(dnnl_memory_desc_destroy(md));
+    DNNL_CHECK(dnnl_engine_destroy(engine));
+}
+
+TEST_P(cpp_api_mem_handle_idx_t, TestOutOfRangeIndex) {
+    dnnl_engine_kind_t eng_kind_c = GetParam();
+    engine::kind eng_kind = static_cast<engine::kind>(eng_kind_c);
+    SKIP_IF(engine::get_count(eng_kind) == 0, "Engine is not found.");
+
+    engine eng(eng_kind, 0);
+
+    memory::desc md({4}, memory::data_type::f32, memory::format_tag::x);
+    auto mem = test::make_memory(md, eng);
+
+    EXPECT_THROW(mem.get_data_handle(-1), dnnl::error);
+    EXPECT_THROW(mem.get_data_handle(1), dnnl::error);
+
+    float value = 1.0f;
+    EXPECT_THROW(mem.set_data_handle(&value, -1), dnnl::error);
+    EXPECT_THROW(mem.set_data_handle(&value, 1), dnnl::error);
+}
+
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, c_api_mem_handle_idx_t,
+        all_engine_kinds, print_to_string_param_name_t());
+INSTANTIATE_TEST_SUITE_P(AllEngineKinds, cpp_api_mem_handle_idx_t,
+        all_engine_kinds, print_to_string_param_name_t());
+
 /**
  * Test host scalar memory with supported functions.
  */

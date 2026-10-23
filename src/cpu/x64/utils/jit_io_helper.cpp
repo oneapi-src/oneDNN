@@ -108,6 +108,12 @@ io_gather_conf_t::io_gather_conf_t(const int simd_w,
     , reg_tmp1_(reg_tmp1)
     , vmm_tmp_idx_(vmm_tmp_idx) {}
 
+io_emu_e8m0_conf_t::io_emu_e8m0_conf_t(
+        int vreg_tmp_idx, int kmask_aux_idx, const Xbyak::Reg64 &reg_tmp)
+    : vreg_tmp_(Xbyak::Zmm(vreg_tmp_idx))
+    , kmask_aux_(Xbyak::Opmask(kmask_aux_idx))
+    , reg_tmp_(reg_tmp) {}
+
 template <typename Vmm>
 jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator_t *host,
         const cpu_isa_t &isa, const data_type_t &data_type,
@@ -116,7 +122,8 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator_t *host,
         const utils::optional_t<io_emu_bf16_conf_t> &bf16_conf,
         const utils::optional_t<io_saturation_conf_t> &saturation_conf,
         const utils::optional_t<io_gather_conf_t> &gather_conf,
-        const utils::optional_t<io_emu_fp8_conf_t> &fp8_conf)
+        const utils::optional_t<io_emu_fp8_conf_t> &fp8_conf,
+        const utils::optional_t<io_emu_e8m0_conf_t> &e8m0_conf)
     : host_(host)
     , isa_(isa)
     , data_type_(data_type)
@@ -131,7 +138,8 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator_t *host,
     , bf16_conf_(bf16_conf)
     , saturation_conf_(saturation_conf)
     , gather_conf_(gather_conf)
-    , fp8_conf_(fp8_conf) {
+    , fp8_conf_(fp8_conf)
+    , e8m0_conf_(e8m0_conf) {
 
     if (data_type_ == data_type::bf16
             && !(is_superset(isa_, avx512_core_bf16)
@@ -168,9 +176,11 @@ jit_io_helper_t<Vmm>::jit_io_helper_t(jit_generator_t *host,
     }
 
     assert(utils::one_of(data_type_, data_type::f16, data_type::bf16,
-                   data_type::f32, data_type::f8_e5m2, data_type::f8_e4m3, data_type::s8, data_type::u8, data_type::s32)
+                   data_type::f32, data_type::f8_e5m2, data_type::f8_e4m3,
+                   data_type::s8, data_type::u8, data_type::s32,
+                   data_type::e8m0)
             && is_data_type_supported(data_type_)
-            && "Supported data types f16, bf16, f32, f8_e5m2, f8_e4m3, s8, u8, s32");
+            && "Supported data types f16, bf16, f32, f8_e5m2, f8_e4m3, s8, u8, s32, e8m0");
 
     /*
      * vpmovsxbd, vpmovzxbd for AVX are defined only for XMM. Since AVX2
@@ -206,7 +216,8 @@ bool jit_io_helper_t<Vmm>::is_data_type_supported(const data_type_t dt) {
         case data_type::f16:
             return is_superset(isa_, avx512_core_fp16) || isa_ == avx2_vnni_2;
         case data_type::f8_e4m3:
-        case data_type::f8_e5m2: return is_superset(isa_, avx512_core_fp16);
+        case data_type::f8_e5m2:
+        case data_type::e8m0: return is_superset(isa_, avx512_core_fp16);
         default: assert(!"Unsupported data type");
     }
     return false;
@@ -640,6 +651,7 @@ void jit_io_helper_t<Vmm>::load(const Xbyak::Address &src_addr,
             case data_type::f8_e5m2: load_f8(src_addr, dst_vmm); break;
             case data_type::s8:
             case data_type::u8: load_i8(src_addr, dst_vmm); break;
+            case data_type::e8m0: load_e8m0(src_addr, dst_vmm); break;
             default: assert(!"Unsupported data type.");
         }
     }
@@ -798,6 +810,7 @@ void jit_io_helper_t<Vmm>::store(const Vmm &src_raw_vmm,
             case data_type::u8:
                 store_i8(src_vmm, dst_raw_addr, use_sat_cvt);
                 break;
+            case data_type::e8m0: store_e8m0(src_vmm, dst_raw_addr); break;
             default: assert(!"Unsupported data type.");
         }
     }
@@ -933,6 +946,74 @@ void jit_io_helper_t<Vmm>::store_i8(const Vmm &src_vmm,
 }
 
 template <typename Vmm>
+void jit_io_helper_t<Vmm>::store_e8m0(
+        const Vmm &src_vmm, const Xbyak::Address &dst_addr) {
+    // f32 -> e8m0 keeps only the biased exponent and discards the sign and
+    // mantissa with round-to-zero, matching float8_e8m0_t::operator=(float).
+    // Shifting an f32 right by the mantissa width places the 8 exponent bits
+    // into the low byte of each dword (the sign bit lands in bit 8), so a
+    // truncating dword-to-byte narrowing store yields the e8m0 value directly.
+    assert(is_superset(isa_, avx512_core) && "e8m0 requires avx512_core.");
+    static constexpr int f32_mantissa_bits = 23;
+    // `src_vmm` may carry the tail opmask applied by the caller. Exponent
+    // extraction runs on the unmasked register; the mask drives the store.
+    const Vmm src_raw_vmm(src_vmm.getIdx());
+
+    host_->uni_vpsrld(src_raw_vmm, src_raw_vmm, f32_mantissa_bits);
+    if (io_conf_.nt_stores_enabled_) {
+        const Xbyak::Xmm src_xmm(src_vmm.getIdx());
+        host_->vpmovdb(src_xmm, src_raw_vmm);
+        host_->uni_vmovntps(dst_addr, src_xmm);
+    } else {
+        host_->vpmovdb(dst_addr, src_vmm);
+    }
+}
+
+template <typename Vmm>
+void jit_io_helper_t<Vmm>::load_e8m0(
+        const Xbyak::Address &src_addr, const Vmm &dst_vmm) {
+    // e8m0 -> f32 reconstructs a sign-less, mantissa-less float from the 8-bit
+    // biased exponent (raw << 23), matching float8_e8m0_t::operator float(),
+    // but with two special values that must not be produced by the plain shift:
+    //   - raw 0x00 -> 2^-127 (0x00400000), the minimal positive value, not 0;
+    //   - raw 0xff -> NaN    (0xffc00000), not +inf.
+    assert(is_superset(isa_, avx512_core) && "e8m0 requires avx512_core.");
+    assert(e8m0_conf_.has_value() && "Config for e8m0 is not set.");
+    static constexpr int f32_mantissa_bits = 23;
+    static constexpr uint32_t e8m0_nan = 0xffc00000;
+    static constexpr uint32_t e8m0_min = 0x00400000;
+
+    // `dst_vmm` may carry {tail_opmask}{zeroing} from the caller for the load;
+    // the subsequent bit manipulation operates on the unmasked register.
+    const Vmm dst(dst_vmm.getIdx());
+    const Vmm vmm_tmp(e8m0_conf_->vreg_tmp_.getIdx());
+    const Xbyak::Opmask kmask = e8m0_conf_->kmask_aux_;
+    const Xbyak::Reg32 reg_tmp = e8m0_conf_->reg_tmp_.cvt32();
+
+    // Zero-extend each e8m0 byte to a dword exponent in [0, 255].
+    host_->uni_vpmovzxbd(dst_vmm, src_addr);
+
+    // Build a 0x000000ff per-dword constant to detect the NaN pattern (0xff).
+    host_->vpternlogd(vmm_tmp, vmm_tmp, vmm_tmp, 0xff);
+    host_->uni_vpsrld(vmm_tmp, vmm_tmp, 24);
+    host_->vpcmpeqd(kmask, dst, vmm_tmp);
+
+    // Reconstruct the base value raw << 23.
+    host_->uni_vpslld(dst, dst, f32_mantissa_bits);
+
+    // Overwrite NaN lanes (raw == 0xff). These become non-zero afterwards, so
+    // the following zero-test won't misclassify them as the minimal value.
+    host_->mov(reg_tmp, e8m0_nan);
+    host_->vpbroadcastd(dst | kmask, reg_tmp);
+
+    // Overwrite minimal-value lanes (base == 0, i.e. raw == 0). Masked-out tail
+    // lanes are also zero here, but they are never stored, so this is harmless.
+    host_->vptestnmd(kmask, dst, dst);
+    host_->mov(reg_tmp, e8m0_min);
+    host_->vpbroadcastd(dst | kmask, reg_tmp);
+}
+
+template <typename Vmm>
 void jit_io_helper_t<Vmm>::convert_to_f32(const Vmm &dst_vmm,
         const Xbyak::Xmm &src_vmm, const data_type_t src_data_type) {
     switch (src_data_type) {
@@ -1037,7 +1118,8 @@ jit_io_multi_dt_helper_t<Vmm>::jit_io_multi_dt_helper_t(jit_generator_t *host,
         const utils::optional_t<io_emu_bf16_conf_t> &bf16_conf,
         const std::map<data_type_t, io_saturation_conf_t> &saturation_confs,
         const utils::optional_t<io_gather_conf_t> &gather_conf,
-        const utils::optional_t<io_emu_fp8_conf_t> &fp8_conf) {
+        const utils::optional_t<io_emu_fp8_conf_t> &fp8_conf,
+        const utils::optional_t<io_emu_e8m0_conf_t> &e8m0_conf) {
     assert(!data_types.empty());
     for (const auto &dt : data_types) {
         // can be replaced by try_emplace from C++17
@@ -1060,7 +1142,9 @@ jit_io_multi_dt_helper_t<Vmm>::jit_io_multi_dt_helper_t(jit_generator_t *host,
                             utils::one_of(
                                     dt, data_type::f8_e4m3, data_type::f8_e5m2)
                                     ? fp8_conf
-                                    : utils::nullopt));
+                                    : utils::nullopt,
+                            dt == data_type::e8m0 ? e8m0_conf
+                                                  : utils::nullopt));
         }
     }
 }

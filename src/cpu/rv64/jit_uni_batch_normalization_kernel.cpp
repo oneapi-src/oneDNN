@@ -91,28 +91,41 @@ void dispatch_jit_batch_normalization_bwd_apply_dt(
         dispatch_jit_batch_normalization_bwd_apply<data_type, false>(p);
 }
 
-template <bool calculate_variance>
+template <data_type_t data_type, bool calculate_variance>
 const jit_uni_batch_normalization_fwd_stat_kernel_t &
 get_jit_batch_normalization_fwd_stat_kernel() {
     static const jit_uni_batch_normalization_fwd_stat_kernel_t kernel(
-            calculate_variance);
+            data_type, calculate_variance);
     return kernel;
+}
+
+template <data_type_t data_type>
+const jit_uni_batch_normalization_fwd_stat_kernel_t &
+get_jit_batch_normalization_fwd_stat_kernel_dt(bool calculate_variance) {
+    if (calculate_variance)
+        return get_jit_batch_normalization_fwd_stat_kernel<data_type, true>();
+    return get_jit_batch_normalization_fwd_stat_kernel<data_type, false>();
 }
 
 } // namespace
 
 jit_uni_batch_normalization_fwd_stat_kernel_t::
-        jit_uni_batch_normalization_fwd_stat_kernel_t(bool calculate_variance)
+        jit_uni_batch_normalization_fwd_stat_kernel_t(
+                data_type_t data_type, bool calculate_variance)
     : jit_generator_t("jit_uni_batch_normalization_fwd_stat_kernel")
+    , data_type_(data_type)
     , calculate_variance_(calculate_variance) {
     create_kernel();
 }
 
 const jit_uni_batch_normalization_fwd_stat_kernel_t &
-get_jit_uni_batch_normalization_fwd_stat_kernel(bool calculate_variance) {
-    if (calculate_variance)
-        return get_jit_batch_normalization_fwd_stat_kernel<true>();
-    return get_jit_batch_normalization_fwd_stat_kernel<false>();
+get_jit_uni_batch_normalization_fwd_stat_kernel(
+        data_type_t dt, bool calculate_variance) {
+    if (dt == data_type::f16)
+        return get_jit_batch_normalization_fwd_stat_kernel_dt<data_type::f16>(
+                calculate_variance);
+    return get_jit_batch_normalization_fwd_stat_kernel_dt<data_type::f32>(
+            calculate_variance);
 }
 
 void jit_uni_batch_normalization_fwd_stat_kernel_t::generate() {
@@ -141,6 +154,42 @@ void jit_uni_batch_normalization_fwd_stat_kernel_t::generate() {
     flw(f_result, reg_result, 0);
 
     Label loop, done;
+    if (data_type_ == data_type::f32) {
+        // Accumulate element-wise into a VLMAX-wide vector so no scalar FP
+        // dependency chain is formed; tail-undisturbed keeps the partial sums
+        // of lanes beyond a short final vl. Reduce once per call.
+        const VReg v_acc(8);
+        const VReg v_data(16);
+        const VReg v_sum(4);
+
+        vsetvli(reg_vl, x0, SEW::e32, LMUL::m4, VTA::ta, VMA::ma);
+        vmv_v_i(v_acc, 0);
+
+        L(loop);
+        beqz(reg_len, done);
+        vsetvli(reg_vl, reg_len, SEW::e32, LMUL::m4, VTA::tu, VMA::ma);
+        vle32_v(v_data, reg_src);
+        if (calculate_variance_) {
+            vfsub_vf(v_data, v_data, f_mean);
+            vfmacc_vv(v_acc, v_data, v_data);
+        } else {
+            vfadd_vv(v_acc, v_acc, v_data);
+        }
+        slli(reg_bytes, reg_vl, 2);
+        add(reg_src, reg_src, reg_bytes);
+        sub(reg_len, reg_len, reg_vl);
+        j_(loop);
+
+        L(done);
+        vsetvli(reg_vl, x0, SEW::e32, LMUL::m4, VTA::ta, VMA::ma);
+        vfmv_s_f(v_sum, f_result);
+        vfredusum_vs(v_sum, v_acc, v_sum);
+        vfmv_f_s(f_result, v_sum);
+        fsw(f_result, reg_result, 0);
+        ret();
+        return;
+    }
+
     L(loop);
     beqz(reg_len, done);
 

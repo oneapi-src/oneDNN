@@ -278,8 +278,8 @@ static inline int thread_checker(
             if (is_avx2) {
                 // Somehow it seems beneficial to split the job into bigger
                 // pieces. Use L2 per-core cache size as a deal-breaker.
-                int use_n_threads = utils::div_up(
-                        problem_memory_footprint, l2_cache_per_thread);
+                int use_n_threads = static_cast<int>(utils::div_up(
+                        problem_memory_footprint, l2_cache_per_thread));
                 return nstl::min(nthr, use_n_threads);
             }
             if (l2_cache_socket > problem_memory_footprint) {
@@ -456,7 +456,7 @@ static inline void gemv_threading_driver(const int trans, const dim_t m,
             if (ithr != 0) {
                 y_eff = ybuf + m * (ithr - 1);
                 incy_eff = 1;
-                beta_eff = 0.0;
+                beta_eff = 0.0f;
             } else {
                 // Set number of used buffers for perform reduction later.
                 nbufs_used = nthr_eff - 1;

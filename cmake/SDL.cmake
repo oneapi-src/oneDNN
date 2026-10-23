@@ -92,7 +92,7 @@ elseif(WIN32)
         endif()
     elseif(CMAKE_BASE_NAME STREQUAL "icx")
         append(ONEDNN_SDL_COMPILER_FLAGS "/EHs /GS /Gy /guard:cf /Wformat /Wformat-security")
-        append(ONEDNN_SDL_LINKER_FLAGS "/link /NXCOMPAT")
+        append(ONEDNN_SDL_LINKER_FLAGS "/Qoption,link,/NXCOMPAT")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         append(ONEDNN_SDL_COMPILER_FLAGS "-Wformat -Wformat-security")
         if(UPPERCASE_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
@@ -117,7 +117,7 @@ elseif(WIN32)
         # in the Safe Load List.
         if(CMAKE_BASE_NAME STREQUAL "icx")
             # add ICX-style linker flags
-            append(ONEDNN_SDL_LINKER_FLAGS "/link /DEPENDENTLOADFLAG:0x2000")
+            append(ONEDNN_SDL_LINKER_FLAGS "/Qoption,link,/DEPENDENTLOADFLAG:0x2000")
         elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
             # add Clang-style linker flags
             append(ONEDNN_SDL_LINKER_FLAGS "-Xlinker /DEPENDENTLOADFLAG:0x2000")

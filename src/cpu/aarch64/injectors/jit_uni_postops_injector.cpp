@@ -218,12 +218,12 @@ bool post_ops_ok(const post_ops_ok_args_t &post_ops_ok_args) {
                 case binary:
                     // TODO: support alg_kind::prelu with entry.is_like_binary()
                     if (entry.is_binary()) {
-                        //TODO: support alg_kind::select
-                        if (entry.is_binary_with_ternary_op()) return false;
+                        const auto alg = entry.binary.alg;
 
                         return binary_injector::is_supported(
-                                to_vla_sve(args.isa), entry.binary.src1_desc,
-                                *args.dst_d, args.enabled_bcast_strategy);
+                                to_vla_sve(args.isa), alg,
+                                entry.binary.src1_desc, *args.dst_d,
+                                args.enabled_bcast_strategy);
                     }
                     break;
                 default: assert(false && "Unhandled post_op type");

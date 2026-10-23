@@ -399,7 +399,7 @@ status_t gemm_x8s8s32x_convolution_bwd_data_t::execute_backward_data_thr(
         const dim_t K = jcp.oc;
         const int8_t off_a = 0;
         const int32_t off_c = 0;
-        const float onef = 1.0, zerof = 0.0;
+        const float onef = 1.0f, zerof = 0.0f;
         const dim_t LD = K * jcp.ngroups;
 
         status_t st = status::runtime_error;

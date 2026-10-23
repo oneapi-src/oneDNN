@@ -94,7 +94,7 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
             balance211(N, nthr, ithr, N_s, N_e);
 
             for (dim_t c = 0; c < C; c++)
-                ws_reduce[C * ithr + c] = 0.;
+                ws_reduce[C * ithr + c] = 0.f;
 
             for (dim_t n = N_s; n < N_e; n++) {
                 for (dim_t sp = 0; sp < SP; sp++) {
@@ -134,7 +134,7 @@ status_t nspc_batch_normalization_fwd_t<d_type>::execute_forward(
             }
 
             for (dim_t c = 0; c < C; c++)
-                ws_reduce[C * ithr + c] = 0.;
+                ws_reduce[C * ithr + c] = 0.f;
 
             for (dim_t n = N_s; n < N_e; n++) {
                 for (dim_t sp = 0; sp < SP; sp++) {
@@ -292,8 +292,8 @@ status_t nspc_batch_normalization_bwd_t<d_type>::execute_backward(
         balance211(N, nthr, ithr, N_s, N_e);
 
         for (dim_t c = 0; c < C; c++) {
-            ws_reduce[C * ithr + c] = 0.;
-            ws_reduce[C * nthr + C * ithr + c] = 0.;
+            ws_reduce[C * ithr + c] = 0.f;
+            ws_reduce[C * nthr + C * ithr + c] = 0.f;
         }
 
         for (dim_t n = N_s; n < N_e; n++) {

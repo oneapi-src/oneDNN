@@ -631,7 +631,7 @@ static inline bool getStrategyByHeuristics(HW hw, GEMMStrategy &strategy, bool l
         s.loadBFirst = true;
 
     if (s.slmA || s.slmB) {
-        s.slmBuffers = 1;
+        s.slmBuffersA = s.slmBuffersB = 1;
         s.unrollKSLM = std::max(int(s.slmA) * s.ka_load, int(s.slmB) * s.kb_load);
 
         // Remainder handling can change an MN copy split to a K split. Keep

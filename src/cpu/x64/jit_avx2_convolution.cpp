@@ -502,7 +502,7 @@ void jit_avx2_convolution_bwd_weights_t::execute_backward_weights(
 
                 if (img == img_start)
                     for (dim_t o = 0; o < jcp.oc_block; ++o)
-                        d_bias[o] = 0.;
+                        d_bias[o] = 0.f;
 
                 const dim_t max_oc = this_block_size(
                         ocb * jcp.oc_block, jcp.oc, jcp.oc_block);

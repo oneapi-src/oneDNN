@@ -37,6 +37,11 @@ if(POLICY CMP0146)
     cmake_policy(SET CMP0146 OLD)
 endif()
 
+# CMake 4.3: CMAKE_<LANG>_LINK_FLAGS adds link flags to all target types
+if(POLICY CMP0210)
+    cmake_policy(SET CMP0210 NEW)
+endif()
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
     message(STATUS "CMAKE_BUILD_TYPE is unset, defaulting to Release")
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING
@@ -102,6 +107,7 @@ include("cmake/ACL.cmake")
 include("cmake/blas.cmake")
 include("cmake/doc.cmake")
 include("cmake/version.cmake")
+include("cmake/readme.cmake")
 include("cmake/coverage.cmake")
 include("cmake/build_types.cmake")
 include("cmake/testing.cmake")
@@ -143,11 +149,6 @@ configure_file(
     "${PROJECT_BINARY_DIR}/include/oneapi/dnnl/dnnl_config.h"
 )
 include_directories_with_host_compiler_before(${PROJECT_BINARY_DIR}/include)
-
-configure_file(
-    "${PROJECT_SOURCE_DIR}/README.binary.in"
-    "${PROJECT_BINARY_DIR}/README"
-)
 
 if(DNNL_INSTALL_MODE STREQUAL "BUNDLE" AND NOT DEFINED CMAKE_INSTALL_LIBDIR)
     # define CMAKE_INSTALL_LIBDIR as "lib" in the case of bundle

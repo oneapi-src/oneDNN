@@ -109,7 +109,8 @@ CacheSettingsLSC getCaching(char l1, char l3)
     }
 }
 
-CacheSettingsLSC getCaching(char l1, char l2, char l3) {
+CacheSettingsLSC getCaching(char l1, char l2, char l3)
+{
     if (l3 == 'u' || l3 == 'i') return getCaching(l1, l2);
 
     if (l3 == 'c' || l3 == 'b') {
@@ -449,6 +450,7 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         {"st", [](ParserContext& ctx) { ctx.strategy.stallAfterLoad = true; }},
         {"dm", [](ParserContext& ctx) { ctx.strategy.doubleMasking = true; }},
         {"kd", [](ParserContext& ctx) { ctx.strategy.kDescRem = true; }},
+        {"cp", [](ParserContext& ctx) { ctx.strategy.chainPrefetches = true; }},
         {"dsl", [](ParserContext& ctx) { ctx.strategy.isDSLGenerator = true; }},
 
         /* SLM Settings */
@@ -524,17 +526,23 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         } else if (mod.substr(0, 3) == "dot") {
             mod.erase(0,3);
             strategy.dotVL = mod.empty() ? 1 : std::stoi(mod);
-        } else if (mod.substr(0, 2) == "ra") {
-            strategy.raHW = parseRAHW(mod.substr(2));
         } else if (mod.length() >= 2) {
             if (mod.substr(0, 2) == "ms")
                 strategy.mSplitThresh = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "ns")
                 strategy.nSplitThresh = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ra" && mod.length() > 2 && std::isdigit(mod[2]))
+                strategy.ka_repack = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ra")
+                strategy.raHW = parseRAHW(mod.substr(2));
+            else if (mod.substr(0, 2) == "rb")
+                strategy.kb_repack = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "ki")
                 strategy.kInterleaveChunk = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "kc")
                 strategy.kChain = stoi(mod.substr(2));
+            else if (mod.substr(0, 2) == "ka")
+                strategy.extraKAlign = stoi(mod.substr(2));
             else if (mod.substr(0, 2) == "ks") {
                 char eat;
                 std::stringstream ms(mod);
@@ -584,19 +592,46 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
                 case 'c': {
                     mod.erase(0, 1);
                     if (mod[0] == 'a') {
+                        bool cab_case = false;
                         mod.erase(0, 1);
+                        if (mod[0] == 'b') {
+                            mod.erase(0, 1);
+                            cab_case = true;
+                        }
+                        std::stringstream ms(mod);
                         strategy.slmA = true;
+                        ms.imbue(std::locale::classic());
+                        ms >> strategy.slmBuffersA;
+                        if (cab_case) {
+                            strategy.slmBuffersB = strategy.slmBuffersA;
+                            strategy.slmB = true;
+                        }
+                        ms >> eat;
+                        if (!ms.eof())
+                            ms >> strategy.slmCopies; // TODO: split to A/B copies
                     }
                     if (mod[0] == 'b') {
+                        bool cba_case = false;
                         mod.erase(0, 1);
+                        if (mod[0] == 'a') {
+                            mod.erase(0, 1);
+                            cba_case = true;
+                        }
+                        std::stringstream ms(mod);
                         strategy.slmB = true;
+                        ms.imbue(std::locale::classic());
+                        ms >> strategy.slmBuffersB;
+                        if (cba_case) {
+                            strategy.slmBuffersA = strategy.slmBuffersB;
+                            strategy.slmA = true;
+                        }
+                        ms >> eat;
+                        if (!ms.eof())
+                            ms >> strategy.slmCopies; // TODO: split to A/B copies
                     }
-                    std::stringstream ms(mod);
-                    ms.imbue(std::locale::classic());
-                    ms >> strategy.slmBuffers;
-                    ms >> eat;
-                    if (!ms.eof())
-                        ms >> strategy.slmCopies;
+                    if (strategy.slmA && strategy.slmB && strategy.slmBuffersB != strategy.slmBuffersA)
+                        stub("SLM buffer counts for A and B must match.");
+
                     break;
                 }
                 case 'k': {
@@ -606,7 +641,6 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
                     ms >> eat >> strategy.unroll[LoopK];
                     if (!ms.eof() && (ms.peek() == '/'))
                         ms >> eat >> strategy.unrollK_masked;
-                    strategy.extraKAlign = strategy.unroll[LoopK];
                     break;
                 } case 'l':
                     strategy.optAlignAB = stoi(mod.substr(1));
@@ -644,8 +678,8 @@ void parseStrategy(const std::string &str, const GEMMProblem &problem, GEMMStrat
         astrategy.newDP = strategy.C.newDP;
     }
 
-    bool surfaceAq = ((problem.quantized2DA() || problem.needsAGroupSums()) && !strategy.A.base.isStateless());
-    bool surfaceBq = ((problem.quantized2DB() || problem.needsBGroupSums()) && !strategy.B.base.isStateless());
+    bool surfaceAq = ((problem.quantized2DA() || problem.needsSeparateASums()) && !strategy.A.base.isStateless());
+    bool surfaceBq = ((problem.quantized2DB() || problem.needsSeparateBSums()) && !strategy.B.base.isStateless());
 
     bool surfaceAO = surfaceAq && problem.aOffset2D();
     bool surfaceBO = surfaceBq && problem.bOffset2D();
@@ -885,7 +919,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
         s << " c";
         if (strategy.slmA) s << 'a';
         if (strategy.slmB) s << 'b';
-        s << strategy.slmBuffers;
+        s << std::max(strategy.slmBuffersA, strategy.slmBuffersB);
         if (strategy.slmCopies > 1)
             s << 'x' << strategy.slmCopies;
 
@@ -909,7 +943,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.kParallelLocal)    s << (strategy.shrinkWGK   ? " akr" :
                                           strategy.kInterleave ? " ikr" :
                                                                  " kr");
-    if (strategy.fillGoal)          s << " fg" << strategy.fillGoal * (1. / 16);
+    if (strategy.fillGoal)          s << " fg " << strategy.fillGoal * (1. / 16);
     if (strategy.kInterleave)       s << " ki" << strategy.kInterleaveChunk;
 
     if (strategy.fixedSystolic)
@@ -934,12 +968,16 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.fmaBoustrophedon)          s << " fx";
 
     s << " k" << strategy.unroll[LoopK];
+    if (strategy.unrollK_masked > 0) s << '/' << strategy.unrollK_masked;
+    if (strategy.extraKAlign > 1) s << " ka" << strategy.extraKAlign;
 
     if (strategy.GRFs != 128)
         s << " grf" << strategy.GRFs;
     if (strategy.raHW != hw)
         if (auto ra = unparseRAHW(strategy.raHW))
             s << " ra" << ra;
+    if (strategy.ka_repack) s << " ra" << strategy.ka_repack;
+    if (strategy.kb_repack) s << " rb" << strategy.kb_repack;
 
     if (strategy.coopA == CoopSplit::MN)    s << " sm";
     if (strategy.coopA == CoopSplit::FullK) s << " ska";
@@ -969,6 +1007,7 @@ std::string unparseStrategy(HW hw, const GEMMProblem &problem, const GEMMStrateg
     if (strategy.strictFence)               s << " sf";
     if (strategy.slmATrans)                 s << " ta";
     if (strategy.slmBTrans)                 s << " tb";
+    if (strategy.chainPrefetches)           s << " cp";
     if (!strategy.altCRemainder)            s << " sr";
     else if (!strategy.block2DCRemainder)   s << " ar";
     if (strategy.block2DCFull)              s << " bf";

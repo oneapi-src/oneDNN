@@ -1179,20 +1179,17 @@ void jit_uni_pool_ncsp_kernel_t<isa, d_type>::generate_f32() {
     const bool bin_scalar = jpp_.binary_bcast == pool_binary_bcast_t::scalar;
     const bool bin_strided = jpp_.binary_bcast == pool_binary_bcast_t::full_dst;
 
-    // Save callee-saved regs (s0-s9) holding loop invariants across the nested
-    // id/ih/iw/channel loops. f32 always processes a single output position
-    // (nspc interior heavy work is the baked kernel's job), so no position loop /
-    // row-unrolling is emitted here — keeping per-call overhead minimal for the
-    // high-call-count ncsp and boundary paths.
-    // s10 additionally holds the binary post-op rhs pointer (advanced per
-    // channel chunk) when a binary post-op is fused.
-    const int stack_size = (jpp_.fuse_binary || max_train) ? 96 : 80;
+    // Save callee-saved regs (s0-s11) holding loop invariants across the nested
+    // id/ih/iw/channel loops. Without a fused binary or max-training, an outer
+    // loop processes n_pos output positions per call (the ncsp driver batches
+    // interior output rows, which share the window shape, so only the base
+    // pointers advance): s10/s11 hold the src/dst position bases and the
+    // counter is spilled. Otherwise a single position is processed and s10/s11
+    // carry the binary/workspace state.
+    const bool use_pos_loop = !jpp_.fuse_binary && !max_train;
+    const int stack_size = use_pos_loop ? 112 : 96;
     addi(sp, sp, -stack_size);
-    save_saved_gprs(this, 10);
-    if (jpp_.fuse_binary || max_train) {
-        sd(s10, sp, 80);
-        sd(s11, sp, 88);
-    }
+    save_saved_gprs(this, 12);
 
     // Load params from jit_uni_pool_ncsp_args_t
     using p_t = jit_uni_pool_ncsp_args_t;
@@ -1233,10 +1230,27 @@ void jit_uni_pool_ncsp_kernel_t<isa, d_type>::generate_f32() {
         else
             ld(s11, reg_param, GET_OFF_P(pos_base));
     }
+    if (use_pos_loop) {
+        mv(s10, s0);
+        mv(s11, s1);
+        ld(t0, reg_param, GET_OFF_P(n_pos));
+        sd(t0, sp, kNativePosSpill);
+    }
 
     li(t4, 4); // constant for unit-stride comparison
 
-    // Channel loop: process channels in vector chunks (single output position).
+    Label pos_loop, pos_done;
+    if (use_pos_loop) {
+        L(pos_loop);
+        ld(t0, sp, kNativePosSpill);
+        beqz(t0, pos_done);
+
+        mv(s0, s10);
+        mv(s1, s11);
+        ld(s2, reg_param, GET_OFF_P(channels));
+    }
+
+    // Channel loop: process channels in vector chunks (one output position).
     Label ch_loop, ch_done;
     L(ch_loop);
     beqz(s2, ch_done);
@@ -1460,12 +1474,20 @@ void jit_uni_pool_ncsp_kernel_t<isa, d_type>::generate_f32() {
     j_(ch_loop);
     L(ch_done);
 
-    // Restore callee-saved regs
-    restore_saved_gprs(this, 10);
-    if (jpp_.fuse_binary || max_train) {
-        ld(s10, sp, 80);
-        ld(s11, sp, 88);
+    if (use_pos_loop) {
+        ld(t0, reg_param, GET_OFF_P(pos_src_byte_stride));
+        add(s10, s10, t0);
+        ld(t0, reg_param, GET_OFF_P(pos_dst_byte_stride));
+        add(s11, s11, t0);
+        ld(t0, sp, kNativePosSpill);
+        addi(t0, t0, -1);
+        sd(t0, sp, kNativePosSpill);
+        j_(pos_loop);
+        L(pos_done);
     }
+
+    // Restore callee-saved regs
+    restore_saved_gprs(this, 12);
     addi(sp, sp, stack_size);
 
     ret();

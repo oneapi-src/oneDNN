@@ -64,7 +64,7 @@ void Generator<hw>::eadd3(const InstructionModifier &mod, const RegData &dst, co
 template <HW hw>
 template <typename S0>
 void Generator<hw>::ecsel(const InstructionModifier &mod, const InstructionModifier &cmod, const FlagRegister &flag,
-                          const RegData &dst,  const S0 &src0,
+                          const RegData &dst, const S0 &src0,
                           const RegData &src1, const RegData &src2, ngen::SourceLocation loc)
 {
     if (dst.getByteOffset() & 7) {
@@ -115,7 +115,7 @@ void Generator<hw>::emov(const ngen::InstructionModifier &mod, ngen::RegData dst
 
 template <HW hw>
 template <typename DT>
-void Generator<hw>::emul(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, const CommonStrategy &strategy,  CommonState &state,  ngen::SourceLocation loc)
+void Generator<hw>::emul(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, const CommonStrategy &strategy, CommonState &state, ngen::SourceLocation loc)
 {
     const bool is_xe3p = (hw == ngen::HW::Xe3p);
     const bool dstBf = dst.getType() == DataType::bf;
@@ -152,8 +152,9 @@ void Generator<hw>::eadd(const InstructionModifier &mod, const RegData &dst, con
         add(mod, dst, src0, temp.bf(0)(1), loc);
 
         state.ra.safeRelease(alloced);
-    } else
+    } else {
         EmulationImplementation::eadd<DT>(*this, mod, dst, src0, src1, strategy.emulate, state.emulate, loc);
+    }
 }
 
 template <HW hw>
@@ -302,5 +303,28 @@ void Generator<hw>::ejmpi(InstructionModifier mod, Label &dst, ngen::SourceLocat
         jmpi(mod, dst, loc);
 }
 
+template <HW hw>
+template <typename DT>
+void Generator<hw>::emin_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::Immediate &src1, CommonState &state, ngen::SourceLocation loc) {
+        min_(mod, dst, src0, src1, loc);
+}
+
+template <HW hw>
+template <typename DT>
+void Generator<hw>::emin_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, CommonState &state, ngen::SourceLocation loc) {
+        min_(mod, dst, src0, src1, loc);
+}
+
+template <HW hw>
+template <typename DT>
+void Generator<hw>::emax_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::Immediate &src1, CommonState &state, ngen::SourceLocation loc) {
+        max_(mod, dst, src0, src1, loc);
+}
+
+template <HW hw>
+template <typename DT>
+void Generator<hw>::emax_(const ngen::InstructionModifier &mod, const ngen::RegData &dst, const ngen::RegData &src0, const ngen::RegData &src1, CommonState &state, ngen::SourceLocation loc) {
+        max_(mod, dst, src0, src1, loc);
+}
 
 GEMMSTONE_NAMESPACE_END

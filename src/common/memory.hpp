@@ -66,7 +66,7 @@ struct dnnl_memory {
     const dnnl::impl::memory_desc_t *md() const { return &md_; }
     /** returns the underlying memory storage */
     dnnl::impl::memory_storage_t *memory_storage(int index = 0) const {
-        if (index >= (int)memory_storages_.size()) return nullptr;
+        if (index < 0 || index >= (int)memory_storages_.size()) return nullptr;
         return memory_storages_[index].get();
     }
 

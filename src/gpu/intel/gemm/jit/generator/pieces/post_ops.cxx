@@ -160,7 +160,7 @@ void Generator<hw>::gemmScalarBinaryOpC(BinaryOp op, Type Tco, const Subregister
 
     if (Tco != Tacc) {
         offsetTc = state.ra.alloc_sub(Tacc.ngen());
-        CopyPlan plan(hw, strategy.systolicAvailable);
+        CopyPlan plan(getProductFamily(), strategy.systolicAvailable);
         plan.append(Opcode::mov, 1, offsetTc, scalar);
         copyExecute(std::move(plan), state);
     }
@@ -680,6 +680,7 @@ void Generator<hw>::gemmApplyMXScale(const GEMMProblem &problem, const GEMMStrat
     bool maskM = state.remainders[LoopM].isValid()
             && (unrollM > problem.cqGroupM);
     if (maskM && !ngen::utils::is_zero_or_pow2(problem.cqGroupM)) stub();
+    if (problem.cqGroupN > 1) stub("MX C scale groups along N are not supported");
     assignMasks(state.C_scaleLayout, maskM ? LoopM : LoopNone, LoopN, masks, strategy, state);
     if (maskM) {
         Subregister remInd[3];
@@ -706,8 +707,8 @@ void Generator<hw>::gemmApplyMXScale(const GEMMProblem &problem, const GEMMStrat
 template <HW hw>
 void Generator<hw>::gemmCalcABOffsetAddrs(const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    bool doA = (problem.bOffset == ABOffset::Load);
-    bool doB = (problem.aOffset == ABOffset::Load);
+    bool doA = (problem.bOffset == ABOffset::Load) && isPacked(problem.A.layout);
+    bool doB = (problem.aOffset == ABOffset::Load) && isPacked(problem.B.layout);
 
     auto &effAs = state.effAs;
     auto &effBs = state.effBs;
@@ -746,6 +747,15 @@ bool Generator<hw>::gemmLoadABOffset(const GEMMProblem &problem, const GEMMStrat
     As.tileR = As.tileC = 0;
     Bs.tileR = Bs.tileC = 0;
 
+    if (!isPacked(As.layout)) {
+        As.layout = MatrixLayout::N;
+        As.setAlignment(Tc.size());
+    }
+    if (!isPacked(Bs.layout)) {
+        Bs.layout = MatrixLayout::T;
+        Bs.setAlignment(Tc.size());
+    }
+
     MatrixAddressingStrategy As_strategy = strategy.A, Bs_strategy = strategy.B;
     As_strategy.accessType = AccessType::Block;
     Bs_strategy.accessType = AccessType::Block;
@@ -753,29 +763,29 @@ bool Generator<hw>::gemmLoadABOffset(const GEMMProblem &problem, const GEMMStrat
     Bs_strategy.tileR = Bs_strategy.tileC = 0;
     As_strategy.dpasw = Bs_strategy.dpasw = false;
 
-    state.As_layout.clear();
-    state.Bs_layout.clear();
+    if (doA) state.As_layout.clear();
+    if (doB) state.Bs_layout.clear();
 
     bool ok = true;
     if (doA) ok = ok && (state.As_layout = RegisterLayout::tryCreate(hw, Tc, unrollM, 1, As, As_strategy));
     if (doB) ok = ok && (state.Bs_layout = RegisterLayout::tryCreate(hw, Tc, 1, unrollN, Bs, Bs_strategy));
     if (!ok) return false;
 
-    state.As_regs = state.ra.allocRange(state.As_layout.regs());
-    state.Bs_regs = state.ra.allocRange(state.Bs_layout.regs());
+    if (doA) state.As_regs = state.ra.allocRange(state.As_layout.regs());
+    if (doB) state.Bs_regs = state.ra.allocRange(state.Bs_layout.regs());
 
     vector<RegisterRange> As_addrs, Bs_addrs;
-    allocAddrRegs(hw, As_addrs, state.As_layout, state);
-    allocAddrRegs(hw, Bs_addrs, state.Bs_layout, state);
+    if (doA) allocAddrRegs(hw, As_addrs, state.As_layout, state);
+    if (doB) allocAddrRegs(hw, Bs_addrs, state.Bs_layout, state);
 
     if (state.effAs.isInvalid() && state.effBs.isInvalid())
         gemmCalcABOffsetAddrs(problem, strategy, state);
 
-    setupAddr(As_addrs, state.effAs, state.As_layout, Subregister(), strategy, state);
-    setupAddr(Bs_addrs, state.effBs, state.Bs_layout, Subregister(), strategy, state);
+    if (doA) setupAddr(As_addrs, state.effAs, state.As_layout, Subregister(), strategy, state);
+    if (doB) setupAddr(Bs_addrs, state.effBs, state.Bs_layout, Subregister(), strategy, state);
 
-    loadMatrix(state.As_regs, state.As_layout, As_addrs, strategy, state);
-    loadMatrix(state.Bs_regs, state.Bs_layout, Bs_addrs, strategy, state);
+    if (doA) loadMatrix(state.As_regs, state.As_layout, As_addrs, strategy, state);
+    if (doB) loadMatrix(state.Bs_regs, state.Bs_layout, Bs_addrs, strategy, state);
 
     state.ra.safeRelease(state.effAs);
     state.ra.safeRelease(state.effBs);

@@ -86,8 +86,8 @@ status_t brgemm_convolution_bwd_weights_t::pd_t::init(const engine_t *engine) {
     brgs_ = std::make_shared<brgemm_containers::brgemm_desc_container_t>();
     brgs_->resize(brgs_sz_);
 
-    const float alpha = 1.0;
-    const float beta = 1.0;
+    const float alpha = 1.0f;
+    const float beta = 1.0f;
 
     int M_begin = 0;
     int M_end = (jcp_.M_tail == jcp_.M || jcp_.M_tail == 0) ? 1 : 2;

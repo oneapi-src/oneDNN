@@ -39,18 +39,23 @@ namespace zen {
 namespace reorder {
 
 // ---------------------------------------------------------------------------
-// Zen weight pre-pack reorder
+// Zen weight pre-pack / unpack reorder
 // ---------------------------------------------------------------------------
-// Dispatched only when the destination memory_desc uses the dedicated opaque
-// `format_kind::zen_packed` format, set by the Zen matmul pd_t::init()
-// when the weights layout is left open (format_any). See
-// src/cpu/x64/zen64/common/zen_format_tag.hpp.
+// Dispatched only when one side uses the opaque `format_kind::zen_packed`
+// format (see src/cpu/x64/zen64/common/zen_format_tag.hpp).
 //
-// The destination is an opaque buffer sized to exactly the Zen packer's
-// output (zen_packed_desc.size); the bytes are produced via the Zen
-// backend `reorder_direct` (prepack mode) instead of oneDNN's standard
-// reorder. The matmul backend then treats the buffer as `mem_format_b='r'`
-// so the backend skips its own packing pass.
+// Prepack (dst is zen_packed): bytes come from the Zen backend
+// `reorder_direct` (prepack mode). The matmul backend consumes the buffer
+// with mem_format_b='r'. A dtype change is applied to a plain copy of each
+// slice before packing.
+//
+// Unpack (src is zen_packed): out-of-place inverse into a caller-provided
+// dense plain buffer of K*N elements per slice (`ab`/`ba`, `abc`/`acb`),
+// via `reorder_direct` in unreorder mode. f32, bf16, f16 and s8 (s8s8 and
+// u8s8) only; a conversion between f32 and bf16/f16 is applied after
+// unpacking.
+//
+// Packed to an identical packed descriptor is a byte copy.
 struct zen_reorder_t : public primitive_t {
     struct pd_t : public cpu_reorder_pd_t {
         using cpu_reorder_pd_t::cpu_reorder_pd_t;
@@ -59,12 +64,17 @@ struct zen_reorder_t : public primitive_t {
 
         status_t init(const engine_t *engine, const engine_t *src_engine,
                 const engine_t *dst_engine);
+
+    private:
+        status_t init_unpack(const engine_t *engine);
     };
 
     zen_reorder_t(const pd_t *apd) : primitive_t(apd) {}
     status_t execute(const exec_ctx_t &ctx) const override;
 
 private:
+    status_t execute_unpack(const exec_ctx_t &ctx) const;
+
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
 };
 

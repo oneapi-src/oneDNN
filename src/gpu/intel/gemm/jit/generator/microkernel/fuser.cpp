@@ -43,6 +43,161 @@ struct PayloadCheck {
 
 static void checkPayload(const PayloadCheck &check, const char *kernelName);
 
+namespace {
+
+struct TextSplice {
+    int section;
+    uint64_t start;
+    uint64_t removed;
+    uint64_t inserted;
+
+    uint64_t map(uint64_t address) const {
+        if (address <= start) return address;
+        if (address < start + removed) return start;
+        return address - removed + inserted;
+    }
+};
+
+// Debug sections refer to text through symbols named after the text section.
+bool isTextAlias(const std::vector<uint8_t> &binary, int symtab,
+        const Symbol &symbol, int text) {
+    if (symbol.section >= fileHeader(binary).sectionCount) return false;
+    auto link = sectionHeader(binary, symtab).link;
+    return std::strncmp(
+                   sectionName(binary, symbol.section), ".debug", 6)
+            == 0
+            && std::strcmp(elfString(binary, link, symbol.name),
+                       sectionName(binary, text))
+            == 0;
+}
+
+template <typename Map>
+void fixupAddend(std::vector<uint8_t> &, int, RelocationWithAddend &rel,
+        const TextSplice &, Map map) {
+    rel.addend = int64_t(map(uint64_t(rel.addend)));
+}
+
+// REL addends are stored in the relocated field.
+template <typename Map>
+void fixupAddend(std::vector<uint8_t> &binary, int target,
+        const Relocation &rel, const TextSplice &splice, Map map) {
+    if (target == splice.section) return;
+    enum { SymAddr = 1, SymAddr32 = 2 };
+    uint64_t bytes = 0;
+    switch (uint32_t(rel.info)) {
+        case SymAddr: bytes = 8; break;
+        case SymAddr32: bytes = 4; break;
+        default:
+            if (std::strncmp(
+                        sectionName(binary, target), ".debug", 6)
+                    == 0)
+                throw std::runtime_error(
+                        "Unsupported debug relocation of microkernel text");
+            throw std::runtime_error(
+                    "Unsupported relocation of microkernel host code");
+    }
+    auto t = sectionHeader(binary, target);
+    if (!sectionInBounds(binary, t) || rel.offset > t.size
+            || bytes > t.size - rel.offset)
+        throw std::runtime_error("Invalid zebin relocation");
+    auto *field = binary.data() + t.offset + rel.offset;
+    uint64_t addend = 0;
+    std::memcpy(&addend, field, bytes);
+    addend = map(addend);
+    if (bytes < 8 && (addend >> 32) != 0)
+        throw std::runtime_error("Relocation addend out of range");
+    std::memcpy(field, &addend, bytes);
+}
+
+template <typename R>
+void fixupRelocations(
+        std::vector<uint8_t> &binary, int s, const TextSplice &splice) {
+    auto rels = sectionEntries<R>(binary, s);
+    if (rels.empty()) return;
+    auto table = sectionHeader(binary, s);
+    if (sectionHeader(binary, table.link).type
+            != SectionHeader::SymbolTable)
+        throw std::runtime_error("Invalid zebin relocation table");
+    auto symbols = sectionEntries<Symbol>(binary, table.link);
+    auto target = int(table.info);
+    auto textAddr = sectionHeader(binary, splice.section).addr;
+    auto spliceEnd = splice.start + splice.removed;
+
+    for (auto &rel : rels) {
+        if (target == splice.section) {
+            if (rel.offset >= spliceEnd)
+                rel.offset = rel.offset - splice.removed + splice.inserted;
+            else if (rel.offset >= splice.start)
+                throw std::runtime_error(
+                        "Relocation inside replaced microkernel shim");
+        }
+
+        auto symbolIndex = rel.info >> 32;
+        if (symbolIndex >= symbols.size())
+            throw std::runtime_error("Invalid zebin relocation");
+        const auto &symbol = symbols[symbolIndex];
+
+        // Text offsets of the symbol before and after the splice. Text aliases
+        // are not moved, so their addends absorb the splice.
+        uint64_t oldSymbol = 0, newSymbol = 0;
+        if (symbol.section == splice.section) {
+            if (symbol.value < textAddr)
+                throw std::runtime_error("Invalid zebin text symbol");
+            oldSymbol = symbol.value - textAddr;
+            newSymbol = oldSymbol >= spliceEnd
+                    ? oldSymbol - splice.removed + splice.inserted
+                    : oldSymbol;
+        } else if (isTextAlias(binary, int(table.link), symbol, splice.section))
+            oldSymbol = newSymbol = symbol.value;
+        else
+            continue;
+
+        fixupAddend(binary, target, rel, splice, [&](uint64_t addend) {
+            return splice.map(oldSymbol + addend) - newSymbol;
+        });
+    }
+    storeSectionEntries(binary, s, rels);
+}
+
+void fixupElf(std::vector<uint8_t> &binary, const TextSplice &splice) {
+    auto sheaders = sectionHeaders(binary);
+    auto textAddr = sectionHeader(binary, splice.section).addr;
+    auto spliceEnd = splice.start + splice.removed;
+
+    for (int s = 0; s < int(sheaders.size()); s++) {
+        if (sheaders[s].type == SectionHeader::Relocation)
+            fixupRelocations<Relocation>(binary, s, splice);
+        if (sheaders[s].type == SectionHeader::RelocationWithAddend)
+            fixupRelocations<RelocationWithAddend>(binary, s, splice);
+    }
+
+    // Relocations above use the original symbol values.
+    for (int s = 0; s < int(sheaders.size()); s++) {
+        if (sheaders[s].type != SectionHeader::SymbolTable) continue;
+        auto symbols = sectionEntries<Symbol>(binary, s);
+        for (auto &symbol : symbols) {
+            if (symbol.section != splice.section) continue;
+            if (symbol.value < textAddr)
+                throw std::runtime_error("Invalid zebin text symbol");
+            auto start = symbol.value - textAddr;
+            if (start >= spliceEnd) {
+                symbol.value = symbol.value - splice.removed + splice.inserted;
+            } else if (start <= splice.start
+                    && symbol.size >= spliceEnd - start) {
+                symbol.size = symbol.size - splice.removed + splice.inserted;
+            } else if (symbol.size > 0
+                    && (start > splice.start
+                            || symbol.size > splice.start - start)) {
+                throw std::runtime_error(
+                        "Zebin symbol overlaps replaced microkernel shim");
+            }
+        }
+        storeSectionEntries(binary, s, symbols);
+    }
+}
+
+} // namespace
+
 /* Compacted no-op, used to keep microkernel instructions 16-byte aligned.
    Encodings are per-arch compaction table entries; verify additions with
    iga64 (sync.nop {Compacted} / mov (1|M0) null:ud r0.0:ud {Compacted}). */
@@ -73,43 +228,22 @@ static void fuse(std::vector<uint8_t> &binary,
     auto base = binary.data();
     auto bytes = binary.size();
 
-    auto fheaderPtr = reinterpret_cast<FileHeader *>(base);
-
-    bool ok = bytes >= sizeof(fheaderPtr) && fheaderPtr->magic == ELFMagic
-            && fheaderPtr->elfClass == ELFClass64
-            && fheaderPtr->endian == ELFLittleEndian
-            && fheaderPtr->sectionHeaderSize == sizeof(SectionHeader)
-            && (fheaderPtr->version == 0 || fheaderPtr->version == ELFVersion1)
-            && (fheaderPtr->type == ZebinExec
-                    || fheaderPtr->type == ELFRelocatable)
-            && bytes >= sizeof(fheaderPtr)
-                            + sizeof(SectionHeader) * fheaderPtr->sectionCount;
-
-    if (!ok)
-        throw std::runtime_error(
-                "IGC did not generate a valid zebin program binary");
+    auto fheader = fileHeader(binary);
 
     bool foundZeInfo = false;
-    const char *snames = nullptr;
-    std::vector<std::pair<SectionHeader *, int>> textSections;
+    std::vector<std::pair<SectionHeader, int>> textSections;
 
-    auto *sheaders = reinterpret_cast<SectionHeader *>(
-            base + fheaderPtr->sectionTableOff);
+    auto sheaders = sectionHeaders(binary);
 
-    snames = reinterpret_cast<char *>(
-            base + sheaders[fheaderPtr->strTableIndex].offset);
-
-    for (int s = 0; s < fheaderPtr->sectionCount; s++) {
+    for (int s = 0; s < fheader.sectionCount; s++) {
         switch (sheaders[s].type) {
             case SectionHeader::Type::ZeInfo: foundZeInfo = true; break;
             case SectionHeader::Type::Program: {
-                if (snames) {
-                    std::string sname(snames + sheaders[s].name);
-                    if (sname == ".text.Intel_Symbol_Table_Void_Program")
-                        continue;
-                    if (sname.substr(0, 6) != ".text.") continue;
-                }
-                textSections.emplace_back(sheaders + s, s);
+                std::string sname = sectionName(binary, s);
+                if (sname == ".text.Intel_Symbol_Table_Void_Program")
+                    continue;
+                if (sname.substr(0, 6) != ".text.") continue;
+                textSections.emplace_back(sheaders[s], s);
                 break;
             }
             default: break;
@@ -121,13 +255,13 @@ static void fuse(std::vector<uint8_t> &binary,
                 "IGC did not generate a valid zebin program binary");
 
     for (auto &entry : textSections) {
-        auto *text = entry.first;
+        auto text = entry.first;
         int textSectionID = entry.second;
-        if (text->offset + text->size > bytes) continue;
+        if (!sectionInBounds(binary, text)) continue;
 
-        auto *insn = reinterpret_cast<const uint32_t *>(base + text->offset);
+        auto *insn = reinterpret_cast<const uint32_t *>(base + text.offset);
         auto *iend = reinterpret_cast<const uint32_t *>(
-                base + text->offset + text->size);
+                base + text.offset + text.size);
 
         const uint8_t *spliceStart = nullptr;
         const uint8_t *spliceEnd = nullptr;
@@ -146,26 +280,16 @@ static void fuse(std::vector<uint8_t> &binary,
         if (!spliceStart || !spliceEnd) continue;
 
         // Validate the argument placement against the selected base.
-        if (check && snames) checkPayload(*check, snames + text->name + 6);
-
-        int relSectionID = -1;
-        std::string rname = ".rel";
-        rname += (snames + text->name);
-        for (int s = 0; s < fheaderPtr->sectionCount; s++) {
-            if (sheaders[s].type != SectionHeader::Type::Relocation) continue;
-            if (rname != (snames + sheaders[s].name)) continue;
-            if (relSectionID >= 0)
-                throw std::runtime_error(
-                        "Multiple relocation sections for kernel");
-            relSectionID = s;
-        }
+        if (check)
+            checkPayload(*check,
+                    sectionName(binary, textSectionID) + 6);
 
         auto removeBytes = spliceEnd - spliceStart + 16;
 
         size_t before = spliceStart - base;
         auto after = bytes - before - removeBytes;
 
-        auto kbefore = before - text->offset;
+        auto kbefore = before - text.offset;
 
         /* Keep the microkernel's (uncompacted) instructions 16-byte aligned
            so they do not straddle instruction cache lines. */
@@ -175,7 +299,7 @@ static void fuse(std::vector<uint8_t> &binary,
 
         ptrdiff_t sizeAdjust = blob.size() - removeBytes;
 
-        auto kafter = text->size - kbefore - removeBytes;
+        auto kafter = text.size - kbefore - removeBytes;
 
         std::vector<uint8_t> newBinary(bytes + sizeAdjust);
         auto newBase = newBinary.data();
@@ -185,31 +309,24 @@ static void fuse(std::vector<uint8_t> &binary,
         memmove(newBase + before + blob.size(),
                 spliceStart + removeBytes, after);
 
-        fixupJumpTargets(newBase + text->offset, kbefore, +sizeAdjust);
+        fixupJumpTargets(newBase + text.offset, kbefore, +sizeAdjust);
         fixupJumpTargets(
                 newBase + before + blob.size(), kafter, -sizeAdjust);
 
-        fheaderPtr = reinterpret_cast<FileHeader *>(newBase);
-
-        if (fheaderPtr->sectionTableOff > before)
-            fheaderPtr->sectionTableOff += sizeAdjust;
-
-        sheaders = reinterpret_cast<SectionHeader *>(
-                newBase + fheaderPtr->sectionTableOff);
-        sheaders[textSectionID].size += sizeAdjust;
-        for (int s = 0; s < fheaderPtr->sectionCount; s++)
-            if (sheaders[s].offset > before) sheaders[s].offset += sizeAdjust;
-
-        if (relSectionID >= 0) {
-            auto relSection = sheaders + relSectionID;
-            auto rel = reinterpret_cast<Relocation *>(
-                    newBase + relSection->offset);
-            auto relEnd = reinterpret_cast<Relocation *>(
-                    newBase + relSection->offset + relSection->size);
-            for (; rel < relEnd; rel++) {
-                if (rel->offset >= kbefore) rel->offset += sizeAdjust;
-            }
+        if (fheader.sectionTableOff > before) {
+            fheader.sectionTableOff += sizeAdjust;
+            storeFileHeader(newBinary, fheader);
         }
+
+        sheaders = sectionHeaders(newBinary);
+        sheaders[textSectionID].size += sizeAdjust;
+        for (int s = 0; s < fheader.sectionCount; s++)
+            if (sheaders[s].offset > before) sheaders[s].offset += sizeAdjust;
+        storeSectionHeaders(newBinary, sheaders);
+
+        TextSplice splice {
+                textSectionID, kbefore, uint64_t(removeBytes), blob.size()};
+        fixupElf(newBinary, splice);
 
 #ifdef SPLICE_DEBUG
         std::ofstream dump0("original." + std::to_string(id) + ".bin");
@@ -230,47 +347,26 @@ static void fuse(std::vector<uint8_t> &binary,
 // Drop the zebin SPIR-V section (ZebinSpirv -> Null) so the runtime can't
 // rebuild the program from stale IR and lose the spliced-in microkernels.
 static void stripIntermediateRepresentation(std::vector<uint8_t> &binary) {
-    auto base = binary.data();
-    auto bytes = binary.size();
-    auto fheaderPtr = reinterpret_cast<FileHeader *>(base);
-
-    bool ok = bytes >= sizeof(FileHeader) && fheaderPtr->magic == ELFMagic
-            && fheaderPtr->elfClass == ELFClass64
-            && fheaderPtr->sectionHeaderSize == sizeof(SectionHeader)
-            && bytes >= fheaderPtr->sectionTableOff
-                            + sizeof(SectionHeader) * fheaderPtr->sectionCount;
-    if (!ok) return;
-
-    auto *sheaders = reinterpret_cast<SectionHeader *>(
-            base + fheaderPtr->sectionTableOff);
-    for (int s = 0; s < fheaderPtr->sectionCount; s++)
+    if (!isZebin(binary)) return;
+    auto fheader = fileHeader(binary);
+    auto sheaders = sectionHeaders(binary);
+    for (int s = 0; s < fheader.sectionCount; s++)
         if (sheaders[s].type == SectionHeader::ZebinSpirv)
             sheaders[s].type = SectionHeader::Null;
+    storeSectionHeaders(binary, sheaders);
 }
 
 static bool findZeInfo(
         const std::vector<uint8_t> &binary, const char *&text, size_t &length) {
-    auto base = binary.data();
-    auto bytes = binary.size();
+    if (!isZebin(binary)) return false;
+    auto fheader = fileHeader(binary);
 
-    if (bytes < sizeof(FileHeader)) return false;
-    auto *fheader = reinterpret_cast<const FileHeader *>(base);
-    if (fheader->magic != ELFMagic || fheader->elfClass != ELFClass64)
-        return false;
-    if (fheader->sectionHeaderSize != sizeof(SectionHeader)) return false;
-    if (fheader->sectionTableOff > bytes) return false;
-    if ((bytes - fheader->sectionTableOff) / sizeof(SectionHeader)
-            < fheader->sectionCount)
-        return false;
-
-    auto *sheaders = reinterpret_cast<const SectionHeader *>(
-            base + fheader->sectionTableOff);
-    for (int s = 0; s < fheader->sectionCount; s++) {
+    auto sheaders = sectionHeaders(binary);
+    for (int s = 0; s < fheader.sectionCount; s++) {
         if (sheaders[s].type != SectionHeader::Type::ZeInfo) continue;
-        if (sheaders[s].offset > bytes
-                || sheaders[s].size > bytes - sheaders[s].offset)
-            return false;
-        text = reinterpret_cast<const char *>(base + sheaders[s].offset);
+        if (!sectionInBounds(binary, sheaders[s])) return false;
+        text = reinterpret_cast<const char *>(
+                binary.data() + sheaders[s].offset);
         length = size_t(sheaders[s].size);
         return true;
     }

@@ -40,7 +40,6 @@
 /tests/gtests/internals/test_sdpa.cpp @uxlfoundation/onednn-gpu-intel
 /tests/gtests/internals/test_utils.cpp @uxlfoundation/onednn-gpu-intel
 /tests/gtests/internals/test_utils.hpp @uxlfoundation/onednn-gpu-intel
-/tests/gtests/internals/test_gated_mlp.cpp @uxlfoundation/onednn-gpu-intel
 /tests/gtests/internals/test_cpu_ir.cpp @uxlfoundation/onednn-arch @uxlfoundation/onednn-cpu-x64
 
 # Documentation

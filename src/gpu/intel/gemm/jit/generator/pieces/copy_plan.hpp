@@ -205,7 +205,13 @@ public:
     using GRFAllocator = std::function<void(int count, ngen::GRFRange &range)>;
     using FlagAllocator = std::function<void(int bytes, ngen::FlagRegister &flag)>;
 
-    CopyPlan(ngen::HW hw_, bool systolicAvailable_) : hw(hw_), systolicAvailable(systolicAvailable_) {}
+    CopyPlan(ngen::ProductFamily productFamily_, bool systolicAvailable_)
+        : hw(ngen::getCore(productFamily_)), systolicAvailable(systolicAvailable_), productFamily(productFamily_) {}
+
+    bool needsByteFloatWorkaround() const {
+        return productFamily == ngen::ProductFamily::MTL
+            || productFamily == ngen::ProductFamily::ARL;
+    }
 
     CopyInstruction &append(CopyInstruction &&i);
     CopyInstruction &append(ngen::Opcode op, int simd, const CopyOperand &dst, const CopyOperand &src0, const CopyOperand &src1 = CopyOperand(), const CopyOperand &src2 = CopyOperand());
@@ -233,6 +239,7 @@ public:
 protected:
     ngen::HW hw;
     bool systolicAvailable;
+    ngen::ProductFamily productFamily;
     bool freezeRange = false;
     std::vector<CopyInstruction> insns, newInsns;
     std::vector<CopyTemporary> temps;
@@ -292,7 +299,6 @@ protected:
     void emulateBooleanFunction();
     bool planShflUpconvertXe3p(CopyInstruction &i);
     void legalizeShfl();
-    void legalizeDstStrides();
     void legalizeBfImmediate(CopyInstruction &i1);
     void legalizeSIMD(bool initial = false);
     void legalizeRegions();

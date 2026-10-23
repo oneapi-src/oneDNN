@@ -73,8 +73,8 @@ enum DriverInfoFlags : uint64_t {
     FlagScrambleM = 0x100000,          // Scramble WGs in m dimension.
     FlagScrambleN = 0x200000,          // Scramble WGs in n dimension.
     FlagExtraWG = 0x400000,            // Add an additional workgroup.
-    FlagAGroupSums = 0x1000000,        // Kernel needs A group sums.
-    FlagBGroupSums = 0x2000000,        // Kernel needs B group sums.
+    FlagSeparateASums = 0x1000000,     // Kernel needs a buffer with A row/group sums.
+    FlagSeparateBSums = 0x2000000,     // Kernel needs a buffer with B column/group sums.
     FlagCInterleave = 0x8000000,       // C interleave: interleave columns of C among threads (chunk = 64/Tc_ext).
 };
 
@@ -126,8 +126,8 @@ struct CommonDriverInfo {
     bool scrambleM()          const { return flags & FlagScrambleM; }
     bool scrambleN()          const { return flags & FlagScrambleN; }
     int extraWGs()            const { return (flags & FlagExtraWG) ? 1 : 0; }
-    bool needsAGroupSums()    const { return flags & FlagAGroupSums; }
-    bool needsBGroupSums()    const { return flags & FlagBGroupSums; }
+    bool needsSeparateASums() const { return flags & FlagSeparateASums; }
+    bool needsSeparateBSums() const { return flags & FlagSeparateBSums; }
 
     int wgTile(LoopType l)    const { return unroll[l] * wg[l]; }
     int kPadding()            const { return (kParallel() || kParallelVariable()) ? blockingAlt[LoopK] : 0; }

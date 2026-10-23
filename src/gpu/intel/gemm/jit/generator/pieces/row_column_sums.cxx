@@ -191,11 +191,21 @@ void Generator<hw>::accumulateSum(bool column,
                         dp4a(ne, dst, dst, srcDP4A, state.all1s.ud());
                     }
                 }
-            } else
-                if (one_of(src.getType(), {DataType::b, DataType::ub}))
+            } else if (one_of(src.getType(), {DataType::b, DataType::ub})) {
+                if (Tdst.isFP() != Tsrc.isFP()) {
+                    // all ISAs reject eadd(fp, fp, int8); int8 -> int32 -> fp:
+                    if (Tdst != Type::f32) stub();
+                    if (temp.isInvalid()) temp = state.ra.alloc_range(2);
+                    Type Td = (Tsrc.isSigned()) ? Type::s32 : Type::u32;
+                    auto src_d = temp[0].sub(0, Td.ngen())(1);
+                    auto src_fp = temp[1].sub(0, Tdst.ngen())(1);
+                    mov(ne, src_d, src);
+                    mov(ne, src_fp, src_d);
+                    eadd(ne, dst, dst, src_fp, strategy, state);
+                } else
                     eadd(ne, dst, src, dst, strategy, state);
-                else
-                    eadd(ne, dst, dst, src, strategy, state);
+            } else
+                eadd(ne, dst, dst, src, strategy, state);
 
             x += ne * reduce;
         }
@@ -206,7 +216,7 @@ void Generator<hw>::accumulateSum(bool column,
 }
 
 template <HW hw>
-void Generator<hw>::setupTeardownAccumulateSumSystolic(bool setup, Type T, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
+void Generator<hw>::setupTeardownAccumulateSum(bool setup, Type T, const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
     auto &sysSumAll1s = state.sysSumAll1s;
 
@@ -226,6 +236,12 @@ void Generator<hw>::setupTeardownAccumulateSumSystolic(bool setup, Type T, const
                 mov(ne, sysSumAll1s.uw(), uint16_t(0x3C00));
             else if (T == Type::bf16)
                 mov(ne, sysSumAll1s.uw(), uint16_t(0x3F80));
+            else if (T == Type::bf8)
+                mov(ne / 4, sysSumAll1s.ud(), uint32_t(0x3C3C3C3C));
+            else if (T == Type::hf8)
+                mov(ne / 4, sysSumAll1s.ud(), uint32_t(0x38383838));
+            else if (T == Type::f4_e2m1)
+                mov(ne / 8, sysSumAll1s.ud(), uint32_t(0x22222222));
             else
                 mov(ne, sysSumAll1s.retype(T.arithmetic().ngen()), cast(T.arithmetic(), 1.0));
         }

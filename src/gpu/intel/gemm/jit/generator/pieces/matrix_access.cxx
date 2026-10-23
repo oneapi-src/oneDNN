@@ -40,7 +40,12 @@ void Generator<hw>::prefetchMatrix(const RegisterLayout &layout, const vector<Re
 {
     for (int l = 0; l < layout.blocks(); l++) {
         prepareSeriesRegisterBlockMasking(layout, state, l);
-        loadMatrixBlock(null, layout[l], layout.addressing(), layout.addressingStrategy(), addrs[l], strategy, state, false, true);
+        bool chain = strategy.chainPrefetches && (l + 1) < layout.blocks();
+        if (chain) {
+            auto &cur = layout[l], &next = layout[l + 1];
+            chain &= next.isLoadBlock() && (cur.rowMask == next.rowMask) && (cur.colMask == next.colMask);
+        }
+        loadMatrixBlock(null, layout[l], layout.addressing(), layout.addressingStrategy(), addrs[l], strategy, state, layout.type().real().ngen(), false, true, chain);
     }
 
     finishRegisterBlockMasking(state);
@@ -65,7 +70,7 @@ void Generator<hw>::loadMatrix(const GRFMultirange &dest, const RegisterLayout &
     for (int l = 0; l < layout.blocks(); l++) {
         auto offsetReg = contiguityCheck(hw, layout[l], dest);
         prepareSeriesRegisterBlockMasking(layout, state, l);
-        loadMatrixBlock(dest[offsetReg], layout[l], layout.addressing(), astrategy, addrs[l], strategy, state, readCheck, true);
+        loadMatrixBlock(dest[offsetReg], layout[l], layout.addressing(), astrategy, addrs[l], strategy, state, layout.type().real().ngen(), readCheck, true);
     }
 
     finishRegisterBlockMasking(state);
@@ -75,8 +80,8 @@ void Generator<hw>::loadMatrix(const GRFMultirange &dest, const RegisterLayout &
 template <HW hw>
 void Generator<hw>::loadMatrixBlock(const Register &dest, const RegisterBlock &block, const MatrixAddressing &atype,
                                     const MatrixAddressingStrategy &astrategy, const RegisterRange &addr,
-                                    const CommonStrategy &strategy, CommonState &state,
-                                    bool readCheck, bool series)
+                                    const CommonStrategy &strategy, CommonState &state, DataType T,
+                                    bool readCheck, bool series, bool chain)
 {
     InstructionModifier maskMod;
     InstructionModifier mod = block.simdSize;
@@ -91,8 +96,10 @@ void Generator<hw>::loadMatrixBlock(const Register &dest, const RegisterBlock &b
     maskMod |= mask;
     mod |= mask;
 
-    // Look up preassigned token.
-    for (auto &entry: state.tokenMap) {
+    // Apply {Atomic} or look up preassigned token.
+    if (chain)
+        mod |= Atomic;
+    else for (auto &entry: state.tokenMap) {
         if (entry.first == dest.getBase() || entry.first == addr.getBase()) {
             mod |= SBID(entry.second);
             break;
@@ -188,7 +195,7 @@ void Generator<hw>::storeMatrixBlock(const GRF &src, const RegisterBlock &block,
                                      const MatrixAddressing &atype, const MatrixAddressingStrategy &astrategy,
                                      const RegisterRange &addr, const CommonStrategy &strategy, CommonState &state, bool series)
 {
-    InstructionModifier mod = block.simdSize;;
+    InstructionModifier mod = block.simdSize;
 
     // Zero SIMD size blocks are filled as part of another store. Skip them.
     if (!block.isLoadBlock())
@@ -432,7 +439,6 @@ void Generator<hw>::atomicAddMatrixBlock(Type T, const GRF &src, const RegisterB
     } else
         finishRegisterBlockMasking(state);
 }
-
 
 // Setup/teardown for descriptor handling code.
 template <HW hw>

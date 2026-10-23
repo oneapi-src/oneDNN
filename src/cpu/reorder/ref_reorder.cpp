@@ -131,8 +131,6 @@ status_t ref_reorder_t::execute(const exec_ctx_t &ctx) const {
     const auto src_dt = input_d.data_type();
     const auto dst_dt = output_d.data_type();
 
-    input += input_d.blk_off(0) * input_d.data_type_size();
-
     // This kernel can be used for tensors with multiple inner blocks for
     // which generic zero padding must be used.
     ctx.zero_pad_output(DNNL_ARG_TO);

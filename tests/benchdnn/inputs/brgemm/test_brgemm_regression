@@ -8,3 +8,22 @@
 --brgemm-attr=use_uker:0+extendable_k:1+wary_A_k_tail_read:1
 64x33:33x64 48x65:65x80 16x97:97x64 32x129:129x48
 
+# uker var_bs: rbp kept the batch pointer during result stores, and rbx
+# with the batch count was overwritten before the next output block.
+--reset --dt=bf16:bf16:f32,bf16:bf16:bf16 --bs=1,2
+--brgemm-attr=use_uker:1+var_bs:1
+64x64:64x64
+
+# uker per-N dst zero point: an N tail after a full block read the zero
+# points at the tail size offset instead of the block position.
+--reset --dt=u8:s8:f32,s8:s8:u8
+--attr-zero-points=dst:per_dim_1
+--brgemm-attr=use_uker:1
+16x64:64x19 32x64:64x35
+
+# uker BF32 without interleaved stores: the C tile store overwrote the
+# converted inputs, and the A transform cache was reused across bd blocks
+# with the bd loop innermost.
+--reset --dt=f32 --attr-fpmath=bf16 --beta=0,1 --attr-post-ops=,relu
+--brgemm-attr=use_uker:1+use_interleave_stores:0+hint_innermost_loop:1,use_uker:1+use_interleave_stores:0+hint_innermost_loop:2
+64x64:64x64 128x40:40x96

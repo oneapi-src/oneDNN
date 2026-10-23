@@ -18,6 +18,7 @@
 #include "compute_utils.hpp"
 #include "gemmstone/generator.hpp"
 #include "hw_utils.hpp"
+#include "kernel_queries.hpp"
 #include "layout_utils.hpp"
 #include "map.hpp"
 #include "ngen_object_helpers.hpp"
@@ -27,17 +28,6 @@ GEMMSTONE_NAMESPACE_START
 using namespace ngen;
 using namespace ngen::utils;
 using std::vector;
-
-inline namespace {
-int local_k_index(int h, int opCount, int period, const GEMMProblem &problem) {
-    int out = align_down(h, opCount) % period;
-    if (problem.backward()) {
-        if (period % opCount) stub();
-        return period - opCount - out;
-    }
-    return out;
-}
-} // anonymous namespace
 
 // Do one or more outer products (k = 1 slices) of A*B, updating C.
 //  ha and hb are the k indices within the A and B chunks, respectively.
@@ -185,7 +175,7 @@ void Generator<hw>::outerProductFMA(int h, int ha_period, int hb_period, int opC
         noAccSBSet = false;
 
     if (repackC && Cr_unrollX < nx && (Cr_unrollX % nx1))
-            stub("Invalid C repack panel size");
+        stub("Invalid C repack panel size");
 
     // Last A/B blocks found.
     const RegisterBlock *A_blockLast = nullptr, *B_blockLast = nullptr;
@@ -237,8 +227,8 @@ void Generator<hw>::outerProductFMA(int h, int ha_period, int hb_period, int opC
                         int compC    = csplit ? ocomp : 0;
                         int nc;
                         const RegisterBlock *C_block;
-                        auto C = repackC ? state.Cr_layout.find(i % Cr_unrollM, j % Cr_unrollN, state.Cr_regs, &nc, &C_block, compC)
-                                         : state.C_layout.find(i, j, state.C_regs[C_buffer], &nc, &C_block, compC);
+                        Subregister C = repackC ? state.Cr_layout.find(i % Cr_unrollM, j % Cr_unrollN, state.Cr_regs, &nc, &C_block, compC)
+                                                : state.C_layout.find(i, j, state.C_regs[C_buffer], &nc, &C_block, compC);
                         if (C_block->crosspack > 1) stub();
 
                         // Swap out C register for an accumulator, if necessary.
@@ -306,6 +296,31 @@ void Generator<hw>::outerProductFMA(int h, int ha_period, int hb_period, int opC
         } /* y0 */
         } /* ocomp */
         } /* ovcomp */
+
+        // A/B sums: dp4a against all 1s into Asr/Bsr, which are repacked alongside C.
+        if (globalCM ? state.fmaSumA : state.fmaSumB) {
+            auto &Xsr_layout = globalCM ? state.Asr_layout : state.Bsr_layout;
+            auto &Xsr_regs   = globalCM ? state.Asr_regs   : state.Bsr_regs;
+            auto all1s = state.sysSumAll1s.ud(0);
+            for (int hh = 0; hh < opCount; hh += minOPCount) {
+                for (int x1 = 0; x1 < nx1 && (x0 + x1) < nx;) {
+                    int x = x0 + x1, xr = x % Cr_unrollX, nsrc, nsum;
+                    const RegisterBlock *block;
+                    auto src = globalCM ? A_layout.find(x, ha + hh, A_regs, &nsrc, &block)
+                                        : B_layout.find(hb + hh, x, B_regs, &nsrc, &block);
+                    if (block->colMajor != globalCM || block->crosspack != minOPCount) stub();
+                    auto sum = globalCM ? Xsr_layout.find(xr, 0, Xsr_regs, &nsum)
+                                        : Xsr_layout.find(0, xr, Xsr_regs, &nsum);
+                    int simd = rounddown_pow2(std::min({fmaSIMD, nsrc, nsum, nx1 - x1, Cr_unrollX - xr}));
+                    auto srcD = src.reinterpret(0, isSigned(src.getType()) ? DataType::d : DataType::ud);
+                    if (startRepackC && hh == 0)
+                        dp4a(simd, sum(1), 0, srcD(1), all1s(0));
+                    else
+                        dp4a(simd, sum(1), sum(1), srcD(1), all1s(0));
+                    x1 += simd;
+                }
+            }
+        }
 
         if (endRepackC) {
             int xr = x0 - Cr_unrollX + nx1;
@@ -391,7 +406,8 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                                          const GRFMultirange &A_regs, const GRFMultirange &B_regs,
                                          const GEMMProblem &problem, const GEMMStrategy &strategy, GEMMState &state)
 {
-    auto Ta = problem.Ta, Tb = problem.Tb, Tc = problem.Tc_compute();
+    auto Ta = problem.Ta, Tb = problem.Tb;
+    auto Tc = problem.Tc_compute();
     bool globalCM = state.C_layout.colMajor();
     auto params = systolicParams(problem);
     auto ksys = params.ksys;
@@ -429,14 +445,14 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
 
     int xinc = osys;
 
-    const int compA = 0, compB = 0;
-    const int incompCount = 1, oncompCount = 1;
-
     // Split y loop for k-chaining or boustrophedon ordering.
     bool reverse = false;
     int ny1 = 1;
     if (opCount > ksys || snake)
         ny1 = rcountMax * (strategy.dpasw ? 2 : 1);
+
+    const int compA = 0, compB = 0;
+    const int icxCompNCount = 1, ocxCompNCount = 1;
 
     for (int x = 0; x < nx; x += xinc) {
         Subregister A0, B0, C0;
@@ -471,31 +487,26 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                 && (problem.Tc != Type::f16);
             if (hhbase + ksys < opCount && canFwd) mod |= Fwd;
 
-            if (startRepackC && hhbase == 0)
+            bool nullC = startRepackC && hhbase == 0;
+            if (nullC)
                 srcC0 = null.retype(C0.getType());
 
             if (state.useBDPAS) {
                 bdpas(mod, sdepth, rc, C0, srcC0, V0, N0, AS0, BS0);
-            } else
-            {
+            } else {
                 useDPASW ? dpasw(mod, sdepth, rc, C0, srcC0, V0, N0) :
                             dpas(mod, sdepth, rc, C0, srcC0, V0, N0);
             }
         };
 
-        for (int oncomp = 0; oncomp < oncompCount; oncomp++, reverse = !reverse) {
+        for (int ocxCompN = 0; ocxCompN < ocxCompNCount; ocxCompN++, reverse = !reverse) {
         for (int y0_ = 0; y0_ < ny + sum; y0_ += ny1) {
             int y0 = (snake && reverse) ? (ny - ny1 - y0_) : y0_;
             for (int hh = 0; hh < opCount; hh += ksys) {
             for (int y1 = 0; y1 < ny1 && y0 + y1 < ny + sum; y1++) {
-            for (int incomp = 0; incomp < incompCount; incomp++) {
+            for (int icxCompN = 0; icxCompN < icxCompNCount; icxCompN++) {
                 int y = y0 + y1;
                 int hha = ha + hh, hhb = hb + hh;
-
-                // Find the appropriate A and B registers.
-                int na, nb, nc;
-                const RegisterBlock *A_block, *B_block, *C_block;
-                Subregister A, B, C;
 
                 const int cxCompA = -1, cxCompB = -1, cxCompC = -1, cBuffer = 0;
                 auto bdpasScaleArg = [&](const RegisterLayout Xr_scaleLayout, Type Tx_scaleOp,
@@ -519,6 +530,10 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                     return XS;
                 };
 
+                // Find the appropriate A and B registers.
+                int na, nb, nc;
+                const RegisterBlock *A_block, *B_block, *C_block;
+                Subregister A, B, C;
                 if (y < ny) {
                     if (strategy.dpasw && (y % (2 * dpaswTile) >= dpaswTile))
                         continue;
@@ -592,19 +607,19 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
                 else {
                     if (strategy.dpasw && y < ny && rcount > 0 && rcount != dpaswTile) stub();
                     if (A0.isValid()) issueDPAS(false);
-                    AS0 = AS; BS0 = BS;
                     A0 = A; B0 = B; C0 = C; rcount = 1;
+                    AS0 = AS; BS0 = BS;
                     A0.setType(Ta.ngen());
                     B0.setType(Tb.ngen());
                     C0.setType(Tc.ngen());
                     ybase = y;
                     hhbase = hh;
                 }
-            } /* incomp loop */
+            } /* icxCompN loop */
             } /* y1 loop */
             } /* hh loop */
         } /* y loop */
-        } /* oncomp loop */
+        } /* ocxCompN loop */
 
         bool finishChain = !strategy.extendedAtomicFMA || (x + osys >= nx) || (repackC && x >= (Cr_unrollX - 2*xinc));
         issueDPAS(finishChain);
@@ -618,7 +633,6 @@ void Generator<hw>::outerProductSystolic(int h, int ha_period, int hb_period, in
 
     if (endRepackC) for (int xr = nx - Cr_unrollX + xinc; xr < nx; xr += xinc)
         outerProductRepackC(xr, xr % Cr_unrollX, xinc, h, rem, problem, strategy, state);
-
 }
 
 // Repack (part of) a C tile, converting types and scaling as needed.
@@ -634,8 +648,11 @@ void Generator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h, bool rem
     bool globalCM = C_layout.colMajor();
     bool scaleA = state.lateScale2DA, scaleB = state.lateScale2DB;
 
-    bool sumA = problem.needsASums();
-    bool sumB = problem.needsBSums();
+    // Folds raw sums (from systolic or non-systolic accumulateSum) in Asr/Bsr into
+    // As/Bs, using the same k-group scale/indexing as the A*B product above.
+    // Only systolic/FMA sums are accumulated in Asr/Bsr; others go directly to As/Bs.
+    bool sumA = state.systolicSumA || state.fmaSumA;
+    bool sumB = state.systolicSumB || state.fmaSumB;
     if (globalCM ? sumB : sumA) stub();
 
     if (Tc.size() != Tc_compute.size()) stub();
@@ -699,7 +716,7 @@ void Generator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h, bool rem
             auto ir = globalCM ? xr : y;
             auto jr = globalCM ? y : xr;
 
-            int ne = 0, ner = 0, nes[2];
+            int ne = 0, ner = 0, nes[2] = { 0 };
             const RegisterBlock *C_block, *Cr_block;
             Subregister C, Cr;
 
@@ -711,10 +728,10 @@ void Generator<hw>::outerProductRepackC(int x0, int xr0, int nx, int h, bool rem
                 Cr = Cr_layout.find(ir, jr, Cr_regs, &ner, &Cr_block);
             } else if (doASum) {
                 C  =  state.As_layout.find(x,  0, state.As_regs,  &ne,  &C_block);
-                Cr = state.Asr_layout.find(xr, 0, state.Asr_regs, &ner, &Cr_block);
+                Cr = state.Asr_layout.find(state.systolicSumA ? xr : x, 0, state.Asr_regs, &ner, &Cr_block);
             } else if (doBSum) {
                 C  =  state.Bs_layout.find(0, x,  state.Bs_regs,  &ne,  &C_block);
-                Cr = state.Bsr_layout.find(0, xr, state.Bsr_regs, &ner, &Cr_block);
+                Cr = state.Bsr_layout.find(0, state.systolicSumB ? xr : x, state.Bsr_regs, &ner, &Cr_block);
             } else stub();
 
             ne = std::min({ne, ner, xchunk});

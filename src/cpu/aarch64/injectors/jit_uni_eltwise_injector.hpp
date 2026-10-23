@@ -332,6 +332,16 @@ private:
         gelu_erf_lut, // ERF LUT: [erf(r), scale(r)], 513 pairs
         gelu_erf_lut_erf, // ERF LUT: erf(r), 513 entries
         gelu_erf_lut_scale, // ERF LUT: scale(r), 513 entries
+        swish_alpha_log2e,
+        swish_fexpa_shift, // 131199.f
+        swish_polynomial_exp_c1, // fitted coefficient for t = -r
+        swish_polynomial_exp_c2, // fitted coefficient for t^2
+        swish_polynomial_exp_min, // -32 * log2(e)
+        swish_polynomial_exp_max, // 32 * log2(e)
+        swish_asimd_exp2_c1,
+        swish_asimd_exp2_c2,
+        swish_asimd_exp2_c3,
+        swish_asimd_exp2_c4,
         log_const_127, // 127
         log_ln2, // ln(2) = 0.6931471805599453
         log_inf, // +inf

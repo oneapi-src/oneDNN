@@ -164,9 +164,10 @@ struct jit_uni_pool_ncsp_args_t {
     // (* sizeof(f32)) otherwise; the kernel advances it per channel chunk.
     const void *post_op_rhs = nullptr;
     dim_t post_op_off0 = 0;
-    // f16 generic path row unrolling: process n_pos output positions in one
-    // call (adjacent positions share the window, so only the base pointers
-    // advance). The f32 kernel ignores these and handles a single position.
+    // Position batching: process n_pos output positions in one call (the
+    // positions share the window shape, so only the base pointers advance).
+    // Used by the f16 nspc generic path and the ncsp interior rows; ignored
+    // (single position) when a binary post-op or max-training is fused.
     dim_t n_pos = 1;
     dim_t pos_src_byte_stride = 0;
     dim_t pos_dst_byte_stride = 0;
@@ -256,6 +257,12 @@ struct jit_resampling_conf_t {
     // Source points combined per output point: 1 for nearest; for linear
     // 1 << (spatial dims) = 2 (1D) / 4 (2D) / 8 (3D).
     int num_corners;
+    // Plain ncsp (channel-strided, W contiguous) f32 without a binary
+    // post-op: vectorize along OW instead of C. One call computes one output
+    // row from w_rows source rows (nearest: 1; linear: 1 / 2 / 4 for 1D / 2D /
+    // 3D), gathering columns through per-OW index and weight tables.
+    bool w_vec;
+    int w_rows;
     // Injector-fused post-ops: an eltwise chain (f32/f16, computed at f32) plus
     // at most one binary (f32 only).
     bool with_postops;
@@ -278,7 +285,13 @@ struct jit_resampling_args_t {
     void *dst;
     // Product of the 1D linear weights per corner; unused for nearest.
     float weights[8];
-    dim_t channels; // channels to combine (the vector work)
+    dim_t channels; // channels to combine (the vector work); OW when w_vec
+    // w_vec only: per-OW tables shared by every row. w_idx[k] holds the byte
+    // offset of the k-th source column (k = 0 left, 1 right; nearest uses
+    // only 0), w_wei[k] its 1D linear weight. src[r] / weights[r] then are
+    // the source rows and their D*H weight products.
+    const void *w_idx[2];
+    const void *w_wei[2];
     dim_t src_vec_byte_stride; // byte stride between consecutive channels in src
     dim_t dst_vec_byte_stride; // byte stride between consecutive channels in dst
     // Binary rhs for the injector's indirect mode, as in pooling: post_op_rhs

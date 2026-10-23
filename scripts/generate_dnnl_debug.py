@@ -256,9 +256,6 @@ def func_to_str(enum, values):
         func_blocks.append(
             'if (v == dnnl::impl::primitive_kind::sdpa) return "sdpa";'
         )
-        func_blocks.append("""
-if (v == dnnl::impl::primitive_kind::gated_mlp) return "gated_mlp";
-            """)
     if enum == "dnnl_alg_kind_t":
         func_blocks.append("""
 if (v == dnnl::impl::alg_kind::softmax_accurate_inf_as_zero)

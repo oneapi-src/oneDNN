@@ -45,7 +45,8 @@ struct chunk_params_t {
     int64_t N = 0, K = 0;
     int64_t dst_M_group = 1, dst_N_group = 1;
 
-    // Weights strides are invariant across chunks
+    // Source and weights strides are invariant across chunks
+    int64_t src_m_stride = 0, src_k_stride = 0;
     int64_t wei_k_stride = 0, wei_n_stride = 0;
 
     // Feature flags
@@ -177,9 +178,21 @@ static chunk_params_t make_chunk_params(const prb_t *prb, const args_t &args) {
 
     p.N = prb->n;
     p.K = prb->k;
-    const int wei_ndims = p.wei_m->ndims();
-    p.wei_k_stride = p.wei_m->strides()[wei_ndims - 2];
-    p.wei_n_stride = p.wei_m->strides()[wei_ndims - 1];
+
+    // Grouped memory has no strides to query, it is dense with the variable
+    // dim outermost (variable dim 1 means col-major)
+    const auto &so = prb->sparse_options;
+    const bool src_col_major = so.get_variable_dim_idx(DNNL_ARG_SRC) == 1;
+    p.src_m_stride = src_col_major ? 1 : prb->k;
+    p.src_k_stride = src_col_major ? prb->m : 1;
+    if (so.is_grouped(DNNL_ARG_WEIGHTS)) {
+        p.wei_k_stride = prb->n;
+        p.wei_n_stride = 1;
+    } else {
+        const int wei_ndims = p.wei_m->ndims();
+        p.wei_k_stride = p.wei_m->strides()[wei_ndims - 2];
+        p.wei_n_stride = p.wei_m->strides()[wei_ndims - 1];
+    }
 
     return p;
 }
@@ -187,8 +200,9 @@ static chunk_params_t make_chunk_params(const prb_t *prb, const args_t &args) {
 // Computational kernel for a single (mc, nc) chunk of output
 //
 // _base and _stride are used to compute the actual offsets as follows:
-//   src(m, k)    = src_base + m * K + k (src is always row-major,
-//                  for grouped matmul, src_base is the start of the group)
+//   src_ab(m, k) = src_base + m * K + k (for scales and zps, row-major src)
+//   src(m, k)    = src_base + m * src_m_stride + k * src_k_stride
+//                  (for grouped matmul, src_base is the start of the group)
 //   wei_ab(k, n) = wei_base + k * N + n (for scales and zps)
 //   wei(k, n)    = wei_base + k * wei_k_stride + n * wei_n_stride
 //   dst(m, n)    = (dst_row_base + m) * N + n
@@ -199,6 +213,7 @@ static void compute_ref_matmul_chunk(const chunk_params_t &p, int64_t M,
         int64_t bia_n_stride, const attr_t &attr, const args_t &args,
         int64_t group_id = 0) {
     const int64_t N = p.N, K = p.K;
+    const int64_t src_m_stride = p.src_m_stride, src_k_stride = p.src_k_stride;
     const int64_t wei_k_stride = p.wei_k_stride, wei_n_stride = p.wei_n_stride;
 
     // Mutable per-element quant params; initialised to the single value when
@@ -249,7 +264,8 @@ static void compute_ref_matmul_chunk(const chunk_params_t &p, int64_t M,
 
             for (int64_t k = 0; k < k_block; ++k) {
                 const auto kk = gK * k_block + k;
-                const auto src_off = src_base + m * K + kk;
+                const auto src_off
+                        = src_base + m * src_m_stride + kk * src_k_stride;
                 const auto wei_off
                         = wei_base + kk * wei_k_stride + n * wei_n_stride;
 
@@ -379,20 +395,25 @@ static void compute_ref_matmul_chunk(const chunk_params_t &p, int64_t M,
 //     wei is per-group dense [G, K, N]. Supports a per-group bias [G, N].
 //
 //   variable K (2Dx2D): src+wei grouped. K_g varies per group; M, N fixed.
-//     src is row-major [M, total_K] in the reference, wei is row-major
-//     [total_K, N], dst is dense [G, M, N]. No bias.
+//     src is col-major [M, total_K], wei is row-major [total_K, N],
+//     dst is dense [G, M, N]. No bias.
 //
-// Per-group ranges are read from the grouped memory descriptor offsets.
+// Grouped args are grouped f32 reference memories:
+//   buffer 0: f32 data
+//   buffer 1: s32 cumulative offsets [group_count]
+// Per-group ranges are read from the src offsets, var_M dst rows are placed
+// by the dst offsets, as the library does.
 void compute_ref_grouped_matmul(const prb_t *prb, const args_t &args) {
     const bool var_M = prb->sparse_options.is_grouped(DNNL_ARG_DST);
 
     const int64_t group_count = prb->sparse_options.get_group_count();
-    const auto &group_sizes = prb->sparse_options.get_group_sizes(DNNL_ARG_SRC);
-
-    std::vector<int64_t> group_offsets(group_count + 1);
-    group_offsets[0] = 0;
-    for (int64_t g = 0; g < group_count; g++)
-        group_offsets[g + 1] = group_offsets[g] + group_sizes[g];
+    const int offsets_idx
+            = sparse_options_t::grouped_data_t::grouped_offsets_idx;
+    const int32_t *src_offs
+            = args.find(DNNL_ARG_SRC).get_mapped_pointer<int32_t>(offsets_idx);
+    const int32_t *dst_offs = var_M
+            ? args.find(DNNL_ARG_DST).get_mapped_pointer<int32_t>(offsets_idx)
+            : nullptr;
 
     // Precompute common parameters for the different chunks computations
     const chunk_params_t params = make_chunk_params(prb, args);
@@ -405,7 +426,8 @@ void compute_ref_grouped_matmul(const prb_t *prb, const args_t &args) {
     std::vector<int64_t> chunk_offsets(group_count + 1);
     chunk_offsets[0] = 0;
     for (int64_t g = 0; g < group_count; g++) {
-        const int64_t M = var_M ? group_sizes[g] : prb->m;
+        const int64_t M
+                = var_M ? src_offs[g] - (g == 0 ? 0 : src_offs[g - 1]) : prb->m;
         chunk_offsets[g + 1] = chunk_offsets[g] + div_up(M, params.dst_M_group);
     }
     const int64_t M_chunks = chunk_offsets[group_count];
@@ -415,24 +437,27 @@ void compute_ref_grouped_matmul(const prb_t *prb, const args_t &args) {
                                   chunk_offsets.end(), fmc)
                 - chunk_offsets.begin() - 1;
         const int64_t mc = fmc - chunk_offsets[g];
-        const int64_t off = group_offsets[g];
-        const int64_t M = var_M ? group_sizes[g] : prb->m;
+        const int64_t off = g == 0 ? 0 : src_offs[g - 1];
+        const int64_t group_size = src_offs[g] - off;
+        const int64_t M = var_M ? group_size : prb->m;
 
         // Per-group base offsets:
-        //   src(m, k) = src_base + m * K + k
+        //   src(m, k) = src_base + m * src_m_stride + k * src_k_stride
         //   wei(k, n) = wei_base + k * wei_k_stride + n * wei_n_stride
         //   dst(m, n) = (dst_row_base + m) * N + n
         //   bia(m, n) = bia_base + m * bia_m_stride + n * bia_n_stride
         //
-        // Note, that var_M offsets groups along rows (off*K),
-        // var_K along K-columns (off)
-        const int64_t src_base = var_M ? off * prb->k : off;
+        // Note, that var_M offsets groups along rows,
+        // var_K along K-columns
+        const int64_t src_base
+                = var_M ? off * params.src_m_stride : off * params.src_k_stride;
         const int64_t wei_base
                 = var_M ? g * prb->k * prb->n : off * params.wei_k_stride;
-        const int64_t dst_row_base = var_M ? off : g * prb->m;
+        const int64_t dst_row_base
+                = var_M ? (g == 0 ? 0 : dst_offs[g - 1]) : g * prb->m;
 
-        // Row stride is total_K, however var_K reduces over the group K_g
-        const int64_t Kg = var_M ? prb->k : group_sizes[g];
+        // var_K reduces over the group K_g only, not total_K
+        const int64_t Kg = var_M ? prb->k : group_size;
 
         int64_t bia_base = 0, bia_m_stride = 0, bia_n_stride = 0;
         if (var_M && params.bia_dt != dnnl_data_type_undef) {

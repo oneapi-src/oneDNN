@@ -1640,8 +1640,8 @@ static inline void adjust_thread_count(dim_t m, dim_t n, dim_t k, int *nthrs) {
         if (is_only_avx2) {
             // Somehow it seems beneficial to split the job into bigger pieces.
             // Use L2 per-core cache size as a deal-breaker.
-            int use_n_threads = utils::div_up(
-                    problem_memory_footprint, l2_cache_per_thread);
+            int use_n_threads = static_cast<int>(utils::div_up(
+                    problem_memory_footprint, l2_cache_per_thread));
             *nthrs = nstl::min(*nthrs, use_n_threads);
             return;
         }

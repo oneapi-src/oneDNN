@@ -662,8 +662,8 @@ status_t brg_blocking_t::estimate_brgemm_ur() {
     const auto vM = M > 0 ? M : M_tail;
     const auto vN = N > 0 ? N : N_tail;
 
-    const float alpha = 1.0;
-    const float beta = 0.0;
+    const float alpha = 1.0f;
+    const float beta = 0.0f;
     brgemm_desc_t brg;
     CHECK(brgemm_utils::init_brgemm_conf(&brg, isa, brgemm_addr, src_dt, wei_dt,
             brgemm_row_major, alpha, beta, LDA, LDB, LDC, vM, vN, vK, nullptr,

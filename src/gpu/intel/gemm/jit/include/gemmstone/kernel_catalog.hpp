@@ -66,7 +66,7 @@ enum RestrictionTags : char {
     ReqOffsetMultiDim = 'O', ReqNoOffsetMultiDim = 'o',
     ReqSystolic = 'I',       ReqNoSystolic = 'i',
     ReqIntegrated = 'H',     ReqNoIntegrated = 'h',
-    ReqDiscrete = 'J',     ReqNoDiscrete = 'j',
+    ReqDiscrete = 'J',       ReqNoDiscrete = 'j',
     ReqBatchN = 'N',         ReqNoBatchN = 'n',
     ReqCustom1 = 'D',        ReqNoCustom1 = 'd',
     ReqXe2Block2D = 'G',     ReqNoXe2Block2D = 'g',
