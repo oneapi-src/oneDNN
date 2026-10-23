@@ -686,6 +686,8 @@ public:
         L(label_tbl_end);
     }
 
+    void xbyak_jit_breakpoint();
+
     DNNL_DISALLOW_COPY_AND_ASSIGN(jit_generator_t);
 
     jit_generator_t(void *code_ptr = nullptr, size_t code_size = MAX_CODE_SIZE,
