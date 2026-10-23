@@ -83,10 +83,14 @@ dnnl_status_t init_pd(init_pd_args_t &init_pd_args) {
     std::string src_tag = (prb->dir & FLAG_FWD) ? prb->tag : tag::any;
     std::string dst_tag = (prb->dir & FLAG_BWD) ? prb->tag : tag::any;
 
-    auto src_d = dnn_mem_t::init_md(prb->ndims, prb->src_dims().data(),
-            force_f32_dt ? dnnl_f32 : prb->sdt, src_tag);
-    auto dst_d = dnn_mem_t::init_md(prb->ndims, prb->dst_dims().data(),
-            force_f32_dt ? dnnl_f32 : prb->ddt, dst_tag);
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> src_d;
+    DNN_SAFE_STATUS(
+            dnn_mem_t::init_md(src_d, prb->ndims, prb->src_dims().data(),
+                    force_f32_dt ? dnnl_f32 : prb->sdt, src_tag));
+    benchdnn_dnnl_wrapper_t<dnnl_memory_desc_t> dst_d;
+    DNN_SAFE_STATUS(
+            dnn_mem_t::init_md(dst_d, prb->ndims, prb->dst_dims().data(),
+                    force_f32_dt ? dnnl_f32 : prb->ddt, dst_tag));
 
     dnnl_alg_kind_t alg = alg2alg_kind(prb->alg);
 
