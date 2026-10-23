@@ -102,7 +102,7 @@ public:
             static constexpr bool use_exact_tail_scalar_bcast = true;
 
             const eltwise_injector::static_params_t eltwise_params(
-                    true /*save_state*/, reg_elt_inj_table_, elt_inj_opmask_,
+                    false /*save_state*/, reg_elt_inj_table_, elt_inj_opmask_,
                     elt_inj_p_tmp0_, true /*is_fwd*/, false /*use_dst*/);
 
             const binary_injector::rhs_arg_static_params_t binary_rhs_params {
