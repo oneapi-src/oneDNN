@@ -1434,7 +1434,10 @@ float compute_blocking_heuristic_avx2_f32(brgemm_matmul_conf_t &bgmmc,
     const auto matmul = maybe_swap_mn_params(bgmmc, matmul_);
     const int nthr = bgmmc.nthr;
 
-    dim_t max_m_blk = nstl::min((dim_t)256, matmul.M);
+    const bool need_large_m_blk
+            = bgmmc.is_gemv && matmul.M >= 10240 && matmul.K <= 2560;
+    dim_t max_m_blk
+            = nstl::min(need_large_m_blk ? (dim_t)512 : (dim_t)256, matmul.M);
     dim_t min_m_blk = nstl::min((dim_t)32, matmul.M);
 
     dim_t n_blk = bgmmc.N_blk;
@@ -1457,6 +1460,7 @@ float compute_blocking_heuristic_avx2_f32(brgemm_matmul_conf_t &bgmmc,
     if (req_additional_parallel > 1) {
         min_m_blk = saturate<dim_t>(nstl::min((dim_t)16, max_m_blk), max_m_blk,
                 static_cast<dim_t>(matmul.M / req_additional_parallel));
+        if (bgmmc.is_gemv) min_m_blk = rnd_up(min_m_blk, (dim_t)16);
         max_parallel *= div_up(matmul.M, min_m_blk);
     } else if (bm_conf_utils.check_is_transposed(bgmmc.src_tag)
             && matmul.K >= 4096) {
