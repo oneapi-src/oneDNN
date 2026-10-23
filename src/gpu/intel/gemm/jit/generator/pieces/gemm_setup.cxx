@@ -1729,7 +1729,7 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
     if (problem.needsASums()) {
         state.systolicSumA = strategy.systolic && globalCM;
         state.fmaSumA = fmaSums && globalCM;
-        state.slmASums = slmA && !state.systolicSumA && !state.fmaSumA && !usesLateScale(problem, strategy, true);
+        state.slmASums = slmA && !state.systolicSumA && !state.fmaSumA && !usesLateScale(problem, strategy, true) && Tc == Tc_compute;
 
         if (!state.slmASums && !globalCM && strategy.dpasw) stub();  /* don't have full A data */
 
@@ -1747,7 +1747,7 @@ bool Generator<hw>::gemmAccumulateCSetup(GEMMProblem &problem, GEMMStrategy &str
     if (problem.needsBSums()) {
         state.systolicSumB = strategy.systolic && !globalCM;
         state.fmaSumB = fmaSums && !globalCM;
-        state.slmBSums = slmB && !state.systolicSumB && !state.fmaSumB && !usesLateScale(problem, strategy, false);
+        state.slmBSums = slmB && !state.systolicSumB && !state.fmaSumB && !usesLateScale(problem, strategy, false) && Tc == Tc_compute;
 
         if (!state.slmBSums && globalCM && strategy.dpasw) stub();
 

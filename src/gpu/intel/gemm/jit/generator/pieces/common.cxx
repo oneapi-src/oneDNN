@@ -670,6 +670,10 @@ void Generator<hw>::initState(const CommonProblem &problem, const CommonStrategy
 
     setEfficient64Bit(interface.getEfficient64Bit());
 
+    // sendgx encodes r511 as null.
+    if (getEfficient64Bit() && strategy.GRFs > 256)
+        state.ra.claim(GRF(511));
+
     if (problem.gtpinSupport)
         interface.requireScratch(128);
 

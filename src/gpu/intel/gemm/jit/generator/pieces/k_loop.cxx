@@ -868,12 +868,13 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     int remaskPeriod = lcm(remaskA ? ka_loadRem : 1,
                            remaskB ? kb_loadRem : 1);
     auto reqRemaskSetup = every(remaskPeriod);
+    bool remaskTransient = remaskA && remaskB && (iremaskB != iremaskA);   /* set up masks per use to save registers */
     auto reqRemaskA = every(ka_loadRem)
                     | variants(A_copies);
     auto reqRemaskB = every(kb_loadRem)
                     | variants(B_copies);
 
-    if (remaskA || remaskB) ls.schedule({
+    if ((remaskA || remaskB) && !remaskTransient) ls.schedule({
         {reqRemaskSetup | duration(remaskPeriod), nothing},
         {reqRemaskSetup, [&](Iteration h) {
             if (remaskA) {
@@ -888,6 +889,7 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     });
 
     auto teardownRemasks = [&] {
+        if (remaskTransient) return;
         if (remaskA)
             setupTeardownRemask(Ta_remask, iremaskA, false, remaskPeriod, state.K, strategy, state);
         if (remaskB && iremaskB != iremaskA)
@@ -897,14 +899,20 @@ void Generator<hw>::kLoop(KLoop type, const GEMMProblem &problem, GEMMStrategy &
     if (remaskA) ls.schedule({
         {reqLoadA, nothing},
         {reqRemaskA, [&](Iteration h) {
-            remaskLayout(iremaskA, true, state.A_layoutRem, A_regs(h), strategy, state, h % remaskPeriod);
+            if (remaskTransient)
+                remaskLayoutSingle(iremaskA, true, ka_loadRem, state.K, state.A_layoutRem, A_regs(h), strategy, state, -h.counterOffset());
+            else
+                remaskLayout(iremaskA, true, state.A_layoutRem, A_regs(h), strategy, state, h % remaskPeriod);
         }}
     });
 
     if (remaskB) ls.schedule({
         {reqLoadB, nothing},
         {reqRemaskB, [&](Iteration h) {
-            remaskLayout(iremaskB, false, state.B_layoutRem, B_regs(h), strategy, state, h % remaskPeriod);
+            if (remaskTransient)
+                remaskLayoutSingle(iremaskB, false, kb_loadRem, state.K, state.B_layoutRem, B_regs(h), strategy, state, -h.counterOffset());
+            else
+                remaskLayout(iremaskB, false, state.B_layoutRem, B_regs(h), strategy, state, h % remaskPeriod);
         }}
     });
 
