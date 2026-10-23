@@ -191,16 +191,21 @@ run-time attributes in use.
      * Runtime dimensions.
      * Three and higher-dimensional matrices.
    - The layout of dropout mask has to be exactly the same as that of dst.
-
+   - Grouped quantization for scales and weights zero points must be in blocks
+     that are a multiple of 16. Source zero points data must be in blocks that
+     are a multiple of 32.
+   - Grouped quantization is unsupported for source `m` dimension.
 
 3. **CPU**
    - Configurations with `s8`/`u8` source data type, `s8` weight data type and `f16`
      destination data type aren't supported.
    - Configurations with floating point source data type, integer weights data
      type and floating point destination data type are not optimized.
-   - Block-wise (K-grouped, e.g. `mask = (1 << 0) | (1 << 1)`) weights scales
-     require K group size to be a multiple of 16 elements.
    - The layout of dropout mask has to be exactly the same as that of dst.
+   - Grouped quantization for scales and weights zero points must be in blocks
+     that are a multiple of 16. Source zero points data must be in blocks that
+     are a multiple of 32.
+   - Grouped quantization is unsupported for source `m` dimension.
 
 ## Performance Tips
 

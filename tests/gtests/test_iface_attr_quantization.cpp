@@ -540,6 +540,10 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
                     CHECK_INVALID(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_zp(
                                     arg, (1 << 1) + (1 << 0), b_dt, {1, 3})));
+                    // Src M-groups are not supported.
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_zp(
+                                    arg, (1 << 1) + (1 << 0), b_dt, {32, 1})));
                 } else {
                     CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_zp(arg, (1 << 1) + (1 << 0))));
@@ -578,6 +582,10 @@ TEST_F(attr_quantization_test_t, TestMatmul) {
                     CHECK_INVALID(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
                                     data_type::f32, {1, 3})));
+                    // Src M-groups are not supported.
+                    CHECK_UNIMPL(matmul::primitive_desc(eng, a_md, b_md, c_md,
+                            gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
+                                    data_type::f32, {32, 1})));
                     CHECK_OK(matmul::primitive_desc(eng, a_md, b_md, c_md,
                             gen_attr_with_scales(arg, (1 << 1) + (1 << 0),
                                     data_type::f32, {1, 32})));
