@@ -355,6 +355,15 @@ void jit_generator_t::uni_str(const ZReg &src, const XReg &addr) {
     str(src, ptr(addr));
 }
 
+void jit_generator_t::xbyak_jit_breakpoint() {
+#if defined(DNNL_DEV_MODE)
+    // Meaningless magic number. Sort of looks like "xbyak" if you close your
+    // eyes completely.
+    brk(0xb7ac);
+    nop();
+#endif
+}
+
 } // namespace aarch64
 } // namespace cpu
 } // namespace impl
