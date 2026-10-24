@@ -60,6 +60,23 @@
 --reset --dt=s8:s8:f32 --stag=ba,ab --wtag=ab --dtag=ab 1x2:2x256
 # s8 weights decompression with with s8 src
 --reset --dt=s8:s8:f32 --stag=ab --dtag=ab --wtag=ab --attr-scales=wei:common:1.25:f32 --attr-zero-points=wei:common:2:s8 8x8:8x8
+# Unsupported weight scales in grouped and per-OC decompression.
+--reset --dt=f32:s8:f32 --stag=ab --wtag=ab --dtag=ab --attr-fpmath=strict:true --attr-scales=wei:per_tensor:f8_e4m3:16x1 8x32:32x17_n"unsupported_wei_scales_dt"
+--reset --dt=bf16:s4:f32 --stag=ab --wtag=ba --dtag=ab --attr-fpmath=bf16:true --attr-scales=wei:per_oc:e8m0 8x32:32x18_n"unsupported_xf16_wei_scales_dt"
+# Grouped int8 quantization must validate both source and weight scales.
+--reset --dt=u8:s8:f32 --stag=ab --wtag=ab --dtag=ab --attr-scales=src:per_tensor:f8_e4m3:1x16+wei:per_tensor:f32:16x1,src:per_tensor:e8m0:1x16+wei:per_tensor:f32:16x1,src:per_tensor:f32:1x16+wei:per_tensor:f8_e4m3:16x1 8x32:32x17_n"unsupported_grouped_scales_dt"
+# Destination scales must remain f32 for both decompression and grouped int8.
+--reset --dt=f32:s8:f32 --stag=ab --wtag=ab --dtag=ab --attr-fpmath=strict:true --attr-scales=dst:common:2:bf16 8x32:32x17_n"unsupported_dst_scales_dt"
+--reset --dt=u8:s8:f32 --stag=ab --wtag=ab --dtag=ab --attr-scales=src:per_tensor:f32:1x16+wei:per_tensor:f32:16x1+dst:common:2:f16 8x32:32x17_n"unsupported_grouped_dst_scales_dt"
+# Supported xf16 source scales, including on AVX2.
+--reset --dt=f32:s8:f32 --stag=ab --wtag=ab --dtag=ab --attr-fpmath=strict:true --attr-scales=src:common:2:bf16,src:common:2:f16 8x32:32x17_n"supported_src_scales_dt"
+# Supported xf16 weight scales with grouped and per-OC decompression.
+--reset --dt=bf16:s4:f32 --stag=ab --wtag=ab --dtag=ab --attr-fpmath=bf16:true --attr-scales=wei:per_tensor:bf16:16x1 8x32:32x18_n"supported_grouped_wei_scales_dt"
+--reset --dt=bf16:s4:f32 --stag=ab --wtag=ba --dtag=ab --attr-fpmath=bf16:true --attr-scales=wei:per_oc:f16 8x32:32x18_n"supported_per_oc_wei_scales_dt"
+# Also exercise the f16-source decompression condition.
+--reset --dt=f16:s4:f32 --stag=ab --wtag=ab --dtag=ab --attr-fpmath=f16:true --attr-scales=wei:per_tensor:f16:16x1 8x32:32x18_n"f16_decompression_scales_dt"
+# Supported f32/xf16 grouped scales together with f32 destination scales.
+--reset --dt=u8:s8:f32 --stag=ab --wtag=ab --dtag=ab --attr-scales=src:per_tensor:f32:1x16+wei:per_tensor:f32:16x1+dst:common:2,src:per_tensor:bf16:1x16+wei:per_tensor:bf16:16x1+dst:common:2,src:per_tensor:f16:1x16+wei:per_tensor:f16:16x1+dst:common:2 8x32:32x17_n"supported_grouped_scales_dt"
 # dst scales + eltwise post-op injection
 --reset --dt=s8:s8:f32 --stag=ab --wtag=ab --dtag=ab --attr-scales=dst:common:1 --attr-post-ops=gelu_erf 8x8:8x8
 # fp8 binary post-ops with int8 inputs
