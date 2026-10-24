@@ -32,6 +32,8 @@ namespace impl {
 namespace cpu {
 namespace rv64 {
 
+struct jit_uni_batch_normalization_fwd_stat_kernel_t;
+
 template <cpu_isa_t isa>
 struct jit_uni_batch_normalization_fwd_t : public primitive_t {
     struct pd_t : public cpu_batch_normalization_fwd_pd_t {
@@ -101,10 +103,12 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
             // Statistics are reduced over one contiguous D*H*W row per (n, c).
             VDISPATCH_BNORM(
                     IMPLICATION(!use_global_stats(),
-                            utils::one_of(dtsrc, f32, f16) && !channels_dense
-                                    && spatial_dense(src_d)),
+                            (utils::one_of(dtsrc, f32, f16)
+                                    || (dtsrc == bf16 && is_training()))
+                                    && !channels_dense && spatial_dense(src_d)),
                     VERBOSE_UNSUPPORTED_FEATURE,
-                    "computed statistics require f32 or f16 ncx data");
+                    "computed statistics require f32/f16 ncx data or bf16 ncx "
+                    "training");
 
             fused_relu_in_kernel_ = fuse_norm_relu();
             init_scratchpad();
@@ -153,6 +157,7 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
     };
 
     jit_uni_batch_normalization_fwd_t(const pd_t *apd) : primitive_t(apd) {}
+    status_t init(engine_t *engine) override;
 
     status_t execute(const exec_ctx_t &ctx) const override {
         return execute_forward(ctx);
@@ -161,6 +166,9 @@ struct jit_uni_batch_normalization_fwd_t : public primitive_t {
 private:
     status_t execute_forward(const exec_ctx_t &ctx) const;
     const pd_t *pd() const { return (const pd_t *)primitive_t::pd().get(); }
+    const jit_uni_batch_normalization_fwd_stat_kernel_t *mean_kernel_ = nullptr;
+    const jit_uni_batch_normalization_fwd_stat_kernel_t *variance_kernel_
+            = nullptr;
 };
 
 template <cpu_isa_t isa>

@@ -115,12 +115,15 @@ jit_uni_batch_normalization_fwd_stat_kernel_t::
     : jit_generator_t("jit_uni_batch_normalization_fwd_stat_kernel")
     , data_type_(data_type)
     , calculate_variance_(calculate_variance) {
-    create_kernel();
+    status_ = create_kernel();
 }
 
 const jit_uni_batch_normalization_fwd_stat_kernel_t &
 get_jit_uni_batch_normalization_fwd_stat_kernel(
         data_type_t dt, bool calculate_variance) {
+    if (dt == data_type::bf16)
+        return get_jit_batch_normalization_fwd_stat_kernel_dt<data_type::bf16>(
+                calculate_variance);
     if (dt == data_type::f16)
         return get_jit_batch_normalization_fwd_stat_kernel_dt<data_type::f16>(
                 calculate_variance);
@@ -195,7 +198,10 @@ void jit_uni_batch_normalization_fwd_stat_kernel_t::generate() {
 
     vsetvli(reg_vl, reg_len, SEW::e16, LMUL::m1, VTA::ta, VMA::ma);
     vle16_v(v_src16, reg_src);
-    vfwcvt_f_f_v(v_src, v_src16);
+    if (data_type_ == data_type::bf16)
+        vfwcvtbf16_f_f_v(v_src, v_src16);
+    else
+        vfwcvt_f_f_v(v_src, v_src16);
     vsetvli(reg_vl, reg_vl, SEW::e32, LMUL::m2, VTA::ta, VMA::ma);
     if (calculate_variance_) {
         vfsub_vf(v_src, v_src, f_mean);

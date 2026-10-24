@@ -124,6 +124,7 @@ struct jit_uni_batch_normalization_fwd_stat_kernel_t : public jit_generator_t {
 
     jit_uni_batch_normalization_fwd_stat_kernel_t(
             data_type_t data_type, bool calculate_variance);
+    status_t status() const { return status_; }
 
     void operator()(const call_params_t *p) const {
         jit_generator_t::operator()(p);
@@ -135,6 +136,7 @@ protected:
 private:
     data_type_t data_type_;
     bool calculate_variance_;
+    status_t status_ = status::runtime_error;
 };
 
 const jit_uni_batch_normalization_fwd_stat_kernel_t &

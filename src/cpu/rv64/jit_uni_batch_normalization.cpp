@@ -43,6 +43,23 @@ static inline void bn_fwd_kernel(const void *s_base, void *d_base, size_t len,
 } // namespace
 
 template <cpu_isa_t isa>
+status_t jit_uni_batch_normalization_fwd_t<isa>::init(engine_t *engine) {
+    UNUSED(engine);
+    if (!pd()->use_global_stats()) {
+        const auto dt = pd()->src_md()->data_type;
+        const auto &mean = get_jit_uni_batch_normalization_fwd_stat_kernel(
+                dt, /*calculate_variance=*/false);
+        CHECK(mean.status());
+        const auto &variance = get_jit_uni_batch_normalization_fwd_stat_kernel(
+                dt, /*calculate_variance=*/true);
+        CHECK(variance.status());
+        mean_kernel_ = &mean;
+        variance_kernel_ = &variance;
+    }
+    return status::success;
+}
+
+template <cpu_isa_t isa>
 status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
         const exec_ctx_t &ctx) const {
     const memory_desc_wrapper data_d(pd()->src_md());
@@ -57,6 +74,12 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
 
     const float eps = pd()->desc()->batch_norm_epsilon;
     const size_t data_size = types::data_type_size(dtsrc);
+    // Layouts and strides match, but submemory base offsets may differ.
+    const size_t src_offset0 = pd()->src_md()->offset0;
+    const size_t dst_offset0 = pd()->dst_md()->offset0;
+    auto dst_off = [=](size_t src_off) {
+        return src_off - src_offset0 + dst_offset0;
+    };
 
     void *dst = CTX_OUT_MEM(void *, DNNL_ARG_DST);
     const void *src = CTX_IN_MEM(const void *, DNNL_ARG_SRC);
@@ -88,7 +111,8 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
         mean = CTX_IN_MEM(const float *, DNNL_ARG_MEAN);
         var = CTX_IN_MEM(const float *, DNNL_ARG_VARIANCE);
     } else {
-        assert(utils::one_of(dtsrc, data_type::f32, data_type::f16)
+        assert(utils::one_of(
+                       dtsrc, data_type::f32, data_type::f16, data_type::bf16)
                 && !channels_dense);
         const dim_t SP = D * H * W;
         const dim_t count = N * SP;
@@ -101,12 +125,8 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
                     memory_tracking::names::key_bnorm_tmp_stats);
             var_out = mean_out + C;
         }
-        const auto &mean_kernel
-                = get_jit_uni_batch_normalization_fwd_stat_kernel(
-                        dtsrc, /*calculate_variance=*/false);
-        const auto &variance_kernel
-                = get_jit_uni_batch_normalization_fwd_stat_kernel(
-                        dtsrc, /*calculate_variance=*/true);
+        const auto &mean_kernel = *mean_kernel_;
+        const auto &variance_kernel = *variance_kernel_;
 
         parallel_nd(C, [&](dim_t c) {
             auto reduce
@@ -161,8 +181,8 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
             const size_t base_off = off(n, c, 0, 0, 0) + sp_start;
             const void *s_ptr = reinterpret_cast<const void *>(
                     reinterpret_cast<const char *>(src) + base_off * data_size);
-            void *d_ptr = reinterpret_cast<void *>(
-                    reinterpret_cast<char *>(dst) + base_off * data_size);
+            void *d_ptr = reinterpret_cast<void *>(reinterpret_cast<char *>(dst)
+                    + dst_off(base_off) * data_size);
             bn_fwd_kernel(s_ptr, d_ptr, static_cast<size_t>(len), mean_b, sm_b,
                     sv_b, dtsrc, /*per_elem_params=*/false, with_relu);
         });
@@ -179,8 +199,8 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
 
             const void *s_ptr = reinterpret_cast<const void *>(
                     reinterpret_cast<const char *>(src) + base_off * data_size);
-            void *d_ptr = reinterpret_cast<void *>(
-                    reinterpret_cast<char *>(dst) + base_off * data_size);
+            void *d_ptr = reinterpret_cast<void *>(reinterpret_cast<char *>(dst)
+                    + dst_off(base_off) * data_size);
             const float mean_b[1] = {vmean};
             const float sm_b[1] = {sm};
             const float sv_b[1] = {sv};
@@ -206,8 +226,8 @@ status_t jit_uni_batch_normalization_fwd_t<isa>::execute_forward(
             const size_t base_off = off(n, 0, d, h, w);
             const void *s_ptr = reinterpret_cast<const void *>(
                     reinterpret_cast<const char *>(src) + base_off * data_size);
-            void *d_ptr = reinterpret_cast<void *>(
-                    reinterpret_cast<char *>(dst) + base_off * data_size);
+            void *d_ptr = reinterpret_cast<void *>(reinterpret_cast<char *>(dst)
+                    + dst_off(base_off) * data_size);
             bn_fwd_kernel(s_ptr, d_ptr, static_cast<size_t>(C), mean, sm_arr,
                     sv_arr, dtsrc, /*per_elem_params=*/true, with_relu);
         });
