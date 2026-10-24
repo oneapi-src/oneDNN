@@ -31,7 +31,7 @@ namespace cpu {
 namespace rv64 {
 
 rvv_softmax_fwd_t::rvv_softmax_fwd_t(const pd_t *apd) : primitive_t(apd) {
-    if (pd()->use_jit_) {
+    if (pd()->use_jit_ && !pd()->use_inner_jit_) {
         affine_kernel_.reset(new jit_rvv_softmax_affine_kernel_t());
     }
 #if defined(XBYAK_RISCV_V) && XBYAK_RISCV_V == 1
@@ -43,6 +43,27 @@ rvv_softmax_fwd_t::rvv_softmax_fwd_t(const pd_t *apd) : primitive_t(apd) {
         scatter_kernel_ = &get_xf16_strided_kernel<false>();
     }
 #endif
+}
+
+status_t rvv_softmax_fwd_t::init(engine_t *engine) {
+    UNUSED(engine);
+#if defined(XBYAK_RISCV_V) && XBYAK_RISCV_V == 1
+    if (pd()->use_inner_jit_) {
+        const bool inf_as_zero
+                = pd()->alg_kind() == alg_kind::softmax_accurate_inf_as_zero;
+        const auto &reduce = get_softmax_inner_kernel(false,
+                pd()->rsp_.is_logsoftmax, inf_as_zero, pd()->inner_lmul_,
+                pd()->use_axis_jit_, pd()->pack_axis_);
+        CHECK(reduce.status());
+        const auto &apply = get_softmax_inner_kernel(true,
+                pd()->rsp_.is_logsoftmax, inf_as_zero, pd()->inner_lmul_,
+                pd()->use_axis_jit_, pd()->pack_axis_);
+        CHECK(apply.status());
+        inner_reduce_kernel_ = &reduce;
+        inner_apply_kernel_ = &apply;
+    }
+#endif
+    return status::success;
 }
 
 namespace {
@@ -296,6 +317,104 @@ status_t rvv_softmax_fwd_t::execute_forward(const exec_ctx_t &ctx) const {
 
             const dim_t outer_stride = pd()->axis_size(true) * rsp.inner_size;
             const int nthr = pd()->nthr_;
+
+#if defined(XBYAK_RISCV_V) && XBYAK_RISCV_V == 1
+            if (pd()->use_inner_jit_) {
+                src_f32 += pd()->src_md()->offset0;
+                dst_f32 += pd()->dst_md()->offset0;
+                const dim_t tile = pd()->inner_tile_;
+                const dim_t blocks = utils::div_up(rsp.inner_size, tile);
+                const dim_t work = rsp.outer_size * blocks;
+                auto scratch = ctx.get_scratchpad_grantor().template get<float>(
+                        memory_tracking::names::key_softmax_reduction);
+                auto interim = (pd()->pack_axis_
+                                       || (pd()->use_axis_jit_
+                                               && !rsp.is_logsoftmax))
+                        ? ctx.get_scratchpad_grantor().template get<char>(
+                                  memory_tracking::names::
+                                          key_softmax_interim_store)
+                        : nullptr;
+                const int active_nthr
+                        = static_cast<int>(nstl::min<dim_t>(nthr, work));
+                parallel(active_nthr, [&](int ithr, int nthr) {
+                    // Keep the reserved per-thread spacing when a small tile
+                    // is selected, avoiding shared scratch cache lines.
+                    float *maximum = scratch + ithr * 2 * pd_t::inner_tile_size;
+                    float *sum = maximum + tile;
+                    dim_t begin, end;
+                    balance211(work, nthr, ithr, begin, end);
+                    for (dim_t job = begin; job < end; ++job) {
+                        const dim_t outer = job / blocks;
+                        const dim_t inner = (job % blocks) * tile;
+                        const dim_t count
+                                = nstl::min(tile, rsp.inner_size - inner);
+                        const dim_t base = outer * outer_stride + inner;
+                        jit_rvv_softmax_inner_kernel_t::call_params_t p {
+                                src_f32 + base, dst_f32 + base, rsp.axis_size,
+                                rsp.inner_size
+                                        * static_cast<dim_t>(sizeof(float)),
+                                count, maximum, sum};
+                        float *tmp = interim
+                                ? reinterpret_cast<float *>(interim)
+                                        + static_cast<size_t>(
+                                                  pd()->buffered_axis_ ? job
+                                                                       : ithr)
+                                                * (pd()->buffered_axis_
+                                                                ? pd()->buffered_axis_stride_
+                                                                : pd()->axis_size(
+                                                                          true))
+                                : nullptr;
+                        if (pd()->pack_axis_) {
+                            for (dim_t a = 0; a < rsp.axis_size; ++a)
+                                tmp[a] = src_f32[base + a * rsp.inner_size];
+                            p.src = tmp;
+                            p.dst = tmp;
+                            p.stride_bytes = sizeof(float);
+                        } else if (tmp) {
+                            // Keep intermediate exponentials private to the
+                            // thread. Adjacent columns may share cache lines
+                            // in the destination, which is written only once.
+                            p.dst = tmp;
+                        }
+                        (*inner_reduce_kernel_)(&p);
+                        if (rsp.is_logsoftmax) {
+                            for (dim_t c = 0; c < count; ++c)
+                                sum[c] = logf(sum[c]);
+                        } else {
+                            p.src = p.dst;
+                            if (!pd()->pack_axis_) p.dst = dst_f32 + base;
+                        }
+                        (*inner_apply_kernel_)(&p);
+                        if (pd()->pack_axis_ && !pd()->buffered_axis_) {
+                            for (dim_t a = 0; a < rsp.axis_size; ++a)
+                                dst_f32[base + a * rsp.inner_size] = tmp[a];
+                        }
+                    }
+                });
+                if (pd()->buffered_axis_) {
+                    // The completed parallel region separates all source reads
+                    // from destination writes, including in-place execution.
+                    // Assign rows, not columns, so threads write disjoint ranges.
+                    const auto *values
+                            = reinterpret_cast<const float *>(interim);
+                    const size_t buffer_stride = pd()->buffered_axis_stride_;
+                    parallel(active_nthr, [&](int ithr, int nthr) {
+                        for_nd(ithr, nthr, rsp.outer_size, rsp.axis_size,
+                                [&](dim_t outer, dim_t axis) {
+                            for (dim_t inner = 0; inner < rsp.inner_size;
+                                    ++inner) {
+                                const dim_t column
+                                        = outer * rsp.inner_size + inner;
+                                dst_f32[outer * outer_stride
+                                        + axis * rsp.inner_size + inner]
+                                        = values[column * buffer_stride + axis];
+                            }
+                        });
+                    });
+                }
+                break;
+            }
+#endif
 
             // Use the vectorized exp kernel only when it pays off: the axis
             // must fill at least one LMUL=4 e32 vector (16 elements at VLEN=128;
